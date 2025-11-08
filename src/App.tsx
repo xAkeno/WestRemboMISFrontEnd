@@ -4,8 +4,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
+import IndexBCS from "./pages/indexBCS";
 import NotFound from "./pages/NotFound";
-
+import SettingsPage from "./pages/SettingsPage";
+import Residents from "./pages/Residents";
+import Reports from "./pages/Reports";
+import ClearanceForm from "./pages/Clearances";
+import Certifications from "./pages/Certifications";
+import BuildingClearanceForm from "./pages/BuildingClearanceForm";
+import Dashboard from "./pages/Dashboard";
+import ResidentForm from "./pages/ResidentForm";
+import BussinessClearanceForm from "./pages/BussinessClearanceForm";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -13,13 +22,22 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
+            <Route path="/clearancehome/clearance" element={<IndexBCS />} /> {/*Barangay Clearance */}
+            <Route path="/reports" element={<Reports />} /> {/*Report*/}
+            <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
+            <Route path="/residenthome" element={<ResidentForm />} /> {/*Resident Form*/}
+            <Route path="/" element={<Dashboard />} /> {/*Dashboard*/}
+            <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
+            <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
+            <Route path="/certificatehome" element={<Certifications/>} /> {/*Certificate home*/}
+            <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+            <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

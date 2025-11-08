@@ -1,4 +1,5 @@
-import { format } from "date-fns";
+import WebViewer from "@pdftron/webviewer";
+import { useEffect, useRef } from "react";
 
 interface FormData {
   transactionNo: string;
@@ -27,96 +28,103 @@ interface FormData {
 
 interface CertificatePreviewProps {
   formData: FormData;
+  handleTemplateUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  templatePath?: string;
 }
 
-export const CertificatePreview = ({ formData }: CertificatePreviewProps) => {
-  const fullName = `${formData.prefix} ${formData.firstname} ${formData.middleName.charAt(0)}. ${formData.surname}${
-    formData.extension ? " " + formData.extension : ""
-  }`.toUpperCase();
+export const CertificatePreview = ({
+  formData,
+  handleTemplateUpload,
+  templatePath = "/templates/bruh.pdf",
+}: CertificatePreviewProps) => {
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const viewerInstanceRef = useRef<any>(null);
 
-  const fullAddress = `${formData.houseBlockLot} ${formData.street} - ${formData.zone}`;
+  // 🧭 Field name mapping (matches PDF form field names)
+  const fieldMapping: Record<string, string> = {
+    transactionNo: "Transaction No",
+    certificationNo: "Certification No",
+    issuedDate: "Issued Date",
+    prefix: "Prefix",
+    firstname: "Firstname",
+    middleName: "Middle Name",
+    surname: "Surname",
+    extension: "Extension",
+    houseBlockLot: "House Block Lot No",
+    street: "Street",
+    zone: "Zone",
+    age: "Age",
+    dateOfBirth: "Date of Birth",
+    placeOfBirth: "Place of Birth",
+    contactNo: "Contact No",
+    residencyPeriod: "Period of Residency",
+    registeredVoter: "Registered Voter",
+    houseOwner: "House Owner",
+    relationship: "Relationship",
+    purpose: "Purpose",
+    punongBarangay: "Punong Barangay",
+    forPunongBrgy: "For Punong Barangay",
+  };
+
+  // ✏️ Update PDF fields with form data
+  const updatePDFFields = () => {
+    const instance = viewerInstanceRef.current;
+    if (!instance) return;
+
+    const { annotationManager, documentViewer } = instance.Core;
+    const fieldManager = annotationManager.getFieldManager();
+    const allFields = fieldManager.getFields();
+
+    allFields.forEach((field: any) => {
+      const formKey = Object.keys(fieldMapping).find(
+        (key) => fieldMapping[key] === field.name
+      );
+
+      if (formKey && formData[formKey] !== undefined) {
+        const value =
+          formData[formKey] instanceof Date
+            ? (formData[formKey] as Date).toLocaleDateString()
+            : formData[formKey] || "";
+
+        field.widgets.forEach((widget: any) => {
+          widget.setValue(value);
+        });
+      }
+    });
+
+    documentViewer.refreshAll();
+  };
+
+  // 📄 Initialize WebViewer once
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    WebViewer(
+      {
+        path: "/webviewer",
+        initialDoc: templatePath,
+      },
+      viewerRef.current
+    ).then((instance: any) => {
+      viewerInstanceRef.current = instance;
+
+      const { documentViewer } = instance.Core;
+      documentViewer.addEventListener("annotationsLoaded", () => {
+        updatePDFFields();
+      });
+    });
+  }, []);
+
+  // 🔄 Update fields when form data changes
+  useEffect(() => {
+    updatePDFFields();
+  }, [formData]);
 
   return (
-    <div className="bg-[hsl(var(--certificate-bg))] rounded-lg shadow-xl p-8 md:p-12 border-4 border-[hsl(var(--accent))] min-h-[600px]">
-      <div className="text-center mb-8 border-b-2 border-[hsl(var(--accent))] pb-4">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-wide mb-2">
-          BARANGAY CERTIFICATION
-        </h1>
-        <div className="flex items-center justify-end gap-4 text-sm text-muted-foreground">
-          <span>
-            {formData.issuedDate ? format(formData.issuedDate, "EEEE, d MMMM yyyy") : "Date not set"}
-          </span>
-        </div>
-      </div>
+    <div>
 
-      <div className="mb-8">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-primary">{fullName || "[NAME]"}</h2>
-          <p className="text-lg text-muted-foreground mt-1">{fullAddress || "[ADDRESS]"}</p>
-          <p className="text-md text-muted-foreground">
-            {formData.issuedDate ? format(formData.issuedDate, "do 'of' MMMM, yyyy") : "[DATE]"}
-          </p>
-        </div>
-
-        <div className="bg-card rounded-lg p-6 shadow-md border border-border">
-          <div className="space-y-4 text-base leading-relaxed text-foreground">
-            <p className="indent-8">
-              This is to certify that <strong>{fullName || "{NAME}"}</strong> of legal age, Filipino, is a
-              bona fide resident of <strong>{fullAddress || "{Address}"}</strong>, West Rembo, Taguig City.
-            </p>
-
-            <p className="indent-8">
-              This certification is issued upon the request of the above mentioned person in support to
-              his/her residency requirements for <strong>{formData.purpose || "{Purpose}"}</strong>.
-            </p>
-
-            <p className="indent-8">
-              Issued on the <strong>{formData.issuedDate ? format(formData.issuedDate, "do") : "{Day}"}</strong>{" "}
-              day of{" "}
-              <strong>
-                {formData.issuedDate ? format(formData.issuedDate, "MMMM, yyyy") : "{MONTH, YYYY}"}
-              </strong>{" "}
-              at Barangay West Rembo Taguig City.
-            </p>
-
-            <div className="mt-8 pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                {formData.issuedDate ? format(formData.issuedDate, "MM/dd/yyyy") : "00/00/0000"}{" "}
-                By10FATMA By10SAGRE By10SAGRE By10
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-12 flex justify-between items-end">
-        <div className="text-left">
-          <div className="text-sm text-muted-foreground mb-1">Verified by:</div>
-          <div className="border-t-2 border-foreground pt-2 min-w-[200px]">
-            <p className="font-semibold text-foreground">Barangay Staff</p>
-          </div>
-        </div>
-
-        <div className="text-center">
-          <div className="border-4 border-[hsl(var(--accent))] rounded-full w-24 h-24 flex items-center justify-center mb-2 bg-[hsl(var(--official-seal))]/10">
-            <span className="text-xs font-bold text-center">OFFICIAL<br/>SEAL</span>
-          </div>
-          <div className="border-t-2 border-foreground pt-2 min-w-[200px]">
-            <p className="font-bold text-foreground text-lg">
-              {formData.punongBarangay || "HON. [NAME]"}
-            </p>
-            <p className="text-sm text-muted-foreground">Punong Barangay</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 text-center text-xs text-muted-foreground border-t pt-4">
-        <p>Barangay West Rembo, Taguig City</p>
-        <p className="mt-1">
-          Certification No: <strong>{formData.certificationNo || "BC-YYYY-MM-XXXX"}</strong> | Transaction
-          No: <strong>{formData.transactionNo || "XX"}</strong>
-        </p>
-      </div>
+      {/* PDF Viewer */}
+      <div className="w-full h-[600px]" ref={viewerRef}></div>
     </div>
   );
 };

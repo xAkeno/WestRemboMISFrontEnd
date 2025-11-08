@@ -1,0 +1,92 @@
+import { NavLink } from "@/components/NavLink";
+import { 
+  Users, 
+  FileCheck, 
+  Award, 
+  BarChart3, 
+  Settings, 
+  LogOut,
+  ChevronLeft
+} from "lucide-react";
+import { Button } from "./ui/button";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+
+const menuItems = [
+  { title: "Dashboard", path: "/", icon: Users },
+  { title: "Resident Records", path: "/residenthome", icon: Users },
+  { title: "Clearances", path: "/clearancehome", icon: FileCheck },
+  { title: "Certifications", path: "/certificatehome", icon: Award },
+  { title: "Reports", path: "/reports", icon: BarChart3 },
+  { title: "Settings", path: "/settings", icon: Settings },
+];
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside 
+      className={cn(
+        "bg-sidebar-background border-r border-sidebar-border transition-all duration-300 flex flex-col relative",
+        collapsed ? "w-20" : "w-64"
+      )}
+    >
+      <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
+        {!collapsed && (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+              <FileCheck className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-sidebar-foreground text-sm">West Rembo</h2>
+              <p className="text-xs text-muted-foreground">Clearance System</p>
+            </div>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCollapsed(!collapsed)}
+          className="text-sidebar-foreground hover:bg-sidebar-accent"
+        >
+          <ChevronLeft className={cn("w-5 h-5 transition-transform", collapsed && "rotate-180")} />
+        </Button>
+      </div>
+
+      <nav className="flex-1 p-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
+                "text-sidebar-foreground hover:bg-sidebar-accent",
+                collapsed && "justify-center"
+              )}
+              activeClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span className="font-medium">{item.title}</span>}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-sidebar-border">
+        <button
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all",
+            "text-sidebar-foreground hover:bg-sidebar-accent",
+            collapsed && "justify-center"
+          )}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="font-medium">Logout</span>}
+        </button>
+      </div>
+    </aside>
+  );
+}

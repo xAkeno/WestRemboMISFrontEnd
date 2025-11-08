@@ -41,6 +41,7 @@ interface CertificationFormProps {
 
 export const CertificationForm = ({ formData, setFormData }: CertificationFormProps) => {
   const updateField = (field: keyof FormData, value: string | Date | undefined) => {
+    console.log(`Updating field ${field} to value:`, value);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
