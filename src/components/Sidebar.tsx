@@ -11,9 +11,10 @@ import {
 import { Button } from "./ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const menuItems = [
-  { title: "Dashboard", path: "/", icon: Users },
+  { title: "Dashboard", path: "/dashboard", icon: Users },
   { title: "Resident Records", path: "/residenthome", icon: Users },
   { title: "Clearances", path: "/clearancehome", icon: FileCheck },
   { title: "Certifications", path: "/certificatehome", icon: Award },
@@ -23,6 +24,7 @@ const menuItems = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <aside 
@@ -82,9 +84,10 @@ export function Sidebar() {
             "text-sidebar-foreground hover:bg-sidebar-accent",
             collapsed && "justify-center"
           )}
+          onClick={() => navigate("/")}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="font-medium">Logout</span>}
+          {!collapsed && <span className="font-medium" >Logout</span>}
         </button>
       </div>
     </aside>
