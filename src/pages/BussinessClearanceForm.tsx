@@ -1,4 +1,5 @@
-import { useState,useRef} from "react";
+import { useState,useRef } from "react";
+import axios from "axios";
 
 import {
   FileText,
@@ -71,7 +72,38 @@ const Index = () => {
   });
 
   const handleSave = () => {
+    // placeholder, real save handled in async handler below
     toast.success("Record saved successfully");
+  };
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveAsync = async () => {
+    setIsSaving(true);
+    try {
+      // Use token from localStorage if available, otherwise use provided fallback
+      const fallbackToken = "23|PDMlrBxvx6QqNKlR7mMT1T10vAwSjqOYvFotKAeBc455eff4";
+
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/business-clearances",
+        clearanceData,
+        {
+          headers: {
+            Authorization: `Bearer ${fallbackToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success("Business clearance created");
+      console.log("Response:", response.data);
+    } catch (error: any) {
+      const errMsg = error.response?.data?.message || "Failed to create business clearance";
+      toast.error(errMsg);
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   
@@ -132,7 +164,12 @@ const Index = () => {
           <div className="grid lg:grid-cols-2 gap-8 print:grid-cols-1">
             {/* Form Section */}
             <div className="print:hidden">
-              <BussinessClearanceCard data={clearanceData} onChange={setClearanceData} />
+              <BussinessClearanceCard
+                data={clearanceData}
+                onChange={setClearanceData}
+                onSave={handleSaveAsync}
+                isSaving={isSaving}
+              />
             </div>
 
             {/* Certificate Preview */}

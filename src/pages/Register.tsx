@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
 
 const Register = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -80,14 +82,35 @@ const Register = () => {
 
     setIsLoading(true);
 
-    // Simulate registration
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await api.post("/api/register", {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+      });
+
+      // Store token in localStorage if provided
+      if (response.data.token) {
+        localStorage.setItem("token", response.data.token);
+        localStorage.setItem("user", JSON.stringify(response.data.user || {}));
+      }
+
       toast({
         title: "Success!",
         description: "Your account has been created successfully.",
       });
-    }, 1500);
+
+      // Navigate to login or dashboard
+      navigate("/");
+    } catch (error: any) {
+      setIsLoading(false);
+      const errorMessage = error.response?.data?.message || "Registration failed. Please try again.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
 
   return (

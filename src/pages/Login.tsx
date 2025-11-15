@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "@/lib/api";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,18 +9,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 
+// api instance handles baseURL and Authorization header
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Error",
@@ -29,15 +32,39 @@ const Login = () => {
     }
 
     setIsLoading(true);
-    
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
+
+    try {
+  // Perform login (we'll receive a token in the response)
+  const response = await api.post("/api/login", { email, password });
+
+      // Store token and user in localStorage (if provided)
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
+      if (response.data?.user) {
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+      }
+
       toast({
         title: "Success!",
         description: "You've been logged in successfully.",
       });
-    }, 1500);
+
+      // Navigate to dashboard
+      navigate("/dashboard");
+    } catch (error: any) {
+      let errorMessage = "Login failed. Please try again.";
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || errorMessage;
+      }
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -69,6 +96,7 @@ const Login = () => {
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -90,16 +118,11 @@ const Login = () => {
                   </button>
                 </div>
               </div>
-              {/* <div className="flex items-center justify-between text-sm">
-                <Link to="#" className="text-primary hover:text-accent transition-colors font-medium">
-                  Forgot password?
-                </Link>
-              </div> */}
+
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all duration-200 shadow-[var(--shadow-soft)]"
                 disabled={isLoading}
-                onClick={() => navigate("/dashboard")}
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">

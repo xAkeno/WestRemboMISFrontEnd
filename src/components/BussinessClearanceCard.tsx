@@ -46,9 +46,11 @@ export interface ClearanceData {
 interface ClearanceFormProps {
   data: ClearanceData;
   onChange: (data: ClearanceData) => void;
+  onSave?: () => void;
+  isSaving?: boolean;
 }
 
-export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) => {
+export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving }: ClearanceFormProps) => {
   
   const updateField = (field: keyof ClearanceData, value: string) => {
     const newData = { ...data, [field]: value };
@@ -90,6 +92,8 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
       inspectedNote: "",
     };
     onChange(newRecord);
+
+    
   toast.success("New record initialized");
 };
 
@@ -349,6 +353,24 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
             >
               <PlusCircle className="h-4 w-4" />
               <span className="hidden sm:inline">New</span>
+            </Button>
+            <Button
+              onClick={onSave}
+              variant="default"
+              className="w-full flex items-center gap-2"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span className="hidden sm:inline">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">Save</span>
+                </>
+              )}
             </Button>
             <Button
               onClick={handleFindRecord}

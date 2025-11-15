@@ -1,4 +1,5 @@
 import { useState, useRef} from "react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CertificationForm } from "@/components/CertificationForm";
@@ -43,6 +44,7 @@ interface FormData {
 }
 
 const Index = () => {
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     transactionNo: "10",
     certificationNo: "BC-2025-01-0010",
@@ -96,9 +98,62 @@ const Index = () => {
     toast.success("New record form cleared");
   };
 
-  const handleSaveRecord = () => {
-    toast.success("Record saved successfully");
-  };
+const handleSaveRecord = async () => {
+  setIsSaving(true);
+
+  try {
+
+    // Prepare certificate data
+    const certificateData = {
+      transaction_no: formData.transactionNo,
+      certification_no: formData.certificationNo,
+      issued_date: formData.issuedDate?.toISOString().split('T')[0],
+      prefix: formData.prefix,
+      firstname: formData.firstname,
+      middle_name: formData.middleName,
+      surname: formData.surname,
+      extension: formData.extension,
+      house_block_lot: formData.houseBlockLot,
+      street: formData.street,
+      zone: formData.zone,
+      age: formData.age,
+      date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0],
+      place_of_birth: formData.placeOfBirth,
+      contact_no: formData.contactNo,
+      residency_period: formData.residencyPeriod,
+      registered_voter: formData.registeredVoter,
+      house_owner: formData.houseOwner,
+      relationship: formData.relationship,
+      purpose: formData.purpose,
+      punong_barangay: formData.punongBarangay,
+      for_punong_brgy: formData.forPunongBrgy,
+    };
+
+    // Step 1: send POST request with cookies
+    const response = await axios.post(
+      "http://127.0.0.1:8000/api/barangay-certificate",
+      certificateData,
+      {
+        withCredentials: true, // important
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    toast.success("Certificate created successfully");
+    console.log("Response:", response.data);
+
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || "Failed to create certificate";
+    toast.error(errorMessage);
+    console.error("Error:", error);
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+
 
   const handleFindRecord = () => {
     toast.info("Search functionality - Coming soon");
@@ -174,9 +229,27 @@ const Index = () => {
                       <span className="hidden sm:inline">New</span>
                     </Button>
                     <Button
+                      onClick={handleSaveRecord}
+                      disabled={isSaving}
+                      className="w-full flex items-center gap-2"
+                    >
+                      {isSaving ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          <span className="hidden sm:inline">Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          <span className="hidden sm:inline">Save</span>
+                        </>
+                      )}
+                    </Button>
+                    <Button
                       onClick={handleFindRecord}
                       variant="outline"
                       className="w-full flex items-center gap-2"
+                      disabled={isSaving}
                     >
                       <Search className="h-4 w-4" />
                       <span className="hidden sm:inline">Find</span>
@@ -185,6 +258,7 @@ const Index = () => {
                       onClick={handleRefresh}
                       variant="outline"
                       className="w-full flex items-center gap-2"
+                      disabled={isSaving}
                     >
                       <RefreshCw className="h-4 w-4" />
                       <span className="hidden sm:inline">Refresh</span>
