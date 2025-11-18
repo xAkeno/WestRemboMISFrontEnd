@@ -18,7 +18,7 @@ import {BusinessClearancePreview} from "@/components/BusinessClearancePreview";
 
 
 interface FormData {
-  recordNo: string;
+  id: number;
   brgyBusinessNo: string;
   issuedDate: string;
   prefix: string;
@@ -31,7 +31,6 @@ interface FormData {
   businessDetails: string;
   capital: string;
   orNo: string;
-  remarks: string;
   houseBlockLotNo: string;
   street: string;
   zone: string;
@@ -46,7 +45,7 @@ interface FormData {
 
 const Index = () => {
   const [clearanceData, setClearanceData] = useState<FormData>({
-    recordNo: "",
+    id: 0,
     brgyBusinessNo: "",
     issuedDate: new Date().toISOString().split('T')[0],
     prefix: "",
@@ -59,7 +58,6 @@ const Index = () => {
     businessDetails: "",
     capital: "",
     orNo: "",
-    remarks: "",
     houseBlockLotNo: "",
     street: "",
     zone: "",
@@ -82,16 +80,11 @@ const Index = () => {
     setIsSaving(true);
     try {
       // Use token from localStorage if available, otherwise use provided fallback
-      const fallbackToken = "23|PDMlrBxvx6QqNKlR7mMT1T10vAwSjqOYvFotKAeBc455eff4";
-
       const response = await axios.post(
         "http://127.0.0.1:8000/api/business-clearances",
         clearanceData,
         {
-          headers: {
-            Authorization: `Bearer ${fallbackToken}`,
-            "Content-Type": "application/json",
-          },
+          withCredentials:true
         }
       );
 
@@ -110,8 +103,8 @@ const Index = () => {
 
   const handleNewRecord = () => {
     setClearanceData({
-      recordNo: "",
-      brgyBusinessNo: "",
+      id: 0,
+      brgyBusinessNo: "BBUSINESSNO_001",
       issuedDate: new Date().toISOString().split('T')[0],
       prefix: "",
       firstname: "",
@@ -123,7 +116,6 @@ const Index = () => {
       businessDetails: "",
       capital: "",
       orNo: "",
-      remarks: "",
       houseBlockLotNo: "",
       street: "",
       zone: "",

@@ -40,13 +40,13 @@ export default function Clearances() {
             onClick={() => navigate('/clearancehome/buildingclearance')}
           />
 
-          <ClearanceCard
+          {/* <ClearanceCard
             title="Residency Certificate"
             description="Certificate of residency for residents"
             icon={Home}
             gradient="accent"
             onClick={() => navigate('/clearancehome/residencycertificate')}
-          />
+          /> */}
         </div>
       </div>
     </Layout>

@@ -2,12 +2,11 @@ import WebViewer from "@pdftron/webviewer";
 import { useEffect, useRef } from "react";
 
 interface FormData {
-  recordNo: string;
-  clearanceNo: string;
+  bcert_number: string;
   issuedDate: string;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middlename: string;
   surname: string;
   extension: string;
   establishment: string;
@@ -18,8 +17,9 @@ interface FormData {
   zone: string;
   orNo: string;
   remarks: string;
-  applicantType: string;
-  address: string;
+  punongBarangay: string;
+  forThePunongBarangay: string;
+  barangayPosition: string
 }
 
 interface Props {

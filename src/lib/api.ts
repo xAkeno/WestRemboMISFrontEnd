@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
-  withCredentials: false,
+  withCredentials: true,
 });
 
 // Attach Bearer token from localStorage to every request automatically

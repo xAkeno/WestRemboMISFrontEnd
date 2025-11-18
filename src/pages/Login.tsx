@@ -33,25 +33,21 @@ const Login = () => {
 
     setIsLoading(true);
 
-    try {
-  // Perform login (we'll receive a token in the response)
-  const response = await api.post("/api/login", { email, password });
+    try 
+    {
+      const response = await api.post("/api/login", { email, password }, {withCredentials: true});
 
-      // Store token and user in localStorage (if provided)
-      if (response.data?.token) {
-        localStorage.setItem("token", response.data.token);
+      console.log(response);
+      if (response.status === 200) {
+
+        toast({
+          title: "Success!",
+          description: "You've been logged in successfully.",
+        });
+
+        navigate("/dashboard");
       }
-      if (response.data?.user) {
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-      }
 
-      toast({
-        title: "Success!",
-        description: "You've been logged in successfully.",
-      });
-
-      // Navigate to dashboard
-      navigate("/dashboard");
     } catch (error: any) {
       let errorMessage = "Login failed. Please try again.";
       if (axios.isAxiosError(error)) {

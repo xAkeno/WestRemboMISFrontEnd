@@ -17,84 +17,85 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import WebViewer from "@pdftron/webviewer";
+import { BarangayCertificateFindModal } from "@/components/BarangayCertificateFindModal";
 
 interface FormData {
-  transactionNo: string;
-  certificationNo: string;
-  issuedDate: Date | undefined;
+  bcert_number: string;
+  issued_date: Date | undefined;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middle_name: string;
   surname: string;
   extension: string;
-  houseBlockLot: string;
+  house_block_lot: string;
   street: string;
   zone: string;
   age: string;
-  dateOfBirth: Date | undefined;
-  placeOfBirth: string;
-  contactNo: string;
-  residencyPeriod: string;
-  registeredVoter: string;
-  houseOwner: string;
+  date_of_birth: Date | undefined;
+  place_of_birth: string;
+  contact_no: string;
+  residency_period: string;
+  registered_voter: string;
+  house_owner: string;
   relationship: string;
   purpose: string;
-  punongBarangay: string;
-  forPunongBrgy: string;
+  punong_barangay: string;
+  for_punong_brgy: string;
 }
+
 
 const Index = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    transactionNo: "10",
-    certificationNo: "BC-2025-01-0010",
-    issuedDate: new Date("2025-02-01"),
+    bcert_number: "BC-2025-01-0010",
+    issued_date: new Date("2025-02-01"),
     prefix: "MS.",
     firstname: "SAGRE",
-    middleName: "LOUISE",
+    middle_name: "LOUISE",
     surname: "MANZANO",
     extension: "",
-    houseBlockLot: "43-C",
+    house_block_lot: "43-C",
     street: "A. Mabini Street",
     zone: "Sitio 5",
     age: "0",
-    dateOfBirth: undefined,
-    placeOfBirth: "",
-    contactNo: "",
-    residencyPeriod: "",
-    registeredVoter: "",
-    houseOwner: "",
+    date_of_birth: undefined,
+    place_of_birth: "",
+    contact_no: "",
+    residency_period: "",
+    registered_voter: "",
+    house_owner: "",
     relationship: "",
     purpose: "LOCAL EMPLOYMENT",
-    punongBarangay: "Hon. LEO E. BES",
-    forPunongBrgy: "",
+    punong_barangay: "Hon. LEO E. BES",
+    for_punong_brgy: "",
   });
+
 
   const handleNewRecord = () => {
     setFormData({
-      transactionNo: "",
-      certificationNo: "",
-      issuedDate: undefined,
+      bcert_number: "",
+      issued_date: undefined,
       prefix: "",
       firstname: "",
-      middleName: "",
+      middle_name: "",
       surname: "",
       extension: "",
-      houseBlockLot: "",
+      house_block_lot: "",
       street: "",
       zone: "",
       age: "",
-      dateOfBirth: undefined,
-      placeOfBirth: "",
-      contactNo: "",
-      residencyPeriod: "",
-      registeredVoter: "",
-      houseOwner: "",
+      date_of_birth: undefined,
+      place_of_birth: "",
+      contact_no: "",
+      residency_period: "",
+      registered_voter: "",
+      house_owner: "",
       relationship: "",
       purpose: "",
-      punongBarangay: "",
-      forPunongBrgy: "",
+      punong_barangay: "",
+      for_punong_brgy: "",
     });
+
     toast.success("New record form cleared");
   };
 
@@ -105,33 +106,32 @@ const handleSaveRecord = async () => {
 
     // Prepare certificate data
     const certificateData = {
-      transaction_no: formData.transactionNo,
-      certification_no: formData.certificationNo,
-      issued_date: formData.issuedDate?.toISOString().split('T')[0],
+      bcert_number: formData.bcert_number,
+      issued_date: formData.issued_date?.toISOString().split('T')[0],
       prefix: formData.prefix,
       firstname: formData.firstname,
-      middle_name: formData.middleName,
+      middle_name: formData.middle_name,
       surname: formData.surname,
       extension: formData.extension,
-      house_block_lot: formData.houseBlockLot,
+      house_block_lot: formData.house_block_lot,
       street: formData.street,
       zone: formData.zone,
       age: formData.age,
-      date_of_birth: formData.dateOfBirth?.toISOString().split('T')[0],
-      place_of_birth: formData.placeOfBirth,
-      contact_no: formData.contactNo,
-      residency_period: formData.residencyPeriod,
-      registered_voter: formData.registeredVoter,
-      house_owner: formData.houseOwner,
+      date_of_birth: formData.date_of_birth?.toISOString().split('T')[0],
+      place_of_birth: formData.place_of_birth,
+      contact_no: formData.contact_no,
+      residency_period: formData.residency_period,
+      registered_voter: formData.registered_voter,
+      house_owner: formData.house_owner,
       relationship: formData.relationship,
       purpose: formData.purpose,
-      punong_barangay: formData.punongBarangay,
-      for_punong_brgy: formData.forPunongBrgy,
+      punong_barangay: formData.punong_barangay,
+      for_punong_brgy: formData.for_punong_brgy,
     };
 
-    // Step 1: send POST request with cookies
+
     const response = await axios.post(
-      "http://127.0.0.1:8000/api/barangay-certificate",
+      "http://127.0.0.1:8000/api/barangay-certificates",
       certificateData,
       {
         withCredentials: true, // important
@@ -153,9 +153,10 @@ const handleSaveRecord = async () => {
   }
 };
 
-
+  const [modal, setModal] = useState(false);
 
   const handleFindRecord = () => {
+    setModal(true);
     toast.info("Search functionality - Coming soon");
   };
 
@@ -184,6 +185,15 @@ const handleSaveRecord = async () => {
       viewerInstanceRef.current.loadDocument(file);
     }
   };
+  const updateModal = (open: boolean) => {
+    setModal(open);
+  }
+  const updateSelect = (open: any) => {
+    toast.info("Record successfully selected");
+    setModal(false);
+    console.log(open)
+    setFormData(open);
+  }
 
   return (
     <Layout>
@@ -199,6 +209,9 @@ const handleSaveRecord = async () => {
             <p className="text-sm mt-2 opacity-90">Official Document Management Portal</p>
           </div>
         </header> */}
+        {
+          modal ? <BarangayCertificateFindModal updateModal={updateModal} updateSelect={updateSelect}/> :<></>
+        }
 
         <main className="container mx-auto px-4 py-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

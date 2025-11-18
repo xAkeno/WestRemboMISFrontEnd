@@ -17,16 +17,16 @@ import axios from "axios";
 
 const ResidentForm = () => {
   const navigate = useNavigate();
-  const [isPWD, setIsPWD] = useState(false);
+  const [pwd, setIsPWD] = useState(false);
   const [prefix, setPrefix] = useState("mr");
   const [sex, setSex] = useState("male");
-  const [maritalStatus, setMaritalStatus] = useState("");
-  const [residentStatus, setResidentStatus] = useState("permanent");
-  const [voterStatus, setVoterStatus] = useState("registered");
+  const [marital_status, setMaritalStatus] = useState("");
+  const [resident_status, setResidentStatus] = useState("permanent");
+  const [voter_status, setVoterStatus] = useState("registered");
   const [street, setStreet] = useState("papaya");
   const [zone, setZone] = useState("sitio2");
   const [complexion, setComplexion] = useState("");
-  const [bloodType, setBloodType] = useState("");
+  const [blood_type, setBloodType] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -52,39 +52,39 @@ const ResidentForm = () => {
 
     try {
       const residentData = {
+        resident_id: "RES0001",
         prefix,
-        lastName: (document.getElementById("lastName") as HTMLInputElement).value,
-        firstName: (document.getElementById("firstName") as HTMLInputElement).value,
-        middleName: (document.getElementById("middleName") as HTMLInputElement).value,
-        ext: (document.getElementById("ext") as HTMLInputElement).value,
-        nickname: (document.getElementById("nickname") as HTMLInputElement).value,
+        surname: (document.getElementById("lastName") as HTMLInputElement).value,
+        first_name: (document.getElementById("firstName") as HTMLInputElement).value,
+        middle_name: (document.getElementById("middleName") as HTMLInputElement).value,
+        ext_name: (document.getElementById("ext") as HTMLInputElement).value,
+        nick_name: (document.getElementById("nickname") as HTMLInputElement).value,
         sex,
-        maritalStatus,
-        spouse: (document.getElementById("spouse") as HTMLInputElement).value,
-        residentStatus,
-        dateOfBirth: (document.getElementById("dateOfBirth") as HTMLInputElement).value,
-        placeOfBirth: (document.getElementById("placeOfBirth") as HTMLInputElement).value,
-        age: (document.getElementById("age") as HTMLInputElement).value,
-        height: (document.getElementById("height") as HTMLInputElement).value,
-        weight: (document.getElementById("weight") as HTMLInputElement).value,
+        marital_status,
+        name_of_spouse: (document.getElementById("spouse") as HTMLInputElement).value,
+        resident_status,
+        date_of_birth: (document.getElementById("dateOfBirth") as HTMLInputElement).value,
+        place_of_birth: (document.getElementById("placeOfBirth") as HTMLInputElement).value,
+        height_cm: (document.getElementById("height") as HTMLInputElement).value,
+        weight_kg: (document.getElementById("weight") as HTMLInputElement).value,
         religion: (document.getElementById("religion") as HTMLInputElement).value,
-        voterStatus,
-        precinctNo: (document.getElementById("precinctNo") as HTMLInputElement).value,
-        houseBlockLot: (document.getElementById("houseBlockLot") as HTMLInputElement).value,
+        voter_status,
+        precinct_no: (document.getElementById("precinctNo") as HTMLInputElement).value,
+        house_block_lot_no: (document.getElementById("houseBlockLot") as HTMLInputElement).value,
         street,
         zone,
-        phoneNumber: (document.getElementById("phoneNumber") as HTMLInputElement).value,
-        emailAddress: (document.getElementById("emailAddress") as HTMLInputElement).value,
-        residencyPeriod: (document.getElementById("residencyPeriod") as HTMLInputElement).value,
-        houseOwner: (document.getElementById("houseOwner") as HTMLInputElement).value,
-        relationshipToOwner: (document.getElementById("relationshipToOwner") as HTMLInputElement).value,
+        phone_number: (document.getElementById("phoneNumber") as HTMLInputElement).value,
+        email_address: (document.getElementById("emailAddress") as HTMLInputElement).value,
+        period_of_residency: (document.getElementById("residencyPeriod") as HTMLInputElement).value,
+        house_owner: (document.getElementById("houseOwner") as HTMLInputElement).value,
+        relationship_to_owner: (document.getElementById("relationshipToOwner") as HTMLInputElement).value,
         complexion,
-        bloodType,
-        empStatus: (document.getElementById("empStatus") as HTMLInputElement).value,
+        blood_type,
+        emp_status: (document.getElementById("empStatus") as HTMLInputElement).value,
         occupation: (document.getElementById("occupation") as HTMLInputElement).value,
         position: (document.getElementById("position") as HTMLInputElement).value,
         notes: (document.getElementById("notes") as HTMLTextAreaElement).value,
-        isPWD,
+        pwd,
       };
 
       // Prepare FormData for file upload
@@ -92,14 +92,15 @@ const ResidentForm = () => {
       Object.entries(residentData).forEach(([key, value]) => formData.append(key, String(value)));
       if (photoFile) formData.append("photo", photoFile);
 
-      // Ensure token exists (api interceptor will attach it)
-      const fallbackToken = "23|PDMlrBxvx6QqNKlR7mMT1T10vAwSjqOYvFotKAeBc455eff4";
+      // Ensure token exists (api interceptor will attach it
 
+      console.log("Submitting resident data:", residentData);
 
-      const response = await api.post("/api/residents", formData);
+      const response = await api.post("/api/residents", formData,{withCredentials: true});
 
-      toast.success("Resident record saved successfully");
-      console.log(response.data);
+      if (response.status === 201) {
+        toast.success("Resident record saved successfully");
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to save resident record";
       toast.error(errorMessage);
@@ -197,7 +198,7 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="maritalStatus">Marital Status</Label>
-                    <Select value={maritalStatus} onValueChange={setMaritalStatus}>
+                    <Select value={marital_status} onValueChange={setMaritalStatus}>
                       <SelectTrigger id="maritalStatus">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -218,7 +219,7 @@ const ResidentForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="residentStatus">Resident Status *</Label>
-                  <Select value={residentStatus} onValueChange={setResidentStatus}>
+                  <Select value={resident_status} onValueChange={setResidentStatus}>
                     <SelectTrigger id="residentStatus">
                       <SelectValue />
                     </SelectTrigger>
@@ -262,7 +263,7 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="voterStatus">Voter Status</Label>
-                    <Select value={voterStatus} onValueChange={setVoterStatus}>
+                    <Select value={voter_status} onValueChange={setVoterStatus}>
                       <SelectTrigger id="voterStatus">
                         <SelectValue />
                       </SelectTrigger>
@@ -405,7 +406,7 @@ const ResidentForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="bloodType">Blood Type</Label>
-                  <Select value={bloodType} onValueChange={setBloodType}>
+                  <Select value={blood_type} onValueChange={setBloodType}>
                     <SelectTrigger id="bloodType">
                       <SelectValue placeholder="Select blood type" />
                     </SelectTrigger>
@@ -445,7 +446,7 @@ const ResidentForm = () => {
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="pwd" 
-                    checked={isPWD}
+                    checked={pwd}
                     onCheckedChange={(checked) => setIsPWD(checked as boolean)}
                   />
                   <Label htmlFor="pwd" className="cursor-pointer">
