@@ -11,71 +11,70 @@ const statuses = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
 
 const Dashboard = () => {
-  const [chartData, setChartData] = useState([]);
+  const [chartData, setChartData] = useState<any[]>([]);
   const [timeFilter, setTimeFilter] = useState("month");
   const [statusFilter, setStatusFilter] = useState("All");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // Fetch dashboard chart data
-const fetchData = async () => {
-  try {
-    const params: any = {
-      filter: timeFilter,
-      status: statusFilter === "All" ? undefined : statusFilter,
-      from: fromDate || undefined,
-      to: toDate || undefined,
-      _: new Date().getTime(), // <-- cache buster
-    };
+  const handleTimeFilter = (filter: string) => {
+    setTimeFilter(filter);
+    setFromDate("");
+    setToDate("");
+  };
 
-    const [businessRes, buildingRes, barangayRes, residentRes, certificateRes] = await Promise.all([
-      axios.get("http://127.0.0.1:8000/api/chart/business-clearances", { params, withCredentials: true }),
-      axios.get("http://127.0.0.1:8000/api/chart/building-clearances", { params, withCredentials: true }),
-      axios.get("http://127.0.0.1:8000/api/chart/barangay-clearances", { params, withCredentials: true }),
-      axios.get("http://127.0.0.1:8000/api/chart/residents", { params, withCredentials: true }),
-      axios.get("http://127.0.0.1:8000/api/chart/barangay-certificates", { params, withCredentials: true }),
-    ]);
-
-    const businessData = businessRes.data.data || [];
-    const buildingData = buildingRes.data.data|| [];
-    const barangayData = barangayRes.data.data || [];
-    const residentData = residentRes.data.data || [];
-    const certificateData = certificateRes.data.data || [];
-
-    console.log("Business Data:", businessData);
-    console.log("Building Data:", buildingData);
-    console.log("Barangay Data:", barangayData);
-    console.log("Resident Data:", residentData);
-    console.log("Certificate Data:", certificateData);
-
-    const periods = Array.from(
-      new Set([
-        ...businessData.map((d: any) => d.period),
-        ...buildingData.map((d: any) => d.period),
-        ...barangayData.map((d: any) => d.period),
-        ...residentData.map((d: any) => d.period),
-        ...certificateData.map((d: any) => d.period),
-      ])
-    ).sort();
-
-    const combined = periods.map((period) => ({
-      period,
-      Business: businessData.find((d: any) => d.period === period)?.count || 0,
-      Building: buildingData.find((d: any) => d.period === period)?.count || 0,
-      Barangay: barangayData.find((d: any) => d.period === period)?.count || 0,
-      Resident: residentData.find((d: any) => d.period === period)?.count || 0,
-      Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
-    }));
-
-    console.log("Combined Chart Data:", combined);
-
-    setChartData(combined);
-  } catch (error) {
-    console.error("Failed to fetch dashboard data", error);
-  }
-};
+  const fetchData = async () => {
+    try {
+      const params: any = {
+        filter_date: timeFilter, // <-- match backend
+        status: statusFilter === "All" ? undefined : statusFilter,
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        _: new Date().getTime(),
+      };
 
 
+      const [businessRes, buildingRes, barangayRes, residentRes, certificateRes] = await Promise.all([
+        axios.get("http://127.0.0.1:8000/api/chart/business-clearances", { params, withCredentials: true }),
+        axios.get("http://127.0.0.1:8000/api/chart/building-clearances", { params, withCredentials: true }),
+        axios.get("http://127.0.0.1:8000/api/chart/barangay-clearances", { params, withCredentials: true }),
+        axios.get("http://127.0.0.1:8000/api/chart/residents", { params, withCredentials: true }),
+        axios.get("http://127.0.0.1:8000/api/chart/barangay-certificates", { params, withCredentials: true }),
+      ]);
+
+      const businessData = businessRes.data.data || [];
+      const buildingData = buildingRes.data.data || [];
+      const barangayData = barangayRes.data.data || [];
+      const residentData = residentRes.data.data || [];
+      const certificateData = certificateRes.data.data || [];
+
+      console.log(businessData)
+
+      // Merge all periods
+      const periods = Array.from(
+        new Set([
+          ...businessData.map((d: any) => d.period),
+          ...buildingData.map((d: any) => d.period),
+          ...barangayData.map((d: any) => d.period),
+          ...residentData.map((d: any) => d.period),
+          ...certificateData.map((d: any) => d.period),
+        ])
+      ).sort();
+
+      const combined = periods.map((period) => ({
+        period,
+        Business: businessData.find((d: any) => d.period === period)?.count || 0,
+        Building: buildingData.find((d: any) => d.period === period)?.count || 0,
+        Barangay: barangayData.find((d: any) => d.period === period)?.count || 0,
+        Resident: residentData.find((d: any) => d.period === period)?.count || 0,
+        Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
+      }));
+
+      setChartData(combined);
+    } catch (error) {
+      console.error("Failed to fetch dashboard data", error);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -98,7 +97,7 @@ const fetchData = async () => {
               <Button
                 key={filter}
                 variant={timeFilter === filter ? "default" : "outline"}
-                onClick={() => setTimeFilter(filter)}
+                onClick={() => handleTimeFilter(filter)}
               >
                 {filter.charAt(0).toUpperCase() + filter.slice(1)}
               </Button>
@@ -146,9 +145,9 @@ const fetchData = async () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
         {/* Quick Actions & Recent Activity */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Quick Actions Card */}
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
@@ -182,7 +181,6 @@ const fetchData = async () => {
             </CardContent>
           </Card>
 
-          {/* Recent Activity Card */}
           <Card>
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -214,7 +212,7 @@ const fetchData = async () => {
               </div>
             </CardContent>
           </Card>
-          </div>
+        </div>
       </div>
     </Layout>
   );

@@ -18,6 +18,7 @@ import BussinessClearanceForm from "./pages/BussinessClearanceForm";
 import FrontDesk from "./pages/frontDesk";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Cashier from "./pages/Cashier";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/certificatehome" element={<Certifications/>} /> {/*Certificate home*/}
             <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
             <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+            <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

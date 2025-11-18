@@ -6,18 +6,21 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  ChevronLeft
+  ChevronLeft,
+  Coins
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { title } from "process";
 
 const menuItems = [
   { title: "Dashboard", path: "/dashboard", icon: Users },
   { title: "Resident Records", path: "/residenthome", icon: Users },
   { title: "Clearances", path: "/clearancehome", icon: FileCheck },
   { title: "Certifications", path: "/certificatehome", icon: Award },
+  { title:  "Cashier",  path: "/cashier", icon:Coins},
   { title: "Reports", path: "/reports", icon: BarChart3 },
   { title: "Settings", path: "/settings", icon: Settings },
 ];
