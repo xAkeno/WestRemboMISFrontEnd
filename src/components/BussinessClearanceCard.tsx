@@ -49,9 +49,11 @@ interface ClearanceFormProps {
   onChange: (data: ClearanceData) => void;
   onSave?: () => void;
   isSaving?: boolean;
+  updateSaveStatus?: (val) => void;
+  recordStatus?: "Save" | "Update";
 }
 
-export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving }: ClearanceFormProps) => {
+export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving, updateSaveStatus, recordStatus }: ClearanceFormProps) => {
   const [modal,setModal] = useState(false);
   const updateField = (field: keyof ClearanceData, value: string) => {
     const newData = { ...data, [field]: value };
@@ -93,7 +95,7 @@ export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving }: Cle
       inspectedNote: "",
     };
     onChange(newRecord);
-
+    if (updateSaveStatus) updateSaveStatus("Save");
     
     toast.success("New record initialized");
   };
@@ -104,6 +106,7 @@ export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving }: Cle
     toast.info("Record successfully selected");
     setModal(false);
     onChange(open);
+    if (updateSaveStatus) updateSaveStatus("Update");
     // setFormData(open);
   }
 
@@ -402,7 +405,7 @@ export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving }: Cle
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  <span className="hidden sm:inline">{recordStatus === "Save" ? "Save Record" : "Update Record"}</span>
                 </>
               )}
             </Button>

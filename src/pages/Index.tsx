@@ -20,6 +20,7 @@ import WebViewer from "@pdftron/webviewer";
 import { BarangayCertificateFindModal } from "@/components/BarangayCertificateFindModal";
 
 interface FormData {
+  id: number,
   bcert_number: string;
   issued_date: Date | undefined;
   prefix: string;
@@ -47,6 +48,7 @@ interface FormData {
 const Index = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
+    id: 0,
     bcert_number: "BC-2025-01-0010",
     issued_date: new Date("2025-02-01"),
     prefix: "MS.",
@@ -73,6 +75,7 @@ const Index = () => {
 
   const handleNewRecord = () => {
     setFormData({
+      id: 0,
       bcert_number: "",
       issued_date: undefined,
       prefix: "",
@@ -99,59 +102,58 @@ const Index = () => {
     toast.success("New record form cleared");
   };
 
-const handleSaveRecord = async () => {
-  setIsSaving(true);
+  const [recordStatus, setRecordStatus] = useState<"Save" | "Update">("Save");
 
-  try {
+  const handleSaveRecord = async () => {
+    setIsSaving(true);
 
-    // Prepare certificate data
-    const certificateData = {
-      bcert_number: formData.bcert_number,
-      issued_date: formData.issued_date?.toISOString().split('T')[0],
-      prefix: formData.prefix,
-      firstname: formData.firstname,
-      middle_name: formData.middle_name,
-      surname: formData.surname,
-      extension: formData.extension,
-      house_block_lot: formData.house_block_lot,
-      street: formData.street,
-      zone: formData.zone,
-      age: formData.age,
-      date_of_birth: formData.date_of_birth?.toISOString().split('T')[0],
-      place_of_birth: formData.place_of_birth,
-      contact_no: formData.contact_no,
-      residency_period: formData.residency_period,
-      registered_voter: formData.registered_voter,
-      house_owner: formData.house_owner,
-      relationship: formData.relationship,
-      purpose: formData.purpose,
-      punong_barangay: formData.punong_barangay,
-      for_punong_brgy: formData.for_punong_brgy,
-    };
+    try {
+      console.log("Submitting barangay clearance data:", formData);
 
+      let response;
 
-    const response = await axios.post(
-      "http://127.0.0.1:8000/api/barangay-certificates",
-      certificateData,
-      {
-        withCredentials: true, // important
-        headers: {
-          "Content-Type": "application/json",
-        },
+      if (recordStatus === "Save") {
+        // Create new record
+        response = await axios.post(
+          "http://127.0.0.1:8000/api/barangay-certificates",
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 201 || response.status === 200) {
+          toast.success("Barangay clearance record saved successfully");
+          console.log("Created record:", response.data);
+        }
+
+      } else if (recordStatus === "Update") {
+        // Update existing record
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected to update");
+          return;
+        }
+
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/barangay-certificates/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Barangay clearance record updated successfully");
+          console.log("Updated record:", response.data);
+        }
       }
-    );
 
-    toast.success("Certificate created successfully");
-    console.log("Response:", response.data);
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to save barangay clearance record";
+      toast.error(errorMessage);
+      console.error(error);
 
-  } catch (error: any) {
-    const errorMessage = error.response?.data?.message || "Failed to create certificate";
-    toast.error(errorMessage);
-    console.error("Error:", error);
-  } finally {
-    setIsSaving(false);
-  }
-};
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const [modal, setModal] = useState(false);
 
@@ -193,6 +195,7 @@ const handleSaveRecord = async () => {
     setModal(false);
     console.log(open)
     setFormData(open);
+    setRecordStatus("Update")
   }
 
   return (
@@ -254,7 +257,7 @@ const handleSaveRecord = async () => {
                       ) : (
                         <>
                           <Save className="h-4 w-4" />
-                          <span className="hidden sm:inline">Save</span>
+                          <span className="hidden sm:inline">{recordStatus} Record</span>
                         </>
                       )}
                     </Button>

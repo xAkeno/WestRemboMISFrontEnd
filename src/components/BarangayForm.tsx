@@ -150,29 +150,57 @@ export default function BarangayForm() {
     get();
   },[])
 
-  console.log(latestId);
-
-  
+  const [recordStatus,setRecordStatus] = useState("Save")
 
   const handleSaveRecord = async () => {
+    setIsSaving(true);
 
-    try{
+    try {
+      console.log("Submitting barangay clearance data:", formData);
 
-      console.log("Submitting resident data:", formData);
+      let response;
 
-      const response = await api.post("/api/barangay-clearances", formData,{withCredentials: true});
+      if (recordStatus === "Save") {
+        response = await api.post(
+          "/api/barangay-clearances",
+          formData,
+          { withCredentials: true }
+        );
 
-      if (response.status === 201) {
-        toast.success("Barangay clearance record saved successfully");
+        if (response.status === 201) {
+          toast.success("Barangay clearance record saved successfully");
+        }
+
+      } else if (recordStatus === "Update") {
+
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected to update");
+          return;
+        }
+
+        response = await api.put(
+          `/api/barangay-clearances/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Barangay clearance record updated successfully");
+        }
       }
-    }catch (error: any) {
-      const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to save barangay clearance record";
       toast.error(errorMessage);
       console.error(error);
+
     } finally {
       setIsSaving(false);
     }
   };
+
 
   const handleFindRecord = () => {
     setModal(true);
@@ -214,7 +242,7 @@ export default function BarangayForm() {
         remarks: "",
       }
     )
-
+    setRecordStatus("Save")
   };
   const updateModal = (open: boolean) => {
     setModal(open);
@@ -223,6 +251,7 @@ export default function BarangayForm() {
     toast.info("Record successfully selected");
     setModal(false);
     setFormData(open);
+    setRecordStatus("Update")
   }
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -550,7 +579,7 @@ export default function BarangayForm() {
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Record
+                    {recordStatus} Record
                   </>
                 )}
               </Button>

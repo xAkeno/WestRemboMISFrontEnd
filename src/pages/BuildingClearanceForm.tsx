@@ -28,6 +28,7 @@ import { BarangayBusinessFindModal } from "@/components/BarangayBusinessFindModa
 import { BarangayBuildingFindModal } from "@/components/BarangayBuildingFindModal";
 
 interface BuildingClearanceFormData {
+  id: number,
   bcert_number: string;
   issuedDate: string;
   prefix: string;
@@ -56,6 +57,7 @@ interface gg{
 export default function BuildingClearanceForm() {
   const [isSaving,setIsSaving] = useState(false)
   const [formData, setFormData] = useState<BuildingClearanceFormData>({
+    id: 0,
     bcert_number: "",
     issuedDate: new Date().toISOString().split("T")[0],
     prefix: "Mr.",
@@ -103,6 +105,7 @@ export default function BuildingClearanceForm() {
 
   const handleNewRecord = () => {
     setFormData({
+      id: 0,
       bcert_number: "",
       issuedDate: new Date().toISOString().split("T")[0],
       prefix: "Mr.",
@@ -132,6 +135,7 @@ export default function BuildingClearanceForm() {
     toast.info("Record successfully selected");
     setModal(false);
     setFormData(open);
+    setRecordStatus("Update");
   }
   const handleFindRecord = () => {
     setModal(true);
@@ -140,32 +144,59 @@ export default function BuildingClearanceForm() {
 
   const handleRefresh = () => {
     toast.info("Form refreshed");
+    setRecordStatus("Save")
   };
+  const [recordStatus, setRecordStatus] = useState("Save");
 
   const handleSaveRecord = async () => {
-    try{
+    setIsSaving(true);
 
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/building-clearances",
-        formData,
-        {
-          withCredentials:true
+    try {
+      let response;
+
+      if (recordStatus === "Save") {
+        response = await axios.post(
+          "http://127.0.0.1:8000/api/building-clearances",
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 201 || response.status === 200) {
+          toast.success("Successfully created building clearance record");
         }
-      );
 
-      if(response.status ==200){
-        toast("Successfully created building clearance record");
+      } else if (recordStatus === "Update") {
+
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected for update");
+          return;
+        }
+
+        console.log(formData.id + "========================")
+
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/building-clearances/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Successfully updated building clearance record");
+        }
       }
 
-    }catch (error: any) {
-      const errMsg = error.response?.data?.message || "Failed to create business clearance";
+    } catch (error: any) {
+      const errMsg =
+        error.response?.data?.message ||
+        "Failed to save building clearance record";
       toast.error(errMsg);
       console.error(error);
+
     } finally {
       setIsSaving(false);
     }
-    toast.success("Record saved successfully!");
   };
+
 
   const handlePrint = () => {
     window.print();
@@ -476,7 +507,7 @@ export default function BuildingClearanceForm() {
                 </Button>
                 <Button onClick={handleSaveRecord} className="gap-2">
                   <Save className="h-4 w-4" />
-                  Save SSSS
+                  {recordStatus} Record
                 </Button>
               </div>
             </CardContent>
