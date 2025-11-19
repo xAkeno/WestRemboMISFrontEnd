@@ -19,6 +19,8 @@ import FrontDesk from "./pages/frontDesk";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Cashier from "./pages/Cashier";
+import Accounts from "./pages/Accounts";
+import AccountDetail from "./pages/AccountDetail";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -43,6 +45,8 @@ const App = () => (
             <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
             <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
             <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
+            <Route path="/settings/AccountManage" element={<Accounts/>}/>
+            <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -10,24 +10,44 @@ import {
   Coins
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { title } from "process";
+import axios from "axios";
 
-const menuItems = [
-  { title: "Dashboard", path: "/dashboard", icon: Users },
-  { title: "Resident Records", path: "/residenthome", icon: Users },
-  { title: "Clearances", path: "/clearancehome", icon: FileCheck },
-  { title: "Certifications", path: "/certificatehome", icon: Award },
-  { title:  "Cashier",  path: "/cashier", icon:Coins},
-  { title: "Reports", path: "/reports", icon: BarChart3 },
-  { title: "Settings", path: "/settings", icon: Settings },
+const allMenuItems = [
+  { title: "Dashboard", path: "/dashboard", icon: Users, permission: null }, // accessible to all
+  { title: "Resident Records", path: "/residenthome", icon: Users, permission: "resident" },
+  { title: "Clearances", path: "/clearancehome", icon: FileCheck, permission: "doc_req" },
+  { title: "Certifications", path: "/certificatehome", icon: Award, permission: "certificate" },
+  { title: "Cashier", path: "/cashier", icon: Coins, permission: "cashier" },
+  { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
+  { title: "Settings", path: "/settings", icon: Settings, permission: "settings" },
 ];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await axios.get("http://127.0.0.1:8000/api/me", {
+          withCredentials: true
+        });
+        setPermissions(response.data.data.permissions || []);
+      } catch (error) {
+        console.error("Failed to fetch user permissions", error);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const filteredMenuItems = allMenuItems.filter(
+    (item) => !item.permission || permissions.includes(item.permission)
+  );
 
   return (
     <aside 
@@ -59,7 +79,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           return (
             <NavLink
@@ -90,7 +110,7 @@ export function Sidebar() {
           onClick={() => navigate("/")}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="font-medium" >Logout</span>}
+          {!collapsed && <span className="font-medium">Logout</span>}
         </button>
       </div>
     </aside>
