@@ -131,14 +131,14 @@ const Login = () => {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          {/* <CardFooter className="flex flex-col space-y-4">
             <div className="text-sm text-center text-muted-foreground">
               Don't have an account?{" "}
               <Link to="/register" className="text-primary hover:text-accent transition-colors font-medium">
                 Sign up
               </Link>
             </div>
-          </CardFooter>
+          </CardFooter> */}
         </Card>
       </div>
     </div>

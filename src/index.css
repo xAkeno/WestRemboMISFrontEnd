@@ -8,6 +8,15 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    --chart-1: 220 70% 55%;
+    --chart-2: 160 70% 55%;
+    --chart-3: 30 85% 50%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --border: 240 4% 20%;
+    --muted-foreground: 240 5% 65%;
+    --popover: 240 4% 15%;
     --background: 210 20% 98%;
     --foreground: 215 25% 15%;
 
