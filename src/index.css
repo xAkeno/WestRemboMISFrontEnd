@@ -2,21 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Design System — All colors MUST be HSL */
 
 @layer base {
   :root {
+    /* Chart Colors */
     --chart-1: 220 70% 55%;
     --chart-2: 160 70% 55%;
     --chart-3: 30 85% 50%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --border: 240 4% 20%;
-    --muted-foreground: 240 5% 65%;
-    --popover: 240 4% 15%;
+    /* Extra State Colors (from your missing file) */
+    --success: 145 65% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --pending: 38 95% 95%;
+    --pending-foreground: 38 95% 30%;
+
+    /* Light Mode Base Tokens */
     --background: 210 20% 98%;
     --foreground: 215 25% 15%;
 
@@ -46,28 +53,27 @@ All colors MUST be HSL.
     --ring: 215 80% 40%;
 
     --radius: 0.75rem;
-    
+
+    /* Certificate + Branding */
     --certificate-bg: 45 25% 98%;
     --official-seal: 43 95% 55%;
 
+    /* Sidebar Tokens */
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
 
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
 
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
 
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
+    /* Dark Mode Base Tokens */
     --background: 215 30% 12%;
     --foreground: 210 20% 95%;
 
@@ -95,16 +101,31 @@ All colors MUST be HSL.
     --border: 215 25% 22%;
     --input: 215 25% 22%;
     --ring: 215 80% 55%;
-    
+
+    /* Success / Warning / Pending (dark version) */
+    --success: 145 55% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 85% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --pending: 38 60% 15%;
+    --pending-foreground: 38 95% 70%;
+
+    /* Certificate Dark Mode */
     --certificate-bg: 215 20% 18%;
     --official-seal: 43 95% 60%;
-    
+
+    /* Sidebar Dark Mode */
     --sidebar-background: 215 30% 10%;
     --sidebar-foreground: 210 20% 90%;
+
     --sidebar-primary: 215 80% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
+
     --sidebar-accent: 215 25% 18%;
     --sidebar-accent-foreground: 210 20% 90%;
+
     --sidebar-border: 215 25% 20%;
     --sidebar-ring: 215 80% 55%;
   }
@@ -116,6 +137,13 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
   }
+}
+
+/* Typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }

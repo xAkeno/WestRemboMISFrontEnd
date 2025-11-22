@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import axios from "axios";
+import { useLocation } from "react-router-dom";
 
 
 interface FormData {
@@ -210,6 +211,69 @@ export default function BarangayForm() {
   const handleRefresh = () => {
     toast.info("Data refreshed");
   };
+
+  const parseAddress = (fullAddress: string) => {
+    const parts = fullAddress.split(",");
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  useEffect(() => {
+    if (ticket?.serviceable) {
+
+      const data = ticket.serviceable;
+      const addressParts = parseAddress(data.address || "");
+      setFormData({
+        id: data.id || 0,
+        bcert_number: data.bcert_number || "",
+        issued_date: data.issued_date || new Date().toISOString().split("T")[0],
+        prefix: data.prefix || "",
+        first_name: data.first_name || "",
+        middle_name: data.middle_name || "",
+        surname: data.last_name || "",
+        ext_name: data.ext_name || "",
+        house_block_lot_no: addressParts.house_block_lot_no,
+        street: addressParts.street,
+        zone: addressParts.zone,
+        dob: data.date_of_birth || "",
+        pob: data.place_of_birth || "",
+        contact_no: data.contact_number || "",
+        period_of_residency: data.period_of_residency || "",
+        registered_voter: data.registered_voter || "",
+        house_owner: data.house_owner || "",
+        relationship_to_owner: data.relation_to_house_owner || "",
+        purpose: data.purpose || "",
+        purpose_details: data.purpose_details || "",
+        ctc_vrr_no: data.ctc_vrr_no || "",
+        issued_at: data.issued_at || "",
+        issued_on: data.issued_on || "",
+        or_no: data.or_no || "",
+        remarks: data.remarks || "",
+      });
+      console.log(ticket);
+    }
+  }, [ticket]);
 
 
   const handleNewRecord = () => {

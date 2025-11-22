@@ -1,4 +1,4 @@
-import { useState,useRef } from "react";
+import { useState,useRef, useEffect } from "react";
 import axios from "axios";
 
 import {
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { BussinessClearanceCard } from "@/components/BussinessClearanceCard";
 import {BusinessClearancePreview} from "@/components/BusinessClearancePreview";
+import { useLocation } from "react-router-dom";
 
 
 interface FormData {
@@ -96,7 +97,7 @@ const handleSaveAsync = async () => {
     if (recordStatus === "Save") {
       // Create new record
       response = await axios.post(
-        "http://127.0.0.1:8000/api/building-clearances",
+        "http://127.0.0.1:8000/api/business-clearances",
         payload,
         { withCredentials: true }
       );
@@ -116,7 +117,7 @@ const handleSaveAsync = async () => {
       console.log("Updating record ID:", clearanceData.id);
 
       response = await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${clearanceData.id}`,
+        `http://127.0.0.1:8000/api/business-clearances/${clearanceData.id}`,
         payload,
         { withCredentials: true }
       );
@@ -194,6 +195,74 @@ const handleSaveAsync = async () => {
       viewerInstanceRef.current.loadDocument(file);
     }
   };
+
+  const parseAddress = (fullAddress: string = "") => {
+  const parts = fullAddress.split(",");
+
+  let house_block_lot_no = "";
+  let street = "";
+  let zone = "";
+
+  if (parts.length === 2) {
+    zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  useEffect(() => {
+    if (ticket?.serviceable) {
+      const data = ticket.serviceable;
+      const { house_block_lot_no, street, zone } = parseAddress(data.address);
+      setClearanceData({
+        id: data.id || 0,
+        brgyBusinessNo: "BBUSINESSNO_001",
+        issuedDate: new Date().toISOString().split("T")[0],
+
+        prefix: "",
+        firstname: data.first_name || "",
+        middleName: data.middle_name || "",
+        surname: data.last_name || "",
+        ext: "",
+
+        businessName: data.authorized_person || "",
+        businessType: "",
+        businessDetails: "",
+        capital: "",
+
+        orNo: "",
+
+        houseBlockLotNo: house_block_lot_no,
+        street: street,
+        zone: zone,
+
+        inspectedBy: "",
+        dateOfInspection: "",
+        inspectionRemarks: "",
+        inspectedRemarks: "",
+        dateInspected: "",
+        inspectedNote: "",
+      });
+      // console.log(ticket);
+      // setRecordStatus("Update"); // optional: depends on your logic
+    }
+  }, [ticket]);
+
 
   return (
     <Layout>

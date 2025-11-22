@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import WebViewer from "@pdftron/webviewer";
 import { BarangayCertificateFindModal } from "@/components/BarangayCertificateFindModal";
+import { useLocation } from "react-router-dom";
 
 interface FormData {
   id: number,
@@ -101,6 +102,14 @@ const Index = () => {
 
     toast.success("New record form cleared");
   };
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  if(ticket){
+    setFormData(ticket.serviceable);
+    console.log(ticket);
+  }
 
   const [recordStatus, setRecordStatus] = useState<"Save" | "Update">("Save");
 

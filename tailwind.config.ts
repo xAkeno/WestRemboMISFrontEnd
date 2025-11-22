@@ -14,6 +14,7 @@ export default {
     },
     extend: {
       colors: {
+        
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -85,6 +86,11 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        accent: "hsl(var(--accent))",
+        primary: "hsl(var(--primary))",
+        secondary: "hsl(var(--secondary))",
     },
   },
   plugins: [require("tailwindcss-animate")],

@@ -6,11 +6,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, set } from "date-fns";
 import { cn } from "@/lib/utils";
 import axios from "axios";
 import { toast } from "sonner";
-
+import { useParams, useLocation } from "react-router-dom";
 interface FormData {
   bcert_number: string;
   issued_date: Date | undefined;
@@ -71,6 +71,15 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
     }
     get();
   },[])
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  if(ticket){
+    setFormData(ticket.serviceable);
+    console.log(ticket);
+  }
+
 
   return (
     <div className="space-y-6">

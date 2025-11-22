@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { User, Save, RefreshCw, Printer, FileText, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {Layout} from "../components/Layout";
 import axios from "axios";
@@ -110,6 +110,90 @@ const ResidentForm = () => {
     }
   };
 
+  const parseAddress = (fullAddress: string = "") => {
+    const parts = fullAddress.split(",");
+
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  useEffect(() => {
+    if (!ticket?.serviceable) return;
+
+    console.log("Populating Resident Registration form:", ticket);
+
+    const data = ticket.serviceable;
+
+    const set = (id: string, value: any) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el && value !== undefined && value !== null) el.value = value;
+    };
+
+    // Parse address → houseBlockLot + street + zone
+    const { house_block_lot_no, street, zone } = parseAddress(data.address);
+
+    // Personal Info
+    set("lastName", data.last_name);
+    set("firstName", data.first_name);
+    set("middleName", data.middle_name);
+    set("ext", data.ext || "");
+
+    set("dateOfBirth", data.date_of_birth);
+    set("placeOfBirth", data.place_of_birth);
+
+    // Residency / Address
+    set("houseBlockLot", house_block_lot_no);
+    set("street", street);
+    set("zone", zone);
+
+    set("residencyPeriod", data.period_of_residency);
+    set("houseOwner", data.house_owner);
+    set("relationshipToOwner", data.relation_to_house_owner);
+
+    // Contact
+    set("phoneNumber", data.contact_number);
+
+    // Purpose
+    set("purpose", data.purpose);
+
+    // Registered Voter (Yes / No)
+    set("registeredVoter", data.registered_voter === "Yes" ? "yes" : "no");
+
+    /** OPTIONAL Select fields you might have **/
+    if (data.prefix) setPrefix(data.prefix.toLowerCase());
+    if (data.sex) setSex(data.sex.toLowerCase());
+    if (data.marital_status) setMaritalStatus(data.marital_status.toLowerCase());
+    if (data.resident_status) setResidentStatus(data.resident_status.toLowerCase());
+    if (data.complexion) setComplexion(data.complexion.toLowerCase());
+    if (data.blood_type) setBloodType(data.blood_type.toLowerCase());
+    if (data.pwd !== undefined) setIsPWD(Boolean(data.pwd));
+
+  }, [ticket]);
+
+
+
 
 
 
@@ -157,18 +241,18 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" defaultValue="ALBALADEJO" />
+                    <Input id="lastName"  />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" defaultValue="REBEL" />
+                    <Input id="firstName" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="middleName">Middle Name</Label>
-                    <Input id="middleName" defaultValue="I" />
+                    <Input id="middleName"  />
                   </div>
                 </div>
 
@@ -375,9 +459,6 @@ const ResidentForm = () => {
                   accept="image/*"
                   onChange={handleFileChange}
                 />
-                <div className="text-center p-4 bg-primary rounded-lg">
-                  <p className="font-bold text-primary-foreground">REBEL I ALBALADEJO</p>
-                </div>
                 <Button className="w-full" variant="outline">
                   <Printer className="mr-2 h-4 w-4" />
                   Print Preview

@@ -26,6 +26,7 @@ import { Layout } from "@/components/Layout";
 import { set } from "date-fns";
 import { BarangayBusinessFindModal } from "@/components/BarangayBusinessFindModal";
 import { BarangayBuildingFindModal } from "@/components/BarangayBuildingFindModal";
+import { useLocation } from "react-router-dom";
 
 interface BuildingClearanceFormData {
   id: number,
@@ -219,7 +220,60 @@ export default function BuildingClearanceForm() {
     get();
   },[])
 
-  console.log(latestId) 
+  const parseAddress = (fullAddress: string) => {
+    const parts = fullAddress.split(",");
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  useEffect(() => {
+    if (ticket?.serviceable) {
+      const data = ticket.serviceable;
+      const { house_block_lot_no, street, zone } = parseAddress(data.address || "");
+
+      setFormData({
+        id: data.id || 0,
+        bcert_number: data.brgyBusinessNo || "",
+        issuedDate: data.issuedDate || new Date().toISOString().split("T")[0],
+        prefix: data.prefix || "Mr.",
+        firstname: data.first_name || "",
+        middlename: data.middle_name || "",
+        surname: data.last_name || "",
+        extension: data.ext || "",
+        establishment: data.establishment || "",
+        purpose: data.purpose || "",
+        purposeDetails: data.purpose_details || "",
+        houseBlockLot: house_block_lot_no,
+        street: street,
+        zone: zone,
+        orNo: data.or_no || "",
+        remarks: data.remarks || "",
+        punongBarangay: data.punongBarangay || "",
+        forThePunongBarangay: data.forThePunongBarangay || "",
+        barangayPosition: data.barangayPosition || "",
+      }); 
+    };
+  }, [ticket]);
 
   return (
     <Layout>
