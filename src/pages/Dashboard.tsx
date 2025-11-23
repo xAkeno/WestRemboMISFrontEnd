@@ -8,6 +8,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Layout } from "../components/Layout";
 import { PendingClearancesModal } from "@/components/PendingClearancesModal";
 import axios from "axios";
+import { set } from "date-fns";
 
 const statuses = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
@@ -41,6 +42,8 @@ const Dashboard = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedClearanceType, setSelectedClearanceType] = useState<string>("");
   const [tickets, setTickets] = useState<any[]>([]);
+  const [latestActivities, setLatestActivities] = useState([]);
+  
 
   const handleTimeFilter = (filter: string) => {
     setTimeFilter(filter);
@@ -97,66 +100,97 @@ const Dashboard = () => {
     }
   };
 
-const fetchPendingRequests = async () => {
-  try {
-    const params: any = {
-      service_type: pendingTypeFilter !== "All" ? pendingTypeFilter : undefined,
-      from: pendingDateFrom || undefined,
-      to: pendingDateTo || undefined,
-      page: 1,
-      per_page: 100, // get more if needed
-    };
+  // Sort tickets: Pending first, then others; Encoded goes to the back
+  const sortedTickets = [...tickets].sort((a, b) => {
+    // Priority: PENDING first
+    if (a.status === "PENDING" && b.status !== "PENDING") return -1;
+    if (a.status !== "PENDING" && b.status === "PENDING") return 1;
 
-    const res = await axios.get("http://127.0.0.1:8000/api/tickets/pending", {
-      params,
-      withCredentials: true,
-    });
+    // Encoded goes to the back
+    if (a.status === "ENCODED" && b.status !== "ENCODED") return 1;
+    if (a.status !== "ENCODED" && b.status === "ENCODED") return -1;
 
-    const tickets = res.data.data; // Array of ticket object
-    setTickets(res.data.data);
+    // Optional: if both same status, sort by priority field (higher priority first)
+    const priorityOrder: any = { "High": 1, "Normal": 2, "Low": 3 };
+    const aPriority = priorityOrder[a.priority] || 99;
+    const bPriority = priorityOrder[b.priority] || 99;
 
-    // Count tickets by service type
-    const counts: { [key: string]: number } = {};
-    tickets.forEach((ticket: any) => {
-      counts[ticket.service_type] = (counts[ticket.service_type] || 0) + 1;
-    });
+    if (aPriority < bPriority) return -1;
+    if (aPriority > bPriority) return 1;
 
-    // Map to PendingRequest[]
-    const pendingData: PendingRequest[] = Object.keys(counts).map((type) => ({
-      type,
-      count: counts[type],
-      icon: FileCheck,
-      color:
-        type === "Barangay Clearance"
-          ? "bg-[hsl(var(--warning))]"
-          : type === "Business Clearance"
-          ? "bg-[hsl(var(--secondary))]"
-          : type === "Building Clearance"
-          ? "bg-[hsl(var(--primary))]"
-          : type === "Barangay Certificate"
-          ? "bg-[hsl(var(--success))]"
-          : "bg-[hsl(var(--accent))]",
-    }));
+    // Finally, sort by submitted_at (earlier first)
+    return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+  });
 
-    setPendingRequests(pendingData);
 
-    // Now Serving
-    const nowServingRes = await axios.get("http://127.0.0.1:8000/api/tickets/now-serving", { withCredentials: true });
-    setNowServing(nowServingRes.data.ticket_number || null);
+  const fetchPendingRequests = async () => {
+    try {
+      const params: any = {
+        service_type: pendingTypeFilter !== "All" ? pendingTypeFilter : undefined,
+        from: pendingDateFrom || undefined,
+        to: pendingDateTo || undefined,
+        page: 1,
+        per_page: 100, // get more if needed
+      };
 
-    // Notifications
-    const notifRes = await axios.get("http://127.0.0.1:8000/api/notifications", { withCredentials: true });
-    const backendNotifications: Notification[] = notifRes.data.data.map((n: any) => ({
-      id: n.id,
-      message: n.message,
-      time: n.created_at,
-      type: n.type,
-    }));
-    setNotifications(backendNotifications);
-  } catch (error) {
-    console.error("Failed to fetch pending requests or now-serving", error);
-  }
-};
+      const res = await axios.get("http://127.0.0.1:8000/api/tickets/pending", {
+        params,
+        withCredentials: true,
+      });
+
+      const tickets = res.data.data; // Array of ticket object
+      setTickets(res.data.data);
+
+      // Count tickets by service type
+      const counts: { [key: string]: number } = {};
+      tickets.forEach((ticket: any) => {
+        counts[ticket.service_type] = (counts[ticket.service_type] || 0) + 1;
+      });
+
+      // Map to PendingRequest[]
+      const pendingData: PendingRequest[] = Object.keys(counts).map((type) => ({
+        type,
+        count: counts[type],
+        icon: FileCheck,
+        color:
+          type === "Barangay Clearance"
+            ? "bg-[hsl(var(--warning))]"
+            : type === "Business Clearance"
+            ? "bg-[hsl(var(--secondary))]"
+            : type === "Building Clearance"
+            ? "bg-[hsl(var(--primary))]"
+            : type === "Barangay Certificate"
+            ? "bg-[hsl(var(--success))]"
+            : "bg-[hsl(var(--accent))]",
+      }));
+
+      setPendingRequests(pendingData);
+
+      // Now Serving
+      const nowServingRes = await axios.get("http://127.0.0.1:8000/api/tickets/now-serving", { withCredentials: true });
+      setNowServing(nowServingRes.data.ticket_number || null);
+
+      // Notifications
+      const notifRes = await axios.get("http://127.0.0.1:8000/api/notifications", { withCredentials: true });
+      const backendNotifications: Notification[] = notifRes.data.data.map((n: any) => ({
+        id: n.id,
+        message: n.message,
+        time: n.created_at,
+        type: n.type,
+      }));
+      setNotifications(backendNotifications);
+    } catch (error) {
+      console.error("Failed to fetch pending requests or now-serving", error);
+    }
+  };
+
+  const serviceColors = {
+    "Barangay Clearance": "bg-blue-500",
+    "Business Clearance": "bg-green-500",
+    "Building Clearance": "bg-red-500",
+    "Barangay Certificate": "bg-purple-500",
+    "Resident Registration": "bg-orange-500",
+  };
 
 
   const handleProcessNow = (clearanceType?: string) => {
@@ -173,6 +207,33 @@ const fetchPendingRequests = async () => {
     fetchData();
     fetchPendingRequests();
   }, [timeFilter, statusFilter, fromDate, toDate, pendingTypeFilter, pendingDateFrom, pendingDateTo]);
+
+  const [totalEncodedToday, setTotalEncodedToday] = useState(0);
+
+  const fetchActivities = async () => {
+    try {
+      const res = await axios.get("http://127.0.0.1:8000/api/latest-activities", { withCredentials: true });
+      const data = res.data.data;
+      const simplified = data.map(item => ({
+        name: `${item.first_name || ''} ${item.middle_name || ''} ${item.surname || ''}`.trim(),
+        bcert_number: item.bcert_number || null,
+        date: item.created_at ? new Date(item.created_at).toLocaleDateString() : null
+      }));
+
+      const today = new Date().toLocaleDateString();
+      const todayActivities = simplified.filter(item => item.date === today);
+      setTotalEncodedToday(todayActivities.length);
+
+      setLatestActivities(simplified);
+      console.log("Fetched recent activities:", res);
+    } catch (error) {
+      console.error("Failed to fetch recent activities", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchActivities();
+  }, []);
 
   const filteredPendingRequests = pendingRequests.filter(req => {
     if (pendingTypeFilter !== "All" && req.type !== pendingTypeFilter) return false;
@@ -235,8 +296,8 @@ const fetchPendingRequests = async () => {
 
                 {/* Horizontal Ticket Queue (Full Width, Wrap) */}
                 <div className="flex overflow-x-auto gap-4 py-2">
-                  {tickets.map((ticket, index) => {
-                    console.log("Rendering ticket:", tickets);
+                  {sortedTickets.map((ticket, index) => {
+                    
                     let path = "";
                     switch (ticket.service_type) {
                       case "Barangay Clearance":
@@ -263,19 +324,26 @@ const fetchPendingRequests = async () => {
                         key={ticket.id}
                         to={path}
                         state={{ ticket }}
-                        className={`flex-1 min-w-[180px] sm:min-w-[200px] md:min-w-[220px] flex items-center gap-3 px-4 py-2 rounded-lg border border-border/50 transition-colors
+                        className={`flex w-full justify-between px-2   flex items-center gap-3  py-2 rounded-lg border border-border/50 transition-colors 
                           ${index === 0 ? "bg-primary/20 font-semibold" : "bg-card hover:bg-muted/50"}`}
                       >
-                        <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted text-muted-foreground font-semibold text-sm">
-                          {index + 1}
-                        </span>
-                        <div className="flex flex-col min-w-0">
-                          <p className="text-sm text-foreground truncate">{ticket.ticket_number}</p>
-                          <p className="text-xs text-muted-foreground truncate">{ticket.service_type}</p>
+                        <div className="flex gap-3">
+                          <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted text-muted-foreground font-semibold text-sm">
+                            {index + 1}
+                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <p className="text-sm text-foreground truncate">{ticket.ticket_number}</p>
+                            <p className={`text-xs text-muted-foreground truncate text-white px-1 rounded-md ${serviceColors[ticket.service_type] || "bg-gray-400"}`}>{ticket.service_type}</p>
+                          </div>
                         </div>
                         <Badge
-                          variant={ticket.status === "Pending" ? "secondary" : "outline"}
-                          className="text-xs shrink-0"
+                          className={`
+                              text-xs shrink-0 
+                              ${ticket.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : ""}
+                              ${ticket.status === "ENCODED" ? "bg-blue-100 text-blue-800" : ""}
+                              ${ticket.status === "RELEASED" ? "bg-green-100 text-green-800" : ""}
+                              ${ticket.status === "REJECTED" ? "bg-red-100 text-red-800" : ""}
+                            `}
                         >
                           {ticket.status}
                         </Badge>
@@ -400,7 +468,7 @@ const fetchPendingRequests = async () => {
 
               {/* Chart Header */}
               <CardHeader>
-                <CardTitle>Certificates Trend</CardTitle>
+                <CardTitle>Application Trend</CardTitle>
                 <CardDescription>Application trends over time</CardDescription>
               </CardHeader>
 
@@ -430,38 +498,52 @@ const fetchPendingRequests = async () => {
             </Card>
 
             {/* Quick Actions - 20% */}
-            <Card className="flex-[0_0_20%]">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common operations</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link to="/residents/new">
-                  <Button className="w-full justify-start" variant="outline">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    New Resident
-                  </Button>
-                </Link>
-                <Link to="/residents">
-                  <Button className="w-full justify-start" variant="outline">
-                    <Users className="mr-2 h-4 w-4" />
-                    View Residents
-                  </Button>
-                </Link>
-                <Link to="/clearances">
-                  <Button className="w-full justify-start" variant="outline">
-                    <FileCheck className="mr-2 h-4 w-4" />
-                    Issue Clearance
-                  </Button>
-                </Link>
-                <Link to="/certifications">
-                  <Button className="w-full justify-start" variant="outline">
-                    <Award className="mr-2 h-4 w-4" />
-                    Issue Certificate
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="flex-[0_0_20%] gap-4 flex flex-col">
+              <div className="h-[30%]">
+                {/* Recent Activity */}
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle>My Total Encoded Today</CardTitle>
+                    <CardDescription>All records encoded by you Today</CardDescription>
+                  </CardHeader>
+                    <CardContent>
+                    <div className="space-y-2">
+                      {totalEncodedToday > 0 ? (   
+                        <div className="text-5xl font-bold text-blue-800 flex items-center justify-center w-full h-full rounded-lg">
+                            {totalEncodedToday}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No records encoded today.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="h-[70%]">
+                {/* Recent Activity */}
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>Latest records and updates</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {latestActivities.slice(0, 5).map((activity, index) => (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center p-2 border rounded hover:bg-muted/50 transition-colors rounded-lg"
+                        >
+                          <p className="text-sm font-medium">
+                            {activity.bcert_number}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{activity.date}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
 
 
@@ -469,23 +551,7 @@ const fetchPendingRequests = async () => {
         {/* Chart Filters & Line Chart */}
         
 
-        {/* Recent Activity */}
-        {/* <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest records and updates</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {notifications.slice(0, 5).map((notif) => (
-                <div key={notif.id} className="flex justify-between items-center p-2 border rounded">
-                  <p className="text-sm">{notif.message}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(notif.time).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card> */}
+      
       </div>
     </Layout>
   );

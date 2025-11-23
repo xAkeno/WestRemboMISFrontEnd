@@ -33,6 +33,9 @@ const ResidentForm = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
   const handleUploadClick = () => {
     fileInputRef.current?.click(); // Trigger the hidden file input
   };
@@ -45,7 +48,6 @@ const ResidentForm = () => {
       setPhotoFile(file); // store the file for uploading
     }
   };
-
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -97,9 +99,23 @@ const ResidentForm = () => {
       console.log("Submitting resident data:", residentData);
 
       const response = await api.post("/api/residents", formData,{withCredentials: true});
+      let savedRecordId = null;
 
       if (response.status === 201) {
         toast.success("Resident record saved successfully");
+        savedRecordId = response.data.data.id;
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (ticket) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+        toast("Updated the ticket to encoded status");
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to save resident record";
@@ -134,10 +150,6 @@ const ResidentForm = () => {
 
     return { house_block_lot_no, street, zone };
   };
-
-
-  const location = useLocation();
-  const ticket = location.state?.ticket;
 
   useEffect(() => {
     if (!ticket?.serviceable) return;

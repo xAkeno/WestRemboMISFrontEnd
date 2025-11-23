@@ -160,6 +160,7 @@ export default function BarangayForm() {
       console.log("Submitting barangay clearance data:", formData);
 
       let response;
+      let savedRecordId = null;
 
       if (recordStatus === "Save") {
         response = await api.post(
@@ -170,6 +171,9 @@ export default function BarangayForm() {
 
         if (response.status === 201) {
           toast.success("Barangay clearance record saved successfully");
+
+          // Get the service(id) returned from backend
+          savedRecordId = response.data.data.service.id;
         }
 
       } else if (recordStatus === "Update") {
@@ -187,7 +191,25 @@ export default function BarangayForm() {
 
         if (response.status === 200) {
           toast.success("Barangay clearance record updated successfully");
+
+          savedRecordId = formData.id;
         }
+      }
+
+      // ----------------------------------------------
+      // 🔥 NEW: Update Ticket Based on the Service Saved
+      // ----------------------------------------------
+      if (savedRecordId) {
+        console.log("Updating ticket for service ID:", savedRecordId);
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+
+        toast("Updated the ticket to encoded status");
       }
 
     } catch (error: any) {

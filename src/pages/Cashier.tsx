@@ -11,6 +11,78 @@ const Cashier = () => {
     const [endpoint, setEndpoint] = useState('');
     const [search, setSearch] = useState("");
 
+    // Helper function to convert snake_case to Title Case
+    const snakeCaseToTitleCase = (str: string): string => {
+        return str
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+    };
+
+    // Map display column names to data keys
+    const getDataKey = (displayName: string): string => {
+        const keyMap: { [key: string]: string } = {
+            "ID": "id",
+            "First Name": "first_name",
+            "Last Name": "last_name",
+            "Business Name": "business_name",
+            "Purpose": "purpose",
+            "Status": "status",
+            "BCERT Number": "bcert_number",
+            "Issued Date": "issued_date",
+            "Name": "full_name",
+            "Date of Birth": "date_of_birth",
+        };
+        return keyMap[displayName] || displayName.toLowerCase().replace(/ /g, '_');
+    };
+
+    // Get status badge styling
+    const getStatusBadge = (status: string) => {
+        const statusUpper = (status ?? "").toUpperCase();
+        switch(statusUpper) {
+            case "ENCODED":
+                return { 
+                    bg: "bg-info-soft", 
+                    border: "border-info-subtle", 
+                    text: "text-fg-info-strong",
+                    dot: "bg-info",
+                    label: "Encoded" 
+                };
+            case "INCOMPLETE":
+                return { 
+                    bg: "bg-warning-soft", 
+                    border: "border-warning-subtle", 
+                    text: "text-fg-warning-strong",
+                    dot: "bg-warning",
+                    label: "Incomplete" 
+                };
+            case "RELEASED":
+                return { 
+                    bg: "bg-success-soft", 
+                    border: "border-success-subtle", 
+                    text: "text-fg-success-strong",
+                    dot: "bg-success",
+                    label: "Released" 
+                };
+            case "REJECTED":
+                return { 
+                    bg: "bg-danger-soft", 
+                    border: "border-danger-subtle", 
+                    text: "text-fg-danger-strong",
+                    dot: "bg-danger",
+                    label: "Rejected" 
+                };
+            default:
+                return { 
+                    bg: "bg-neutral-soft", 
+                    border: "border-neutral-subtle", 
+                    text: "text-fg-neutral-strong",
+                    dot: "bg-neutral",
+                    label: statusUpper 
+                };
+        }
+    };
+
 
     const getEndpoint = () => {
         if (choose === "Resident") return "http://127.0.0.1:8000/api/residents";
@@ -22,121 +94,47 @@ const Cashier = () => {
     };
     const mapData = (entity: string, data: any[]) => {
         return data.map((row: any) => {
+            console.log("Mapping row:", row);
             switch(entity) {
                 case "Resident":
-                    const dob = row.date_of_birth ? new Date(row.date_of_birth) : null;
-                    const age = dob ? Math.floor((new Date().getTime() - dob.getTime()) / (1000*60*60*24*365.25)) : "";
                     return {
                         id: row.id,
-                        resident_id: row.resident_id,
-                        prefix: row.prefix,
-                        surname: row.surname,
-                        firstname: row.first_name,
-                        middle_name: row.middle_name,
-                        extension: row.ext_name,
-                        house_block_lot_no: row.house_block_lot_no,
-                        street: row.street,
-                        zone: row.zone,
-                        date_of_birth: row.date_of_birth,
-                        place_of_birth: row.place_of_birth,
-                        age: age,
-                        registered_voter: row.voter_status,
-                        house_owner: row.house_owner,
-                        relationship_to_owner: row.relationship_to_owner,
-                        period_of_residency: row.period_of_residency,
+                        first_name: row.first_name,
+                        last_name: row.surname,
                         status: row.status,
                     };
                 case "Barangay Clearance":
                     return {
                         id: row.id,
-                        bcert_number: row.bcert_number,
-                        issued_date: row.issued_date,
-                        surname: row.surname,
-                        firstname: row.first_name,
-                        middle_name: row.middle_name,
-                        extension: row.ext_name,
-                        house_block_lot_no: row.house_block_lot_no,
-                        street: row.street,
-                        zone: row.zone,
-                        date_of_birth: row.dob,
-                        place_of_birth: row.pob,
+                        first_name: row.first_name,
+                        last_name: row.surname,
                         purpose: row.purpose,
-                        remarks: row.remarks,
                         status: row.status,
                     };
                 case "Business Clearance":
                     return {
                         id: row.id,
-                        brgy_business_no: row.brgyBusinessNo,
-                        issued_date: row.issuedDate,
-                        prefix: row.prefix,
-                        surname: row.surname,
-                        firstname: row.firstname,
-                        middle_name: row.middlename,
-                        extension: row.ext,
-                        street: row.street,
-                        zone: row.zone,
-                        business_name: row.businessName,
-                        business_type: row.businessType,
-                        business_details: row.businessDetails,
-                        capital: row.capital,
-                        house_block_lot_no: row.houseBlockLotNo,
-                        or_no: row.orNo,
-                        inspected_by: row.inspectedBy,
-                        date_of_inspection: row.dateOfInspection,
-                        inspection_remarks: row.inspectionRemarks,
-                        created_at: row.created_at,
-                        updated_at: row.updated_at,
+                        first_name: row.first_name,
+                        last_name: row.surname,
+                        business_name: row.business_name,
                         status: row.status,
                     };
                 case "Building Clearance":
                     return {
-                        record_id: row.id,
-                        bcert_number: row.bcert_number,
-                        issued_date: row.issuedDate,
-                        prefix: row.prefix,
-                        firstname: row.firstname,
-                        middle_name: row.middlename,
-                        surname: row.surname,
-                        extension: row.extension,
+                        id: row.id,
+                        first_name: row.first_name,
+                        last_name: row.surname,
                         purpose: row.purpose,
-                        purpose_details: row.purposeDetails,
-                        house_block_lot_no: row.houseBlockLot,
-                        street: row.street,
-                        zone: row.zone,
-                        or_no: row.or_no,
-                        remarks: row.remarks,
-                        punong_barangay: row.punongBarangay,
-                        for_the_punong_barangay: row.forThePunongBarangay,
-                        barangay_position: row.barangayPosition,
-                        created_at: row.created_at,
-                        updated_at: row.updated_at,
                         status: row.status,
                     };
                 case "Barangay Certificate":
                     return {
                         id: row.id,
-                        bcert_number: row.bcert_number,
-                        issued_date: row.issued_date,
-                        surname: row.surname,
-                        firstname: row.firstname,
-                        middle_name: row.middle_name,
-                        extension: row.extension,
-                        house_block_lot_no: row.house_block_lot_no,
-                        street: row.street,
-                        zone: row.zone,
-                        date_of_birth: row.date_of_birth,
-                        place_of_birth: row.place_of_birth,
-                        age: row.age,
-                        prefix: row.prefix,
-                        punong_barangay: row.punong_barangay,
-                        for_the_punong_barangay: row.for_the_punong_barangay,
-                        registered_voter: row.registered_voter,
-                        house_owner: row.house_owner,
-                        relationship_to_owner: row.relationship_to_owner,
-                        period_of_residency: row.period_of_residency,
+                        bcert_number: row.bcert_number || row.certificate_number || `BCERT-${row.id}`,
+                        issued_date: row.issued_date ? new Date(row.issued_date).toLocaleDateString('en-US') : '',
+                        full_name: `${row.first_name || ''} ${row.middle_name || ''} ${row.surname || ''} ${row.extension || ''}`.trim(),
+                        date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toLocaleDateString('en-US') : '',
                         purpose: row.purpose,
-                        purpose_details: row.purpose_details,
                         status: row.status,
                     };
                 default:
@@ -148,121 +146,17 @@ const Cashier = () => {
 
 
     useEffect(() => {
-        // Change Column Headers
+        // Change Column Headers - Essential fields only
         if (choose === "Resident") {
-            setLoadedColumn([
-                "id",
-                "resident_id",
-                "prefix",
-                "surname",
-                "firstname",
-                "middle_name",
-                "extension",
-                "house_block_lot_no",
-                "street",
-                "zone",
-                "date_of_birth",
-                "place_of_birth",
-                "age",
-                "registered_voter",
-                "house_owner",
-                "relationship_to_owner",
-                "period_of_residency",
-                "status",
-                "Action",
-            ]);
+            setLoadedColumn(["ID", "First Name", "Last Name", "Status", "Action"]);
         } else if (choose === "Barangay Clearance") {
-            setLoadedColumn([
-                "bcert_number",
-                "issued_date",
-                "surname",
-                "firstname",
-                "middle_name",
-                "extension",
-                "house_block_lot_no",
-                "street",
-                "zone",
-                "date_of_birth",
-                "place_of_birth",
-                "purpose",
-                "remarks",
-                "status",
-                "Action",
-            ]);
+            setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
         } else if (choose === "Business Clearance") {
-            setLoadedColumn([
-                "brgy_business_no",
-                "issued_date",
-                "prefix",
-                "surname",
-                "firstname",
-                "middle_name",
-                "extension",
-                "street",
-                "zone",
-                "business_name",
-                "business_type",
-                "business_details",
-                "capital",
-                "house_block_lot_no",
-                "or_no",
-                "created_at",
-                "updated_at",
-                "status",
-                "Action",
-            ]);
+            setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "Status", "Action"]);
         } else if (choose === "Building Clearance") {
-            setLoadedColumn([
-                "bcert_number",
-                "issued_date",
-                "prefix",
-                "firstname",
-                "middle_name",
-                "surname",
-                "extension",
-                "establishment",
-                "purpose",
-                "purpose_details",
-                "house_block_lot_no",
-                "street",
-                "zone",
-                "or_no",
-                "remarks",
-                "punong_barangay",
-                "for_the_punong_barangay",
-                "barangay_position",
-                "created_at",
-                "updated_at",
-                "status",
-                "Action",
-            ]);
+            setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
         } else if (choose === "Barangay Certificate") {
-            setLoadedColumn([
-                "id",
-                "bcert_number",
-                "issued_date",
-                "surname",
-                "firstname",
-                "middle_name",
-                "extension",
-                "house_block_lot_no",
-                "street",
-                "zone",
-                "date_of_birth",
-                "place_of_birth",
-                "age",
-                "prefix",
-                "punong_barangay",
-                "for_the_punong_barangay",
-                "registered_voter",
-                "house_owner",
-                "relationship_to_owner",
-                "period_of_residency",
-                "purpose",
-                "purpose_details",
-                "status",
-                "Action",
-            ]);
+            setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "Status", "Action"]);
         }
 
         // Fetch Data Based on Selected Filter
@@ -282,7 +176,9 @@ const Cashier = () => {
                         ? res.data.data.data
                         : [];
 
-                console.log(rows)
+                console.log(rows);
+
+                // const pendingRows = rows.filter((row: any) => row.status?.toUpperCase() === "ENCODED");
 
                 const mappedRows = mapData(choose, rows); // <-- map API data
                 setTableData(mappedRows);
@@ -391,7 +287,7 @@ const Cashier = () => {
                                         {loadedColumn.map((col, colIndex) => (
                                             col === "Action" ? (
                                                 <td key={colIndex} className="px-6 py-3">
-
+                                                    
                                                     {/* Action Combo Box */}
                                                     <select
                                                         className="px-2 py-1 border rounded"
@@ -447,6 +343,8 @@ const Cashier = () => {
 
                                                     >
                                                         <option value="PENDING">Pending</option>
+                                                        <option value="INCOMPLETE">Incomplete</option>
+                                                        <option value="REJECTED">Rejected</option>
                                                         <option value="RELEASED">Released</option>
                                                     </select>
 
@@ -454,7 +352,13 @@ const Cashier = () => {
                                                 </td>
                                             ) : (
                                                 <td key={colIndex} className="px-6 py-3">
-                                                    {row[col] ?? ""}
+                                                    {col === "Status" ? (
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 border-gray-400 ${getStatusBadge(row[getDataKey(col)]).bg} ${getStatusBadge(row[getDataKey(col)]).text}`}>
+                                                            {getStatusBadge(row[getDataKey(col)]).label}
+                                                        </span>
+                                                    ) : (
+                                                        row[getDataKey(col)] ?? ""
+                                                    )}
                                                 </td>
                                             )
                                         ))}

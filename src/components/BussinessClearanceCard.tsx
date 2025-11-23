@@ -57,7 +57,6 @@ export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving, updat
   const [modal,setModal] = useState(false);
   const updateField = (field: keyof ClearanceData, value: string) => {
     const newData = { ...data, [field]: value };
-    console.log(newData);
     onChange(newData);
   };
 

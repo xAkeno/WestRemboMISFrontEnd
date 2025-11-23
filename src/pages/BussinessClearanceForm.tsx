@@ -80,65 +80,88 @@ const Index = () => {
   const [recordStatus, setRecordStatus] = useState<"Save" | "Update">("Save"); 
 
 
-const handleSaveAsync = async () => {
-  setIsSaving(true);
+  const handleSaveAsync = async () => {
+    setIsSaving(true);
 
-  try {
-    // Make a copy of the data and format date fields
-    const payload = {
-      ...clearanceData,
-      issuedDate: clearanceData.issuedDate ? clearanceData.issuedDate.split("T")[0] : null,
-      dateOfInspection: clearanceData.dateOfInspection ? clearanceData.dateOfInspection.split("T")[0] : null,
-      dateInspected: clearanceData.dateInspected ? clearanceData.dateInspected.split("T")[0] : null,
-    };
+    try {
+      // Prepare & format dates
+      const payload = {
+        ...clearanceData,
+        issuedDate: clearanceData.issuedDate ? clearanceData.issuedDate.split("T")[0] : null,
+        dateOfInspection: clearanceData.dateOfInspection ? clearanceData.dateOfInspection.split("T")[0] : null,
+        dateInspected: clearanceData.dateInspected ? clearanceData.dateInspected.split("T")[0] : null,
+      };
 
-    let response;
+      let response;
+      let savedRecordId = null;
 
-    if (recordStatus === "Save") {
-      // Create new record
-      response = await axios.post(
-        "http://127.0.0.1:8000/api/business-clearances",
-        payload,
-        { withCredentials: true }
-      );
+      if (recordStatus === "Save") {
+        // Create new record
+        response = await axios.post(
+          "http://127.0.0.1:8000/api/business-clearances",
+          payload,
+          { withCredentials: true }
+        );
 
-      if (response.status === 201 || response.status === 200) {
-        toast.success("Successfully created building clearance record");
-        console.log("Created record:", response.data);
+        if (response.status === 201 || response.status === 200) {
+          toast.success("Successfully created business clearance record");
+          console.log("Created record:", response.data);
+
+          // Get ID from backend
+          savedRecordId = response.data.data.service.id;
+        }
+
+      } else if (recordStatus === "Update") {
+
+        if (!clearanceData.id || clearanceData.id === 0) {
+          toast.error("No record selected for update");
+          return;
+        }
+
+        console.log("Updating record ID:", clearanceData.id);
+
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/business-clearances/${clearanceData.id}`,
+          payload,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Successfully updated business clearance record");
+          console.log("Updated record:", response.data);
+
+          savedRecordId = clearanceData.id;
+        }
       }
 
-    } else if (recordStatus === "Update") {
-      // Update existing record
-      if (!clearanceData.id || clearanceData.id === 0) {
-        toast.error("No record selected for update");
-        return;
+      /** -----------------------------------------------------
+       *  🔥 NEW: Update Ticket after saving the service
+       * ----------------------------------------------------- */
+      if (savedRecordId) {
+        console.log("Updating ticket for service ID:", savedRecordId);
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+
+        toast("Updated the ticket to encoded status");
       }
 
-      console.log("Updating record ID:", clearanceData.id);
+    } catch (error: any) {
+      const errMsg =
+        error.response?.data?.message ||
+        "Failed to save business clearance record";
+      toast.error(errMsg);
+      console.error("Error saving record:", error);
 
-      response = await axios.put(
-        `http://127.0.0.1:8000/api/business-clearances/${clearanceData.id}`,
-        payload,
-        { withCredentials: true }
-      );
-
-      if (response.status === 200) {
-        toast.success("Successfully updated building clearance record");
-        console.log("Updated record:", response.data);
-      }
+    } finally {
+      setIsSaving(false);
     }
+  };
 
-  } catch (error: any) {
-    const errMsg =
-      error.response?.data?.message ||
-      "Failed to save building clearance record";
-    toast.error(errMsg);
-    console.error("Error saving record:", error);
-
-  } finally {
-    setIsSaving(false);
-  }
-};
 
 
   const handleSelectRecord = (record: FormData) => {

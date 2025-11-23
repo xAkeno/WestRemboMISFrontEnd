@@ -120,6 +120,7 @@ const Index = () => {
       console.log("Submitting barangay clearance data:", formData);
 
       let response;
+      let savedRecordId = null;
 
       if (recordStatus === "Save") {
         // Create new record
@@ -132,6 +133,7 @@ const Index = () => {
         if (response.status === 201 || response.status === 200) {
           toast.success("Barangay clearance record saved successfully");
           console.log("Created record:", response.data);
+          savedRecordId = response.data.data.service.id;
         }
 
       } else if (recordStatus === "Update") {
@@ -150,7 +152,22 @@ const Index = () => {
         if (response.status === 200) {
           toast.success("Barangay clearance record updated successfully");
           console.log("Updated record:", response.data);
+          savedRecordId = formData.id;
         }
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (savedRecordId) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+        toast("Updated the ticket to encoded status");
+
+        console.log("Ticket status updated for service:", savedRecordId);
       }
 
     } catch (error: any) {

@@ -57,6 +57,9 @@ interface gg{
 
 export default function BuildingClearanceForm() {
   const [isSaving,setIsSaving] = useState(false)
+  
+  const location = useLocation();
+  const ticket = location.state?.ticket;
   const [formData, setFormData] = useState<BuildingClearanceFormData>({
     id: 0,
     bcert_number: "",
@@ -154,6 +157,7 @@ export default function BuildingClearanceForm() {
 
     try {
       let response;
+      let savedRecordId = null;
 
       if (recordStatus === "Save") {
         response = await axios.post(
@@ -164,6 +168,7 @@ export default function BuildingClearanceForm() {
 
         if (response.status === 201 || response.status === 200) {
           toast.success("Successfully created building clearance record");
+          savedRecordId = response.data.data.service.id;
         }
 
       } else if (recordStatus === "Update") {
@@ -183,7 +188,21 @@ export default function BuildingClearanceForm() {
 
         if (response.status === 200) {
           toast.success("Successfully updated building clearance record");
+          savedRecordId = formData.id;
         }
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (savedRecordId) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+
+        console.log("Ticket status updated for service:", savedRecordId);
       }
 
     } catch (error: any) {
@@ -242,9 +261,6 @@ export default function BuildingClearanceForm() {
 
     return { house_block_lot_no, street, zone };
   };
-
-  const location = useLocation();
-  const ticket = location.state?.ticket;
 
   useEffect(() => {
     if (ticket?.serviceable) {
