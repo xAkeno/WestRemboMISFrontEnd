@@ -21,6 +21,10 @@ import Register from "./pages/Register";
 import Cashier from "./pages/Cashier";
 import Accounts from "./pages/Accounts";
 import AccountDetail from "./pages/AccountDetail";
+import ProcessFrontDesk from "./pages/ProcessFrontDesk";
+import SearchResident from "./pages/SearchResident";
+import { LanguageProvider } from "@/components/context/LanguageContext";
+import QueueSystem from "./pages/QueueSystem";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -28,28 +32,33 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Login />} /> {/*Login*/}
-            <Route path="/register" element={<Register />} /> {/*Register*/}
-            <Route path="/frontdesk" element={<FrontDesk />} /> {/*Front Desk*/}
-            <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
-            <Route path="/clearancehome/clearance" element={<IndexBCS />} /> {/*Barangay Clearance */}
-            <Route path="/reports" element={<Reports />} /> {/*Report*/}
-            <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
-            <Route path="/residenthome" element={<ResidentForm />} /> {/*Resident Form*/}
-            <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
-            <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
-            <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
-            <Route path="/certificatehome" element={<Certifications/>} /> {/*Certificate home*/}
-            <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
-            <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
-            <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
-            <Route path="/settings/AccountManage" element={<Accounts/>}/>
-            <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Login />} /> {/*Login*/}
+              <Route path="/register" element={<Register />} /> {/*Register*/}
+              <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
+              <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
+              <Route path="/clearancehome/clearance" element={<IndexBCS />} /> {/*Barangay Clearance */}
+              <Route path="/reports" element={<Reports />} /> {/*Report*/}
+              <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
+              <Route path="/residenthome" element={<ResidentForm />} /> {/*Resident Form*/}
+              <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
+              <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
+              <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
+              <Route path="/certificatehome" element={<Certifications/>} /> {/*Certificate home*/}
+              <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+              <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+              <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
+              <Route path="/settings/AccountManage" element={<Accounts/>}/>
+              <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
+              <Route path="/frontdesk" element={<SearchResident/>}/>
+              <Route path="/queue" element={<QueueSystem/>}/>
+              {/* <Route path="/searchKiosk" element={<SearchResident/>}/> */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

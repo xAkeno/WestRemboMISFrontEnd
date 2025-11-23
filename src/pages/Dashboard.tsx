@@ -122,6 +122,26 @@ const Dashboard = () => {
     return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
   });
 
+  // Unified color map for both Pending Requests and Chart
+  const serviceColors: Record<string, string> = {
+    "Barangay Clearance": "#f59e0b", // yellow / warning
+    "Business Clearance": "#22c55e", // green / secondary
+    "Building Clearance": "#ef4444", // red / primary
+    "Barangay Certificate": "#10b981", // teal / success
+    "Resident Registration": "#f97316", // orange / destructive
+  };
+
+  // Map chart keys to these same colors
+  const serviceChartColors: Record<string, string> = {
+    "Business": serviceColors["Business Clearance"],
+    "Building": serviceColors["Building Clearance"],
+    "Barangay": serviceColors["Barangay Clearance"],
+    "Resident": serviceColors["Resident Registration"],
+    "Certificate": serviceColors["Barangay Certificate"],
+  };
+
+
+
 
   const fetchPendingRequests = async () => {
     try {
@@ -182,14 +202,6 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Failed to fetch pending requests or now-serving", error);
     }
-  };
-
-  const serviceColors = {
-    "Barangay Clearance": "bg-blue-500",
-    "Business Clearance": "bg-green-500",
-    "Building Clearance": "bg-red-500",
-    "Barangay Certificate": "bg-purple-500",
-    "Resident Registration": "bg-orange-500",
   };
 
 
@@ -333,7 +345,13 @@ const Dashboard = () => {
                           </span>
                           <div className="flex flex-col min-w-0">
                             <p className="text-sm text-foreground truncate">{ticket.ticket_number}</p>
-                            <p className={`text-xs text-muted-foreground truncate text-white px-1 rounded-md ${serviceColors[ticket.service_type] || "bg-gray-400"}`}>{ticket.service_type}</p>
+                            <p
+                              className="text-xs text-white truncate px-1 rounded-md"
+                              style={{ backgroundColor: serviceColors[ticket.service_type] || "#9ca3af" }} // fallback gray-400
+                            >
+                              {ticket.service_type}
+                            </p>
+
                           </div>
                         </div>
                         <Badge
@@ -487,11 +505,12 @@ const Dashboard = () => {
                       }}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="Business" stroke="hsl(var(--secondary))" strokeWidth={2} />
-                    <Line type="monotone" dataKey="Building" stroke="hsl(var(--primary))" strokeWidth={2} />
-                    <Line type="monotone" dataKey="Barangay" stroke="hsl(var(--warning))" strokeWidth={2} />
-                    <Line type="monotone" dataKey="Resident" stroke="hsl(var(--destructive))" strokeWidth={2} />
-                    <Line type="monotone" dataKey="Certificate" stroke="hsl(var(--success))" strokeWidth={2} />
+                      <Line type="monotone" dataKey="Business" stroke={serviceChartColors.Business} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Building" stroke={serviceChartColors.Building} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Barangay" stroke={serviceChartColors.Barangay} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Resident" stroke={serviceChartColors.Resident} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Certificate" stroke={serviceChartColors.Certificate} strokeWidth={2} />
+
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>

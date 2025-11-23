@@ -90,6 +90,7 @@ export const BuildingClearancePreview = ({
     WebViewer(
       {
         path: "/webviewer",
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a",
         initialDoc: templatePath,
       },
       viewerRef.current

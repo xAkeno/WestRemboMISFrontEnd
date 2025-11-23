@@ -45,21 +45,18 @@ export const BarangayClearancePreview = ({
     remarks: "Remarks",
   };
 
-  // Update PDF fields
   const updatePDFFields = () => {
     const instance = viewerInstanceRef.current;
     if (!instance) return;
 
     const { annotationManager, documentViewer } = instance.Core;
     const fieldManager = annotationManager.getFieldManager();
-
     const allFields = fieldManager.getFields();
 
     allFields.forEach((field: any) => {
       const formKey = Object.keys(fieldMapping).find(
         (key) => fieldMapping[key] === field.name
       );
-
       if (formKey && formData[formKey] !== undefined) {
         field.widgets.forEach((widget: any) => {
           widget.setValue(formData[formKey] || "");
@@ -70,7 +67,7 @@ export const BarangayClearancePreview = ({
     documentViewer.refreshAll();
   };
 
-  // Initialize WebViewer only once
+  // Initialize WebViewer once
   useEffect(() => {
     if (!viewerRef.current) return;
 
@@ -78,20 +75,25 @@ export const BarangayClearancePreview = ({
       {
         path: "/webviewer",
         initialDoc: templatePath,
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a", // <-- Add your valid license
       },
       viewerRef.current
     ).then((instance: any) => {
       viewerInstanceRef.current = instance;
-
       const { documentViewer } = instance.Core;
-      documentViewer.addEventListener("annotationsLoaded", () => {
+
+      // Wait for document to be fully loaded before updating fields
+      documentViewer.addEventListener("documentLoaded", () => {
         updatePDFFields();
       });
     });
   }, []);
 
-  // Only update fields when formData changes
+  // Update fields whenever formData changes
   useEffect(() => {
+    const instance = viewerInstanceRef.current;
+    if (!instance || !instance.Core.documentViewer.getDocument()) return;
+
     updatePDFFields();
   }, [formData]);
 

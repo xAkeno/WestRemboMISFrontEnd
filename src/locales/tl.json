@@ -1,0 +1,49 @@
+{
+  "title": "Aplikasyon ng Dokumento ng Barangay",
+  "subtitle": "Piliin ang uri ng dokumento at punan ang kinakailangang impormasyon",
+  "documentApplication": "Aplikasyon ng Dokumento",
+  "selectDocumentType": "Piliin ang uri ng dokumento at punan ang lahat ng kinakailangang patlang na may *",
+  "tabs": {
+    "clearance": "Clearance",
+    "building-clearance": "Building",
+    "business-clearance": "Business",
+    "resident": "Resident"
+  },
+  "form": {
+    "firstName": "Unang Pangalan",
+    "middleName": "Gitnang Pangalan",
+    "lastName": "Apelyido",
+    "address": "Tirahan",
+    "dateOfBirth": "Petsa ng Kapanganakan",
+    "placeOfBirth": "Lugar ng Kapanganakan",
+    "periodOfResidency": "Panahon ng Paninirahan",
+    "registeredVoter": "Rehistradong Botante",
+    "houseOwner": "May-ari ng Bahay",
+    "relationToHouseOwner": "Relasyon sa May-ari ng Bahay",
+    "contactNumber": "Numero ng Telepono",
+    "purpose": "Layunin"
+  },
+  "buttons": {
+    "backHome": "Bumalik sa Home",
+    "clearForm": "I-clear ang Form",
+    "submitApplication": "Isumite ang Aplikasyon",
+    "cancel": "Kanselahin",
+    "submit": "Isumite"
+  },
+  "consent": {
+    "title": "Pahintulot sa Pagproseso ng Personal na Datos",
+    "description": "Kinukumpirma ko na nauunawaan ko ang nilalaman ng dokumentong ito, kusang-loob kong pinirmahan, at pinatutunayan ang katumpakan ng mga detalyeng nakasaad. Pinapayagan ko rin ang pagproseso ng aking personal at/o sensitibong impormasyon para sa barangay clearance at mga kaugnay na layunin ayon sa umiiral na Batas at Lokal na Ordinansa. Naiintindihan ko na kasama rito ang pag-access sa aking personal na datos alinsunod sa Data Privacy Act of 2012.",
+    "agree": "Nabasa ko at sumasang-ayon ako sa mga patakarang nakasaad sa itaas"
+  },
+  "validation": {
+    "requiredFields": "Punan ang lahat ng kinakailangang patlang",
+    "consentRequired": "Pakisuri ang kahon ng pahintulot bago magpatuloy",
+    "success": "Matagumpay na naisumite ang form",
+    "error": "Nabigong isumite ang form"
+  },
+  "select": {
+    "placeholder": "Piliin",
+    "yes": "Oo",
+    "no": "Hindi"
+  }
+}

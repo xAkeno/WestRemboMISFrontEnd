@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { UnifiedForm } from "@/components/UnifiedForm";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
 import { FileText, Building2, Briefcase, Users } from "lucide-react";
@@ -18,20 +17,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
+import { MaskedInput } from "@/components/MaskedInput";
+import {useLanguage} from "@/components/context/LanguageContext";
 
-const frontDesk = () => {
+const FrontDesk = () => {
+  const { t } = useLanguage();
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState<DocumentType>("clearance");
   const [formData, setFormData] = useState<Partial<BarangayDocument>>({});
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
 
   const handleSubmitClick = () => {
-    // Validate required fields
-    if (!formData.first_name || !formData.last_name || !formData.address || !formData.date_of_birth || 
-        !formData.place_of_birth || !formData.period_of_residency || 
-        !formData.registered_voter || !formData.house_owner || 
+    if (!formData.first_name || !formData.last_name || !formData.address || !formData.date_of_birth ||
+        !formData.place_of_birth || !formData.period_of_residency ||
+        !formData.registered_voter || !formData.house_owner ||
         !formData.relation_to_house_owner || !formData.contact || !formData.purpose) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("message.fillRequired"));
       return;
     }
     setConsentChecked(false);
@@ -40,27 +44,22 @@ const frontDesk = () => {
 
   const getServiceType = (tab: DocumentType): string => {
     switch (tab) {
-      case "clearance":
-        return "Barangay Clearance";
-      case "building-clearance":
-        return "Building Clearance";
-      case "business-clearance":
-        return "Business Clearance";
-      case "resident":
-        return "Resident Registration";
-      default:
-        return "Barangay Clearance";
+      case "clearance": return "Barangay Clearance";
+      case "building-clearance": return "Building Clearance";
+      case "business-clearance": return "Business Clearance";
+      case "resident": return "Resident Registration";
+      default: return "Barangay Clearance";
     }
   };
 
   const handleConfirmSubmit = async () => {
     if (!consentChecked) {
-      toast.error("Please check the consent box to proceed");
+      toast.error(t("message.consentRequired"));
       return;
     }
 
     try {
-      const response = await axios.post(
+      await axios.post(
         "http://127.0.0.1:8000/api/kiosk/submit",
         {
           service_type: getServiceType(activeTab),
@@ -79,122 +78,138 @@ const frontDesk = () => {
           purpose: formData.purpose || "",
           priority: "Normal",
         },
-        {
-          withCredentials: true,
-        }
+        { withCredentials: true }
       );
-      console.log("Response:", response.data);
-      toast.success("Form submitted successfully!");
+      toast.success(t("message.submitSuccess"));
       setShowConsentDialog(false);
       setFormData({});
       setConsentChecked(false);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || "Failed to submit form";
-      toast.error(errorMessage);
-      console.error("Error:", error);
+      toast.error(error.response?.data?.message || t("message.submitError"));
     }
   };
 
   const handleClear = () => {
     setFormData({});
-    toast.info("Form cleared");
+    toast.success(t("message.formCleared"));
   };
 
   const getIcon = (type: DocumentType) => {
     switch (type) {
-      case "clearance":
-        return <FileText className="h-5 w-5" />;
-      case "building-clearance":
-        return <Building2 className="h-5 w-5" />;
-      case "business-clearance":
-        return <Briefcase className="h-5 w-5" />;
-      case "resident":
-        return <Users className="h-5 w-5" />;
+      case "clearance": return <FileText className="h-5 w-5" />;
+      case "building-clearance": return <Building2 className="h-5 w-5" />;
+      case "business-clearance": return <Briefcase className="h-5 w-5" />;
+      case "resident": return <Users className="h-5 w-5" />;
     }
   };
+
+  const renderFormFields = () => (
+    <div className="space-y-4">
+      <MaskedInput
+        value={formData.first_name || ""}
+        onValueChange={(val) => setFormData({ ...formData, first_name: val })}
+        placeholder={t("placeholder.firstName")}
+      />
+      <MaskedInput
+        value={formData.middle_name || ""}
+        onValueChange={(val) => setFormData({ ...formData, middle_name: val })}
+        placeholder={t("placeholder.middleName")}
+      />
+      <MaskedInput
+        value={formData.last_name || ""}
+        onValueChange={(val) => setFormData({ ...formData, last_name: val })}
+        placeholder={t("placeholder.lastName")}
+      />
+      <MaskedInput
+        value={formData.address || ""}
+        onValueChange={(val) => setFormData({ ...formData, address: val })}
+        placeholder={t("placeholder.address")}
+      />
+      <MaskedInput
+        type="date"
+        value={formData.date_of_birth || ""}
+        onValueChange={(val) => setFormData({ ...formData, date_of_birth: val })}
+        placeholder={t("field.dateOfBirth")}
+      />
+      <MaskedInput
+        value={formData.place_of_birth || ""}
+        onValueChange={(val) => setFormData({ ...formData, place_of_birth: val })}
+        placeholder={t("placeholder.placeOfBirth")}
+      />
+      <MaskedInput
+        value={formData.period_of_residency || ""}
+        onValueChange={(val) => setFormData({ ...formData, period_of_residency: val })}
+        placeholder={t("placeholder.residency")}
+      />
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">{t("field.registeredVoter")}</label>
+        <select
+          value={formData.registered_voter || ""}
+          onChange={(e) =>
+            setFormData({ ...formData, registered_voter: e.target.value as "Yes" | "No" })
+          }
+          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="">{t("option.select")}</option>
+          <option value="Yes">{t("option.yes")}</option>
+          <option value="No">{t("option.no")}</option>
+        </select>
+      </div>
+      <MaskedInput
+        value={formData.house_owner || ""}
+        onValueChange={(val) => setFormData({ ...formData, house_owner: val })}
+        placeholder={t("field.houseOwner")}
+      />
+      <MaskedInput
+        value={formData.relation_to_house_owner || ""}
+        onValueChange={(val) => setFormData({ ...formData, relation_to_house_owner: val })}
+        placeholder={t("placeholder.relationToOwner")}
+      />
+      <MaskedInput
+        value={formData.contact || ""}
+        onValueChange={(val) => setFormData({ ...formData, contact: val })}
+        placeholder={t("placeholder.contact")}
+      />
+      <MaskedInput
+        value={formData.purpose || ""}
+        onValueChange={(val) => setFormData({ ...formData, purpose: val })}
+        placeholder={t("placeholder.purpose")}
+      />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="container max-w-5xl mx-auto">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-heading font-bold text-primary mb-2">
-            Barangay Document Application
+            {t("header.title")}
           </h1>
-          <p className="text-muted-foreground text-lg">
-            Select document type and fill out the required information
-          </p>
+          <p className="text-muted-foreground text-lg">{t("header.subtitle")}</p>
         </div>
+        
 
         <Card className="shadow-lg border-2">
           <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardTitle className="text-2xl font-heading">Document Application</CardTitle>
-            <CardDescription>Select the document type and fill in all required fields marked with *</CardDescription>
+            <CardTitle className="text-2xl font-heading">{t("card.title")}</CardTitle>
+            <CardDescription>{t("card.description")}</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DocumentType)}>
               <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 mb-8 h-auto p-1">
-                <TabsTrigger 
-                  value="clearance" 
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3"
-                >
-                  {getIcon("clearance")}
-                  <span className="hidden sm:inline">Clearance</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="building-clearance"
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3"
-                >
-                  {getIcon("building-clearance")}
-                  <span className="hidden sm:inline">Building</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="business-clearance"
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3"
-                >
-                  {getIcon("business-clearance")}
-                  <span className="hidden sm:inline">Business</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="resident"
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3"
-                >
-                  {getIcon("resident")}
-                  <span className="hidden sm:inline">Resident</span>
-                </TabsTrigger>
+                {(["clearance","building-clearance","business-clearance","resident"] as DocumentType[]).map((tab) => (
+                  <TabsTrigger key={tab} value={tab} className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3">
+                    {getIcon(tab)} <span className="hidden sm:inline">{t(`tab.${tab.split("-")[0]}`)}</span>
+                  </TabsTrigger>
+                ))}
               </TabsList>
-
-              <TabsContent value="clearance">
-                <UnifiedForm data={formData} onChange={setFormData} />
-              </TabsContent>
-
-              <TabsContent value="building-clearance">
-                <UnifiedForm data={formData} onChange={setFormData} />
-              </TabsContent>
-
-              <TabsContent value="business-clearance">
-                <UnifiedForm data={formData} onChange={setFormData} />
-              </TabsContent>
-
-              <TabsContent value="resident">
-                <UnifiedForm data={formData} onChange={setFormData} />
-              </TabsContent>
+              <TabsContent value={activeTab}>{renderFormFields()}</TabsContent>
             </Tabs>
 
             <div className="mt-8 flex justify-end gap-4">
-              <Button 
-                variant="outline" 
-                size="lg"
-                onClick={handleClear}
-              >
-                Clear Form
-              </Button>
-              <Button 
-                size="lg" 
-                onClick={handleSubmitClick}
-                className="bg-primary hover:bg-primary/90"
-              >
-                Submit Application
-              </Button>
+              <Button variant="outline" size="lg" onClick={() => navigate("/frontdesk")}>{t("button.backHome")}</Button>
+              <Button variant="outline" size="lg" onClick={handleClear}>{t("button.clear")}</Button>
+              <Button size="lg" onClick={handleSubmitClick} className="bg-primary hover:bg-primary/90">{t("button.submit")}</Button>
             </div>
           </CardContent>
         </Card>
@@ -203,38 +218,25 @@ const frontDesk = () => {
       <AlertDialog open={showConsentDialog} onOpenChange={setShowConsentDialog}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl">Data Privacy Consent</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl">{t("consent.title")}</AlertDialogTitle>
             <AlertDialogDescription className="text-base leading-relaxed pt-4 space-y-4">
-              <p className="text-foreground">
-                I acknowledge that I understand the content of this document, voluntarily signed it, and certify to 
-                the correctness of the details stated above. I further give my consent to the processing of my personal 
-                and/or sensitive personal information for barangay clearance and its related purposes as mentioned 
-                above which may be reported as per National and/or Local Ordinances. I understand and accept that 
-                this will include access to personal data as provided under the Data Privacy Act of 2012.
-              </p>
+              <p className="text-foreground">{t("consent.text")}</p>
               <div className="flex items-start space-x-3 pt-4">
                 <Checkbox 
                   id="consent" 
                   checked={consentChecked}
                   onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
                 />
-                <label 
-                  htmlFor="consent" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-foreground"
-                >
-                  I have read and agree to the terms stated above
+                <label htmlFor="consent" className="text-sm font-medium leading-none cursor-pointer text-foreground">
+                  {t("consent.checkbox")}
                 </label>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConsentChecked(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleConfirmSubmit}
-              disabled={!consentChecked}
-              className="disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Submit
+            <AlertDialogCancel onClick={() => setConsentChecked(false)}>{t("button.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSubmit} disabled={!consentChecked} className="disabled:opacity-50 disabled:cursor-not-allowed">
+              {t("consent.submit")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -243,4 +245,4 @@ const frontDesk = () => {
   );
 };
 
-export default frontDesk;
+export default FrontDesk;
