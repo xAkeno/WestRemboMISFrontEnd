@@ -25,6 +25,11 @@ import ProcessFrontDesk from "./pages/ProcessFrontDesk";
 import SearchResident from "./pages/SearchResident";
 import { LanguageProvider } from "@/components/context/LanguageContext";
 import QueueSystem from "./pages/QueueSystem";
+import { ResidentsPage } from "./components/residents/ResidentsPage";
+import BarangayClearance from "./pages/BarangayClearance";
+import BuildingClearance from "./pages/BuildingClearance";
+import BusinessClearance from "./pages/BusinessClearance";
+import Certificate from "./pages/Certificate";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -36,19 +41,38 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Login />} /> {/*Login*/}
+
+
+              <Route path="/certificatehome" element={<Certificate />} /> 
+              <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
+
+              <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
+
+              
+              <Route path="//clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
+              <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+
+              <Route path="/clearancehome/buildingclearance" element={<BuildingClearance />} /> 
+              <Route path="/clearancehome/buildingclearance/create" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+
+              <Route path="/clearancehome/clearance" element={<BarangayClearance />} /> {/*Barangay Clearance */}
+              <Route path="/clearancehome/clearance/create" element={<IndexBCS />} /> {/*Barangay Clearance */}
+
+              <Route path="/residenthome" element={<ResidentsPage />} /> {/*Resident Form*/}
+              <Route path="/residenthome/create" element={<ResidentForm/>} /> {/*Create Resident */}
+
+
+
               <Route path="/register" element={<Register />} /> {/*Register*/}
               <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
               <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
-              <Route path="/clearancehome/clearance" element={<IndexBCS />} /> {/*Barangay Clearance */}
+
               <Route path="/reports" element={<Reports />} /> {/*Report*/}
               <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
-              <Route path="/residenthome" element={<ResidentForm />} /> {/*Resident Form*/}
               <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
               <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
-              <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
-              <Route path="/certificatehome" element={<Certifications/>} /> {/*Certificate home*/}
-              <Route path="//clearancehome/buildingclearance" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
-              <Route path="/clearancehome/bussinessclearance" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+
+
               <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
               <Route path="/settings/AccountManage" element={<Accounts/>}/>
               <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>

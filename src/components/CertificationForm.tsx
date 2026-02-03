@@ -77,6 +77,7 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
 
   if(ticket){
     setFormData(ticket.serviceable);
+    
     console.log(ticket);
   }
 

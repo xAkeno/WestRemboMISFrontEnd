@@ -143,9 +143,7 @@ export const BarangayBuildingFindModal = ({updateModal,updateSelect}:Props) => {
                             </th>
                         ))
                         }
-
-
-                </tr>
+                    </tr>
                 </thead>
 
                 <tbody>

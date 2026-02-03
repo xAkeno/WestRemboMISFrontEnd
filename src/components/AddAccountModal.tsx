@@ -99,6 +99,7 @@ export function AddAccountModal({ open, onOpenChange, onAccountAdded }: AddAccou
         email: data.email,
         password: data.password,
         password_confirmation: data.confirmPassword,
+        
         permissions: data.permissions,
       };
 
