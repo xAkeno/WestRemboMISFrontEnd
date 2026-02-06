@@ -80,6 +80,12 @@ export const ResidentsPage = () => {
   };
   const navigate = useNavigate();
 
+  const [filterValue, setFilterValue] = useState('http://127.0.0.1:8000/api/residents');
+
+  const handleFilterChange = (value: string) => {
+    setFilterValue(value);
+  }
+
   return (
     <Layout>
         <div className="min-h-screen bg-background p-6">
@@ -100,7 +106,7 @@ export const ResidentsPage = () => {
 
             {/* Filter Tabs */}
             <div className="mb-4">
-              <FilterTabs activeTab={activeTab} onTabChange={setActiveTab} />
+              <FilterTabs activeTab={activeTab} onTabChange={setActiveTab} FilterChange={handleFilterChange} />
             </div>
 
             {/* Search Bar */}
@@ -121,6 +127,10 @@ export const ResidentsPage = () => {
               sortDirection={sortDirection}
               onSort={handleSort}
               isLoading={isLoading}
+
+
+
+              filterValue={filterValue}
             />
 
             {/* Pagination */}

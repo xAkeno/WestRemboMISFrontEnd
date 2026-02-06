@@ -20,6 +20,7 @@ interface ResidentsTableProps {
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
   isLoading: boolean;
+  filterValue: string;
 }
 
 const getInitials = (name: string) => {
@@ -29,6 +30,7 @@ const getInitials = (name: string) => {
   }
   return name.substring(0, 2).toUpperCase();
 };
+
 
 const getAvatarColor = (name: string) => {
   const colors = [
@@ -51,8 +53,10 @@ export const ResidentsTable = ({
   sortField, 
   sortDirection, 
   onSort,
-  isLoading 
+  isLoading,
+  filterValue
 }: ResidentsTableProps) => {
+
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <th 
       className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors"
@@ -78,21 +82,31 @@ export const ResidentsTable = ({
 
   const [residents, setResidents] = useState<Resident[]>([]);
 
-  useEffect(() => {
-    const get = async () => {
-      try{
-        const res = await axios.get('http://127.0.0.1:8000/api/residents',{withCredentials:true})
-        var json = res.data.data.data
-        setResidents(json.map(mapResident));
-        console.log(json);
-      }catch (error: any) {
-        const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
-        toast.error(errorMessage);
-        console.error(error);
-      } 
+  const fetchResidents = async (url: string) => {
+    try {
+      const res = await axios.get(url, { withCredentials: true });
+      const json = res.data.data.data;
+      setResidents(json.map(mapResident));
+      console.log(json);
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to fetch residents';
+      toast.error(errorMessage);
+      console.error(error);
     }
-    get();
-  },[])
+  };
+
+  useEffect(() => {
+    const url =
+      filterValue === ''
+        ? 'http://127.0.0.1:8000/api/residents'
+        : filterValue;
+
+    fetchResidents(url);
+  }, [filterValue]); // 👈 runs ONLY when filterValue changes
+
+
+
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">

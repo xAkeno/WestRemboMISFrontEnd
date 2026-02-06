@@ -70,6 +70,13 @@
 
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+        /* Custom tokens */
+    --hero-overlay: 217 71% 12%;
+    --navy: 217 71% 20%;
+    --navy-dark: 217 71% 12%;
+    --gold: 43 90% 50%;
+    --gold-light: 43 80% 60%;
   }
 
   .dark {
@@ -101,6 +108,8 @@
     --border: 215 25% 22%;
     --input: 215 25% 22%;
     --ring: 215 80% 55%;
+
+    
 
     /* Success / Warning / Pending (dark version) */
     --success: 145 55% 35%;

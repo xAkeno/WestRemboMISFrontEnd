@@ -30,6 +30,11 @@ import BarangayClearance from "./pages/BarangayClearance";
 import BuildingClearance from "./pages/BuildingClearance";
 import BusinessClearance from "./pages/BusinessClearance";
 import Certificate from "./pages/Certificate";
+import HomePage from "./pages/HomePage";
+import AboutUsSection from "./components/forms/AboutUsSection";
+import ContactSection from "./components/forms/ContactSection";
+
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -41,7 +46,9 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Login />} /> {/*Login*/}
-
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/aboutus" element={<AboutUsSection />} />
+              <Route path="/contact" element={<ContactSection />} />
 
               <Route path="/certificatehome" element={<Certificate />} /> 
               <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
