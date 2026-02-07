@@ -1,82 +1,57 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import AuthLayout from "@/components/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, UserPlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload } from "lucide-react";
 
 const Register = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
+    phone: "",
+    gender: "",
     password: "",
     confirmPassword: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [emailVerification, setEmailVerification] = useState(false);
-  const [robotCheck, setRobotCheck] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [idFile, setIdFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.id]: e.target.value,
-    });
+  const updateField = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const passwordErrors = () => {
+    const errors: string[] = [];
+    if (formData.password.length > 0 && formData.password.length < 8) errors.push("Password length must be 8 minimum");
+    if (formData.password.length > 0 && !/^[A-Z]/.test(formData.password)) errors.push("Password must start with capital letter");
+    if (formData.password.length > 0 && !/\d/.test(formData.password)) errors.push("Password must contain a number");
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
       return;
     }
 
-    if (!emailVerification) {
-      toast({
-        title: "Error",
-        description: "Please verify you want to receive emails",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!robotCheck) {
-      toast({
-        title: "Error",
-        description: "Please confirm you're not a robot",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!termsAccepted) {
-      toast({
-        title: "Error",
-        description: "Please accept the terms and conditions",
-        variant: "destructive",
-      });
+    if (passwordErrors().length > 0) {
+      toast({ title: "Error", description: "Please fix password requirements", variant: "destructive" });
       return;
     }
 
@@ -84,201 +59,131 @@ const Register = () => {
 
     try {
       const response = await api.post("/api/register", {
-        name: formData.name,
+        name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
+        phone: formData.phone,
+        gender: formData.gender,
         password: formData.password,
         password_confirmation: formData.confirmPassword,
       });
 
-      // Store token in localStorage if provided
       if (response.data.token) {
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user || {}));
       }
 
-      toast({
-        title: "Success!",
-        description: "Your account has been created successfully.",
-      });
-
-      // Navigate to login or dashboard
+      toast({ title: "Success!", description: "Your account has been created successfully." });
       navigate("/");
     } catch (error: any) {
-      setIsLoading(false);
       const errorMessage = error.response?.data?.message || "Registration failed. Please try again.";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleClear = () => {
+    setFormData({ firstName: "", lastName: "", email: "", phone: "", gender: "", password: "", confirmPassword: "" });
+    setIdFile(null);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary">
-      <div className="w-full max-w-md space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Create Account
-          </h1>
-          <p className="text-muted-foreground">Sign up to get started with us</p>
-        </div>
-
-        <Card className="border-border/50 shadow-[var(--shadow-elegant)] backdrop-blur-sm bg-card/80">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Register</CardTitle>
-            <CardDescription>Fill in the details to create your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="John Doe"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="verification"
-                    checked={emailVerification}
-                    onCheckedChange={(checked) => setEmailVerification(checked as boolean)}
-                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                  <Label
-                    htmlFor="verification"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    I want to receive verification emails
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="robot"
-                    checked={robotCheck}
-                    onCheckedChange={(checked) => setRobotCheck(checked as boolean)}
-                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                  <Label
-                    htmlFor="robot"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    I'm not a robot
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="terms"
-                    checked={termsAccepted}
-                    onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
-                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                  <Label
-                    htmlFor="terms"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    I agree to the{" "}
-                    <Link to="#" className="text-primary hover:text-accent transition-colors">
-                      terms and conditions
-                    </Link>
-                  </Label>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all duration-200 shadow-[var(--shadow-soft)]"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin">⏳</span> Creating account...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <UserPlus size={18} /> Create Account
-                  </span>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <div className="text-sm text-center text-muted-foreground">
-              Already have an account?{" "}
-              <Link to="/" className="text-primary hover:text-accent transition-colors font-medium">
-                Sign in
-              </Link>
+    <AuthLayout>
+      <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-2xl max-w-4xl w-full p-8 md:p-12">
+        <h1 className="text-3xl font-extrabold text-center text-foreground mb-8 italic">Registration</h1>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Row 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label className="font-semibold text-foreground">First name</Label>
+              <Input placeholder="John" value={formData.firstName} onChange={(e) => updateField("firstName", e.target.value)} className="mt-1 bg-card" />
             </div>
-          </CardFooter>
-        </Card>
+            <div>
+              <Label className="font-semibold text-foreground">Last name</Label>
+              <Input placeholder="Doe" value={formData.lastName} onChange={(e) => updateField("lastName", e.target.value)} className="mt-1 bg-card" />
+            </div>
+            <div>
+              <Label className="font-semibold text-foreground">Email address</Label>
+              <Input type="email" placeholder="john.doe@company.com" value={formData.email} onChange={(e) => updateField("email", e.target.value)} className="mt-1 bg-card" />
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label className="font-semibold text-foreground">Phone number</Label>
+              <Input placeholder="09156284536" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} className="mt-1 bg-card" />
+            </div>
+            <div>
+              <Label className="font-semibold text-foreground">Gender</Label>
+              <Select value={formData.gender} onValueChange={(v) => updateField("gender", v)}>
+                <SelectTrigger className="mt-1 bg-card">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="font-semibold text-foreground">Password</Label>
+              <Input type="password" placeholder="••••••••" value={formData.password} onChange={(e) => updateField("password", e.target.value)} className="mt-1 bg-card" />
+            </div>
+          </div>
+
+          {/* Row 3 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ID Upload */}
+            <div>
+              <Label className="font-semibold text-foreground">ID with address</Label>
+              <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8 cursor-pointer hover:border-primary transition-colors bg-muted/50 min-h-[160px]">
+                <Upload className="w-10 h-10 text-muted-foreground mb-2" />
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">Click to upload</span> or drag and drop
+                </span>
+                <span className="text-xs text-muted-foreground mt-1">SVG, PNG, JPG or GIF (MAX: 800x400px)</span>
+                {idFile && <span className="text-xs text-accent mt-2 font-medium">{idFile.name}</span>}
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+
+            {/* Confirm password + rules */}
+            <div className="space-y-4">
+              <div>
+                <Label className="font-semibold text-foreground">Confirm password</Label>
+                <Input type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)} className="mt-1 bg-card" />
+              </div>
+              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+                <li>Password length must be 8 minimum</li>
+                <li>Password must start with capital letter</li>
+                <li>Password must contain a number</li>
+              </ul>
+              {passwordErrors().length > 0 && (
+                <ul className="text-sm text-destructive list-disc pl-5 space-y-1">
+                  {passwordErrors().map((err) => <li key={err}>{err}</li>)}
+                </ul>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Already have account?{" "}
+                <Link to="/" className="text-accent font-semibold hover:underline">Log in</Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Submitting..." : "Submit"}
+            </Button>
+            <Button type="button" variant="outline" onClick={handleClear} className="border-primary text-primary hover:bg-primary/10">
+              Clear
+            </Button>
+          </div>
+        </form>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

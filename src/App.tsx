@@ -33,7 +33,7 @@ import Certificate from "./pages/Certificate";
 import HomePage from "./pages/HomePage";
 import AboutUsSection from "./components/forms/AboutUsSection";
 import ContactSection from "./components/forms/ContactSection";
-
+import ProfileManagement from "./pages/ProfileManagement";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +47,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Login />} /> {/*Login*/}
               <Route path="/home" element={<HomePage />} />
+              <Route path="/profile" element={<ProfileManagement />} />
               <Route path="/aboutus" element={<AboutUsSection />} />
               <Route path="/contact" element={<ContactSection />} />
 

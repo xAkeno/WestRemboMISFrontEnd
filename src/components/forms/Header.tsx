@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import Logo from "../../assets/West_Rembo_Logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { toast } from "sonner";
 
 const navLinks = [
   { label: "Home", href: "/home" },
@@ -16,6 +18,25 @@ const Header = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const [self, setSelf] = useState(null);
+
+  const api = () => {
+    const url = "http://127.0.0.1:8000/api/details";
+    axios.get(url,{withCredentials: true}).then((response) => {
+      console.log(response.data);
+      if(response.status === 200){
+        setSelf(response.data);
+      } else {
+        toast.error("Account is not log in");
+      }
+    }).catch((error) => {
+      toast.error("Error fetching data: " + error.message);
+    });
+  }
+
+  useEffect(() => {
+    api();
+  }, []);
 
   const handleScroll = (id: string) => {
     // If already on /home → just scroll
@@ -69,12 +90,18 @@ const Header = () => {
               )
             )}
 
-            <a
-              href="#"
-              className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors"
-            >
+            {
+              self ? <a href="/"className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-emerald-500 flex items-center justify-center">
+                  <img src={Logo} alt="Barangay West Rembo Logo" />
+                </div>
+              </a> : <a
+                href="/"
+                className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors"
+              >
               Sign In
             </a>
+            }
           </div>
 
           {/* Mobile Menu Button */}

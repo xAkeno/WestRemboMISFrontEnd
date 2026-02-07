@@ -20,6 +20,7 @@ const HomePage = () => {
       }
     }
   }, [location]);
+  
   return (
     <div className="min-h-screen bg-background">
       <Header />
