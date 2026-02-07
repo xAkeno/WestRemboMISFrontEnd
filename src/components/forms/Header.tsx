@@ -4,6 +4,7 @@ import Logo from "../../assets/West_Rembo_Logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
+import ProfileDropdown from "./ProfileDropdown";
 
 const navLinks = [
   { label: "Home", href: "/home" },
@@ -25,7 +26,8 @@ const Header = () => {
     axios.get(url,{withCredentials: true}).then((response) => {
       console.log(response.data);
       if(response.status === 200){
-        setSelf(response.data);
+        setSelf(response.data.data);
+        console.log(response.data);
       } else {
         toast.error("Account is not log in");
       }
@@ -91,11 +93,7 @@ const Header = () => {
             )}
 
             {
-              self ? <a href="/"className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-emerald-500 flex items-center justify-center">
-                  <img src={Logo} alt="Barangay West Rembo Logo" />
-                </div>
-              </a> : <a
+              self ? <ProfileDropdown self={self} /> : <a
                 href="/"
                 className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors"
               >
