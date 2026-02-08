@@ -34,7 +34,11 @@ import HomePage from "./pages/HomePage";
 import AboutUsSection from "./components/forms/AboutUsSection";
 import ContactSection from "./components/forms/ContactSection";
 import ProfileManagement from "./pages/ProfileManagement";
-
+import ServicesRequest from "./pages/request/ServicesRequest";
+import ServiceCards from "./pages/request/ServiceCards";
+import ServicePage from "./pages/request/ServicePage";
+import ServicesSection from "./pages/request/ServicesSection";
+import ServiceCard from "./pages/request/ServiceCard";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -50,6 +54,8 @@ const App = () => (
               <Route path="/profile" element={<ProfileManagement />} />
               <Route path="/aboutus" element={<AboutUsSection />} />
               <Route path="/contact" element={<ContactSection />} />
+              <Route path="/services/:serviceId" element={<ServicePage />} />
+              <Route path="/services" element={<ServicesRequest />} />
 
               <Route path="/certificatehome" element={<Certificate />} /> 
               <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}

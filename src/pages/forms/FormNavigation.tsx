@@ -44,7 +44,7 @@ const FormNavigation = ({
           <Send className="w-4 h-4" />
         </Button>
       ) : (
-        <Button type="button" onClick={onNext} className="gap-2 bg-navy hover:bg-navy/90">
+        <Button type="button" onClick={onNext} className="gap-2 bg-green-500 hover:bg-green-600">
           Next
           <ChevronRight className="w-4 h-4" />
         </Button>

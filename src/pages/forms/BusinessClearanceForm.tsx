@@ -13,6 +13,7 @@ import {
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/components/services/clearanceApi";
 
 interface BusinessClearanceFormProps {
   onBack: () => void;
@@ -33,6 +34,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
 
   const [formData, setFormData] = useState({
     // Owner Information
+    requester_type: "Online",
     prefix: "",
     surname: "",
     firstname: "",
@@ -77,16 +79,77 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     }
   };
 
+  const payload = {
+    requester_type: formData.requester_type,
+    prefix: formData.prefix,
+    surname: formData.surname,
+    firstname: formData.firstname,
+    middlename: formData.middlename,
+    ext: formData.ext,
+    businessName: formData.businessName,
+    businessType: formData.businessType,
+    businessDetails: formData.businessDetails,
+    capital: formData.capital ? Number(formData.capital) : null,
+    houseBlockLotNo: formData.houseBlockLotNo,
+    street: formData.street,
+    zone: formData.zone,
+    brgyBusinessNo: formData.brgyBusinessNo,
+    issuedDate: formData.issuedDate,
+    orNo: formData.orNo,
+    inspectedBy: formData.inspectedBy,
+    dateOfInspection: formData.dateOfInspection,
+    inspectionRemarks: formData.inspectionRemarks,
+    inspectedRemarks: formData.inspectedRemarks,
+    dateInspected: formData.dateInspected,
+    inspectedNote: formData.inspectedNote,
+  };
+
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast({
-      title: "Request Submitted",
-      description: "Your business clearance request has been submitted successfully.",
-    });
-    onBack();
+
+    console.log("Submitting payload:", payload); // Debug
+
+    try {
+      const response = await api.post("/business-clearances", payload, {
+        withCredentials: true,
+      });
+
+      if (response.status === 200 || response.status === 201) {
+        toast({
+          title: "Request Submitted",
+          description:
+            "Your business clearance request has been submitted successfully.",
+        });
+
+        console.log("Created business clearance record:", response.data);
+
+        const savedRecordId = response.data?.data?.service?.id;
+        console.log("Saved Record ID:", savedRecordId);
+
+        onBack();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        console.error("Validation errors:", error.response.data.errors);
+        toast({
+          title: "Validation Error",
+          description: "Please check required fields and try again.",
+          variant: "destructive",
+        });
+      } else {
+        console.error("Submission error:", error);
+        toast({
+          title: "Error",
+          description: "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const renderStep = () => {
     switch (currentStep) {
@@ -278,9 +341,6 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="bg-navy text-navy-foreground rounded-t-lg">
-        <CardTitle className="text-xl">Business Clearance</CardTitle>
-      </CardHeader>
       <CardContent className="pt-6">
         <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
         {renderStep()}

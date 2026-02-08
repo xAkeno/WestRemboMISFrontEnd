@@ -9,7 +9,7 @@ import ProfileDropdown from "./ProfileDropdown";
 const navLinks = [
   { label: "Home", href: "/home" },
   { label: "About", href: "/aboutus" },
-  { label: "Services", scrollTo: "request-form" },
+  { label: "Services", href: "/services" },
   { label: "Calendar", href: "#" },
   { label: "Contact", href: "/contact" },
 ];
@@ -73,15 +73,6 @@ const Header = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) =>
-              link.scrollTo ? (
-                <button
-                  key={link.label}
-                  onClick={() => handleScroll(link.scrollTo)}
-                  className="text-white hover:text-primary-foreground transition-colors text-sm font-medium"
-                >
-                  {link.label}
-                </button>
-              ) : (
                 <a
                   key={link.label}
                   href={link.href}
@@ -89,9 +80,7 @@ const Header = () => {
                 >
                   {link.label}
                 </a>
-              )
             )}
-
             {
               self ? <ProfileDropdown self={self} /> : <a
                 href="/"

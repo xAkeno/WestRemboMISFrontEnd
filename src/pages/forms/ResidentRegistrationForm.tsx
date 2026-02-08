@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
+import axios from "axios";
 
 interface ResidentRegistrationFormProps {
   onBack: () => void;
@@ -31,9 +32,22 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const [residentImage, setResidentImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setResidentImage(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+
   
   const [formData, setFormData] = useState({
     // Personal Information
+    requester_type: "Online",
     prefix: "",
     surname: "",
     first_name: "",
@@ -45,8 +59,8 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
     name_of_spouse: "",
     date_of_birth: "",
     place_of_birth: "",
-    height_cm: "",
-    weight_kg: "",
+    height_cm: 0,
+    weight_kg: 0,
     blood_type: "",
     complexion: "",
     religion: "",
@@ -92,21 +106,85 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast({
-      title: "Request Submitted",
-      description: "Your resident registration request has been submitted successfully.",
-    });
-    onBack();
+
+    try {
+      // Prepare FormData for file upload
+      const payload = new FormData();
+      Object.entries(formData).forEach(([key, value]) =>
+        payload.append(key, String(value))
+      );
+
+      if (residentImage) {
+        payload.append("photo", residentImage);
+      }
+
+      console.log("Submitting resident data:", formData);
+
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/residents",
+        payload,
+        { withCredentials: true }
+      );
+
+
+      
+
+      if (response.status === 201 || response.status === 200) {
+        toast({
+          title: "Request Submitted",
+          description: "Your resident registration request has been submitted successfully.",
+        });
+        onBack();
+      }
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description: "There was an error submitting your request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const renderStep = () => {
     switch (currentStep) {
       case 0:
         return (
           <div className="grid gap-4">
+            <div className="flex items-center gap-6 mb-6">
+            {/* Image Preview */}
+            <div className="w-28 h-28 rounded-full border flex items-center justify-center overflow-hidden bg-muted">
+              {imagePreview ? (
+                <img
+                  src={imagePreview}
+                  alt="Resident Preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground text-center px-2">
+                  No Image
+                </span>
+              )}
+            </div>
+
+            {/* Upload Button */}
+            <div>
+              <Label htmlFor="resident_image">Resident Photo</Label>
+              <Input
+                id="resident_image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                JPG, PNG — max 5MB
+              </p>
+            </div>
+          </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="prefix">Prefix</Label>
@@ -438,9 +516,6 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="bg-navy text-navy-foreground rounded-t-lg">
-        <CardTitle className="text-xl">Resident Registration</CardTitle>
-      </CardHeader>
       <CardContent className="pt-6">
         <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
         {renderStep()}

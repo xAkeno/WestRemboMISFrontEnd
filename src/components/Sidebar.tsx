@@ -37,6 +37,7 @@ export function Sidebar() {
           withCredentials: true
         });
         setPermissions(response.data.data.permissions || []);
+        console.log("User permissions:", response.data.data);
       } catch (error) {
         console.error("Failed to fetch user permissions", error);
       }

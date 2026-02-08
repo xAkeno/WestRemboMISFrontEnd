@@ -5,7 +5,7 @@ import OfficialsSection from "@/components/forms/OfficialsSection";
 import Footer from "@/components/forms/Footer";
 import AboutSection from "@/components/AboutSection";
 import { useEffect } from "react";
-
+import ServicesSection from "./request/ServicesSection";
 const HomePage = () => {
 
   useEffect(() => {
@@ -27,7 +27,7 @@ const HomePage = () => {
       <main>
         <HeroSection />
         <AboutSection />
-        <RequestFormSection />
+        <ServicesSection />
         <OfficialsSection />
       </main>
       <Footer />

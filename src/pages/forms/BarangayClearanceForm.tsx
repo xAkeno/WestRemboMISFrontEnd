@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/components/services/clearanceApi";
 
 interface BarangayClearanceFormProps {
   onBack: () => void;
@@ -34,6 +35,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
 
   const [formData, setFormData] = useState({
     // Personal Information
+    requester_type: "Online",
     prefix: "",
     surname: "",
     first_name: "",
@@ -83,14 +85,78 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast({
-      title: "Request Submitted",
-      description: "Your barangay clearance request has been submitted successfully.",
-    });
-    onBack();
+
+    // Map front-end keys to Laravel keys
+    const payload = {
+      requester_type: formData.requester_type,
+      prefix: formData.prefix,
+      surname: formData.surname,
+      first_name: formData.first_name,
+      middle_name: formData.middle_name,
+      ext_name: formData.ext_name,
+      house_block_lot_no: formData.house_block_lot_no,
+      street: formData.street,
+      zone: formData.zone,
+      dob: formData.dob,
+      pob: formData.pob,
+      contact_no: formData.contact_no,
+      period_of_residency: formData.period_of_residency,
+      registered_voter: formData.registered_voter,
+      house_owner: formData.house_owner,
+      relationship_to_owner: formData.relationship_to_owner,
+      bcert_number: formData.bcert_number,
+      issued_date: formData.issued_date,
+      purpose: formData.purpose,
+      purpose_details: formData.purpose_details,
+      ctc_vrr_no: formData.ctc_vrr_no,
+      issued_at: formData.issued_at,
+      issued_on: formData.issued_on,
+      or_no: formData.or_no,
+      bomarke: formData.remarks, // map remarks to bomarke
+    };
+
+
+    try {
+      const response = await api.post("/barangay-clearances", payload, {
+        withCredentials: true,
+      });
+
+      if (response.status === 200 || response.status === 201) {
+        toast({
+          title: "Request Submitted",
+          description:
+            "Your barangay clearance request has been submitted successfully.",
+        });
+
+        console.log("Created clearance record:", response.data);
+
+        const savedRecordId = response.data?.data?.service?.id;
+        console.log("Saved Record ID:", savedRecordId);
+
+        onBack();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        console.error("Validation errors:", error.response.data.errors);
+        toast({
+          title: "Validation Error",
+          description: "Please check required fields and try again.",
+          variant: "destructive",
+        });
+      } else {
+        console.error("Submission error:", error);
+        toast({
+          title: "Error",
+          description: "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+
 
   const renderStep = () => {
     switch (currentStep) {
@@ -331,9 +397,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="bg-navy text-navy-foreground rounded-t-lg">
-        <CardTitle className="text-xl">Barangay Clearance</CardTitle>
-      </CardHeader>
+
       <CardContent className="pt-6">
         <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
         {renderStep()}

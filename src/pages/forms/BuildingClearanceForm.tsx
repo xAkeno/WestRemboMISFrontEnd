@@ -13,6 +13,7 @@ import {
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/components/services/clearanceApi";
 
 interface BuildingClearanceFormProps {
   onBack: () => void;
@@ -33,6 +34,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   const [formData, setFormData] = useState({
     // Applicant Information
+    requester_type: "Online",
     prefix: "",
     surname: "",
     firstname: "",
@@ -74,16 +76,72 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     }
   };
 
+  const payload = {
+    requester_type: formData.requester_type,
+    prefix: formData.prefix,
+    surname: formData.surname,
+    firstname: formData.firstname,
+    middlename: formData.middlename,
+    extension: formData.extension,
+    establishment: formData.establishment,
+    houseBlockLot: formData.houseBlockLot,
+    street: formData.street,
+    zone: formData.zone,
+    purpose: formData.purpose,
+    purpose_details: formData.purposeDetails, // map React key
+    bcert_number: formData.bcert_number,
+    issuedDate: formData.issuedDate,
+    orNo: formData.orNo,
+    remarks: formData.remarks,
+    punongBarangay: formData.punongBarangay,
+    forThePunongBarangay: formData.forThePunongBarangay,
+    barangayPosition: formData.barangayPosition,
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast({
-      title: "Request Submitted",
-      description: "Your building clearance request has been submitted successfully.",
-    });
-    onBack();
+
+    console.log("Submitting payload:", payload); // Debug
+
+    try {
+      const response = await api.post("/building-clearances", payload, {
+        withCredentials: true,
+      });
+
+      if (response.status === 200 || response.status === 201) {
+        toast({
+          title: "Request Submitted",
+          description:
+            "Your building clearance request has been submitted successfully.",
+        });
+
+        console.log("Created building clearance record:", response.data);
+        const savedRecordId = response.data?.data?.service?.id;
+        console.log("Saved Record ID:", savedRecordId);
+
+        onBack();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        console.error("Validation errors:", error.response.data.errors);
+        toast({
+          title: "Validation Error",
+          description: "Please check required fields and try again.",
+          variant: "destructive",
+        });
+      } else {
+        console.error("Submission error:", error);
+        toast({
+          title: "Error",
+          description: "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const renderStep = () => {
     switch (currentStep) {
@@ -272,9 +330,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="bg-navy text-navy-foreground rounded-t-lg">
-        <CardTitle className="text-xl">Building Clearance</CardTitle>
-      </CardHeader>
+
       <CardContent className="pt-6">
         <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
         {renderStep()}

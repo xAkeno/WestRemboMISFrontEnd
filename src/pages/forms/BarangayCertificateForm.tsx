@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
-
+import axios from "axios";
 interface BarangayCertificateFormProps {
   onBack: () => void;
 }
@@ -34,6 +34,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
 
   const [formData, setFormData] = useState({
     // Personal Information
+    requester_type: "Online",
     prefix: "",
     firstname: "",
     middle_name: "",
@@ -81,14 +82,49 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast({
-      title: "Request Submitted",
-      description: "Your barangay certificate request has been submitted successfully.",
-    });
-    onBack();
+
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/barangay-certificates",
+        {
+          ...formData,
+          age: formData.age ? Number(formData.age) : null,
+        },
+        { withCredentials: true }
+      );
+
+      if (response.status === 201 || response.status === 200) {
+        toast({
+          title: "Success",
+          description: "Barangay certificate request submitted successfully.",
+        });
+
+        console.log("Created record:", response.data);
+
+        const savedRecordId = response.data?.data?.service?.id;
+        console.log("Saved Record ID:", savedRecordId);
+
+        onBack();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        console.error("Validation errors:", error.response.data.errors);
+        toast({
+          title: "Validation Error",
+          description: "Please check the form. Some fields are invalid.",
+        });
+      } else {
+        console.error("Submission error:", error);
+        toast({
+          title: "Submission Error",
+          description: "Something went wrong. Please try again.",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const renderStep = () => {
     switch (currentStep) {
@@ -319,9 +355,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="bg-navy text-navy-foreground rounded-t-lg">
-        <CardTitle className="text-xl">Barangay Certificate</CardTitle>
-      </CardHeader>
+
       <CardContent className="pt-6">
         <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
         {renderStep()}
