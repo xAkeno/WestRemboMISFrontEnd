@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { MapPin, Menu, Phone, X } from "lucide-react";
 import Logo from "../../assets/West_Rembo_Logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -58,6 +58,20 @@ const Header = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#097b0a] backdrop-blur-sm ">
+      <div className="bg-[#ff87ca] text-primary-foreground py-1 px-4">
+        <div className="container mx-auto flex flex-wrap items-center justify-between text-sm">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              <span>Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              <Phone className="w-4 h-4" />
+              <span>(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="container mx-auto px-2 ">
         <nav className="flex items-center justify-between py-4">
           {/* Logo */}

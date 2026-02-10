@@ -110,13 +110,14 @@ const BuildingClearance = () => {
                 <table className="w-full">
                   <thead className="border-b border-border bg-muted/30">
                     <tr>
+                      <SortHeader field="surname">Full Name</SortHeader>
                       <SortHeader field="bcertNumber">BCert Number</SortHeader>
                       <SortHeader field="issuedDate">Issue Date</SortHeader>
-                      <SortHeader field="surname">Full Name</SortHeader>
                       <SortHeader field="establishment">Establishment</SortHeader>
                       <SortHeader field="purpose">Purpose</SortHeader>
                       <SortHeader field="street">Address</SortHeader>
                       <SortHeader field="orNo">OR No.</SortHeader>
+                      <SortHeader field="orNo">Created By</SortHeader>
                       <SortHeader field="remarks">Remarks</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                     </tr>
@@ -124,13 +125,14 @@ const BuildingClearance = () => {
                   <tbody className="divide-y divide-border">
                     {data.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcertNumber}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.issuedDate}</td>
-                        <td className="py-3 px-4 text-sm">{`${item.firstName} ${item.middleName} ${item.surname}`}</td>
+                        <td className="py-3 px-4 text-sm">{`${item.firstname} ${item.middlename} ${item.surname}`}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcert_number}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.issuedDate).toLocaleDateString()}</td>
                         <td className="py-3 px-4 text-sm font-medium">{item.establishment}</td>
                         <td className="py-3 px-4 text-sm">{item.purpose}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.blockLotNo}, ${item.street}, ${item.zone}`}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.houseBlockLot}, ${item.street}, ${item.zone}`}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.orNo}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.created_by}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.remarks || '-'}</td>
                         <td className="py-3 px-4">
                           <DropdownMenu>

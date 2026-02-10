@@ -83,6 +83,7 @@ const BusinessClearance = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
   };
+  console.log('Business Clearance data:', data);
 
   return (
     <Layout>
@@ -113,13 +114,14 @@ const BusinessClearance = () => {
                 <table className="w-full">
                   <thead className="border-b border-border bg-muted/30">
                     <tr>
+                      <SortHeader field="fullName">Full Name</SortHeader>
                       <SortHeader field="brgyBusinessNo">Business No.</SortHeader>
                       <SortHeader field="issuedDate">Issue Date</SortHeader>
                       <SortHeader field="businessName">Business Name</SortHeader>
                       <SortHeader field="businessType">Type</SortHeader>
-                      <SortHeader field="surname">Owner</SortHeader>
                       <SortHeader field="street">Address</SortHeader>
                       <SortHeader field="capital">Capital</SortHeader>
+                      <SortHeader field="orNo">Created By</SortHeader>
                       <SortHeader field="orNo">OR No.</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                     </tr>
@@ -127,13 +129,14 @@ const BusinessClearance = () => {
                   <tbody className="divide-y divide-border">
                     {data.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-4 text-sm font-medium">{`${item.firstname} ${item.middlename || ''} ${item.surname}`}</td>
                         <td className="py-3 px-4 text-sm font-medium text-primary">{item.brgyBusinessNo}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.issuedDate}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.issuedDate).toLocaleDateString()}</td>
                         <td className="py-3 px-4 text-sm font-medium">{item.businessName}</td>
                         <td className="py-3 px-4 text-sm">{item.businessType}</td>
-                        <td className="py-3 px-4 text-sm">{`${item.firstName} ${item.surname}`}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.street}, ${item.zone}`}</td>
                         <td className="py-3 px-4 text-sm font-medium">{formatCurrency(item.capital)}</td>
+                        <td className="py-3 px-4 text-sm font-medium">{item.created_by}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.orNo}</td>
                         <td className="py-3 px-4">
                           <DropdownMenu>

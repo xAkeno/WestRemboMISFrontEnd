@@ -80,7 +80,7 @@ const BarangayClearance = () => {
       </div>
     </th>
   );
-
+  console.log(data)
   return (
     <Layout>
         <div className="p-6">
@@ -113,22 +113,24 @@ const BarangayClearance = () => {
                         <SortHeader field="fullName">FULL NAME</SortHeader>
                         <SortHeader field="bcertNumber">BCert Number</SortHeader>
                         <SortHeader field="issueDate">Issue Date</SortHeader>
-                        <SortHeader field="surname">Full Name</SortHeader>
+                        {/* <SortHeader field="surname">Full Name</SortHeader> */}
                         <SortHeader field="street">Address</SortHeader>
-                        <SortHeader field="dateOfBirth">DOB</SortHeader>
+                        <SortHeader field="dateOfBirth">Date of birth</SortHeader>
+                        <SortHeader field="fullName">Created By</SortHeader>
                         <SortHeader field="purpose">Purpose</SortHeader>
                         <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {data.map((item) => (
+                        
                         <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcertNumber}</td>
-                          <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcertNumber}</td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground">{item.issueDate}</td>
-                          <td className="py-3 px-4 text-sm">{`${item.firstName} ${item.middleName} ${item.surname}${item.ext ? ` ${item.ext}` : ''}`}</td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.blockNo} ${item.street}, ${item.zone}`}</td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground">{item.dateOfBirth}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-primary">{`${item.first_name} ${item.middle_name} ${item.surname}${item.ext_name ? ` ${item.ext_name}` : ''}`}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcert_number}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">{item.issued_at}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.house_block_lot_no} ${item.street}, ${item.zone}`}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.dob).toLocaleDateString()}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">{item.created_by}</td>
                           <td className="py-3 px-4 text-sm">{item.purpose}</td>
                           <td className="py-3 px-4">
                             <DropdownMenu>

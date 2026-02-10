@@ -7,7 +7,8 @@ import {
   Settings, 
   LogOut,
   ChevronLeft,
-  Coins
+  Coins,
+  HomeIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
@@ -100,6 +101,20 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="p-4 border-t border-sidebar-border">
+        <button
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all",
+            "text-sidebar-foreground hover:bg-sidebar-accent",
+            collapsed && "justify-center"
+          )}
+          onClick={() => navigate("/home")}
+        >
+          <HomeIcon className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="font-medium">Return Home</span>}
+        </button>
+      </div>
 
       <div className="p-4 border-t border-sidebar-border">
         <button

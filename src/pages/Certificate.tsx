@@ -110,35 +110,56 @@ const Certificate = () => {
                 <table className="w-full">
                   <thead className="border-b border-border bg-muted/30">
                     <tr>
-                      <SortHeader field="bcertNumber">BCert Number</SortHeader>
-                      <SortHeader field="issueDate">Issue Date</SortHeader>
-                      <SortHeader field="surname">Full Name</SortHeader>
-                      <SortHeader field="street">Address</SortHeader>
-                      <SortHeader field="age">Age</SortHeader>
-                      <SortHeader field="registeredVoter">Voter</SortHeader>
-                      <SortHeader field="periodOfResidency">Residency</SortHeader>
-                      <SortHeader field="purpose">Purpose</SortHeader>
+                        <SortHeader field="fullName">Full Name</SortHeader>
+                        <SortHeader field="bcert_number">BCert Number</SortHeader>
+                        <SortHeader field="issued_date">Issue Date</SortHeader>
+                        <SortHeader field="age">Age</SortHeader>
+                        <SortHeader field="purpose">Purpose</SortHeader>
+                        <SortHeader field="status">Status</SortHeader>
+                        <SortHeader field="created_at">Date Created</SortHeader>
+                        <SortHeader field="created_by">Created By</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {data.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcertNumber}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.issueDate}</td>
-                        <td className="py-3 px-4 text-sm">{`${item.firstName} ${item.middleName} ${item.surname}${item.ext ? ` ${item.ext}` : ''}`}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.blockNo} ${item.street}, ${item.zone}`}</td>
-                        <td className="py-3 px-4 text-sm">{item.age}</td>
-                        <td className="py-3 px-4">
-                          <Badge 
-                            variant={item.registeredVoter === 'Yes' ? 'default' : 'secondary'}
-                            className={item.registeredVoter === 'Yes' ? 'bg-status-voter text-white' : ''}
-                          >
-                            {item.registeredVoter}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-sm">{item.periodOfResidency}</td>
-                        <td className="py-3 px-4 text-sm">{item.purpose}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-primary">
+                        {item.bcert_number}
+                      </td>
+
+                      <td className="py-3 px-4 text-sm">
+                        {`${item.firstname} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`}
+                      </td>
+
+                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                        {item.issued_date}
+                      </td>
+
+                      <td className="py-3 px-4 text-sm">
+                        {item.age}
+                      </td>
+
+                      <td className="py-3 px-4 text-sm">
+                        {item.purpose}
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant={item.status === 'ENCODED' ? 'secondary' : 'default'}
+                        >
+                          {item.status}
+                        </Badge>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {new Date(item.issued_date).toLocaleDateString()}
+                      </td>
+
+                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                        {item.created_by}
+                      </td>
+
                         <td className="py-3 px-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

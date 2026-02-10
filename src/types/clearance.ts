@@ -1,18 +1,19 @@
 // Barangay Clearance
 export interface BarangayClearance {
   id: string;
-  bcertNumber: string;
-  issueDate: string;
+  bcert_number: string;
+  issued_at: string;
   surname: string;
-  firstName: string;
-  middleName: string;
-  ext?: string;
-  blockNo: string;
+  first_name: string;
+  middle_name: string;
+  ext_name?: string;
+  house_block_lot_no: string;
   street: string;
   zone: string;
-  dateOfBirth: string;
-  placeOfBirth: string;
+  dob: string;
+  pob: string;
   purpose: string;
+  created_by: string;
   remark?: string;
 }
 
@@ -22,8 +23,9 @@ export interface BusinessClearance {
   brgyBusinessNo: string;
   issuedDate: string;
   surname: string;
-  firstName: string;
-  middleName: string;
+  created_by: string;
+  firstname: string;
+  middlename: string;
   businessName: string;
   businessType: string;
   street: string;
@@ -37,15 +39,16 @@ export interface BusinessClearance {
 export interface BuildingClearance {
   id: string;
   recordId: string;
-  bcertNumber: string;
+  bcert_number: string;
   issuedDate: string;
-  firstName: string;
-  middleName: string;
+  firstname: string;
+  middlename: string;
   surname: string;
   establishment: string;
   purpose: string;
-  blockLotNo: string;
+  houseBlockLot: string;
   street: string;
+  created_by: string;
   zone: string;
   orNo: string;
   remarks?: string;
@@ -54,20 +57,22 @@ export interface BuildingClearance {
 // Certificate
 export interface Certificate {
   id: string;
-  bcertNumber: string;
-  issueDate: string;
+  bcert_number: string;
+  issued_date: string;
   surname: string;
-  firstName: string;
-  middleName: string;
-  ext?: string;
-  blockNo: string;
+  firstname: string;
+  middle_name: string;
+  extension?: string;
+  block_no: string;
   street: string;
   zone: string;
-  dateOfBirth: string;
+  date_of_birth: string;
   age: number;
-  registeredVoter: 'Yes' | 'No';
-  periodOfResidency: string;
+  registered_voter: 'Yes' | 'No';
+  period_of_residency: string;
   purpose: string;
+  status: string;
+  created_by: string;
 }
 
 export type ClearanceType = 'barangay' | 'business' | 'building' | 'certificate';

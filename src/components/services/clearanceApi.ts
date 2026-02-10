@@ -27,8 +27,9 @@ export interface FetchClearanceParams {
 // Barangay Clearance API
 export const fetchBarangayClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BarangayClearance>> => {
   try {
-    const response = await api.get('/barangayClearance', { params });
-    return response.data;
+    const response = await api.get('/barangay-clearances', { params,withCredentials: true });
+
+    return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
     return generateMockBarangayClearances(params);
@@ -38,8 +39,8 @@ export const fetchBarangayClearances = async (params: FetchClearanceParams = {})
 // Business Clearance API
 export const fetchBusinessClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BusinessClearance>> => {
   try {
-    const response = await api.get('/businessClearance', { params });
-    return response.data;
+    const response = await api.get('/business-clearances', { params,withCredentials: true });
+    return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
     return generateMockBusinessClearances(params);
@@ -49,8 +50,8 @@ export const fetchBusinessClearances = async (params: FetchClearanceParams = {})
 // Building Clearance API
 export const fetchBuildingClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BuildingClearance>> => {
   try {
-    const response = await api.get('/buildingClearance', { params });
-    return response.data;
+    const response = await api.get('/building-clearances', { params,withCredentials: true });
+    return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
     return generateMockBuildingClearances(params);
@@ -60,8 +61,9 @@ export const fetchBuildingClearances = async (params: FetchClearanceParams = {})
 // Certificate API
 export const fetchCertificates = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<Certificate>> => {
   try {
-    const response = await api.get('/certificate', { params });
-    return response.data;
+    const response = await api.get('/barangay-certificates', { params,withCredentials: true });
+    console.log('API response:', response.data);
+    return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
     return generateMockCertificates(params);
@@ -100,6 +102,7 @@ const generateMockBarangayClearances = (params: FetchClearanceParams): Clearance
     zone: `Zone ${Math.floor(Math.random() * 10) + 1}`,
     dateOfBirth: generateDate(),
     placeOfBirth: 'Manila',
+    created_by: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${surnames[Math.floor(Math.random() * surnames.length)]}`,
     purpose: purposes[Math.floor(Math.random() * purposes.length)],
   }));
 
