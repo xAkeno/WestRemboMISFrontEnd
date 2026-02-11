@@ -14,7 +14,8 @@ import {
   PanelsTopLeft,
   CalendarCog,
   Database,
-  LayoutPanelTop
+  LayoutPanelTop,
+  Activity
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
@@ -29,13 +30,15 @@ const allMenuItems = [
   { title: "Clearances", path: "/clearancehome", icon: FileCheck, permission: "doc_req" },
   { title: "Certifications", path: "/certificatehome", icon: Award, permission: "certificate" },
   { title: "Cashier", path: "/cashier", icon: Coins, permission: "cashier" },
-  { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
   { title: "About us", path: "/aboutus-admin", icon: LayoutPanelTop, permission: "settings" },
   { title: "Elected Officials", path: "/elected-officials", icon: Contact, permission: "settings" },
   { title: "Contact", path: "/contact-admin", icon: Phone, permission: "settings" },
-  { title: "Website Settings", path: "/websitesetting", icon: PanelsTopLeft, permission: "settings" }, 
   { title: "Events Calendar", path: "/events-calendar", icon: CalendarCog, permission: "settings" },
+  { title: "Document Settings", path: "/document-setting", icon: FileCheck, permission: "settings" },
+  { title: "Website Settings", path: "/websitesetting", icon: PanelsTopLeft, permission: "settings" }, 
+  { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
   { title: "Backup Recovery", path: "/backup-recovery", icon: Database, permission: "settings" },
+  { title: "Activity Log", path: "/activity-log", icon: Activity, permission: "settings" },
   { title: "Settings", path: "/settings", icon: Settings, permission: "settings" },
 ];
 

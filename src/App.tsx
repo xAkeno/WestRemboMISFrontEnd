@@ -45,8 +45,9 @@ import BackupRecovery from "./pages/admin/BackupRecovery";
 import ElectedOfficials from "./pages/admin/ElectedOfficials";
 import EventsCalendar from "./pages/admin/EventsCalendar";
 import WebsiteSettings from "./pages/admin/WebsiteSettings";
-
-
+import ActivityLog from "./pages/admin/ActivityLog";
+import { DocumentGrid } from "./pages/admin/DocumentGrid";
+import { DocumentTable } from "./pages/admin/DocumentTable";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -90,7 +91,10 @@ const App = () => (
               <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
               <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
               <Route path="/websitesetting" element={<WebsiteSettings />} /> {/*Website Settings*/}
-  
+              <Route path="/activity-log" element={<ActivityLog />} /> {/*Activity Log*/}
+              <Route path="/document-setting" element={<DocumentGrid />} /> {/*Document Grid*/}
+              {/* <Route path="/document-table" element={<DocumentTable />} /> */}
+
 
               <Route path="/register" element={<Register />} /> {/*Register*/}
               <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
