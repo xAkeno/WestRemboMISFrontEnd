@@ -39,6 +39,14 @@ import ServiceCards from "./pages/request/ServiceCards";
 import ServicePage from "./pages/request/ServicePage";
 import ServicesSection from "./pages/request/ServicesSection";
 import ServiceCard from "./pages/request/ServiceCard";
+import AboutUsCms from "./pages/admin/AboutUsCms";
+import Contact from "./pages/admin/ContactAdmin";
+import BackupRecovery from "./pages/admin/BackupRecovery";
+import ElectedOfficials from "./pages/admin/ElectedOfficials";
+import EventsCalendar from "./pages/admin/EventsCalendar";
+import WebsiteSettings from "./pages/admin/WebsiteSettings";
+
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -75,7 +83,14 @@ const App = () => (
               <Route path="/residenthome" element={<ResidentsPage />} /> {/*Resident Form*/}
               <Route path="/residenthome/create" element={<ResidentForm/>} /> {/*Create Resident */}
 
-
+              {/* Admin */}
+              <Route path="/aboutus-admin" element={<AboutUsCms />} /> {/*About Us CMS*/}
+              <Route path="/contact-admin" element={<Contact />} /> {/*Contact Admin*/}
+              <Route path="/backup-recovery" element={<BackupRecovery />} /> {/*Backup Recovery*/}
+              <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
+              <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
+              <Route path="/websitesetting" element={<WebsiteSettings />} /> {/*Website Settings*/}
+  
 
               <Route path="/register" element={<Register />} /> {/*Register*/}
               <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}

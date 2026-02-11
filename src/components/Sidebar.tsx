@@ -9,12 +9,19 @@ import {
   ChevronLeft,
   Coins,
   HomeIcon,
+  Contact,
+  Phone,
+  PanelsTopLeft,
+  CalendarCog,
+  Database,
+  LayoutPanelTop
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { title } from "process";
 
 const allMenuItems = [
   { title: "Dashboard", path: "/dashboard", icon: Users, permission: null }, // accessible to all
@@ -23,6 +30,12 @@ const allMenuItems = [
   { title: "Certifications", path: "/certificatehome", icon: Award, permission: "certificate" },
   { title: "Cashier", path: "/cashier", icon: Coins, permission: "cashier" },
   { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
+  { title: "About us", path: "/aboutus-admin", icon: LayoutPanelTop, permission: "settings" },
+  { title: "Elected Officials", path: "/elected-officials", icon: Contact, permission: "settings" },
+  { title: "Contact", path: "/contact-admin", icon: Phone, permission: "settings" },
+  { title: "Website Settings", path: "/websitesetting", icon: PanelsTopLeft, permission: "settings" }, 
+  { title: "Events Calendar", path: "/events-calendar", icon: CalendarCog, permission: "settings" },
+  { title: "Backup Recovery", path: "/backup-recovery", icon: Database, permission: "settings" },
   { title: "Settings", path: "/settings", icon: Settings, permission: "settings" },
 ];
 
