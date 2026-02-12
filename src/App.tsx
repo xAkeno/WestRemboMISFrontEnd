@@ -45,7 +45,7 @@ import BackupRecovery from "./pages/admin/BackupRecovery";
 import ElectedOfficials from "./pages/admin/ElectedOfficials";
 import EventsCalendar from "./pages/admin/EventsCalendar";
 import WebsiteSettings from "./pages/admin/WebsiteSettings";
-
+import AccessibilityPanel from "./components/AccessibilityPanel";
 
 const queryClient = new QueryClient();
 
@@ -111,6 +111,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          <AccessibilityPanel/>
         </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
