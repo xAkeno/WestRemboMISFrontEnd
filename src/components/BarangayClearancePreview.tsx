@@ -99,7 +99,7 @@ export const BarangayClearancePreview = ({
 
   return (
     <div>
-      <div className="w-full h-[600px]" ref={viewerRef}></div>
+      <div className="w-full h-[700px]" ref={viewerRef}></div>
     </div>
   );
 };

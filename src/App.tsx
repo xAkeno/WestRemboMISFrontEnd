@@ -47,7 +47,8 @@ import EventsCalendar from "./pages/admin/EventsCalendar";
 import WebsiteSettings from "./pages/admin/WebsiteSettings";
 import ActivityLog from "./pages/admin/ActivityLog";
 import { DocumentGrid } from "./pages/admin/DocumentGrid";
-import { DocumentTable } from "./pages/admin/DocumentTable";
+
+import { CertificateEditor } from "./components/documentMaker/CertificateEditor";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -65,6 +66,8 @@ const App = () => (
               <Route path="/contact" element={<ContactSection />} />
               <Route path="/services/:serviceId" element={<ServicePage />} />
               <Route path="/services" element={<ServicesRequest />} />
+
+              <Route path="/document-edit/:id" element={<CertificateEditor />} />
 
               <Route path="/certificatehome" element={<Certificate />} /> 
               <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}

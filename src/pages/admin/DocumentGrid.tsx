@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, RefreshCw, Eye } from "lucide-react";
+import { FileText, RefreshCw, Eye, Edit } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Layout } from "@/components/Layout";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 interface DocItem {
   id?: number;
@@ -114,6 +115,8 @@ export function DocumentGrid() {
     e.target.value = "";
   };
 
+  const navigate = useNavigate();
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -164,10 +167,19 @@ export function DocumentGrid() {
                   {doc.file_url && (
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => setPreviewUrl(doc.file_url)}
                     >
                       <Eye className="mr-1.5 h-3.5 w-3.5" /> View
+                    </Button>
+                  )}
+                  {doc.file_url && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={ () => navigate(`/document-edit/${doc.id}`) }
+                    >
+                      <Edit className="mr-1.5 h-3.5 w-3.5" /> Edit
                     </Button>
                   )}
                 </div>
