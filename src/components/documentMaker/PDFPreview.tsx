@@ -49,8 +49,6 @@ export function PDFPreview({
     return () => window.removeEventListener('resize', updateScale);
   }, [updateScale]);
 
-  console.log('Rendering PDFPreview with:', { blobUrl, templateInfo, fields, currentPage });
-
   if (!blobUrl || !templateInfo || !pageInfo) {
     return (
       <div className="flex flex-1 items-center justify-center bg-muted/30">
@@ -65,7 +63,7 @@ export function PDFPreview({
 
 
       {/* PDF + overlay */}
-      <div className="flex flex-1 items-center justify-center p-4 overflow-auto">
+      <div className="flex flex-1 items-center justify-center p-4 overflow-hidden">
         <div
           className="relative shadow-lg origin-top-left"
           style={{ width: pageInfo.width, height: pageInfo.height, transform: `scale(${scale})` }}

@@ -90,7 +90,7 @@ const BarangayClearance = () => {
                 <h1 className="text-2xl font-semibold text-foreground">Barangay Clearance</h1>
                 <p className="text-sm text-muted-foreground mt-1">Manage barangay clearance records</p>
               </div>
-              <Button className="gap-2" onClick={() => navigate('create')}>
+              <Button className="gap-2" onClick={() => navigate('/document-edit/2')}>
                 <Plus className="h-4 w-4" />
                 New Clearance
               </Button>

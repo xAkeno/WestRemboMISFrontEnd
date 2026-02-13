@@ -90,7 +90,7 @@ const Certificate = () => {
               <h1 className="text-2xl font-semibold text-foreground">Certificate</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage certificate records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('create')}>
+            <Button className="gap-2" onClick={() => navigate('/document-edit/1')}>
               <Plus className="h-4 w-4" />
               New Certificate
             </Button>

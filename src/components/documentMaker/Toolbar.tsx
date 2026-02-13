@@ -15,9 +15,10 @@ interface ToolbarProps {
   onSaveLayout: () => void;
   onLoadLayout: (e: React.ChangeEvent<HTMLInputElement>) => void;
   hasTemplate: boolean;
+  isAdmin: boolean;
 }
 
-export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate }: ToolbarProps) {
+export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin }: ToolbarProps) {
   return (
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
       <label>
@@ -66,17 +67,25 @@ export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoad
         Download PDF
       </Button>
 
-      <Button variant="outline" size="sm" disabled={!hasTemplate} onClick={onSaveLayout}>
-        <Save className="mr-2 h-4 w-4" />
-        Save Layout
-      </Button>
+      {isAdmin && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!hasTemplate}
+          onClick={onSaveLayout}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          Save Layout
+        </Button>
+      )}
 
-      <label>
+
+      {/* <label>
         <Button variant="ghost" size="sm" asChild>
           <span className="cursor-pointer text-xs text-muted-foreground">Load Layout</span>
         </Button>
         <input type="file" accept=".json" className="hidden" onChange={onLoadLayout} />
-      </label>
+      </label> */}
     </div>
   );
 }

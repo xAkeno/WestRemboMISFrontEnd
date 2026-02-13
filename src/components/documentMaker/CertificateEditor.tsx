@@ -20,13 +20,33 @@ export function CertificateEditor() {
   const [isLoading, setIsLoading] = useState(false);
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // Fetch PDF from API on mount
-  useEffect(() => {
-    if (id) {
-      fetchPDFTemplate(id);
+
+  const fetchUser = async () => {
+    try {
+      const response = await axios.get(
+        "http://127.0.0.1:8000/api/me",
+        { withCredentials: true }
+      );
+
+      const user = response.data.data;
+
+      console.log("User data:", user);
+
+      // Adjust depending on your backend structure
+      if (user.role === "ADMIN") {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
+
+    } catch (error) {
+      console.error("Failed to fetch user", error);
     }
-  }, [id]);
+  };
+
+
 
   const fetchPDFTemplate = async (documentId: string) => {
     setIsLoading(true);
@@ -34,20 +54,17 @@ export function CertificateEditor() {
       console.log('Fetching PDF from API endpoint...');
       const id = parseInt(documentId, 10);
       const metadata = await axios.get(
-      `http://127.0.0.1:8000/api/documents/single/${id}`, 
-      { withCredentials: true }
-    );
+        `http://127.0.0.1:8000/api/documents/single/${id}`, 
+        { withCredentials: true }
+      );
       
-    const filename = metadata.data.file_path.replace(/^public\/documents\//, '');
+      const filename = metadata.data.file_path.replace(/^public\/documents\//, '');
 
-    // Then fetch the PDF using the filename
-    const pdfResponse = await axios.get(`http://127.0.0.1:8000/api/documents/${filename}`, {
-      responseType: 'arraybuffer',
-      withCredentials: true,
-    });
-
-    console.log('PDF fetched successfully, processing...' + pdfResponse + `http://127.0.0.1:8000/api/documents/${filename}`);
-
+      // Then fetch the PDF using the filename
+      const pdfResponse = await axios.get(`http://127.0.0.1:8000/api/documents/${filename}`, {
+        responseType: 'arraybuffer',
+        withCredentials: true,
+      });
 
       const buffer = pdfResponse.data;
 
@@ -59,7 +76,19 @@ export function CertificateEditor() {
       const { info } = await loadPDFTemplate(buffer);
       setTemplateInfo(info);
       setCurrentPage(0);
-      setFields([]);
+
+      let savedLayout: TextField[] = [];
+      if (metadata.data.layout) {
+        try {
+          savedLayout = Array.isArray(metadata.data.layout)
+            ? metadata.data.layout
+            : JSON.parse(metadata.data.layout);
+        } catch (err) {
+          console.error("Invalid layout format:", err);
+        }
+      }
+
+      setFields(savedLayout);
       setSelectedId(null);
       await renderPreview([]);
       toast.success('Template loaded successfully');
@@ -82,6 +111,13 @@ export function CertificateEditor() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchUser();
+    if (id) {
+      fetchPDFTemplate(id);
+    }
+  }, [id]);
 
   // Re-render PDF preview when fields change
   const renderPreview = useCallback(async (currentFields: TextField[]) => {
@@ -166,11 +202,26 @@ export function CertificateEditor() {
     const json = JSON.stringify(fields, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'certificate-layout.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    console.log('Saving layout:', fields);
+    const save = axios.put(`http://127.0.0.1:8000/api/documents/${id}/layout`, {
+      layout: fields
+    }, {
+      withCredentials: true
+    });
+    save.then((response) => {
+      if(response.status === 200) {
+        toast.success('Layout saved successfully');
+      } else {
+        toast.error('Failed to save layout');
+      }
+    }).catch((error) => {
+      toast.error('Failed to save layout');
+    });
+    // const a = document.createElement('a');
+    // a.href = url;
+    // a.download = 'certificate-layout.json';
+    // a.click();
+    // URL.revokeObjectURL(url);
     toast.success('Layout saved');
   }, [fields]);
 
@@ -212,6 +263,7 @@ export function CertificateEditor() {
           onSaveLayout={handleSaveLayout}
           onLoadLayout={handleLoadLayout}
           hasTemplate={!!templateInfo}
+          isAdmin={isAdmin}
         />
         <div className="flex flex-1 min-h-0">
           <EditorSidebar
@@ -220,7 +272,9 @@ export function CertificateEditor() {
             onSelect={setSelectedId}
             onChange={handleFieldChange}
             onDelete={handleDeleteField}
+            isAdmin={isAdmin}
           />
+
           <PDFPreview
             blobUrl={blobUrl}
             templateInfo={templateInfo}

@@ -94,7 +94,7 @@ const BusinessClearance = () => {
               <h1 className="text-2xl font-semibold text-foreground">Business Clearance</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage business clearance records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('create')}>
+            <Button className="gap-2" onClick={() => navigate('/document-edit/4')}>
               <Plus className="h-4 w-4" />
               New Clearance
             </Button>

@@ -11,6 +11,7 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onChange: (id: string, updates: Partial<TextField>) => void;
   onDelete: (id: string) => void;
+  isAdmin: boolean;
 }
 
 export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete }: SidebarProps) {
@@ -23,47 +24,58 @@ export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete
       </div>
 
       <ScrollArea className="flex-1">
-        {fields.length === 0 && (
-          <p className="p-4 text-xs text-muted-foreground">No fields yet. Use "Add Field" to get started.</p>
-        )}
+  {fields.length === 0 && (
+    <p className="p-4 text-xs text-muted-foreground">
+      No fields yet. Use "Add Field" to get started.
+    </p>
+  )}
 
-        {/* Field list */}
-        <div className="space-y-0.5 p-1">
-          {fields.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => onSelect(f.id)}
-              className={cn(
-                'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-accent',
-                selectedId === f.id && 'bg-sidebar-accent text-sidebar-accent-foreground'
-              )}
-            >
-              <div className="min-w-0">
-                <div className="truncate font-medium text-xs">{f.label}</div>
-                <div className="truncate text-xs text-muted-foreground">{f.value || '(empty)'}</div>
+  <div className="space-y-0.5 p-1">
+    {fields.map((f) => {
+      const isSelected = selectedId === f.id;
+
+      return (
+        <div key={f.id}>
+          {/* Field row */}
+          <button
+            onClick={() => onSelect(f.id)}
+            className={cn(
+              'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-accent',
+              isSelected && 'bg-sidebar-accent text-sidebar-accent-foreground'
+            )}
+          >
+            <div className="min-w-0">
+              <div className="truncate font-medium text-xs">{f.label}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {f.value || '(empty)'}
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={(e) => { e.stopPropagation(); onDelete(f.id); }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </button>
-          ))}
-        </div>
-
-        {/* Selected field editor */}
-        {selectedField && (
-          <div className="border-t border-sidebar-border mt-2">
-            <div className="px-3 pt-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Edit: {selectedField.label}</h3>
             </div>
-            <FieldEditor field={selectedField} onChange={onChange} />
-          </div>
-        )}
-      </ScrollArea>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(f.id);
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </button>
+
+          {/* Editor appears directly BELOW selected field */}
+          {isSelected && (
+            <div className="mt-1 mb-2 rounded-md border border-sidebar-border bg-muted/40 p-2">
+              <FieldEditor field={f} onChange={onChange} />
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+</ScrollArea>
+
     </div>
   );
 }
