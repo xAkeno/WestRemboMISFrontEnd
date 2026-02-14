@@ -163,11 +163,7 @@ export default function BarangayForm() {
       let savedRecordId = null;
 
       if (recordStatus === "Save") {
-        response = await api.post(
-          "/api/barangay-clearances",
-          formData,
-          { withCredentials: true }
-        );
+ 
 
         if (response.status === 201) {
           toast.success("Barangay clearance record saved successfully");

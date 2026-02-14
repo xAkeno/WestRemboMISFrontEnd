@@ -90,7 +90,7 @@ const BuildingClearance = () => {
               <h1 className="text-2xl font-semibold text-foreground">Building Clearance</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage building clearance records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('create')}>
+            <Button className="gap-2" onClick={() => navigate('/document-edit/3')}>
               <Plus className="h-4 w-4" />
               New Clearance
             </Button>

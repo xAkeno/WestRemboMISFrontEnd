@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, RefreshCw, HardDrive, FileArchive, Clock, Play, Trash2 } from 'lucide-react';
+import { Download, RefreshCw, HardDrive, FileArchive, Clock, Play, Trash2, Upload, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -7,6 +7,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Layout } from '@/components/Layout';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
@@ -41,6 +49,11 @@ const BackupRecovery = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [restoreId, setRestoreId] = useState<number | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadType, setUploadType] = useState<'database' | 'files' | 'full'>('database');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const API_BASE = "http://127.0.0.1:8000/api/backup";
 
@@ -208,6 +221,51 @@ const BackupRecovery = () => {
     }
   };
 
+  const handleRestore = async () => {
+    if (!restoreId) return;
+    setIsRestoring(true);
+    try {
+      await axios.post(`${API_BASE}/backups/${restoreId}/restore`);
+      toast({ title: 'Restore Complete', description: 'Backup has been restored successfully' });
+    } catch {
+      toast({ title: 'Restore Failed', description: 'Could not restore from this backup', variant: 'destructive' });
+    } finally {
+      setIsRestoring(false);
+      setRestoreId(null);
+    }
+  };
+
+  const handleUploadRestore = async () => {
+    if (!uploadFile) return;
+    const ext = uploadFile.name.split('.').pop()?.toLowerCase();
+    const expectedExt = uploadType === 'database' ? 'sql' : 'zip';
+    if (ext !== expectedExt) {
+      toast({
+        title: 'Invalid File Type',
+        description: `${uploadType === 'database' ? 'Database' : 'File'} restores require .${expectedExt} files`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsRestoring(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('type', uploadType);
+      await axios.post(`${API_BASE}/backups/restore-upload`, formData);
+      toast({ title: 'Restore Complete', description: 'Uploaded backup restored successfully' });
+      setUploadDialogOpen(false);
+      setUploadFile(null);
+      loadData();
+    } catch {
+      toast({ title: 'Restore Failed', description: 'Could not restore from uploaded file', variant: 'destructive' });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const acceptedFileType = uploadType === 'database' ? '.sql' : '.zip';
+
   return (
     <Layout>  
       <div className="p-6">
@@ -239,6 +297,17 @@ const BackupRecovery = () => {
                 </div>
               </button>
             ))}
+            <button onClick={() => { setUploadDialogOpen(true); setUploadFile(null); }} disabled={isRestoring}
+              className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors disabled:opacity-50">
+              <Upload className="h-8 w-8 text-primary mb-3" />
+              <h3 className="text-sm font-medium">Upload & Restore</h3>
+              <p className="text-xs text-muted-foreground mt-1">Restore from a backup file</p>
+              <div className="mt-3">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <RotateCcw className="h-3 w-3" /> Restore
+                </span>
+              </div>
+          </button>
           </div>
 
           {/* Backup History */}
@@ -345,7 +414,7 @@ const BackupRecovery = () => {
             )}
           </div>
 
-          <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+          {/* <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Backup</AlertDialogTitle>
@@ -356,7 +425,68 @@ const BackupRecovery = () => {
                 <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
-          </AlertDialog>
+          </AlertDialog> */}
+
+          {/* Restore Confirmation */}
+        <AlertDialog open={!!restoreId} onOpenChange={() => setRestoreId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Restore Backup</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will overwrite your current data with the selected backup. This action cannot be undone. Are you sure you want to proceed?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRestore} disabled={isRestoring}>
+                {isRestoring ? 'Restoring…' : 'Yes, Restore'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Upload & Restore Dialog */}
+        <Dialog open={uploadDialogOpen} onOpenChange={open => { if (!isRestoring) { setUploadDialogOpen(open); setUploadFile(null); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Upload & Restore</DialogTitle>
+              <DialogDescription>Upload a backup file to restore your system.</DialogDescription>
+            </DialogHeader>
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              ⚠️ Restoring will overwrite current data. Make sure you have a recent backup before proceeding.
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Restore Type</Label>
+                <Select value={uploadType} onValueChange={(v: 'database' | 'files' | 'full') => { setUploadType(v); setUploadFile(null); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="database">Database (.sql)</SelectItem>
+                    <SelectItem value="files">Files (.zip)</SelectItem>
+                    <SelectItem value="full">Full Backup (.zip)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Backup File</Label>
+                <Input
+                  type="file"
+                  accept={acceptedFileType}
+                  onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Accepted format: <strong>{acceptedFileType}</strong>
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setUploadDialogOpen(false); setUploadFile(null); }} disabled={isRestoring}>Cancel</Button>
+              <Button onClick={handleUploadRestore} disabled={!uploadFile || isRestoring}>
+                {isRestoring ? 'Restoring…' : 'Upload & Restore'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         </div>
       </div>
 
