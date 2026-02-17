@@ -47,6 +47,8 @@ import EventsCalendar from "./pages/admin/EventsCalendar";
 import WebsiteSettings from "./pages/admin/WebsiteSettings";
 import ActivityLog from "./pages/admin/ActivityLog";
 import { DocumentGrid } from "./pages/admin/DocumentGrid";
+import AccessibilityPanel from "./components/AccessibilityPanel";
+
 import MyRequest from "./components/myrequest/MyRequest";
 import { CertificateEditor } from "./components/documentMaker/CertificateEditor";
 import RequestDetail from "./components/myrequest/RequestDetail";
@@ -121,6 +123,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          <AccessibilityPanel/>
         </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>

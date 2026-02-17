@@ -1,0 +1,53 @@
+{
+ 
+      "hero": {
+        "title": "Bienvenue à West Rembo",
+        "description": "Restez informé des annonces officielles, des événements à venir et des mises à jour importantes afin de contribuer à maintenir la communauté de West Rembo en sécurité, connectée et prospère."
+      },
+      "calendarButton": {
+        "title": "Calendrier des activités",
+        "learnMore": "En savoir plus"
+      },
+      "cityInfo": {
+        "title": "WEST REMBO",
+        "subtitle": "CITY OF MAKATI"
+      },
+      "about": {
+        "titles": "À propos de ce site web",
+        "descriptions": "Restez informé des annonces officielles, des événements à venir et des mises à jour importantes pour la communauté de West Rembo. Ce site sert de centre d'information afin d’aider les résidents à rester en sécurité, connectés et prospères."
+      },
+      "features": {
+      "communityStuff": {
+        "number": "01",
+        "title": "Fonctionnalités",
+        "description": "Découvrez les principales fonctionnalités de notre site web conçues pour vous tenir informé et engagé avec la communauté de West Rembo."
+      },
+      "calendarEvent": {
+        "number": "02",
+        "title": "Calendrier des événements",
+        "description": "Découvrez les événements à venir, les réunions et les activités de la communauté afin de ne rien manquer à West Rembo."
+      },
+      "emergencyEvents": {
+        "number": "03",
+        "title": "Informations et contacts d'urgence",
+        "description": "Accédez aux numéros d'urgence, aux contacts du centre de santé et aux conseils de sécurité pour rester prêt en cas de situation urgente à West Rembo."
+      }
+    },"services": {
+        "firstBox": {
+          "title": "Enregistrement des résidents",
+          "description": "Enregistrez-vous en tant que résident du Barangay West Rembo pour accéder aux services communautaires, programmes et avantages. Notre processus d'enregistrement est simple et efficace."
+        },
+        "secondBox": {
+          "title": "Certificat de Barangay",
+          "description": "Demandez votre certificat de Barangay pour l'emploi, le voyage ou d'autres fins officielles. Traitement rapide avec suivi en ligne disponible."
+        },
+        "thirdBox": {
+          "title": "Permis d'entreprise",
+          "description": "Obtenez les permis et certificats d'entreprise pour opérer légalement au sein de notre Barangay. Nous soutenons les entrepreneurs locaux avec un processus simplifié."
+        },
+        "topBox": {
+          "title": "Services que nous offrons",
+          "description": "Accédez aux services essentiels du Barangay en ligne. Nous nous engageons à servir notre communauté avec efficacité et soin."
+        }
+      }
+    }

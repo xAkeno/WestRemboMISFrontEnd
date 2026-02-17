@@ -1,42 +1,50 @@
 import { ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import serviceClearance from "../../assets/service-clearance.png";
 import serviceRegistration from "../../assets/service-business.png";
 import serviceBusiness from "../../assets/service-registration.png";
+import { use } from "i18next";
+import { title } from "process";
 
 
-const services = [
+
+
+const ServicesSection = () => {
+  const {t} = useTranslation('home');
+
+  const services = [
   {
     image: serviceRegistration,
-    title: "Resident Registration",
-    description: "Register as a resident of Barangay West Rembo to access community services, programs, and benefits. Our registration process is simple and efficient.",
+    title: t('services.firstBox.title'),
+    description: t('services.firstBox.description'),
     href: "/services/resident-registration",
   },
   {
     image: serviceClearance,
-    title: "Barangay Clearance",
-    description: "Apply for barangay clearance for employment, travel, and other official purposes. Fast processing with online tracking available.",
+    title: t('services.secondBox.title'),
+    description: t('services.secondBox.description'),
     href: "/services/barangay-clearance",
   },
   {
     image: serviceBusiness,
-    title: "Business Clearance",
-    description: "Obtain business permits and clearances to operate legally within our barangay. We support local entrepreneurs with streamlined processing.",
+    title: t('services.thirdBox.title'),
+    description: t('services.thirdBox.description'),
     href: "/services/business-clearance",
   },
 ];
 
-const ServicesSection = () => {
+
   return (
     <section className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Services We Offer
+            {t('services.topBox.title')}
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
-            Access essential barangay services online. We're committed to serving our community with efficiency and care.
+            {t('services.topBox.description')}
           </p>
         </div>
         

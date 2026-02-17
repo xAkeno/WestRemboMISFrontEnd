@@ -1,0 +1,52 @@
+{
+    "header": {
+        "home": "Home",
+        "about": "About",
+        "services": "Services",
+        "calendar": "Calendar",
+        "contact": "Contact",
+        "profile": "Profile"
+    },
+    "footer": {
+        "logo":{
+            "title": "BARANGAY WEST REMBO",
+            "copyright": "© 2025 Barangay West Rembo. All rights reserved."
+        },
+        "label":{
+            "title" : "ABOUT",
+            "titleTwo" : "QUICK ACCESS",
+            "titleThree" : "FOLLOW US",
+            "titleFour" : "HELP"
+        },
+        "subLabel":{
+            "sub" : "History",
+            "subTwo" : "Geography",
+            "subThree" : "Mission",
+            "subFour" : "Vision",
+            "subFive" : "Announcement",
+            "subSix"   : "Calendar",
+            "subSeven" : "Facebook",
+            "subEight" : "Contact"
+        }
+    },
+    "buttons": {
+        "applyNow": "Apply Now",
+        "submit": "Submit",
+        "cancel": "Cancel",
+        "back": "Back",
+        "next": "Next",
+        "save": "Save",
+        "edit": "Edit",
+        "delete": "Delete",
+        "view": "View"
+    },
+    "status": {
+        "popular": "Popular",
+        "loading": "Loading...",
+        "success": "Success",
+        "error": "Error",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+    }
+}

@@ -1,0 +1,76 @@
+{
+    "tabs": {
+        "ourStory": "Aming Kwento",
+        "ourGeography": "Aming Heograpiya",
+        "ourMission": "Aming Misyon",
+        "ourVision": "Aming Bisyon"
+    },
+    "header": {
+        "title": "Tungkol sa Amin",
+        "desc": "Ang BARANGAY WEST REMBO ay matatagpuan sa Distrito 2 ng Makati at nasa Eastside Cluster kasama ang mga barangay na East Rembo, Comembo, Pembo at Rizal. Batay sa 2015 Census of Population na isinagawa ng Philippine Statistics Authority, ang West Rembo ay may kabuuang populasyon na 29,826. Ang densidad ng populasyon nito ay limampung tao bawat 1,000 metro kwadrado. Mayroon itong kabuuang lawak na 552,500 metro kwadrado at pangunahing residential na lugar. Ang Barangay West Rembo ay tahanan ng ilang institusyonal na ari-arian tulad ng Makati Parks and Garden at University of Makati. Sa kasalukuyan, ang pamunuan ng Lungsod at Barangay West Rembo ay nakamit ang maraming milestone ng pag-unlad. Ang mga pampublikong paaralan ay itinatag sa loob ng barangay tulad ng University of Makati, Fort Bonifacio High School, Fort Bonifacio Elementary School at West Rembo Elementary School."
+    },
+    "story": {
+        "title": "Aming Kwento",
+        "content": "Ang WEST REMBO ay isang makasaysayang barangay. Bagaman hindi maraming dokumento ang makakasuporta sa paghahabol na ito, ito ay malinaw na pinapatunayan ng presensya ng lumang Ermita de San Nicolas, ang Simbahang itinayo ng mga paring Augustino noong kolonisasyon ng Pilipinas ng Espanya. Naniniwala na ang mga unang mananahan ng barangay na ito ay mga mangangalakal na Tsino na nanirahan malapit sa pampang ng Ilog Pasig. Ang ulat na ito ay batay sa mga sulatin ng isang antropolohista-istoryador na naglakbay upang magsagawa ng kanyang pananaliksik at pag-aaral noong pananakop ng Amerika sa bansang ito. Ang kayamanan ng ating makasaysayan at kulturang nakaraan ay maaaring hindi pa ganap na naitatala ngunit ang katibayan ng estruktura, sa kasalukuyan, ay sapat na upang sabihin na ang partikular na lokalidad na ito ay hindi nagsimula sa pangalan na kilala nito ngayon.",
+        "content2": "Nang itakda ang Fort Bonifacio bilang tahanan ng Philippine Army, inilipat ni B/Gen. Alfonso Arellano, ang Commanding General ng Philippine Army noong panahong iyon, ang mga naninirahan ng kalapit na baryo sa isang magandang lugar, na kilala ngayon bilang BARANGAY WEST REMBO. Ang REMBO ay talagang akronim para sa Riverside Enlisted Men's Barrio.",
+        "content3": "Ang mga awtoridad ng militar ay dating humirang ng mga Lider ng Barangay hanggang 1982, nang pahintulutan ng Commission on Elections ang mga residente ng Fort Bonifacio na pumili ng kanilang mga Lider ng Barangay na karamihan ay nagmula sa Philippine Army. Binuksan nito ang daan patungo sa pag-akyat ng mapayapa at progresibong Barangay sa Makati ngayon."
+    },
+    "geo": {
+        "subHead": {
+            "title": "Heograpikong Lokasyon"
+        },
+        "wrapper1": {
+            "con": "Longhitud: 121° 3' 32\"",
+            "con2": "Latitud: 14° 33' 44\"",
+            "con3": "Lawak ng Lupa: 55.25 Ektarya"
+        },
+        "wrapper2": {
+            "title": "Mga Hangganan ng Barangay",
+            "con": "Hilaga: Lungsod ng Pasig",
+            "con2": "Timog: Post Proper Northside",
+            "con3": "Silangan: East Rembo",
+            "con4": "Kanluran: Mga bahagi ng Cembo at Post Proper Northside"
+        },
+        "wrapper3": {
+            "title": "Mga Hangganan ng Kalye",
+            "con": "Hilaga: Ilog Pasig",
+            "con2": "Timog: Kalayaan Avenue",
+            "con3": "Silangan: C-5",
+            "con4": "Kanluran: Lawton Avenue"
+        },
+        "wrapper4": {
+            "title": "Mga Hangganan ng Cluster",
+            "con": "Hilaga: Ilog Pasig",
+            "con2": "Timog: BGC, Taguig",
+            "con3": "Silangan: East Rembo",
+            "con4": "Kanluran: Cembo"
+        },
+        "wrapper5": {
+            "title": "Cluster ng Barangay",
+            "con": "Hilaga: Ilog Pasig",
+            "con2": "Timog: Pembo",
+            "con3": "Silangan: East Rembo",
+            "con4": "Kanluran: Cembo"
+        },
+        "wrapper6": {
+            "title": "Karagdagang Impormasyon",
+            "con": "Bilang ng Zona: 8 Zona",
+            "con2": "Topograpiya: Undulating tuffaceous plain",
+            "con3": "Intensity ng Baha: Wala hanggang mababa",
+            "con4": "Panganib sa Lindol: Katamtaman hanggang mabigat",
+            "con5": "Hidrolohiya: Ilog Pasig"
+        },
+        "mission": {
+            "title": "Aming Misyon",
+            "sub": "Pagsilbihan ang mga residente ng Barangay West Rembo nang may buong dedikasyon, transparency, at pananagutan. Kami ay nakatuon sa pagbibigay ng mahusay na serbisyong pampubliko, pagpapanatili ng kapayapaan at kaayusan, at pagpapaunlad ng malinis at napapanatiling komunidad.",
+            "sub2": "Layunin naming bigyan ng kapangyarihan ang bawat residente sa pamamagitan ng mga accessible na programa sa edukasyon, kabuhayan, kalusugan, at kagalingang panlipunan, tinitiyak na walang maiiwanan sa ating kolektibong paglalakbay tungo sa pag-unlad.",
+            "sub3": "Sa pamamagitan ng kolaboratibong pamamahala at aktibong pakikilahok ng mga mamamayan, nagsisikap kaming bumuo ng isang komunidad kung saan ang bawat tinig ay mahalaga at ang bawat pamilya ay umunlad."
+        },
+        "vision": {
+            "title": "Aming Bisyon",
+            "sub": "Isang progresibo, mapayapa, at self-sufficient na Barangay West Rembo kung saan ang mga residente ay nag-eenjoy ng mataas na kalidad ng buhay, napapanatiling pag-unlad, at pantay na pagkakataon para sa paglago at kasaganaan.",
+            "sub2": "Naiisip namin ang isang komunidad na nagkakaisa sa pamamagitan ng mga pinagsamang pagpapahalaga ng respeto, integridad, at diwa ng bayanihan — kung saan ang mga pamilya ay ligtas, ang mga bata ay may edukasyon, at ang mga matatanda ay inaalagaan.",
+            "sub3": "Sa taong 2030, ang Barangay West Rembo ay makikilala bilang isang modelo ng barangay sa Lungsod ng Makati, kilala sa mga makabagong programa, engaged na mga mamamayan, at matibay na diwa ng komunidad."
+        }
+    }
+}

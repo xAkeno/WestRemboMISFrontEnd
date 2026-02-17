@@ -6,6 +6,11 @@
 
 @layer base {
   :root {
+
+    /* Accessibility stuff */
+    --base-font-size: 100%;
+    --zoom-level: 100%;
+
     /* Chart Colors */
     --chart-1: 220 70% 55%;
     --chart-2: 160 70% 55%;
@@ -139,6 +144,29 @@
     --sidebar-ring: 215 80% 55%;
   }
 }
+
+/* Accessibility Stuff */
+html {
+  font-size: var(--base-font-size);
+  zoom: var(--zoom-level);
+}
+
+@keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s;
+        }
+        @media (max-width: 480px) {
+          .w-\[380px\] {
+            width: 100%;
+          }
+          .\-right-\[400px\] {
+            right: -100%;
+          }
+        }
+
 
 @layer base {
   * {

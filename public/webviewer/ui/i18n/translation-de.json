@@ -6035,6 +6035,20 @@
           "detail": "Formel"
         }
       }
+    },
+    "formFieldPanel": {
+      "ListBoxFormField": "List box field annotation",
+      "ComboBoxFormField": "Combo box field annotation"
+    },
+      "apply": "Apply",
+      "type": "Type",
+      "button": "Button",
+    "accessibility": {
+      "title": "Barrierefreiheitseinstellungen",
+      "fontSize": "Schriftgröße",
+      "zoom": "Seitenzoom",
+      "language": "Sprache",
+      "reset": "Auf Standardwerte zurücksetzen"
     }
   }
 }

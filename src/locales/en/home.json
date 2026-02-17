@@ -1,0 +1,119 @@
+{
+    
+        "hero": {
+        "title": "Welcome to West Rembo",
+        "subtitle": "Official Barangay Announcements",
+        "description": "Updates to help keep you informed. Check back here regularly to keep up with community news."
+        },
+        "calendarButton": {
+        "title": "Calendar of Activity",
+        "learnMore": "Learn More"
+        },
+        "cityInfo": {
+        "title": "WEST REMBO",
+        "subtitle": "CITY OF MAKATI"
+        },
+        "about": {
+        "titles": "About this website",
+        "descriptions": "informed of official announcements, upcoming events, and important updates for the West Rembo community. This website serves as an information hub to help residents stay safe, connected, and prosperous."
+        },
+        "features": {
+            "communityStuff":{
+            "number": "01",
+            "title": "Features", 
+            "description": "the key features of our website designed to keep you informed and engaged with the West Rembo community."
+            },
+            "calendarEvent":{
+            "number": "02",
+            "title": "Event Calendar",
+            "description":"upcoming events, meetings, and activities in the community-so you never miss what's happening in West Rembo."
+            },
+            "emergencyEvents":{
+            "number": "03",
+            "title": "Emergency Info & Contacts",
+            "description": "emergency hotlines, health center contacts, and safety tips to help you stay ready during urgent situations in West Rembo."
+            }
+        },
+        "services": {
+            "firstBox": {
+                "title": "Resident Registration",
+                "description": "Register as a resident of Barangay West Rembo to access community services, programs, and benefits. Our registration process is simple and efficient."
+            },
+            "secondBox": {
+                "title": "Barangay Clearance",
+                "description": "Apply for barangay clearance for employment, travel, and other official purposes. Fast processing with online tracking available."
+            },
+            "thirdBox": {
+                "title": "Business Clearance",
+                "description": "Obtain business permits and clearances to operate legally within our barangay. We support local entrepreneurs with streamlined processing."
+            },
+            "topBox": {
+                "title": "Services We Offer",
+                "description": "Access essential barangay services online. We're committed to serving our community with efficiency and care.."
+            }
+        },
+        "barangayStuff": {
+            "head":{
+            "title": "Elected Officials"
+            },
+            "barangayCap":{
+            "name": "Roberto C. Dela Cruz",
+            "position": "PUNONG BARANGAY",
+            "committee": "Barangay Captain"
+            },
+                "barangayKagawadfirst":{
+                "name": "Leonard J. Mercado",
+                "position": "KAGAWAD",
+                "committee": "Youth and Sports Development Committee",
+                "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face"
+            },
+            "barangayKagawadsecond":{
+                "name": "Clarisse H. Navarro",
+                "position": "KAGAWAD",
+                "committee": "Health and Sanitation Committee",
+                "image": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face"
+            },
+            "barangayKagawadthird":{
+                "name": "Rowena G. Santos",
+                "position": "KAGAWAD",
+                "committee": "Livelihood and Economic Development",
+                "image": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face"
+            },
+            "barangayKagawadfourth":{
+                "name": "Joshua L. Ferrer",
+                "position": "KAGAWAD",
+                "committee": "Disaster Preparedness and Emergency Response",
+                "image": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face"
+            },
+             "barangayKagawadfifth":{
+                "name": "Diana V. Aquino",
+                "position": "KAGAWAD",
+                "committee": "Peace and Order Committee",
+                "image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face"
+            },
+            "barangayKagawadsixth":{
+                "name": "Geraldine M. Roldan",
+                "position": "KAGAWAD",
+                "committee": "Education, Culture and Gender Equality",
+                "image": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face"
+            },
+             "barangayKagawadseventh":{
+                "name": "Marco Elias D. Trinidad",
+                "position": "INGAT-YAMAN",
+                "committee": "Barangay Budget and Fiscal Management",
+                "image": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face"
+            },
+                "barangayKagawadeighth":{
+                "name": "Kristine Joy P. Lacson",
+                "position": "KALIHIM",
+                "committee": "Community Records and Documentation",
+                "image": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=face"
+            },
+                "barangayKagawadninth":{
+                "name": "Benjamin A. Reyes",
+                "position": "KAGAWAD",
+                "committee": "Environmental Protection and Cleanliness",
+                "image": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=200&h=200&fit=crop&crop=face"
+            }
+        }
+}

@@ -1,32 +1,38 @@
 import Logo from "../../assets/West_Rembo_Logo.png";
-const footerLinks = {
+import { useTranslation } from "react-i18next";
+
+
+
+const Footer = () => {
+ const { t } = useTranslation('common');
+  
+  const footerLinks = {
   about: {
-    title: "ABOUT",
+    title: t('footer.label.title'),
     links: [
-      { label: "History", href: "#" },
-      { label: "Geographic", href: "#" },
-      { label: "Vision", href: "#" },
-      { label: "Mission", href: "#" },
+      { label: t('footer.subLabel.sub'), href: "#" },
+      { label: t('footer.subLabel.subTwo'), href: "#" },
+      { label: t('footer.subLabel.subThree'), href: "#" },
+      { label: t('footer.subLabel.subFour'), href: "#" },
     ],
   },
   quickAccess: {
-    title: "QUICK ACCESS",
+    title: t('footer.label.titleTwo'),
     links: [
-      { label: "Announcement", href: "#" },
-      { label: "Calendar", href: "#" },
+      { label: t('footer.subLabel.subFive'), href: "#" },
+      { label: t('footer.subLabel.subSix'), href: "#" },
     ],
   },
   followUs: {
-    title: "FOLLOW US",
-    links: [{ label: "Facebook", href: "#" }],
+    title: t('footer.label.titleThree'),
+    links: [{ label: t('footer.subLabel.subSeven'), href: "#" }],
   },
   help: {
-    title: "HELP",
-    links: [{ label: "Contact", href: "#" }],
+    title: t('footer.label.titleFour'),
+    links: [{ label: t('footer.subLabel.subEight'), href: "#" }],
   },
 };
-
-const Footer = () => {
+  
   return (
     <footer className="bg-[#097b0a] pt-12 pb-6">
       <div className="container mx-auto px-4">
@@ -38,7 +44,7 @@ const Footer = () => {
               <img src={Logo} alt="Barangay West Rembo Logo" className="w-12 h-12" />
             </div>
             <span className="text-xl font-semibold text-primary-foreground">
-              Barangay West Rembo
+              {t('footer.logo.title')}
             </span>
           </div>
 
@@ -71,7 +77,7 @@ const Footer = () => {
 
         {/* Copyright */}
         <p className="text-center text-primary-foreground/50 text-sm">
-          © 2025 Barangay West Rembo™. All Rights Reserved.
+          {t('footer.logo.copyright')}
         </p>
       </div>
     </footer>
