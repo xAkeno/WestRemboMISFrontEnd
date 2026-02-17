@@ -1,0 +1,118 @@
+{
+    "hero": {
+        "title": "Maayong Pag-abot sa West Rembo",
+        "subtitle": "Opisyal nga mga Pahibalo sa Barangay",
+        "description": "Mga update aron magpabilin kang nahibal-an. Baliki kanunay kini nga panid aron masubay ang mga balita sa komunidad."
+    },
+    "calendarButton": {
+        "title": "Kalendaryo sa mga Kalihokan",
+        "learnMore": "Hibal-i pa"
+    },
+    "cityInfo": {
+        "title": "WEST REMBO",
+        "subtitle": "LUNGSOD SA MAKATI"
+    },
+    "about": {
+        "titles": "Mahitungod niining website",
+        "descriptions": "Magpabilin nga nahibal-an sa opisyal nga mga pahibalo, umaabot nga mga kalihokan, ug importante nga mga update para sa komunidad sa West Rembo. Kini nga website nagsilbing sentro sa impormasyon aron matabangan ang mga residente nga magpabiling luwas, konektado, ug mauswagon."
+    },
+    "features": {
+        "communityStuff": {
+        "number": "01",
+        "title": "Mga Tampok",
+        "description": "Ang mga nag-unang tampok sa among website nga gihimo aron magpabilin kang nahibal-an ug aktibong apil sa komunidad sa West Rembo."
+        },
+        "calendarEvent": {
+        "number": "02",
+        "title": "Kalendaryo sa mga Kalihokan",
+        "description": "Mga umaabot nga kalihokan, miting, ug aktibidad sa komunidad aron dili ka maulahi sa mga nahitabo sa West Rembo."
+        },
+        "emergencyEvents": {
+        "number": "03",
+        "title": "Impormasyon ug mga Kontak sa Emerhensiya",
+        "description": "Mga hotline sa emerhensiya, kontak sa health center, ug mga pahimangno sa kaluwasan aron magpabilin kang andam sa mga hinanaling sitwasyon sa West Rembo."
+        }
+    },
+    "services": {
+        "firstBox": {
+        "title": "Pagparehistro sa Residente",
+        "description": "Magparehistro isip residente sa Barangay West Rembo aron maka-access sa mga serbisyo, programa, ug benepisyo sa komunidad. Ang among proseso sa pagparehistro yano ug episyente."
+        },
+        "secondBox": {
+        "title": "Barangay Clearance",
+        "description": "Pag-apply og barangay clearance para sa trabaho, pagbiyahe, ug uban pang opisyal nga katuyoan. Paspas nga pagproseso nga adunay online tracking."
+        },
+        "thirdBox": {
+        "title": "Business Clearance",
+        "description": "Pagkuha og business permit ug clearance aron legal nga makapadagan og negosyo sulod sa among barangay. Among gisuportahan ang lokal nga mga negosyante pinaagi sa paspas nga pagproseso."
+        },
+        "topBox": {
+        "title": "Mga Serbisyo nga Among Gihatag",
+        "description": "Ma-access ang mga importanteng serbisyo sa barangay online. Komitido kami sa pagserbisyo sa among komunidad nga may kahusayan ug pag-atiman."
+        }
+    },
+    "barangayStuff": {
+        "head": {
+        "title": "Mga Napiling Opisyal"
+        },
+        "barangayCap": {
+        "name": "Roberto C. Dela Cruz",
+        "position": "PUNONG BARANGAY",
+        "committee": "Kapitan sa Barangay"
+        },
+        "barangayKagawadfirst": {
+        "name": "Leonard J. Mercado",
+        "position": "KAGAWAD",
+        "committee": "Komite sa Kabatan-onan ug Sports Development",
+        "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadsecond": {
+        "name": "Clarisse H. Navarro",
+        "position": "KAGAWAD",
+        "committee": "Komite sa Panglawas ug Sanitasyon",
+        "image": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadthird": {
+        "name": "Rowena G. Santos",
+        "position": "KAGAWAD",
+        "committee": "Panginabuhian ug Kalambuan sa Ekonomiya",
+        "image": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadfourth": {
+        "name": "Joshua L. Ferrer",
+        "position": "KAGAWAD",
+        "committee": "Pagpangandam sa Kalamidad ug Pagtubag sa Emerhensiya",
+        "image": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadfifth": {
+        "name": "Diana V. Aquino",
+        "position": "KAGAWAD",
+        "committee": "Komite sa Kalinaw ug Kahapsay",
+        "image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadsixth": {
+        "name": "Geraldine M. Roldan",
+        "position": "KAGAWAD",
+        "committee": "Edukasyon, Kultura ug Gender Equality",
+        "image": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadseventh": {
+        "name": "Marco Elias D. Trinidad",
+        "position": "INGAT-YAMAN",
+        "committee": "Badyet ug Fiscal Management sa Barangay",
+        "image": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadeighth": {
+        "name": "Kristine Joy P. Lacson",
+        "position": "KALIHIM",
+        "committee": "Mga Rekord ug Dokumentasyon sa Komunidad",
+        "image": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=face"
+        },
+        "barangayKagawadninth": {
+        "name": "Benjamin A. Reyes",
+        "position": "KAGAWAD",
+        "committee": "Pagpanalipod sa Kalikupan ug Kalimpyo",
+        "image": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=200&h=200&fit=crop&crop=face"
+        }
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "header": {
+        "home": "Balay",
+        "about": "Mahitungod",
+        "services": "Mga Serbisyo",
+        "calendar": "Kalendaryo",
+        "contact": "Kontak",
+        "profile": "Profile"
+    },
+    "footer": {
+        "logo": {
+            "title": "BARANGAY WEST REMBO",
+            "copyright": "© 2025 Barangay West Rembo. Tanang katungod gitagana."
+        },
+        "label": {
+            "title": "BAHIN KANAMO",
+            "titleTwo": "DALI NGA AKSES",
+            "titleThree": "SUNDA KAMI",
+            "titleFour": "TABANG"
+        },
+        "subLabel": {
+            "sub": "Kasaysayan",
+            "subTwo": "Heograpiya",
+            "subThree": "Misyon",
+            "subFour": "Bisyon",
+            "subFive": "Pahibalo",
+            "subSix": "Kalendaryo",
+            "subSeven": "Facebook",
+            "subEight": "Kontak"
+        }
+    },
+    "buttons": {
+        "applyNow": "Aplay Karon",
+        "submit": "Ipadala",
+        "cancel": "Kansela",
+        "back": "Balik",
+        "next": "Sunod",
+        "save": "I-save",
+        "edit": "Usba",
+        "delete": "Tangtanga",
+        "view": "Tan-awa"
+    },
+    "status": {
+        "popular": "Popular",
+        "loading": "Nagkarga...",
+        "success": "Malampuson",
+        "error": "Sayop",
+        "pending": "Pending",
+        "approved": "Gi-aprubahan",
+        "rejected": "Gibalibaran"
+    }
+}

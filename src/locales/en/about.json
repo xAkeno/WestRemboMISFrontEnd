@@ -1,0 +1,78 @@
+{
+
+    "tabs": {
+        "ourStory": "Our Story",
+        "ourGeography": "Our Geography",
+        "ourMission": "Our Mission",
+        "ourVision": "Our Vision"
+    },
+    "header":{
+        "title": "About Us",
+        "desc":" BARANGAY WEST REMBO is located in the District 2 of Makati and situated at the Eastside Cluster along with barangays East Rembo, Comembo, Pembo and Rizal. Based on the 2015 Census of Population conducted by the Philippine Statistics Authority, West Rembo has a total population of 29,826. Its population density is fifty-four persons per 1,000 square meters. It has a total land area of 552,500 square meters and a predominantly residential area. Barangay West Rembo houses several institutional properties such as the Makati Parks and Garden and University of Makati. At present, the leadership of the City and Barangay West Rembo attained multiple development milestones. Public schools were established within the barangay such as, The University of Makati, Fort Bonifacio High School, Fort Bonifacio Elementary School and West Rembo Elementary School."
+    },
+    "story":{
+        "title": "Our Story",
+        "content": "WEST REMBO is one historic barangay. Though not much document can still support this claim, it is evidently concretized by the presence of the old Ermita de San Nicolas, the Church established by the Augustinian friars during the Spanish colonization of the Philippines. It is believed that the first settlers of this barangay were Chinese traders settled near the banks of Pasig River. This account is based on the writings of an anthropologist-historian who went around conducting his research and study during the American occupation of this country. The richness of our historical and cultural past may still yet to be accounted for but structural evidence, at the moment, would suffice to say that this particular locality started not by the name it is known today.",
+        "content2": "When Fort Bonifacio was designated to be the home of the Philippine Army, B/Gen. Alfonso Arellano, the Commanding General of the Philippine Army at that time, relocated inhabitants of the nearby barrio to a well-situated area, which is now known as BARANGAY WEST REMBO. REMBO is actually an acronym for Riverside Enlisted Men's Barrio.",
+        "content3": "Military authorities used to appoint the Barangay Leaders until 1982, when the Commission on Elections authorized the residents of Fort Bonifacio to elect their Barangay Leaders who came mostly from the Philippine Army. This paved the way to the escalation of a peaceful and progressive Barangays in Makati today."
+        
+    },
+    "geo": {
+        "subHead": {
+            "title": "Geographic location"
+        },
+        "wrapper1": {
+            "con": "Longitude: 121° 3' 32\"",
+            "con2": "Latitude: 14° 33' 44\"",
+            "con3": "Land Area: 55.25 Hectares"
+        },
+        "wrapper2": {
+            "title": "Barangay Boundaries",
+            "con": "North: Pasig City",
+            "con2": "South: Post Proper Northside",
+            "con3": "East: East Rembo",
+            "con4": "West: Portions of Cembo and Post Proper Northside"
+        },
+        "wrapper3": {
+            "title": "Street Boundaries",
+            "con": "North: Pasig River",
+            "con2": "South: Kalayaan Avenue",
+            "con3": "East: C-5",
+            "con4": "West: Lawton Avenue"
+        },
+        "wrapper4": {
+            "title": "Cluster Boundaries",
+            "con": "North: Pasig River",
+            "con2": "South: BGC, Taguig",
+            "con3": "East: East Rembo",
+            "con4": "West: Cembo"
+        },
+        "wrapper5": {
+            "title": "Barangay Cluster",
+            "con": "North: Pasig River",
+            "con2": "South: Pembo",
+            "con3": "East: East Rembo",
+            "con4": "West: Cembo"
+        },
+        "wrapper6": {
+            "title": "Additional Info",
+            "con": "Number of Zones: 8 Zones",
+            "con2": "Topography: Undulating tuffaceous plain",
+            "con3": "Flood Intensity: None to low",
+            "con4": "Earthquake Risk: Moderate to heavy",
+            "con5": "Hydrology: Pasig River"
+        },
+        "mission": {
+            "title": "Our Mission",
+            "sub": "To serve the residents of Barangay West Rembo with utmost dedication, transparency, and accountability. We commit to providing efficient public services, maintaining peace and order, and fostering a clean and sustainable community.",
+            "sub2": "We aim to empower every resident through accessible programs in education, livelihood, health, and social welfare, ensuring no one is left behind in our collective journey toward progress.",
+            "sub3": "Through collaborative governance and active citizen participation, we strive to build a community where every voice matters and every family thrives."            
+        },
+        "vision": {
+            "title": "Our Vision",
+            "sub":"A progressive, peaceful, and self-sufficient Barangay West Rembo where residents enjoy a high quality of life, sustainable development, and equal opportunities for growth and prosperity.",
+            "sub2":"We envision a community united by shared values of respect, integrity, and bayanihan spirit—where families are safe, children are educated, and the elderly are cared for.",
+            "sub3":"By 2030, Barangay West Rembo shall be recognized as a model barangay in Makati City, known for its innovative programs, engaged citizenry, and resilient community spirit."
+        }
+    }
+}

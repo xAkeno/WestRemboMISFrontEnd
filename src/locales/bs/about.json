@@ -1,0 +1,76 @@
+{
+    "tabs": {
+        "ourStory": "Among Sugilanon",
+        "ourGeography": "Among Heograpiya",
+        "ourMission": "Among Misyon",
+        "ourVision": "Among Panan-awon"
+    },
+    "header": {
+        "title": "Mahitungod Kanamo",
+        "desc": "Ang BARANGAY WEST REMBO nahimutang sa Distrito 2 sa Makati ug anaa sa Eastside Cluster uban ang mga barangay nga East Rembo, Comembo, Pembo ug Rizal. Pinasikad sa 2015 Census of Population nga gihimo sa Philippine Statistics Authority, ang West Rembo adunay kinatibuk-ang populasyon nga 29,826. Ang densidad sa populasyon niini mao ang kalimang tawo kada 1,000 square metro. Adunay kini kinatibuk-ang lugar nga 552,500 square metro ug kadaghanan residential nga lugar. Ang Barangay West Rembo adunay daghang institusyonal nga kabtangan sama sa Makati Parks and Garden ug University of Makati. Sa karon, ang pamunuan sa Lungsod ug Barangay West Rembo nakaabot na sa daghang milestone sa pag-uswag. Ang mga publikong eskwelahan natukod sulod sa barangay sama sa University of Makati, Fort Bonifacio High School, Fort Bonifacio Elementary School ug West Rembo Elementary School."
+    },
+    "story": {
+        "title": "Among Sugilanon",
+        "content": "Ang WEST REMBO usa ka makasaysayang barangay. Bisan dili daghan ang mga dokumento nga makasaporo niini, kini klaro nga gipamatuod sa presensya sa daan nga Ermita de San Nicolas, ang Simbahan nga gitukod sa mga paring Augustino panahon sa kolonyalismo sa Pilipinas sa Espanya. Gituohan nga ang unang mga lumulupyo niini nga barangay mao ang mga Tsino nga negosyante nga mipuyo duol sa mga baybayon sa Suba sa Pasig. Kini nga asoy gibase sa mga sinulat sa usa ka antropolohista-historyador nga naglibot aron magpahigayon sa iyang panukiduki ug pagtuon sa panahon sa Amerikano nga pagmando niini nga nasud. Ang kadato sa atong makasaysayan ug kultural nga kaagi basin wala pa hingpit nga nairekord apan ang ebidensya sa istruktura, sa karon, igo na aron masulti nga kini nga partikular nga lugar wala magsugod sa ngalan nga nailhan niini karon.",
+        "content2": "Sa dihang gitudlo ang Fort Bonifacio nga mahimong pinuy-anan sa Philippine Army, gibalhin ni B/Gen. Alfonso Arellano, ang Commanding General sa Philippine Army niadtong panahona, ang mga lumulupyo sa duol nga baryo sa usa ka maayong lugar, nga nailhan karon nga BARANGAY WEST REMBO. Ang REMBO usa ka akronimo para sa Riverside Enlisted Men's Barrio.",
+        "content3": "Ang mga awtoridad sa militar kanhi nagatudlo sa mga Lider sa Barangay hangtud 1982, sa dihang gitugotan sa Commission on Elections ang mga residente sa Fort Bonifacio nga mopili sa ilang mga Lider sa Barangay nga kadaghanan nagagikan sa Philippine Army. Kini nagbukas sa dalan paingon sa pagtaas sa usa ka malinawon ug progresibong Barangay sa Makati karon."
+    },
+    "geo": {
+        "subHead": {
+            "title": "Heograpikong Lokasyon"
+        },
+        "wrapper1": {
+            "con": "Longhitud: 121° 3' 32\"",
+            "con2": "Latitud: 14° 33' 44\"",
+            "con3": "Lugar sa Yuta: 55.25 Ektarya"
+        },
+        "wrapper2": {
+            "title": "Mga Utlanan sa Barangay",
+            "con": "Amihanan: Lungsod sa Pasig",
+            "con2": "Habagatan: Post Proper Northside",
+            "con3": "Sidlakan: East Rembo",
+            "con4": "Kasadpan: Mga bahin sa Cembo ug Post Proper Northside"
+        },
+        "wrapper3": {
+            "title": "Mga Utlanan sa Kalsada",
+            "con": "Amihanan: Suba sa Pasig",
+            "con2": "Habagatan: Kalayaan Avenue",
+            "con3": "Sidlakan: C-5",
+            "con4": "Kasadpan: Lawton Avenue"
+        },
+        "wrapper4": {
+            "title": "Mga Utlanan sa Cluster",
+            "con": "Amihanan: Suba sa Pasig",
+            "con2": "Habagatan: BGC, Taguig",
+            "con3": "Sidlakan: East Rembo",
+            "con4": "Kasadpan: Cembo"
+        },
+        "wrapper5": {
+            "title": "Cluster sa Barangay",
+            "con": "Amihanan: Suba sa Pasig",
+            "con2": "Habagatan: Pembo",
+            "con3": "Sidlakan: East Rembo",
+            "con4": "Kasadpan: Cembo"
+        },
+        "wrapper6": {
+            "title": "Dugang nga Impormasyon",
+            "con": "Ihap sa Zona: 8 ka Zona",
+            "con2": "Topograpiya: Undulating tuffaceous plain",
+            "con3": "Intensity sa Baha: Wala hangtud ubos",
+            "con4": "Peligro sa Linog: Kasarangan hangtud bug-at",
+            "con5": "Hidrolohiya: Suba sa Pasig"
+        },
+        "mission": {
+            "title": "Among Misyon",
+            "sub": "Pag-alagad sa mga residente sa Barangay West Rembo nga adunay pinakataas nga dedikasyon, transparency, ug pananagutan. Kami nakatuon sa paghatag sa episyenteng serbisyo publiko, pagpadayon sa kalinaw ug kaayusan, ug pagpauswag sa usa ka limpyo ug malungtarong komunidad.",
+            "sub2": "Gituyo namo nga hatagan og gahum ang matag residente pinaagi sa mga accessible nga programa sa edukasyon, kabuhayan, kahimsog, ug social welfare, sigurohon nga walay mabilin sa atong kolektibong pagbiyahe paingon sa pag-uswag.",
+            "sub3": "Pinaagi sa kolaboratibong pagdumala ug aktibong partisipasyon sa mga mamamayan, naningkamot kami nga magtukod og usa ka komunidad diin ang matag tingog importanti ug ang matag pamilya mouswag."
+        },
+        "vision": {
+            "title": "Among Panan-awon",
+            "sub": "Usa ka progresibo, malinawon, ug self-sufficient nga Barangay West Rembo diin ang mga residente nakatagamtam sa taas nga kalidad sa kinabuhi, malungtarong pag-uswag, ug pantay-pantay nga oportunidad alang sa pagtubo ug kasaganaan.",
+            "sub2": "Gihanduraw namo ang usa ka komunidad nga nagkahiusa pinaagi sa mga gipaambit nga bili sa pagtahud, integridad, ug diwa sa bayanihan — diin ang mga pamilya luwas, ang mga bata may edukasyon, ug ang mga tigulang giatiman.",
+            "sub3": "Sa tuig 2030, ang Barangay West Rembo mailhan isip usa ka modelo nga barangay sa Lungsod sa Makati, nailhan sa iyang mga makabagong programa, aktibong mga mamamayan, ug lig-ong diwa sa komunidad."
+        }
+    }
+}

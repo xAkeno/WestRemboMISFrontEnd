@@ -1,98 +1,109 @@
 import { useState } from "react";
 import { Layout } from "../Layout";
 import Header from "./Header";
+import {useTranslation} from "react-i18next";
 
-const tabs = ["Our Story", "Our Geography", "Our Mission", "Our Vision"];
 
-const tabContent = {
-  "Our Story": {
-    title: "Our Story",
-    content: [
-      "WEST REMBO is one historic barangay. Though not much document can still support this claim, it is evidently concretized by the presence of the old Ermita de San Nicolas, the Church established by the Augustinian friars during the Spanish colonization of the Philippines. It is believed that the first settlers of this barangay were Chinese traders settled near the banks of Pasig River. This account is based on the writings of an anthropologist-historian who went around conducting his research and study during the American occupation of this country. The richness of our historical and cultural past may still yet to be accounted for but structural evidence, at the moment, would suffice to say that this particular locality started not by the name it is known today.",
-      "When Fort Bonifacio was designated to be the home of the Philippine Army, B/Gen. Alfonso Arellano, the Commanding General of the Philippine Army at that time, relocated inhabitants of the nearby barrio to a well-situated area, which is now known as BARANGAY WEST REMBO. REMBO is actually an acronym for Riverside Enlisted Men's Barrio.",
-      "Military authorities used to appoint the Barangay Leaders until 1982, when the Commission on Elections authorized the residents of Fort Bonifacio to elect their Barangay Leaders who came mostly from the Philippine Army. This paved the way to the escalation of a peaceful and progressive Barangays in Makati today.",
-    ],
-    hasImage: true,
-  },
-  "Our Geography": {
-    title: "Geographic Information",
-    sections: [
-      {
-        title: "Geographic Location",
-        items: [
-          "Longitude: 121° 3' 32\"",
-          "Latitude: 14° 33' 44\"",
-          "Land Area: 55.25 Hectares",
-        ],
-      },
-      {
-        title: "Barangay Boundaries",
-        items: [
-          "North: Pasig City",
-          "South: Post Proper Northside",
-          "East: East Rembo",
-          "West: Portions of Cembo and Post Proper Northside",
-        ],
-      },
-      {
-        title: "Street Boundaries",
-        items: [
-          "North: Pasig River",
-          "South: Kalayaan Avenue",
-          "East: C-5",
-          "West: Lawton Avenue",
-        ],
-      },
-      {
-        title: "Cluster Boundaries",
-        items: [
-          "North: Pasig River",
-          "South: BGC, Taguig",
-          "East: East Rembo",
-          "West: Cembo",
-        ],
-      },
-      {
-        title: "Barangay Cluster",
-        items: [
-          "North: Pasig River",
-          "South: Pembo",
-          "East: East Rembo",
-          "West: Cembo",
-        ],
-      },
-      {
-        title: "Additional Info",
-        items: [
-          "Number of Zones: 8 Zones",
-          "Topography: Undulating tuffaceous plain",
-          "Flood Intensity: None to low",
-          "Earthquake Risk: Moderate to heavy",
-          "Hydrology: Pasig River",
-        ],
-      },
-    ],
-    hasMap: true,
-  },
-  "Our Mission": {
-    title: "Our Mission",
-    content: [
-      "To serve the residents of Barangay West Rembo with utmost dedication, transparency, and accountability. We commit to providing efficient public services, maintaining peace and order, and fostering a clean and sustainable community.",
-      "We aim to empower every resident through accessible programs in education, livelihood, health, and social welfare, ensuring no one is left behind in our collective journey toward progress.",
-      "Through collaborative governance and active citizen participation, we strive to build a community where every voice matters and every family thrives.",
-    ],
-  },
-  "Our Vision": {
-    title: "Our Vision",
-    content: [
-      "A progressive, peaceful, and self-sufficient Barangay West Rembo where residents enjoy a high quality of life, sustainable development, and equal opportunities for growth and prosperity.",
-      "We envision a community united by shared values of respect, integrity, and bayanihan spirit—where families are safe, children are educated, and the elderly are cared for.",
-      "By 2030, Barangay West Rembo shall be recognized as a model barangay in Makati City, known for its innovative programs, engaged citizenry, and resilient community spirit.",
-    ],
-  },
-};
 
 const AboutUsSection = () => {
+  const { t, i18n } = useTranslation("about");
+ 
+
+  const tabs = [
+    {key: "Our Story", label: t('tabs.ourStory')},
+    {key: "Our Geography", label: t('tabs.ourGeography')},
+    {key: "Our Mission", label: t('tabs.ourMission')},
+    {key: "Our Vision", label: t('tabs.ourVision')},
+  ];
+
+  const tabContent = {
+    "Our Story": {
+      title: t('story.title'),
+      content: [
+        t('story.content'),
+        t('story.content2'),
+        t('story.content3'),
+      ],
+      hasImage: true,
+    },
+    "Our Geography": {
+      title: "Geographic Information",
+      sections: [
+        {
+            title: t('geo.subHead.title'),
+            items: [
+                t('geo.wrapper1.con'),
+                t('geo.wrapper1.con2'),
+                t('geo.wrapper1.con3'),
+            ],
+        },
+        {
+            title: t('geo.wrapper2.title'),
+            items: [
+                t('geo.wrapper2.con'),
+                t('geo.wrapper2.con2'),
+                t('geo.wrapper2.con3'),
+                t('geo.wrapper2.con4'),
+            ],
+        },
+        {
+            title: t('geo.wrapper3.title'),
+            items: [
+                t('geo.wrapper3.con'),
+                t('geo.wrapper3.con2'),
+                t('geo.wrapper3.con3'),
+                t('geo.wrapper3.con4'),
+            ],
+        },
+        {
+            title: t('geo.wrapper4.title'),
+            items: [
+                t('geo.wrapper4.con'),
+                t('geo.wrapper4.con2'),
+                t('geo.wrapper4.con3'),
+                t('geo.wrapper4.con4'),
+            ],
+        },
+        {
+            title: t('geo.wrapper5.title'),
+            items: [
+                t('geo.wrapper5.con'),
+                t('geo.wrapper5.con2'),
+                t('geo.wrapper5.con3'),
+                t('geo.wrapper5.con4'),
+            ],
+        },
+        {
+            title: t('geo.wrapper6.title'),
+            items: [
+                t('geo.wrapper6.con'),
+                t('geo.wrapper6.con2'),
+                t('geo.wrapper6.con3'),
+                t('geo.wrapper6.con4'),
+                t('geo.wrapper6.con5'),
+            ],
+        },
+      ],
+      hasMap: true,
+    },
+    "Our Mission": {
+      title: t('geo.mission.title'),
+      content: [
+      t('geo.mission.sub'),
+      t('geo.mission.sub2'),
+      t('geo.mission.sub3'),
+      ]
+    },
+    "Our Vision": {
+      title: t('geo.vision.title'),
+      content: [
+      t('geo.vision.sub'),
+      t('geo.vision.sub2'),
+      t('geo.vision.sub3'),
+      ],
+    },
+  };  
+
   const [activeTab, setActiveTab] = useState("Our Story");
 
   const renderContent = () => {
@@ -183,10 +194,10 @@ const AboutUsSection = () => {
         {/* Section Header */}
         <div className="text-center mb-8">
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-6">
-            About Us
+            {t('header.title')}
           </h2>
           <p className="text-foreground/80 max-w-4xl mx-auto leading-relaxed">
-            BARANGAY WEST REMBO is located in the District 2 of Makati and situated at the Eastside Cluster along with barangays East Rembo, Comembo, Pembo and Rizal. Based on the 2015 Census of Population conducted by the Philippine Statistics Authority, West Rembo has a total population of 29,826. Its population density is fifty-four persons per 1,000 square meters. It has a total land area of 552,500 square meters and a predominantly residential area. Barangay West Rembo houses several institutional properties such as the Makati Parks and Garden and University of Makati. At present, the leadership of the City and Barangay West Rembo attained multiple development milestones. Public schools were established within the barangay such as, The University of Makati, Fort Bonifacio High School, Fort Bonifacio Elementary School and West Rembo Elementary School.
+            {t('header.desc')}
           </p>
         </div>
 
@@ -194,15 +205,15 @@ const AboutUsSection = () => {
         <div className="flex justify-center gap-6 mb-8">
           {tabs.map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               className={`text-sm font-medium transition-all pb-1 ${
-                activeTab === tab
+                activeTab === tab.key
                   ? "text-primary border-b-2 border-primary"
                   : "text-foreground/70 hover:text-foreground"
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>

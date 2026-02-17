@@ -7,7 +7,10 @@ interface AccessibilitySettings {
 }
 
 const AccessibilityPanel: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  // Specify the 'accessibility' namespace
+  const { t } = useTranslation('accessibility');
+  const { i18n } = useTranslation();
+  
   const [isOpen, setIsOpen] = useState(false);
   const [settings, setSettings] = useState<AccessibilitySettings>({
     fontSize: 100,
@@ -22,11 +25,6 @@ const AccessibilityPanel: React.FC = () => {
       applySettings(parsed);
     }
   }, []);
-
-//   useEffect(() => {
-//   console.log('Current language:', i18n.language);
-//   console.log('Available languages:', i18n.languages);
-// }, [i18n.language]);
 
   const applySettings = (newSettings: AccessibilitySettings) => {
     document.documentElement.style.setProperty(
@@ -68,9 +66,10 @@ const AccessibilityPanel: React.FC = () => {
 
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'es', name: 'Español', flag: '🇪🇸' },
-    { code: 'fr', name: 'Français', flag: '🇫🇷' },
-    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+    // { code: 'es', name: 'Español', flag: '🇪🇸' }, 
+    {code : 'bs', name: 'Cebuano', flag: '🇵🇭'},
+    { code: 'tl', name: 'Tagalog', flag: '🇵🇭' },
+    // { code: 'fr', name: 'Français', flag: '🇫🇷' },
   ];
 
   return (
@@ -94,7 +93,8 @@ const AccessibilityPanel: React.FC = () => {
         aria-label="Accessibility Settings"
       >
         <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">{t('accessibility.title')}</h2>
+          {/* Just use 'title' - namespace is already specified */}
+          <h2 className="text-xl font-semibold">{t('title')}</h2>
           <button
             onClick={() => setIsOpen(false)}
             className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center text-xl"
@@ -105,9 +105,10 @@ const AccessibilityPanel: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Font Size Control */}
           <section>
             <h3 className="text-base font-semibold text-gray-800 mb-4">
-              {t('accessibility.fontSize')}
+              {t('fontSize')}
             </h3>
             <div className="flex items-center gap-3 justify-center">
               <button
@@ -132,9 +133,10 @@ const AccessibilityPanel: React.FC = () => {
             </div>
           </section>
 
+          {/* Zoom Control */}
           <section>
             <h3 className="text-base font-semibold text-gray-800 mb-4">
-              {t('accessibility.zoom')}
+              {t('zoom')}
             </h3>
             <div className="flex items-center gap-3 justify-center">
               <button
@@ -159,9 +161,10 @@ const AccessibilityPanel: React.FC = () => {
             </div>
           </section>
 
+          {/* Language Selector */}
           <section>
             <h3 className="text-base font-semibold text-gray-800 mb-4">
-              {t('accessibility.language')}
+              {t('language')}
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {languages.map((lang) => (
@@ -182,11 +185,12 @@ const AccessibilityPanel: React.FC = () => {
             </div>
           </section>
 
+          {/* Reset Button */}
           <button
             onClick={resetSettings}
             className="w-full py-3.5 bg-gray-50 border-2 border-gray-200 rounded-lg text-gray-700 font-semibold hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all mt-2"
           >
-            {t('accessibility.reset')}
+            {t('reset')}
           </button>
         </div>
       </div>
