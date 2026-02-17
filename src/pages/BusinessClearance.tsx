@@ -146,7 +146,7 @@ const BusinessClearance = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>View</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {navigate(`/document-edit/${item.brgyBusinessNo}`)}}>View</DropdownMenuItem>
                               <DropdownMenuItem>Edit</DropdownMenuItem>
                               <DropdownMenuItem>Print</DropdownMenuItem>
                               <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>

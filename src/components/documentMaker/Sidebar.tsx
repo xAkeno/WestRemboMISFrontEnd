@@ -12,6 +12,7 @@ interface SidebarProps {
   onChange: (id: string, updates: Partial<TextField>) => void;
   onDelete: (id: string) => void;
   isAdmin: boolean;
+  documentData: object
 }
 
 export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete }: SidebarProps) {

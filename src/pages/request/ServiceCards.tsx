@@ -17,7 +17,7 @@ import BusinessClearanceForm from '../forms/BusinessClearanceForm';
 import BarangayClearanceForm from '../forms/BarangayClearanceForm';
 import BarangayCertificateForm from '../forms/BarangayCertificateForm';
 import ResidentRegistrationForm from '../forms/ResidentRegistrationForm';
-
+import { useNavigate } from 'react-router-dom';
 // --- Data Models ---
 
 const CATEGORIES = [
@@ -125,6 +125,7 @@ const requestTypes = [
 // --- Components ---
 
 const ServiceCards = ({ service, onClick }) => {
+
   const Icon = service.icon;
 
   return (
@@ -205,6 +206,7 @@ const Modal = ({ service, onClose, onProceed, selectedType, renderForm }) => {
 // --- Main App ---
 
 export default function App() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
@@ -260,6 +262,13 @@ export default function App() {
               {cat.label}
             </button>
           ))}
+                    <button
+            onClick={() => navigate("/myrequest")}
+            className={'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+            }
+          >
+            View my request
+          </button>
         </div>
 
         {filteredServices.map((service) => (
@@ -285,7 +294,7 @@ export default function App() {
               }}
             />
           )}
-
+          
 
       </main>
 

@@ -6,17 +6,17 @@ import AuthLayout from "@/components/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload } from "lucide-react";
 
 const Register = () => {
   const [formData, setFormData] = useState({
     firstName: "",
-    lastName: "",
+    surname: "",
     email: "",
     phone: "",
     gender: "",
+    dateOfBirth: "", // 👈 added
     password: "",
     confirmPassword: "",
   });
@@ -40,7 +40,8 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
+    // Check required fields
+    if (!formData.firstName || !formData.surname || !formData.email || !formData.password || !formData.confirmPassword || !formData.dateOfBirth) {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
       return;
     }
@@ -55,22 +56,28 @@ const Register = () => {
       return;
     }
 
+    if (!idFile) {
+      toast({ title: "Error", description: "Please upload your ID", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const response = await api.post("/api/register", {
-        name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email,
-        phone: formData.phone,
-        gender: formData.gender,
-        password: formData.password,
-        password_confirmation: formData.confirmPassword,
-      });
+      const form = new FormData();
+      form.append("first_name", formData.firstName);
+      form.append("surname", formData.surname);
+      form.append("email", formData.email);
+      form.append("contact", formData.phone);
+      form.append("gender", formData.gender);
+      form.append("date_of_birth", formData.dateOfBirth); // 👈 send date of birth
+      form.append("password", formData.password);
+      form.append("password_confirmation", formData.confirmPassword);
+      form.append("id_url", idFile); // image
 
-      if (response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user || {}));
-      }
+      const response = await api.post("/api/register", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       toast({ title: "Success!", description: "Your account has been created successfully." });
       navigate("/");
@@ -83,7 +90,7 @@ const Register = () => {
   };
 
   const handleClear = () => {
-    setFormData({ firstName: "", lastName: "", email: "", phone: "", gender: "", password: "", confirmPassword: "" });
+    setFormData({ firstName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", password: "", confirmPassword: "" });
     setIdFile(null);
   };
 
@@ -93,18 +100,22 @@ const Register = () => {
         <h1 className="text-3xl font-extrabold text-center text-foreground mb-8 italic">Registration</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label className="font-semibold text-foreground">First name</Label>
               <Input placeholder="John" value={formData.firstName} onChange={(e) => updateField("firstName", e.target.value)} className="mt-1 bg-card" />
             </div>
             <div>
               <Label className="font-semibold text-foreground">Last name</Label>
-              <Input placeholder="Doe" value={formData.lastName} onChange={(e) => updateField("lastName", e.target.value)} className="mt-1 bg-card" />
+              <Input placeholder="Doe" value={formData.surname} onChange={(e) => updateField("surname", e.target.value)} className="mt-1 bg-card" />
             </div>
             <div>
               <Label className="font-semibold text-foreground">Email address</Label>
               <Input type="email" placeholder="john.doe@company.com" value={formData.email} onChange={(e) => updateField("email", e.target.value)} className="mt-1 bg-card" />
+            </div>
+            <div>
+              <Label className="font-semibold text-foreground">Date of Birth</Label>
+              <Input type="date" value={formData.dateOfBirth} onChange={(e) => updateField("dateOfBirth", e.target.value)} className="mt-1 bg-card" />
             </div>
           </div>
 
@@ -160,26 +171,13 @@ const Register = () => {
                 <li>Password must start with capital letter</li>
                 <li>Password must contain a number</li>
               </ul>
-              {passwordErrors().length > 0 && (
-                <ul className="text-sm text-destructive list-disc pl-5 space-y-1">
-                  {passwordErrors().map((err) => <li key={err}>{err}</li>)}
-                </ul>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Already have account?{" "}
-                <Link to="/" className="text-accent font-semibold hover:underline">Log in</Link>
-              </p>
             </div>
           </div>
 
           {/* Buttons */}
           <div className="flex gap-3">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Submitting..." : "Submit"}
-            </Button>
-            <Button type="button" variant="outline" onClick={handleClear} className="border-primary text-primary hover:bg-primary/10">
-              Clear
-            </Button>
+            <Button type="submit" disabled={isLoading}>{isLoading ? "Submitting..." : "Submit"}</Button>
+            <Button type="button" variant="outline" onClick={handleClear} className="border-primary text-primary hover:bg-primary/10">Clear</Button>
           </div>
         </form>
       </div>
