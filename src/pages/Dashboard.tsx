@@ -309,23 +309,22 @@ const Dashboard = () => {
                 {/* Horizontal Ticket Queue (Full Width, Wrap) */}
                 <div className="flex overflow-x-auto gap-4 py-2">
                   {sortedTickets.map((ticket, index) => {
-                    
                     let path = "";
                     switch (ticket.service_type) {
                       case "Barangay Clearance":
-                        path = `/clearancehome/clearance`;
+                        path = `/document-edit/2`;
                         break;
                       case "Business Clearance":
-                        path = `/clearancehome/bussinessclearance`;
+                        path = `/document-edit/3`;
                         break;
                       case "Building Clearance":
-                        path = `/clearancehome/buildingclearance`;
+                        path = `/document-edit/4`;
                         break;
                       case "Barangay Certificate":
-                        path = `/certificatehome/certificate`;
+                        path = `/document-edit/1`;
                         break;
                       case "Resident Registration":
-                        path = `/residenthome`;
+                        path = `/document-edit/3`;
                         break;
                       default:
                         path = `/tickets`;

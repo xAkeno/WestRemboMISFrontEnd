@@ -13,6 +13,20 @@ export interface TextField {
   opacity: number;
   letterSpacing: number;
   page: number;
+
+  // NEW optional fields
+  fieldType?: 'TEXT' | 'ADDRESS' | 'DATE';
+
+  // For ADDRESS
+  addressFields?: {
+    house?: string;
+    street?: string;
+    barangay?: string;
+  };
+
+  // For DATE
+  isDate?: boolean;
+  dateFormat?: 'YYYY-MM-DD' | 'MM/DD/YYYY' | 'WORD';
 }
 
 export interface PDFTemplateInfo {
@@ -32,6 +46,11 @@ export const DEFAULT_FIELD: Omit<TextField, 'id' | 'label' | 'value'> = {
   opacity: 1,
   letterSpacing: 0,
   page: 0,
+  // optional fields default
+  fieldType: 'TEXT',
+  addressFields: { house: '', street: '', barangay: '' },
+  isDate: false,
+  dateFormat: 'YYYY-MM-DD',
 };
 
 export const PREDEFINED_FIELDS = [
@@ -40,10 +59,10 @@ export const PREDEFINED_FIELDS = [
   'Last Name',
   'Suffix',
   'Sex',
-  'Address',
+  'Address',         // can use 3-in-1 fields
   'Certificate Number',
-  'Date Issued',
-  'Date Expired',
+  'Date Issued',     // can be date
+  'Date Expired',    // can be date
   'Certificate Fee',
 ];
 

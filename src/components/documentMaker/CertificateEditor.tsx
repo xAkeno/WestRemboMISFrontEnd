@@ -9,9 +9,42 @@ import { EditorSidebar } from './Sidebar';
 import { PDFPreview } from './PDFPreview';
 import { toast } from 'sonner';
 import { Layout } from '../Layout';
+import { useLocation } from 'react-router-dom';
+const LABEL_TO_KEY: Record<string, string> = {
+  'First Name': 'first_name',
+  'Middle Name': 'middle_name',
+  'Last Name': 'surname',
+
+  'House block lot no': 'house_block_lot_no',
+  'Street': 'street',
+  'Zone': 'zone',
+
+  'DateofBirth': 'dob',                
+  'PlaceofBirth': 'pob',
+
+  'Period of residency': 'period_of_residency',
+  'House Owner': 'house_owner',
+  'Releationship to House Owner': 'relationship_to_owner',
+
+  'CTC/VRR No.': 'ctc_vrr_no',
+  'Issued at': 'issued_at',
+  'Issued On': 'issued_on',
+  'OR No': 'or_no',
+
+  'Barangay Clearance No': 'bcert_number',
+
+  'Remarks': 'remarks',
+  'Date': 'issued_date',               
+
+  'Purpose': 'purpose',
+  'Purpose Details': 'purpose_details',
+};
+
+
 
 export function CertificateEditor() {
-  const { id } = useParams<{ id: string }>(); // Get ID from URL
+  const { id,bcertNumber } = useParams<{ id: string, bcertNumber: string }>(); // Get ID from URL
+  
   const [fields, setFields] = useState<TextField[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [templateInfo, setTemplateInfo] = useState<PDFTemplateInfo | null>(null);
@@ -21,7 +54,20 @@ export function CertificateEditor() {
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [documentUserData, setDocumentUserData] = useState();
 
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+  
+
+  const fetchUserDocument = async () => {
+    const response = await axios.get(
+      `http://127.0.0.1:8000/api/barangay-clearances?search=${bcertNumber}`,
+      {withCredentials: true}
+    )
+    setDocumentUserData(response.data.data.data);
+    console.log(response.data.data.data)
+  }
 
   const fetchUser = async () => {
     try {
@@ -31,8 +77,6 @@ export function CertificateEditor() {
       );
 
       const user = response.data.data;
-
-      console.log("User data:", user);
 
       // Adjust depending on your backend structure
       if (user.role === "ADMIN") {
@@ -46,6 +90,130 @@ export function CertificateEditor() {
     }
   };
 
+  const buildPayloadFromFields = () => {
+    const payload: Record<string, any> = {};
+
+    fields.forEach((field) => {
+      const key = LABEL_TO_KEY[field.label];
+      if (!key) return;
+
+      let value = field.value;
+
+      // Clean ISO date if needed
+      if (typeof value === "string" && value.includes("T")) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          value = date.toISOString().split("T")[0]; // YYYY-MM-DD
+        }
+      }
+
+      payload[key] = value ?? "";
+    });
+
+    return payload;
+  };
+
+  const handleSubmitCertificate = async () => {
+    try {
+      const payload = {
+        ...buildPayloadFromFields(),
+        requester_type: "WALK_IN" // 👈 add this
+      };
+
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/barangay-clearances",
+        payload,
+        { withCredentials: true }
+      );
+
+      toast.success("Certificate saved successfully");
+      console.log(response.data);
+
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+
+        // ✅ Laravel Validation Error
+        if (status === 422) {
+          const validationErrors = error.response?.data?.errors;
+
+          if (validationErrors) {
+            Object.keys(validationErrors).forEach((key) => {
+              const messages = validationErrors[key];
+              if (messages.length > 0) {
+                toast.error(messages[0]); // show first error message
+              }
+            });
+          } else {
+            toast.error("Validation failed.");
+          }
+
+        }
+
+        // ✅ Unauthorized
+        else if (status === 401) {
+          toast.error("You are not authenticated.");
+        }
+
+        // ✅ Forbidden
+        else if (status === 403) {
+          toast.error("You are not allowed to perform this action.");
+        }
+
+        // ✅ Server Error
+        else if (status === 500) {
+          toast.error("Server error. Please try again.");
+        }
+
+        else {
+          toast.error("Something went wrong.");
+        }
+
+      } else {
+        toast.error("Network error. Please check your connection.");
+      }
+
+      console.error(error);
+    }
+  };
+
+
+
+
+  // When documentUserData or fields change, update only existing fields
+  useEffect(() => {
+    if (!documentUserData || fields.length === 0) return;
+
+    setFields((prevFields) =>
+      prevFields.map((field) => {
+        const key = LABEL_TO_KEY[field.label]; // get corresponding key
+        if (!key) return field; // no mapping, skip
+
+        // Get the value from the first item in documentUserData array
+        let newValue = (documentUserData[0] as any)[key];
+
+        // ✅ Clean ISO date format
+        if (typeof newValue === "string" && newValue.includes("T")) {
+          const date = new Date(newValue);
+          if (!isNaN(date.getTime())) {
+            newValue = date.toLocaleDateString("en-CA"); 
+            // en-CA → 2026-02-11 (YYYY-MM-DD)
+            // use "en-US" if you want MM/DD/YYYY
+          }
+        }
+
+
+        if (newValue !== undefined && newValue !== field.value) {
+          return { ...field, value: newValue };
+        }
+
+        return field;
+      })
+    );
+  }, [documentUserData, fields]);
+
+
+
 
 
   const fetchPDFTemplate = async (documentId: string) => {
@@ -57,6 +225,8 @@ export function CertificateEditor() {
         `http://127.0.0.1:8000/api/documents/single/${id}`, 
         { withCredentials: true }
       );
+
+      console.log(metadata);
       
       const filename = metadata.data.file_path.replace(/^public\/documents\//, '');
 
@@ -88,7 +258,25 @@ export function CertificateEditor() {
         }
       }
 
-      setFields(savedLayout);
+      let mergedFields = savedLayout.map((field) => {
+  const key = LABEL_TO_KEY[field.label];
+  if (!key) return field;
+
+  let value = (ticket?.serviceable as any)?.[key];
+
+  // Format date if needed
+  if (value && (key.includes("date") || key.includes("birth"))) {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      value = date.toISOString().split("T")[0];
+    }
+  }
+
+  return { ...field, value: value ?? field.value }; // <-- only change value
+});
+
+
+      setFields(mergedFields);
       setSelectedId(null);
       await renderPreview([]);
       toast.success('Template loaded successfully');
@@ -116,6 +304,9 @@ export function CertificateEditor() {
     fetchUser();
     if (id) {
       fetchPDFTemplate(id);
+    }
+    if(bcertNumber){
+      fetchUserDocument();
     }
   }, [id]);
 
@@ -264,6 +455,7 @@ export function CertificateEditor() {
           onLoadLayout={handleLoadLayout}
           hasTemplate={!!templateInfo}
           isAdmin={isAdmin}
+          onSubmit={handleSubmitCertificate}
         />
         <div className="flex flex-1 min-h-0">
           <EditorSidebar
@@ -273,6 +465,7 @@ export function CertificateEditor() {
             onChange={handleFieldChange}
             onDelete={handleDeleteField}
             isAdmin={isAdmin}
+            documentData={documentUserData}
           />
 
           <PDFPreview

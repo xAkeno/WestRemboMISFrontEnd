@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import logo from "@/assets/West_Rembo_Logo.png";
 
 const Login = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    if (!email || !password) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -31,7 +31,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/api/login", { username, password }, { withCredentials: true });
+      const response = await api.post("/api/login", { email, password }, { withCredentials: true });
 
       if (response.status === 200) {
         toast({
@@ -81,8 +81,8 @@ const Login = () => {
                 id="email"
                 type="text"
                 placeholder="name@gmail.com"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 bg-card border-border"
               />
             </div>

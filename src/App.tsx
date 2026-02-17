@@ -49,7 +49,9 @@ import ActivityLog from "./pages/admin/ActivityLog";
 import { DocumentGrid } from "./pages/admin/DocumentGrid";
 import AccessibilityPanel from "./components/AccessibilityPanel";
 
+import MyRequest from "./components/myrequest/MyRequest";
 import { CertificateEditor } from "./components/documentMaker/CertificateEditor";
+import RequestDetail from "./components/myrequest/RequestDetail";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -68,13 +70,15 @@ const App = () => (
               <Route path="/services/:serviceId" element={<ServicePage />} />
               <Route path="/services" element={<ServicesRequest />} />
 
+              <Route path="/document-edit/:id/:bcertNumber" element={<CertificateEditor />} />
               <Route path="/document-edit/:id" element={<CertificateEditor />} />
-
               <Route path="/certificatehome" element={<Certificate />} /> 
               <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
 
               <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
 
+              <Route path="/myrequest" element={<MyRequest />} />
+              <Route path="/request/:id" element={<RequestDetail />} />
               
               <Route path="//clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
               <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}

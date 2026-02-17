@@ -18,13 +18,82 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
 
   return (
     <div className="space-y-4 p-3">
+      {/* Field Type Selector */}
+      <div>
+        <Label className="text-xs text-muted-foreground">Field Type</Label>
+        <Select
+          value={field.fieldType ?? 'TEXT'}
+          onValueChange={(v) => update({ fieldType: v as any })}
+        >
+          <SelectTrigger className="h-8 text-xs mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TEXT">Text</SelectItem>
+            <SelectItem value="ADDRESS">Address (3-in-1)</SelectItem>
+            <SelectItem value="DATE">Date</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Address 3-in-1 */}
+      {field.fieldType === 'ADDRESS' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Address Parts</Label>
+
+          <Input
+            placeholder="House / Block / Lot"
+            value={field.addressFields?.house ?? ''}
+            onChange={(e) =>
+              update({
+                addressFields: { ...field.addressFields, house: e.target.value },
+              })
+            }
+            className="h-8 text-xs"
+          />
+
+          <Input
+            placeholder="Street"
+            value={field.addressFields?.street ?? ''}
+            onChange={(e) =>
+              update({
+                addressFields: { ...field.addressFields, street: e.target.value },
+              })
+            }
+            className="h-8 text-xs"
+          />
+
+          <Input
+            placeholder="Barangay"
+            value={field.addressFields?.barangay ?? ''}
+            onChange={(e) =>
+              update({
+                addressFields: { ...field.addressFields, barangay: e.target.value },
+              })
+            }
+            className="h-8 text-xs"
+          />
+        </div>
+      )}
+
+      {/* Value Input */}
       <div>
         <Label className="text-xs text-muted-foreground">Value</Label>
-        <Input
-          value={field.value}
-          onChange={(e) => update({ value: e.target.value })}
-          className="mt-1 h-8 text-sm"
-        />
+
+        {field.fieldType === 'DATE' ? (
+          <Input
+            type="date"
+            value={field.value}
+            onChange={(e) => update({ value: e.target.value })}
+            className="mt-1 h-8 text-sm"
+          />
+        ) : (
+          <Input
+            value={field.value}
+            onChange={(e) => update({ value: e.target.value })}
+            className="mt-1 h-8 text-sm"
+          />
+        )}
       </div>
 
       {/* Typography row */}

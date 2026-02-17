@@ -1,4 +1,4 @@
-import { Upload, Plus, Download, Save } from 'lucide-react';
+import { Upload, Plus, Download, Save, SaveAll } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,9 +16,11 @@ interface ToolbarProps {
   onLoadLayout: (e: React.ChangeEvent<HTMLInputElement>) => void;
   hasTemplate: boolean;
   isAdmin: boolean;
+  onSubmit: () => void;
 }
 
-export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin }: ToolbarProps) {
+export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin, onSubmit }: ToolbarProps) {
+
   return (
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
       <label>
@@ -78,6 +80,10 @@ export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoad
           Save Layout
         </Button>
       )}
+      <Button variant="outline" size="sm" onClick={onSubmit}>
+        <SaveAll className="mr-2 h-4 w-4" />
+        Save Data
+      </Button>
 
 
       {/* <label>
