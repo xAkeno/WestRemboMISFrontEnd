@@ -123,7 +123,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-          <AccessibilityPanel/>
+          <AccessibilityPanel/> /* Accessibility Panel */
         </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
