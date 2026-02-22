@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
-import { FileText, Building2, Briefcase, Users } from "lucide-react";
+import { FileText, Building2, Briefcase, Users, Eye, EyeOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
-import {useLanguage} from "@/components/context/LanguageContext";
+import { useLanguage } from "@/components/context/LanguageContext";
+
+type GlobalVisibility = "show" | "hide" | null;
 
 const FrontDesk = () => {
   const { t } = useLanguage();
@@ -29,6 +31,14 @@ const FrontDesk = () => {
   const [formData, setFormData] = useState<Partial<BarangayDocument>>({});
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+
+  //global masking
+  const [globalVisibility, setGlobalVisibility] = useState<GlobalVisibility>(null);
+
+  const toggleGlobal = () => {
+    // Toggle between "show" and "hide". If currently null, default to "show".
+    setGlobalVisibility((prev) => (prev === "show" ? "hide" : "show"));
+  };
 
   const handleSubmitClick = () => {
     if (!formData.first_name || !formData.last_name || !formData.address || !formData.date_of_birth ||
@@ -57,7 +67,6 @@ const FrontDesk = () => {
       toast.error(t("message.consentRequired"));
       return;
     }
-
     try {
       await axios.post(
         "http://127.0.0.1:8000/api/kiosk/submit",
@@ -109,37 +118,44 @@ const FrontDesk = () => {
         value={formData.first_name || ""}
         onValueChange={(val) => setFormData({ ...formData, first_name: val })}
         placeholder={t("placeholder.firstName")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.middle_name || ""}
         onValueChange={(val) => setFormData({ ...formData, middle_name: val })}
         placeholder={t("placeholder.middleName")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.last_name || ""}
         onValueChange={(val) => setFormData({ ...formData, last_name: val })}
         placeholder={t("placeholder.lastName")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.address || ""}
         onValueChange={(val) => setFormData({ ...formData, address: val })}
         placeholder={t("placeholder.address")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         type="date"
         value={formData.date_of_birth || ""}
         onValueChange={(val) => setFormData({ ...formData, date_of_birth: val })}
         placeholder={t("field.dateOfBirth")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.place_of_birth || ""}
         onValueChange={(val) => setFormData({ ...formData, place_of_birth: val })}
         placeholder={t("placeholder.placeOfBirth")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.period_of_residency || ""}
         onValueChange={(val) => setFormData({ ...formData, period_of_residency: val })}
         placeholder={t("placeholder.residency")}
+        globalVisibility={globalVisibility}
       />
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">{t("field.registeredVoter")}</label>
@@ -159,21 +175,25 @@ const FrontDesk = () => {
         value={formData.house_owner || ""}
         onValueChange={(val) => setFormData({ ...formData, house_owner: val })}
         placeholder={t("field.houseOwner")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.relation_to_house_owner || ""}
         onValueChange={(val) => setFormData({ ...formData, relation_to_house_owner: val })}
         placeholder={t("placeholder.relationToOwner")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.contact || ""}
         onValueChange={(val) => setFormData({ ...formData, contact: val })}
         placeholder={t("placeholder.contact")}
+        globalVisibility={globalVisibility}
       />
       <MaskedInput
         value={formData.purpose || ""}
         onValueChange={(val) => setFormData({ ...formData, purpose: val })}
         placeholder={t("placeholder.purpose")}
+        globalVisibility={globalVisibility}
       />
     </div>
   );
@@ -187,17 +207,41 @@ const FrontDesk = () => {
           </h1>
           <p className="text-muted-foreground text-lg">{t("header.subtitle")}</p>
         </div>
-        
 
         <Card className="shadow-lg border-2">
           <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardTitle className="text-2xl font-heading">{t("card.title")}</CardTitle>
-            <CardDescription>{t("card.description")}</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl font-heading">{t("card.title")}</CardTitle>
+                <CardDescription>{t("card.description")}</CardDescription>
+              </div>
+
+              {/* Global show/hide toggle */}
+              <button
+                type="button"
+                onClick={toggleGlobal}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={globalVisibility === "show" ? "Hide all fields" : "Show all fields"}
+              >
+                {globalVisibility === "show" ? (
+                  <>
+                    <EyeOff className="h-4 w-4" />
+                    <span>Hide All</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4" />
+                    <span>Show All</span>
+                  </>
+                )}
+              </button>
+            </div>
           </CardHeader>
+
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DocumentType)}>
               <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 mb-8 h-auto p-1">
-                {(["clearance","building-clearance","business-clearance","resident"] as DocumentType[]).map((tab) => (
+                {(["clearance", "building-clearance", "business-clearance", "resident"] as DocumentType[]).map((tab) => (
                   <TabsTrigger key={tab} value={tab} className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3">
                     {getIcon(tab)} <span className="hidden sm:inline">{t(`tab.${tab.split("-")[0]}`)}</span>
                   </TabsTrigger>
@@ -222,8 +266,8 @@ const FrontDesk = () => {
             <AlertDialogDescription className="text-base leading-relaxed pt-4 space-y-4">
               <p className="text-foreground">{t("consent.text")}</p>
               <div className="flex items-start space-x-3 pt-4">
-                <Checkbox 
-                  id="consent" 
+                <Checkbox
+                  id="consent"
                   checked={consentChecked}
                   onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
                 />
@@ -245,4 +289,4 @@ const FrontDesk = () => {
   );
 };
 
-export default FrontDesk;
+export default FrontDesk; 
