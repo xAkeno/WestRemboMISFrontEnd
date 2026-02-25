@@ -15,13 +15,14 @@ export interface TextField {
   page: number;
 
   // NEW optional fields
-  fieldType?: 'TEXT' | 'ADDRESS' | 'DATE';
+  fieldType?: 'TEXT' | 'ADDRESS' | 'DATE' | 'ZONE';
 
   // For ADDRESS
   addressFields?: {
     house?: string;
     street?: string;
     barangay?: string;
+    sitio?: string;
   };
 
   // For DATE
@@ -53,18 +54,66 @@ export const DEFAULT_FIELD: Omit<TextField, 'id' | 'label' | 'value'> = {
   dateFormat: 'YYYY-MM-DD',
 };
 
-export const PREDEFINED_FIELDS = [
-  'First Name',
-  'Middle Name',
-  'Last Name',
-  'Suffix',
-  'Sex',
-  'Address',         // can use 3-in-1 fields
-  'Certificate Number',
-  'Date Issued',     // can be date
-  'Date Expired',    // can be date
-  'Certificate Fee',
-];
+export const PREDEFINED_FIELD_GROUPS = {
+  personal: [
+    'First Name',
+    'Middle Name',
+    'Last Name',
+    'Prefix',
+    'Ext Name',
+    'Sex',
+    'Date of Birth',
+    'Place of Birth',
+  ],
+
+  address: [
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'Resident Status',
+    'Period of Residency',
+    'House Owner',
+    'Relationship to House Owner',
+  ],
+
+  business: [
+    'Business Name',
+    'Business Type',
+    'Business Details',
+    'Capital',
+  ],
+
+  building: [
+    'Establishment',
+    'Inspected By',
+    'Date of Inspection',
+    'Inspection Remarks',
+  ],
+
+  certificate: [
+    'Barangay Clearance No',
+    'Brgy Business No',
+    'OR No',
+    'Purpose',
+    'Remarks',
+    'Status',
+  ],
+  additional: [
+    'Registered Voter',
+    'CTC/VRR No',
+    'Photo',
+    'Notes',
+    'Position',
+    'Occupation',
+    'Employment Status',
+    'Blood Type',
+    'Complexion',
+    'PWD',
+    'Precinct No',
+    'Issued At',
+    'Issued On',
+  ],
+};
 
 export const FONT_FAMILIES: TextField['fontFamily'][] = ['Helvetica', 'TimesRoman', 'Courier'];
 

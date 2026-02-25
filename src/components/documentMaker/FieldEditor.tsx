@@ -11,13 +11,15 @@ import { ColorPicker } from './ColorPicker';
 interface FieldEditorProps {
   field: TextField;
   onChange: (id: string, updates: Partial<TextField>) => void;
+  streets?: { id: number; name: string; sitio: string; formerly?: string }[];
 }
 
-export function FieldEditor({ field, onChange }: FieldEditorProps) {
+export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
   const update = (u: Partial<TextField>) => onChange(field.id, u);
 
   return (
     <div className="space-y-4 p-3">
+      
       {/* Field Type Selector */}
       <div>
         <Label className="text-xs text-muted-foreground">Field Type</Label>
@@ -30,14 +32,83 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="TEXT">Text</SelectItem>
-            <SelectItem value="ADDRESS">Address (3-in-1)</SelectItem>
+            <SelectItem value="ADDRESS">Street</SelectItem>
+            <SelectItem value="ZONE">Zone</SelectItem>
             <SelectItem value="DATE">Date</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* Address 3-in-1 */}
       {field.fieldType === 'ADDRESS' && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Street</Label>
+
+          {streets && streets.length > 0 ? (
+            <Select
+              value={field.value ?? ''}
+              onValueChange={(streetName) => {
+                const selected = streets.find((s) => s.name === streetName);
+                if (!selected) return;
+
+                // Update only the value to the selected street
+                update({ value: selected.name });
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Select Street" />
+              </SelectTrigger>
+
+              <SelectContent className="max-h-60">
+                {streets.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>
+                    {s.name}
+                    {s.formerly ? ` (formerly ${s.formerly})` : ''}
+                    {" - "}
+                    {s.sitio}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              placeholder="Street"
+              value={field.value ?? ''}
+              onChange={(e) => update({ value: e.target.value })}
+              className="h-8 text-xs"
+            />
+          )}
+        </div>
+      )}
+      
+      {field.fieldType === 'ZONE' && streets && streets.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Select Zone (Sitio)</Label>
+
+          <Select
+            value={field.value ?? ''}
+            onValueChange={(sitioName) => {
+              update({ value: sitioName });
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select Zone" />
+            </SelectTrigger>
+
+            <SelectContent className="max-h-60">
+              {streets
+                .filter((s) => s.sitio && s.sitio.trim() !== '') // <-- remove empty
+                .map((s) => (
+                  <SelectItem key={s.id} value={s.sitio}>
+                    {s.sitio} {s.name ? `(${s.name})` : ''}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Address 3-in-1 */}
+      {/* {field.fieldType === 'ADDRESS' && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Address Parts</Label>
 
@@ -74,7 +145,7 @@ export function FieldEditor({ field, onChange }: FieldEditorProps) {
             className="h-8 text-xs"
           />
         </div>
-      )}
+      )} */}
 
       {/* Value Input */}
       <div>

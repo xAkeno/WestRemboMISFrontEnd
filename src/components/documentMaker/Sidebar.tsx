@@ -12,10 +12,11 @@ interface SidebarProps {
   onChange: (id: string, updates: Partial<TextField>) => void;
   onDelete: (id: string) => void;
   isAdmin: boolean;
-  documentData: object
+  documentData: object;
+  streets?: { id: number; name: string; sitio: string; formerly?: string }[];
 }
 
-export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete }: SidebarProps) {
+export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete,streets }: SidebarProps) {
   const selectedField = fields.find((f) => f.id === selectedId);
 
   return (
@@ -68,7 +69,11 @@ export function EditorSidebar({ fields, selectedId, onSelect, onChange, onDelete
           {/* Editor appears directly BELOW selected field */}
           {isSelected && (
             <div className="mt-1 mb-2 rounded-md border border-sidebar-border bg-muted/40 p-2">
-              <FieldEditor field={f} onChange={onChange} />
+              <FieldEditor 
+                field={f} 
+                onChange={onChange} 
+                streets={streets}
+              />
             </div>
           )}
         </div>

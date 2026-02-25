@@ -3,7 +3,7 @@ import { Plus, MoreHorizontal, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
-import { fetchBuildingClearances, FetchClearanceParams } from '@/components/services/clearanceApi';
+import { deleteBarangayClearance, fetchBuildingClearances, FetchClearanceParams } from '@/components/services/clearanceApi';
 import { BuildingClearance as BuildingClearanceType } from '@/types/clearance';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -68,7 +68,27 @@ const BuildingClearance = () => {
     loadData();
     toast({ title: "Refreshed", description: "Data has been refreshed" });
   };
+  const handleDelete = async (id: number) => {
+      const confirmDelete = window.confirm("Are you sure you want to delete this clearance?");
+      if (!confirmDelete) return;
 
+      try {
+        await deleteBarangayClearance(id);
+
+        toast({
+          title: "Deleted",
+          description: "Clearance has been deleted successfully.",
+        });
+
+        loadData(); // refresh table
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete clearance.",
+          variant: "destructive",
+        });
+      }
+    };
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th 
       className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors"
@@ -142,11 +162,20 @@ const BuildingClearance = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {navigate(`/document-edit/${item.bcert_number}`)}}>View</DropdownMenuItem>
-                              <DropdownMenuItem>Edit</DropdownMenuItem>
-                              <DropdownMenuItem>Print</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => {navigate(`/document-edit/3/${item.bcert_number}`)}} className='cursor-pointer'>View / Edit</DropdownMenuItem>
+                                {/* <DropdownMenuItem>Edit</DropdownMenuItem> */}
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                >
+                                  Print
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(Number(item.id))}
+                                  className="text-destructive cursor-pointer"
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
                       </tr>

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Layout } from "@/components/Layout";
 import { useNavigate } from 'react-router-dom';
-
+import { deleteBarangayClearance } from '@/components/services/clearanceApi';
 const BarangayClearance = () => {
   const { toast } = useToast();
   const [data, setData] = useState<BarangayClearanceType[]>([]);
@@ -80,6 +80,27 @@ const BarangayClearance = () => {
       </div>
     </th>
   );
+  const handleDelete = async (id: number) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this clearance?");
+    if (!confirmDelete) return;
+
+    try {
+      await deleteBarangayClearance(id);
+
+      toast({
+        title: "Deleted",
+        description: "Clearance has been deleted successfully.",
+      });
+
+      loadData(); // refresh table
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete clearance.",
+        variant: "destructive",
+      });
+    }
+  };
   console.log(data)
   return (
     <Layout>
@@ -140,10 +161,19 @@ const BarangayClearance = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => {navigate(`/document-edit/2/${item.bcert_number}`)}}>View</DropdownMenuItem>
-                                <DropdownMenuItem>Edit</DropdownMenuItem>
-                                <DropdownMenuItem>Print</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {navigate(`/document-edit/2/${item.bcert_number}`)}} className='cursor-pointer'>View / Edit</DropdownMenuItem>
+                                {/* <DropdownMenuItem>Edit</DropdownMenuItem> */}
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                >
+                                  Print
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(Number(item.id))}
+                                  className="text-destructive cursor-pointer"
+                                >
+                                  Delete
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>

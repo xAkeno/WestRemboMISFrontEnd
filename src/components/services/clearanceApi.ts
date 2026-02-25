@@ -16,6 +16,10 @@ const api = axios.create({
   },
 });
 
+export const deleteBarangayClearance = async (id: number) => {
+  return axios.delete(`http://127.0.0.1:8000/api/barangay-clearances/${id}`,{withCredentials:true});
+};
+
 export interface FetchClearanceParams {
   page?: number;
   pageSize?: number;

@@ -10,34 +10,183 @@ import { PDFPreview } from './PDFPreview';
 import { toast } from 'sonner';
 import { Layout } from '../Layout';
 import { useLocation } from 'react-router-dom';
-const LABEL_TO_KEY: Record<string, string> = {
+export interface DocumentUserData {
+  // Common identifiers
+  id?: number;
+  bcert_number?: string;
+  brgyBusinessNo?: string;
+  resident_id?: string;
+  requester_id?: number;
+  requester_type?: string;
+
+  // Name / Personal info
+  prefix?: string;
+  surname?: string;
+  firstname?: string;
+  first_name?: string;
+  middlename?: string;
+  middle_name?: string;
+  ext?: string;
+  ext_name?: string;
+  nick_name?: string;
+  sex?: string;
+  marital_status?: string;
+  name_of_spouse?: string;
+  age?: number;
+  date_of_birth?: string | Date;
+  dob?: string | Date;
+  place_of_birth?: string;
+  pob?: string;
+
+  // Address / Residence
+  house_block_lot_no?: string;
+  houseBlockLot?: string;
+  houseBlockLotNo?: string;
+  street?: string;
+  zone?: string;
+  resident_status?: string;
+  period_of_residency?: string;
+
+  // Contact
+  contact_no?: string;
+  phone_number?: string;
+  email_address?: string;
+
+  // Business / Building info
+  businessName?: string;
+  businessType?: string;
+  businessDetails?: string;
+  capital?: number;
+  establishment?: string;
+  inspectedBy?: string;
+  dateOfInspection?: string | Date;
+  inspectionRemarks?: string;
+  inspectedRemarks?: string;
+  dateInspected?: string | Date;
+  inspectedNote?: string;
+
+
+  // Certificate / clearance info
+  orNo?: string;
+  or_no?: string;
+  ctc_vrr_no?: string;
+  issued_at?: string;
+  issued_on?: string | Date;
+  issuedDate?: string | Date;
+  purpose?: string;
+  purposeDetails?: string;
+  purpose_details?: string;
+  remarks?: string;
+  punongBarangay?: string;
+  forThePunongBarangay?: string;
+  barangayPosition?: string;
+  status?: string;
+
+  // Additional fields
+  registered_voter?: string;
+  house_owner?: string;
+  relationship_to_owner?: string;
+  photo?: string;
+  notes?: string;
+  position?: string;
+  occupation?: string;
+  emp_status?: string;
+  blood_type?: string;
+  complexion?: string;
+  pwd?: string;
+  precinct_no?: string;
+
+  created_at?: string;
+  updated_at?: string;
+}
+
+const DOCUMENT_API_PATHS: Record<string, string> = {
+  "1": "barangay-certificates",
+  "2": "barangay-clearances",
+  "3": "building-clearances",
+  "4": "business-clearances",
+};
+export const LABEL_TO_KEY: Record<string, string> = {
+  // Name / Personal info
   'First Name': 'first_name',
   'Middle Name': 'middle_name',
   'Last Name': 'surname',
+  'Prefix': 'prefix',
+  'Ext Name': 'ext_name',
+  'Nickname': 'nick_name',
+  'Sex': 'sex',
+  'Marital Status': 'marital_status',
+  'Name of Spouse': 'name_of_spouse',
+  'Age': 'age',
+  'Date of Birth': 'dob',
+  'Place of Birth': 'pob',
 
-  'House block lot no': 'house_block_lot_no',
+  // Address / Residence
+  'House Block Lot No': 'house_block_lot_no',
+  'HouseBlockLot': 'houseBlockLot',
   'Street': 'street',
   'Zone': 'zone',
-
-  'DateofBirth': 'dob',                
-  'PlaceofBirth': 'pob',
-
-  'Period of residency': 'period_of_residency',
+  'Resident Status': 'resident_status',
+  'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
-  'Releationship to House Owner': 'relationship_to_owner',
+  'Relationship to House Owner': 'relationship_to_owner',
 
-  'CTC/VRR No.': 'ctc_vrr_no',
-  'Issued at': 'issued_at',
-  'Issued On': 'issued_on',
+  // Contact
+  'Contact No': 'contact_no',
+  'Phone Number': 'phone_number',
+  'Email Address': 'email_address',
+
+  // Business / Building info
+  'Business Name': 'businessName',
+  'Business Type': 'businessType',
+  'Business Details': 'businessDetails',
+  'Capital': 'capital',
+  'Establishment': 'establishment',
+  'Inspected By': 'inspectedBy',
+  'Date of Inspection': 'dateOfInspection',
+  'Inspection Remarks': 'inspectionRemarks',
+  'Inspected Remarks': 'inspectedRemarks',
+  'Date Inspected': 'dateInspected',
+  'Inspected Note': 'inspectedNote',
+
+  // Certificate / clearance info
   'OR No': 'or_no',
-
-  'Barangay Clearance No': 'bcert_number',
-
-  'Remarks': 'remarks',
-  'Date': 'issued_date',               
-
+  'OR No Alt': 'orNo',
+  'CTC/VRR No': 'ctc_vrr_no',
+  'Issued At': 'issued_at',
+  'Issued On': 'issued_on',
+  'Issued Date': 'issuedDate',
   'Purpose': 'purpose',
   'Purpose Details': 'purpose_details',
+  'Remarks': 'remarks',
+  'Barangay Clearance No': 'bcert_number',
+  'Brgy Business No': 'brgyBusinessNo',
+  'Punong Barangay': 'punongBarangay',
+  'For The Punong Barangay': 'forThePunongBarangay',
+  'Barangay Position': 'barangayPosition',
+  'Status': 'status',
+
+  // Additional fields
+  'Registered Voter': 'registered_voter',
+  'Photo': 'photo',
+  'Notes': 'notes',
+  'Position': 'position',
+  'Occupation': 'occupation',
+  'Employment Status': 'emp_status',
+  'Blood Type': 'blood_type',
+  'Complexion': 'complexion',
+  'PWD': 'pwd',
+  'Precinct No': 'precinct_no',
+
+  // Common identifiers
+  'ID': 'id',
+  'Resident ID': 'resident_id',
+  'Requester ID': 'requester_id',
+  'Requester Type': 'requester_type',
+
+  // Timestamps
+  'Created At': 'created_at',
+  'Updated At': 'updated_at'
 };
 
 
@@ -54,20 +203,47 @@ export function CertificateEditor() {
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [documentUserData, setDocumentUserData] = useState();
-
+  const [documentUserData, setDocumentUserData] = useState<DocumentUserData[] | undefined>(undefined);
+  const isEditMode = !!bcertNumber;
   const location = useLocation();
   const ticket = location.state?.ticket;
-  
+  const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
+  const [selectedStreet, setSelectedStreet] = useState<number | null>(null);
+
+  const getApiPath = (documentId: string | number) => {
+    return DOCUMENT_API_PATHS[String(documentId)] || "barangay-clearances";
+  };
+
+  const fetchStreets = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/streets', {
+        withCredentials: true,
+      });
+      setStreets(response.data); // assuming your API returns { data: [...] }
+    } catch (err) {
+      console.error('Failed to fetch streets', err);
+      toast.error('Failed to load streets');
+    }
+  };
+
+  useEffect(() => {
+    fetchStreets();
+  }, []);
 
   const fetchUserDocument = async () => {
-    const response = await axios.get(
-      `http://127.0.0.1:8000/api/barangay-clearances?search=${bcertNumber}`,
-      {withCredentials: true}
-    )
-    setDocumentUserData(response.data.data.data);
-    console.log(response.data.data.data)
-  }
+    try {
+      const apiPath = getApiPath(id);
+      const response = await axios.get(
+        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+        { withCredentials: true }
+      );
+      setDocumentUserData(response.data.data.data);
+      console.log(response.data.data.data);
+    } catch (error) {
+      console.error('Failed to fetch document', error);
+      toast.error('Failed to fetch document');
+    }
+  };
 
   const fetchUser = async () => {
     try {
@@ -113,107 +289,201 @@ export function CertificateEditor() {
     return payload;
   };
 
+  const existingRecord =
+  documentUserData && documentUserData.length > 0
+    ? documentUserData[0]
+    : null;
+
+  const isUpdate = !!existingRecord && bcertNumber && bcertNumber !== "new";
+
+  useEffect(() => {
+    if (!bcertNumber || bcertNumber === "new") {
+      setDocumentUserData([]);
+      setFields((prev) =>
+        prev.map((f) => ({ ...f, value: '' }))
+      );
+    } else {
+      fetchUserDocument(); // only fetch if editing
+    }
+  }, [bcertNumber]);
+
+
+
+
   const handleSubmitCertificate = async () => {
     try {
       const payload = {
         ...buildPayloadFromFields(),
-        requester_type: "WALK_IN" // 👈 add this
+        requester_type: "WALK_IN",
       };
 
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/barangay-clearances",
-        payload,
-        { withCredentials: true }
-      );
+      let response;
 
-      toast.success("Certificate saved successfully");
+      const apiPath = getApiPath(id);
+
+      console.log("Submitting payload:", payload);
+
+      if (isUpdate) {
+        // UPDATE
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
+          payload,
+          { withCredentials: true }
+        );
+        toast.success(`${apiPath.replace("-", " ")} updated successfully`);
+      } else {
+        // CREATE
+        response = await axios.post(
+          `http://127.0.0.1:8000/api/${apiPath}`,
+          payload,
+          { withCredentials: true }
+        );
+        toast.success(`${apiPath.replace("-", " ")} saved successfully`);
+}
+
       console.log(response.data);
 
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
 
-        // ✅ Laravel Validation Error
         if (status === 422) {
           const validationErrors = error.response?.data?.errors;
-
           if (validationErrors) {
-            Object.keys(validationErrors).forEach((key) => {
-              const messages = validationErrors[key];
-              if (messages.length > 0) {
-                toast.error(messages[0]); // show first error message
-              }
+            Object.values(validationErrors).forEach((messages: any) => {
+              if (messages.length > 0) toast.error(messages[0]);
             });
-          } else {
-            toast.error("Validation failed.");
           }
-
-        }
-
-        // ✅ Unauthorized
-        else if (status === 401) {
+        } else if (status === 401) {
           toast.error("You are not authenticated.");
-        }
-
-        // ✅ Forbidden
-        else if (status === 403) {
+        } else if (status === 403) {
           toast.error("You are not allowed to perform this action.");
-        }
-
-        // ✅ Server Error
-        else if (status === 500) {
-          toast.error("Server error. Please try again.");
-        }
-
-        else {
+        } else {
           toast.error("Something went wrong.");
         }
-
       } else {
-        toast.error("Network error. Please check your connection.");
+        toast.error("Network error.");
       }
+    }
+  };
 
+  const handlePrint = async () => {
+  if (!templateBytesRef.current) {
+    toast.error("Template not loaded");
+    return;
+  }
+
+  try {
+      const bytes = await generatePDF(templateBytesRef.current, fields);
+
+      // ✅ important line
+      const safeBytes = new Uint8Array(bytes);
+
+      const blob = new Blob([safeBytes], {
+        type: "application/pdf",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.src = url;
+
+      document.body.appendChild(iframe);
+
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }, 300);
+      };
+
+    } catch (error) {
       console.error(error);
+      toast.error("Failed to print PDF");
     }
   };
 
 
 
 
-  // When documentUserData or fields change, update only existing fields
-  useEffect(() => {
-    if (!documentUserData || fields.length === 0) return;
+    useEffect(() => {
+    // Only populate fields if we have an existing record (edit mode)
+    if (!documentUserData || documentUserData.length === 0) return;
+    if (!bcertNumber || bcertNumber === "new") return; // <-- prevent applying in create mode
+
+    const record = documentUserData[0];
 
     setFields((prevFields) =>
       prevFields.map((field) => {
-        const key = LABEL_TO_KEY[field.label]; // get corresponding key
-        if (!key) return field; // no mapping, skip
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return field;
 
-        // Get the value from the first item in documentUserData array
-        let newValue = (documentUserData[0] as any)[key];
+        let newValue = record[key];
 
-        // ✅ Clean ISO date format
         if (typeof newValue === "string" && newValue.includes("T")) {
           const date = new Date(newValue);
           if (!isNaN(date.getTime())) {
-            newValue = date.toLocaleDateString("en-CA"); 
-            // en-CA → 2026-02-11 (YYYY-MM-DD)
-            // use "en-US" if you want MM/DD/YYYY
+            newValue = date.toISOString().split("T")[0];
           }
         }
 
-
-        if (newValue !== undefined && newValue !== field.value) {
-          return { ...field, value: newValue };
-        }
-
-        return field;
+        return {
+          ...field,
+          value: newValue ?? field.value,
+        };
       })
     );
-  }, [documentUserData, fields]);
+  }, [documentUserData, bcertNumber]);
 
 
 
+  useEffect(() => {
+  if (!ticket) return;
+  if (!fields || fields.length === 0) return;
+
+  setFields((prevFields) =>
+    prevFields.map((field) => {
+      const key = LABEL_TO_KEY[field.label];
+      if (!key) return field;
+
+      let newValue = ticket[key];
+
+      // format date properly
+      if (typeof newValue === "string" && newValue.includes("T")) {
+        const date = new Date(newValue);
+        if (!isNaN(date.getTime())) {
+          newValue = date.toISOString().split("T")[0];
+        }
+      }
+
+      return {
+        ...field,
+        value: newValue ?? field.value,
+      };
+    })
+  );
+}, [ticket]);
+
+  const getTicketValue = (key: string, ticket: any) => {
+    if (!ticket?.serviceable) return null;
+
+    const source = ticket.serviceable;
+
+    const keyMap: Record<string, string> = {
+      surname: "last_name",
+      dob: "date_of_birth",
+      pob: "place_of_birth",
+      relationship_to_owner: "relation_to_house_owner",
+    };
+
+    const finalKey = keyMap[key] ?? key;
+
+    return source[finalKey] ?? null;
+  };
 
 
   const fetchPDFTemplate = async (documentId: string) => {
@@ -259,21 +529,45 @@ export function CertificateEditor() {
       }
 
       let mergedFields = savedLayout.map((field) => {
-  const key = LABEL_TO_KEY[field.label];
-  if (!key) return field;
+          const key = LABEL_TO_KEY[field.label];
+          let value: any = "";
 
-  let value = (ticket?.serviceable as any)?.[key];
+          // PRIORITY ORDER:
+          // 1️⃣ Existing record (edit mode)
+          // 2️⃣ Ticket serviceable
+          // 3️⃣ Empty
 
-  // Format date if needed
-  if (value && (key.includes("date") || key.includes("birth"))) {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      value = date.toISOString().split("T")[0];
-    }
-  }
+          if (key) {
+            if (existingRecord) {
+              value = existingRecord[key];
+            } 
+            else if (ticket?.serviceable) {
+              const source = ticket.serviceable;
 
-  return { ...field, value: value ?? field.value }; // <-- only change value
-});
+              const keyMap: Record<string, string> = {
+                surname: "last_name",
+                dob: "date_of_birth",
+                pob: "place_of_birth",
+                relationship_to_owner: "relation_to_house_owner",
+              };
+
+              const finalKey = keyMap[key] ?? key;
+              value = source[finalKey];
+            }
+          }
+
+          // Format dates properly
+          if (value && typeof value === "string") {
+            if (value.includes("T") || key?.includes("date") || key?.includes("birth")) {
+              const date = new Date(value);
+              if (!isNaN(date.getTime())) {
+                value = date.toISOString().split("T")[0];
+              }
+            }
+          }
+
+          return { ...field, value: value ?? "" };
+        });
 
 
       setFields(mergedFields);
@@ -302,13 +596,20 @@ export function CertificateEditor() {
 
   useEffect(() => {
     fetchUser();
+
     if (id) {
       fetchPDFTemplate(id);
     }
-    if(bcertNumber){
+
+    // Only fetch document if editing an existing certificate
+    if (bcertNumber && bcertNumber !== "new") {
       fetchUserDocument();
+    } else {
+      setDocumentUserData([]); // empty array instead of undefined
     }
-  }, [id]);
+  }, [id, bcertNumber]);
+
+
 
   // Re-render PDF preview when fields change
   const renderPreview = useCallback(async (currentFields: TextField[]) => {
@@ -324,6 +625,32 @@ export function CertificateEditor() {
       console.error('PDF render error:', err);
     }
   }, []);
+
+  useEffect(() => {
+    if (!ticket) return;
+    if (!fields.length) return;
+
+    setFields((prevFields) =>
+      prevFields.map((field) => {
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return field;
+
+        let newValue = getTicketValue(key, ticket);
+
+        if (typeof newValue === "string" && newValue.includes("T")) {
+          const date = new Date(newValue);
+          if (!isNaN(date.getTime())) {
+            newValue = date.toISOString().split("T")[0];
+          }
+        }
+
+        return {
+          ...field,
+          value: newValue ?? "",
+        };
+      })
+    );
+  }, [ticket, fields.length]);
 
   const debouncedRender = useCallback((currentFields: TextField[]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -394,11 +721,8 @@ export function CertificateEditor() {
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     console.log('Saving layout:', fields);
-    const save = axios.put(`http://127.0.0.1:8000/api/documents/${id}/layout`, {
-      layout: fields
-    }, {
-      withCredentials: true
-    });
+    const apiPath = getApiPath(id);
+    const save = axios.put(`http://127.0.0.1:8000/api/documents/${id}/layout`, { layout: fields }, { withCredentials: true });
     save.then((response) => {
       if(response.status === 200) {
         toast.success('Layout saved successfully');
@@ -415,6 +739,8 @@ export function CertificateEditor() {
     // URL.revokeObjectURL(url);
     toast.success('Layout saved');
   }, [fields]);
+
+
 
   const handleLoadLayout = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -433,6 +759,25 @@ export function CertificateEditor() {
     reader.readAsText(file);
     e.target.value = '';
   }, []);
+
+    const autoPrint = location.state?.autoPrint;
+
+  useEffect(() => {
+    if (!autoPrint) return;
+    if (!templateInfo) return;
+    if (!templateBytesRef.current) return;
+    if (!fields || fields.length === 0) return;
+
+    // Make sure fields actually contain values
+    const hasData = fields.some(field => field.value !== null && field.value !== '');
+    if (!hasData) return;
+
+    const timer = setTimeout(() => {
+      handlePrint();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [autoPrint, templateInfo, fields]);
 
   if (isLoading) {
     return (
@@ -456,6 +801,8 @@ export function CertificateEditor() {
           hasTemplate={!!templateInfo}
           isAdmin={isAdmin}
           onSubmit={handleSubmitCertificate}
+          isUpdate={isUpdate}
+          onPrint={handlePrint}
         />
         <div className="flex flex-1 min-h-0">
           <EditorSidebar
@@ -466,6 +813,7 @@ export function CertificateEditor() {
             onDelete={handleDeleteField}
             isAdmin={isAdmin}
             documentData={documentUserData}
+            streets={streets}
           />
 
           <PDFPreview
