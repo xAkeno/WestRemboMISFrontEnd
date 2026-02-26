@@ -50,6 +50,8 @@ import { DocumentGrid } from "./pages/admin/DocumentGrid";
 import MyRequest from "./components/myrequest/MyRequest";
 import { CertificateEditor } from "./components/documentMaker/CertificateEditor";
 import RequestDetail from "./components/myrequest/RequestDetail";
+import Calendar from "./pages/Calendar";4
+import EventDetail from "./pages/EventDetail";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -61,6 +63,8 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Login />} /> {/*Login*/}
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/event-detail/:id" element={<EventDetail />} />
               <Route path="/home" element={<HomePage />} />
               <Route path="/profile" element={<ProfileManagement />} />
               <Route path="/aboutus" element={<AboutUsSection />} />

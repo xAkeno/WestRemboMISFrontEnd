@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Calendar, MapPin, Clock, ImageIcon } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Calendar, MapPin, ImageIcon } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,19 +27,28 @@ interface Event {
   description: string;
   location: string;
   date: string;
-  time: string;
+  start_time: string;
+  end_time: string;
   image: string | null;
   published: boolean;
+  color?: string;
+  important?: boolean;
   created_at?: string;
 }
 
-const defaultEvents: Event[] = [
-  { id: 1, title: 'Barangay Assembly', description: 'Quarterly general assembly for all residents.', location: 'Barangay Hall', date: '2026-03-15', time: '09:00', image: null, published: true },
-  { id: 2, title: 'Clean-Up Drive', description: 'Community clean-up along the main road.', location: 'Main Street', date: '2026-03-22', time: '06:00', image: null, published: true },
-  { id: 3, title: 'Health Screening', description: 'Free medical and dental check-up.', location: 'Health Center', date: '2026-04-05', time: '08:00', image: null, published: false },
-];
-
-const emptyForm = { title: '', description: '', location: '', date: '', time: '', image: null as string | null, published: true };
+const emptyForm = {
+  title: '',
+  description: '',
+  location: '',
+  start_date: '',
+  start_time: '',
+  end_date: '',
+  end_time: '',
+  image: null as string | null,
+  published: true,
+  color: '#0047AB',
+  important: false
+};
 
 const EventsCalendar = () => {
   const { toast } = useToast();
@@ -56,10 +65,10 @@ const EventsCalendar = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/events`);
-      setEvents(res.data?.data ?? res.data ?? defaultEvents);
-    } catch {
-      setEvents(defaultEvents);
+      const res = await axios.get(`${API_BASE}/events`, { withCredentials: true });
+      setEvents(res.data?.data ?? []);
+    } catch (error) {
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -76,48 +85,58 @@ const EventsCalendar = () => {
 
   const openEdit = (event: Event) => {
     setEditingId(event.id);
-    setForm({ title: event.title, description: event.description, location: event.location, date: event.date, time: event.time, image: event.image, published: event.published });
+    setForm({
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      start_date: event.date,
+      start_time: event.start_time,
+      end_date: event.date,
+      end_time: event.end_time ?? '',
+      image: event.image,
+      published: event.published,
+      color: event.color || '#0047AB',
+      important: event.important || false
+    });
     setImageFile(null);
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!form.title || !form.date || !form.time) {
-      toast({ title: 'Validation Error', description: 'Title, date, and time are required', variant: 'destructive' });
-      return;
-    }
     setIsSaving(true);
-    try {
-      const formData = new FormData();
-      formData.append('title', form.title);
-      formData.append('description', form.description);
-      formData.append('location', form.location);
-      formData.append('date', form.date);
-      formData.append('time', form.time);
-      formData.append('published', form.published ? '1' : '0');
-      if (imageFile) formData.append('image', imageFile);
 
+    const formData = new FormData();
+    formData.append('title', form.title);
+    formData.append('description', form.description);
+    formData.append('location', form.location);
+    formData.append('date', form.start_date);
+    formData.append('start_time', form.start_time);
+    formData.append('end_time', form.end_time);
+    formData.append('published', form.published ? '1' : '0');
+    formData.append('color', form.color!);
+    formData.append('important', form.important ? '1' : '0');
+    if (imageFile) formData.append('image', imageFile);
+
+    try {
       if (editingId) {
         formData.append('_method', 'PUT');
-        const res = await axios.post(`${API_BASE}/events/${editingId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        const updated = res.data?.data ?? { ...form, id: editingId };
-        setEvents(prev => prev.map(e => e.id === editingId ? { ...e, ...updated } : e));
-        toast({ title: 'Updated', description: 'Event updated successfully' });
+        const res = await axios.post(`${API_BASE}/events/${editingId}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true
+        });
+        setEvents(prev => prev.map(e => e.id === editingId ? res.data.data : e));
       } else {
-        const res = await axios.post(`${API_BASE}/events`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        const newEvent: Event = res.data?.data ?? { id: Date.now(), ...form };
-        setEvents(prev => [...prev, newEvent]);
-        toast({ title: 'Created', description: 'Event added successfully' });
+        const res = await axios.post(`${API_BASE}/events`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true
+        });
+        setEvents(prev => [...prev, res.data.data]);
       }
       setDialogOpen(false);
-    } catch {
-      if (editingId) {
-        setEvents(prev => prev.map(e => e.id === editingId ? { ...e, ...form } : e));
-      } else {
-        setEvents(prev => [...prev, { id: Date.now(), ...form }]);
-      }
-      setDialogOpen(false);
-      toast({ title: 'Saved locally', description: 'API unavailable — saved locally' });
+      toast({ title: editingId ? 'Event updated' : 'Event created' });
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Error saving event', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -125,19 +144,23 @@ const EventsCalendar = () => {
 
   const handleDelete = async () => {
     if (!deletingId) return;
-    try { await axios.delete(`${API_BASE}/events/${deletingId}`); } catch { /* local delete */ }
-    setEvents(prev => prev.filter(e => e.id !== deletingId));
-    setDeleteDialogOpen(false);
-    setDeletingId(null);
-    toast({ title: 'Deleted', description: 'Event removed successfully' });
+    try {
+      await axios.delete(`${API_BASE}/events/${deletingId}`, { withCredentials: true });
+      setEvents(prev => prev.filter(e => e.id !== deletingId));
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
+      toast({ title: 'Event deleted' });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const togglePublish = async (event: Event) => {
     const updated = { ...event, published: !event.published };
     setEvents(prev => prev.map(e => e.id === event.id ? updated : e));
     try {
-      await axios.put(`${API_BASE}/events/${event.id}`, { published: updated.published });
-    } catch { /* keep local state */ }
+      await axios.put(`${API_BASE}/events/${event.id}`, { published: updated.published }, { withCredentials: true });
+    } catch {}
     toast({ title: updated.published ? 'Published' : 'Unpublished', description: `Event ${updated.published ? 'published' : 'unpublished'}` });
   };
 
@@ -178,11 +201,14 @@ const EventsCalendar = () => {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden">
-                              {event.image ? <img src={event.image} alt="" className="w-full h-full object-cover" /> : <Calendar className="h-5 w-5 text-primary" />}
+                              {event.image
+                                ? <img src={event.image} alt="" className="w-full h-full object-cover" />
+                                : <Calendar className="h-5 w-5 text-primary" />}
                             </div>
                             <div>
                               <p className="text-sm font-medium">{event.title}</p>
                               <p className="text-xs text-muted-foreground line-clamp-1">{event.description}</p>
+                              {event.important && <span className="text-red-500 text-xs font-semibold">Important</span>}
                             </div>
                           </div>
                         </td>
@@ -193,10 +219,13 @@ const EventsCalendar = () => {
                         </td>
                         <td className="py-3 px-4">
                           <div className="text-sm">{event.date}</div>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> {event.time}</div>
+                          <div className="text-xs text-muted-foreground">{event.start_time} {event.end_time ? `– ${event.end_time}` : ''}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <button onClick={() => togglePublish(event)} className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${event.published ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}>
+                          <button
+                            onClick={() => togglePublish(event)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${event.published ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}
+                          >
                             {event.published ? <><Eye className="h-3 w-3" /> Published</> : <><EyeOff className="h-3 w-3" /> Draft</>}
                           </button>
                         </td>
@@ -207,7 +236,9 @@ const EventsCalendar = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => openEdit(event)}><Pencil className="h-4 w-4 mr-2" /> Edit</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingId(event.id); setDeleteDialogOpen(true); }}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingId(event.id); setDeleteDialogOpen(true); }}>
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -222,6 +253,7 @@ const EventsCalendar = () => {
             )}
           </div>
 
+          {/* Add/Edit Dialog */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
@@ -255,12 +287,23 @@ const EventsCalendar = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Date</Label>
-                    <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                    <Label>Start Date & Time</Label>
+                    <Input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
+                    <Input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Time</Label>
-                    <Input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
+                    <Label>End Time</Label>
+                    <Input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Color</Label>
+                    <Input type="color" value={form.color || '#0047AB'} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} />
+                  </div>
+                  <div className="flex items-center gap-2 pt-6">
+                    <Switch checked={form.important || false} onCheckedChange={v => setForm(f => ({ ...f, important: v }))} />
+                    <Label>Important</Label>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -275,6 +318,7 @@ const EventsCalendar = () => {
             </DialogContent>
           </Dialog>
 
+          {/* Delete Confirmation */}
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
