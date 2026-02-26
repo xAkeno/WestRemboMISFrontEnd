@@ -3,7 +3,7 @@ import { Plus, MoreHorizontal, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
-import { fetchBusinessClearances, FetchClearanceParams } from '@/components/services/clearanceApi';
+import { deleteBarangayClearance, fetchBusinessClearances, FetchClearanceParams } from '@/components/services/clearanceApi';
 import { BusinessClearance as BusinessClearanceType } from '@/types/clearance';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -85,6 +85,28 @@ const BusinessClearance = () => {
   };
   console.log('Business Clearance data:', data);
 
+  const handleDelete = async (id: number) => {
+      const confirmDelete = window.confirm("Are you sure you want to delete this clearance?");
+      if (!confirmDelete) return;
+
+      try {
+        await deleteBarangayClearance(id);
+
+        toast({
+          title: "Deleted",
+          description: "Clearance has been deleted successfully.",
+        });
+
+        loadData(); // refresh table
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete clearance.",
+          variant: "destructive",
+        });
+      }
+    };
+
   return (
     <Layout>
       <div className="p-6">
@@ -120,6 +142,7 @@ const BusinessClearance = () => {
                       <SortHeader field="businessName">Business Name</SortHeader>
                       <SortHeader field="businessType">Type</SortHeader>
                       <SortHeader field="street">Address</SortHeader>
+                      <SortHeader field="status">Status</SortHeader>
                       <SortHeader field="capital">Capital</SortHeader>
                       <SortHeader field="orNo">Created By</SortHeader>
                       <SortHeader field="orNo">OR No.</SortHeader>
@@ -129,15 +152,16 @@ const BusinessClearance = () => {
                   <tbody className="divide-y divide-border">
                     {data.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 px-4 text-sm font-medium">{`${item.firstname} ${item.middlename || ''} ${item.surname}`}</td>
-                        <td className="py-3 px-4 text-sm font-medium text-primary">{item.brgyBusinessNo}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.issuedDate).toLocaleDateString()}</td>
-                        <td className="py-3 px-4 text-sm font-medium">{item.businessName}</td>
-                        <td className="py-3 px-4 text-sm">{item.businessType}</td>
+                          <td className="py-3 px-4 text-sm font-medium">{`${item.first_name} ${item.middle_name || ''} ${item.surname}`}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-primary">{item.brgy_business_no}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.issued_date).toLocaleDateString()}</td>
+                        <td className="py-3 px-4 text-sm font-medium">{item.business_name}</td>
+                        <td className="py-3 px-4 text-sm">{item.business_type}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.street}, ${item.zone}`}</td>
+                        <td className="py-3 px-4 text-sm">{item.status || '-'}</td>
                         <td className="py-3 px-4 text-sm font-medium">{formatCurrency(item.capital)}</td>
                         <td className="py-3 px-4 text-sm font-medium">{item.created_by}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.orNo}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.or_no}</td>
                         <td className="py-3 px-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -146,11 +170,20 @@ const BusinessClearance = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {navigate(`/document-edit/${item.brgyBusinessNo}`)}}>View</DropdownMenuItem>
-                              <DropdownMenuItem>Edit</DropdownMenuItem>
-                              <DropdownMenuItem>Print</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => {navigate(`/document-edit/4/${item.brgy_business_no}`)}} className='cursor-pointer'>View / Edit</DropdownMenuItem>
+                                {/* <DropdownMenuItem>Edit</DropdownMenuItem> */}
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/document-edit/2/${item.brgy_business_no}`, { state: { autoPrint: true } })}
+                                >
+                                  Print
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(Number(item.id))}
+                                  className="text-destructive cursor-pointer"
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
                       </tr>

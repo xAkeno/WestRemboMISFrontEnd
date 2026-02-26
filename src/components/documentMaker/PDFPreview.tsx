@@ -33,13 +33,23 @@ export function PDFPreview({
   const [scale, setScale] = useState(1);
 
   const pageInfo = templateInfo?.pages[currentPage];
-  const pageFields = fields.filter((f) => f.page === currentPage);
+
+  // ✅ UPDATED: Hidden fields will NOT render in preview
+  const pageFields = fields.filter(
+    (f) => f.page === currentPage && !f.hidden
+  );
 
   const updateScale = useCallback(() => {
     if (!containerRef.current || !pageInfo) return;
+
     const containerWidth = containerRef.current.clientWidth - 32;
     const containerHeight = containerRef.current.clientHeight - 32;
-    const s = Math.min(containerWidth / pageInfo.width, containerHeight / pageInfo.height);
+
+    const s = Math.min(
+      containerWidth / pageInfo.width,
+      containerHeight / pageInfo.height
+    );
+
     setScale(s);
   }, [pageInfo]);
 
@@ -52,31 +62,40 @@ export function PDFPreview({
   if (!blobUrl || !templateInfo || !pageInfo) {
     return (
       <div className="flex flex-1 items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground text-sm">Upload a PDF template to get started</p>
+        <p className="text-muted-foreground text-sm">
+          Upload a PDF template to get started
+        </p>
       </div>
     );
   }
 
-
   return (
-    <div className="flex flex-1 flex-col bg-muted/30 overflow-auto" ref={containerRef}>
-
-
+    <div
+      className="flex flex-1 flex-col bg-muted/30 overflow-auto"
+      ref={containerRef}
+    >
       {/* PDF + overlay */}
       <div className="flex flex-1 items-center justify-center p-4 overflow-hidden">
         <div
           className="relative shadow-lg origin-top-left"
-          style={{ width: pageInfo.width, height: pageInfo.height, transform: `scale(${scale})` }}
+          style={{
+            width: pageInfo.width,
+            height: pageInfo.height,
+            transform: `scale(${scale})`,
+          }}
           onClick={onDeselect}
         >
           <iframe
-          src={`${blobUrl}#page=${currentPage + 1}&toolbar=0`}
-          className="absolute inset-0 w-full h-full border-0"
-          title="PDF Preview"
-        />
+            src={`${blobUrl}#page=${currentPage + 1}&toolbar=0`}
+            className="absolute inset-0 w-full h-full border-0"
+            title="PDF Preview"
+          />
 
           {/* Draggable overlay */}
-          <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
+          <div
+            className="absolute inset-0"
+            style={{ pointerEvents: 'none' }}
+          >
             <div style={{ pointerEvents: 'auto' }}>
               {pageFields.map((f) => (
                 <DraggableTextField

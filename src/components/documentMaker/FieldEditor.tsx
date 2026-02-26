@@ -226,7 +226,22 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
           );
         })}
       </div>
+        {/* Visibility Toggle */}
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-muted-foreground">
+          Hide Field
+        </Label>
 
+        <Button
+          type="button"
+          variant={field.hidden ? "default" : "outline"}
+          size="sm"
+          onClick={() => update({ hidden: !field.hidden })}
+          className="h-7 text-xs"
+        >
+          {field.hidden ? "Hidden" : "Visible"}
+        </Button>
+      </div>
       {/* Position */}
       <div className="flex gap-2">
         <div className="flex-1">

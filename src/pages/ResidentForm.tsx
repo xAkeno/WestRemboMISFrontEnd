@@ -62,6 +62,7 @@ const ResidentForm = () => {
         ext_name: (document.getElementById("ext") as HTMLInputElement).value,
         nick_name: (document.getElementById("nickname") as HTMLInputElement).value,
         sex,
+
         marital_status,
         name_of_spouse: (document.getElementById("spouse") as HTMLInputElement).value,
         resident_status,
@@ -87,6 +88,7 @@ const ResidentForm = () => {
         position: (document.getElementById("position") as HTMLInputElement).value,
         notes: (document.getElementById("notes") as HTMLTextAreaElement).value,
         pwd,
+        requester_type: "WALK_IN"
       };
 
       // Prepare FormData for file upload

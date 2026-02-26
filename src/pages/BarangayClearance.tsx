@@ -18,6 +18,7 @@ import { deleteBarangayClearance } from '@/components/services/clearanceApi';
 const BarangayClearance = () => {
   const { toast } = useToast();
   const [data, setData] = useState<BarangayClearanceType[]>([]);
+  console.log(data);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -137,6 +138,7 @@ const BarangayClearance = () => {
                         {/* <SortHeader field="surname">Full Name</SortHeader> */}
                         <SortHeader field="street">Address</SortHeader>
                         <SortHeader field="dateOfBirth">Date of birth</SortHeader>
+                        <SortHeader field="status">Status</SortHeader>
                         <SortHeader field="fullName">Created By</SortHeader>
                         <SortHeader field="purpose">Purpose</SortHeader>
                         <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
@@ -151,6 +153,7 @@ const BarangayClearance = () => {
                           <td className="py-3 px-4 text-sm text-muted-foreground">{item.issued_at}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.house_block_lot_no} ${item.street}, ${item.zone}`}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.dob).toLocaleDateString()}</td>
+                          <td className="py-3 px-4 text-sm">{item.status || '-'}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground">{item.created_by}</td>
                           <td className="py-3 px-4 text-sm">{item.purpose}</td>
                           <td className="py-3 px-4">

@@ -13,7 +13,7 @@ export interface TextField {
   opacity: number;
   letterSpacing: number;
   page: number;
-
+  hidden?: boolean;
   // NEW optional fields
   fieldType?: 'TEXT' | 'ADDRESS' | 'DATE' | 'ZONE';
 
@@ -52,6 +52,7 @@ export const DEFAULT_FIELD: Omit<TextField, 'id' | 'label' | 'value'> = {
   addressFields: { house: '', street: '', barangay: '' },
   isDate: false,
   dateFormat: 'YYYY-MM-DD',
+  
 };
 
 export const PREDEFINED_FIELD_GROUPS = {

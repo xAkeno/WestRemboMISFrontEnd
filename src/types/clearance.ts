@@ -15,43 +15,45 @@ export interface BarangayClearance {
   purpose: string;
   created_by: string;
   remark?: string;
+  status?: string;
 }
 
 // Business Clearance
 export interface BusinessClearance {
   id: string;
-  brgyBusinessNo: string;
-  issuedDate: string;
+  brgy_business_no: string;
+  issued_date: string;
   surname: string;
   created_by: string;
-  firstname: string;
-  middlename: string;
-  businessName: string;
-  businessType: string;
+  first_name: string;
+  middle_name: string;
+  business_name: string;
+  business_type: string;
   street: string;
   zone: string;
   capital: number;
-  orNo: string;
-  inspectedBy?: string;
+  or_no: string;
+  inspected_by?: string;
+  status?: string;
 }
 
 // Building Clearance
 export interface BuildingClearance {
   id: string;
-  recordId: string;
   bcert_number: string;
-  issuedDate: string;
-  firstname: string;
-  middlename: string;
+  created_at: string;
+  first_name: string;
+  middle_name: string;
   surname: string;
   establishment: string;
   purpose: string;
-  houseBlockLot: string;
+  house_block_lot_no: string;
   street: string;
   created_by: string;
   zone: string;
-  orNo: string;
-  remarks?: string;
+  or_no: string;
+  remarks: string;
+  status: string;
 }
 
 // Certificate

@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 const BuildingClearance = () => {
   const { toast } = useToast();
   const [data, setData] = useState<BuildingClearanceType[]>([]);
+  console.log(data);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -134,6 +135,7 @@ const BuildingClearance = () => {
                       <SortHeader field="bcertNumber">BCert Number</SortHeader>
                       <SortHeader field="issuedDate">Issue Date</SortHeader>
                       <SortHeader field="establishment">Establishment</SortHeader>
+                      <SortHeader field="status">Status</SortHeader>
                       <SortHeader field="purpose">Purpose</SortHeader>
                       <SortHeader field="street">Address</SortHeader>
                       <SortHeader field="orNo">OR No.</SortHeader>
@@ -145,13 +147,14 @@ const BuildingClearance = () => {
                   <tbody className="divide-y divide-border">
                     {data.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4 text-sm">{`${item.firstname} ${item.middlename} ${item.surname}`}</td>
+                        <td className="py-3 px-4 text-sm">{`${item.first_name} ${item.middle_name} ${item.surname}`}</td>
                         <td className="py-3 px-4 text-sm font-medium text-primary">{item.bcert_number}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.issuedDate).toLocaleDateString()}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td className="py-3 px-4 text-sm font-medium">{item.establishment}</td>
+                        <td className="py-3 px-4 text-sm">{item.status}</td>
                         <td className="py-3 px-4 text-sm">{item.purpose}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.houseBlockLot}, ${item.street}, ${item.zone}`}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.orNo}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{`${item.house_block_lot_no}, ${item.street}, ${item.zone}`}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{item.or_no}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.created_by}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.remarks || '-'}</td>
                         <td className="py-3 px-4">
