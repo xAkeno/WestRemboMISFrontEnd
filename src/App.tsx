@@ -52,82 +52,96 @@ import { CertificateEditor } from "./components/documentMaker/CertificateEditor"
 import RequestDetail from "./components/myrequest/RequestDetail";
 import Calendar from "./pages/Calendar";4
 import EventDetail from "./pages/EventDetail";
+import { useEffect } from "react";
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-        <LanguageProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Login />} /> {/*Login*/}
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/event-detail/:id" element={<EventDetail />} />
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/profile" element={<ProfileManagement />} />
-              <Route path="/aboutus" element={<AboutUsSection />} />
-              <Route path="/contact" element={<ContactSection />} />
-              <Route path="/services/:serviceId" element={<ServicePage />} />
-              <Route path="/services" element={<ServicesRequest />} />
+const App = () => {
 
-              <Route path="/document-edit/:id/:bcertNumber" element={<CertificateEditor />} />
-              <Route path="/document-edit/:id" element={<CertificateEditor />} />
-              <Route path="/certificatehome" element={<Certificate />} /> 
-              <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
 
-              <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
 
-              <Route path="/myrequest" element={<MyRequest />} />
-              <Route path="/request/:id" element={<RequestDetail />} />
-              
-              <Route path="//clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
-              <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+          <LanguageProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Login />} /> {/*Login*/}
+                <Route path="/calendar" element={<Calendar />} />
+                <Route path="/event-detail/:id" element={<EventDetail />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/profile" element={<ProfileManagement />} />
+                <Route path="/aboutus" element={<AboutUsSection />} />
+                <Route path="/contact" element={<ContactSection />} />
+                <Route path="/services/:serviceId" element={<ServicePage />} />
+                <Route path="/services" element={<ServicesRequest />} />
 
-              <Route path="/clearancehome/buildingclearance" element={<BuildingClearance />} /> 
-              <Route path="/clearancehome/buildingclearance/create" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+                <Route path="/document-edit/:id/:bcertNumber" element={<CertificateEditor />} />
+                <Route path="/document-edit/:id" element={<CertificateEditor />} />
+                <Route path="/certificatehome" element={<Certificate />} /> 
+                <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
 
-              <Route path="/clearancehome/clearance" element={<BarangayClearance />} /> {/*Barangay Clearance */}
-              <Route path="/clearancehome/clearance/create" element={<IndexBCS />} /> {/*Barangay Clearance */}
+                <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
 
-              <Route path="/residenthome" element={<ResidentsPage />} /> {/*Resident Form*/}
-              <Route path="/residenthome/create" element={<ResidentForm/>} /> {/*Create Resident */}
+                <Route path="/myrequest" element={<MyRequest />} />
+                <Route path="/request/:id" element={<RequestDetail />} />
+                
+                <Route path="/clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
+                <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
 
-              {/* Admin */}
-              <Route path="/aboutus-admin" element={<AboutUsCms />} /> {/*About Us CMS*/}
-              <Route path="/contact-admin" element={<Contact />} /> {/*Contact Admin*/}
-              <Route path="/backup-recovery" element={<BackupRecovery />} /> {/*Backup Recovery*/}
-              <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
-              <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
-              <Route path="/websitesetting" element={<WebsiteSettings />} /> {/*Website Settings*/}
-              <Route path="/activity-log" element={<ActivityLog />} /> {/*Activity Log*/}
-              <Route path="/document-setting" element={<DocumentGrid />} /> {/*Document Grid*/}
-              {/* <Route path="/document-table" element={<DocumentTable />} /> */}
+                <Route path="/clearancehome/buildingclearance" element={<BuildingClearance />} /> 
+                <Route path="/clearancehome/buildingclearance/create" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+
+                <Route path="/clearancehome/clearance" element={<BarangayClearance />} /> {/*Barangay Clearance */}
+                <Route path="/clearancehome/clearance/create" element={<IndexBCS />} /> {/*Barangay Clearance */}
+
+                <Route path="/residenthome" element={<ResidentsPage />} /> {/*Resident Form*/}
+                <Route path="/residenthome/create" element={<ResidentForm/>} /> {/*Create Resident */}
+
+                {/* Admin */}
+                <Route path="/aboutus-admin" element={<AboutUsCms />} /> {/*About Us CMS*/}
+                <Route path="/contact-admin" element={<Contact />} /> {/*Contact Admin*/}
+                <Route path="/backup-recovery" element={<BackupRecovery />} /> {/*Backup Recovery*/}
+                <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
+                <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
+                <Route path="/websitesetting" element={<WebsiteSettings />} /> {/*Website Settings*/}
+                <Route path="/activity-log" element={<ActivityLog />} /> {/*Activity Log*/}
+                <Route path="/document-setting" element={<DocumentGrid />} /> {/*Document Grid*/}
+                {/* <Route path="/document-table" element={<DocumentTable />} /> */}
 
 
-              <Route path="/register" element={<Register />} /> {/*Register*/}
-              <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
-              <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
+                <Route path="/register" element={<Register />} /> {/*Register*/}
+                <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
+                <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
 
-              <Route path="/reports" element={<Reports />} /> {/*Report*/}
-              <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
-              <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
-              <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
+                <Route path="/reports" element={<Reports />} /> {/*Report*/}
+                <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
+                <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
+                <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
 
 
-              <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
-              <Route path="/settings/AccountManage" element={<Accounts/>}/>
-              <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
-              <Route path="/frontdesk" element={<SearchResident/>}/>
-              <Route path="/queue" element={<QueueSystem/>}/>
-              {/* <Route path="/searchKiosk" element={<SearchResident/>}/> */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </LanguageProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
+                <Route path="/settings/AccountManage" element={<Accounts/>}/>
+                <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
+                <Route path="/frontdesk" element={<SearchResident/>}/>
+                <Route path="/queue" element={<QueueSystem/>}/>
+                {/* <Route path="/searchKiosk" element={<SearchResident/>}/> */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </LanguageProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

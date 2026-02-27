@@ -57,8 +57,8 @@ const Header = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[#097b0a] backdrop-blur-sm ">
-      <div className="bg-[#ff87ca] text-primary-foreground py-1 px-4">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-[#ff6df8] dark:bg-pink-700 backdrop-blur-sm ">
+      {/* <div className=" text-primary-foreground py-1 px-4">
         <div className="container mx-auto flex flex-wrap items-center justify-between text-sm">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -71,15 +71,15 @@ const Header = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
       <div className="container mx-auto px-2 ">
-        <nav className="flex items-center justify-between py-4">
+        <nav className="flex items-center justify-between py-2">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-emerald-500 flex items-center justify-center">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/home")}>
+            <div className="cursor-pointer w-16 h-16 rounded-full bg-gradient-to-br from-accent to-emerald-500 flex items-center justify-center">
               <img src={Logo} alt="Barangay West Rembo Logo" />
             </div>
-            <span className="text-lg font-semibold text-primary-foreground">
+            <span className="text-lg font-bold text-primary-foreground">
               Barangay West Rembo
             </span>
           </div>
@@ -90,7 +90,7 @@ const Header = () => {
                 <a
                   key={link.label}
                   href={link.href}
-                  className="text-white hover:text-primary-foreground transition-colors text-sm font-medium"
+                  className="text-white hover:text-primary-foreground transition-colors text-md font-medium"
                 >
                   {link.label}
                 </a>

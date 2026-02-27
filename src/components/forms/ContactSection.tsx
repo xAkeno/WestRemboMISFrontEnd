@@ -55,128 +55,206 @@ const ContactSection = () => {
   };
 
   return (
-    <section id="contact" className="py-20 bg-navy-dark">
+    <section id="contact" className="py-20 bg-background">
       <Header />
-      <div className="container mx-auto py-16 px-4">
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Left Side - Text */}
-          <div>
-            <h2 className="text-3xl md:text-4xl font-heading font-bold  mb-6">
-              Get in touch with Barangay West Rembo
-            </h2>
-            <p className=" font-mono text-sm leading-relaxed">
-              If you have any inquiries, concerns, or clarifications, choose one (or several) of the many ways to get in touch with us. You can fill out the form below, dial our numbers, send a direct email, or get in touch thru our social media pages. We'd love to hear from you.
-            </p>
-          </div>
 
-          {/* Right Side - Form */}
+      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-6xl">
+
+        {/* Section Header */}
+        <div className="text-center mb-14 ">
+          <div className="inline-flex items-center gap-2 mb-5">
+            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+            <span
+              className="text-xs font-bold uppercase tracking-[0.2em]"
+              style={{ color: "#d45ea3" }}
+            >
+              Reach Out
+            </span>
+            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+          </div>
+          <h2
+            className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight"
+            style={{ fontFamily: "'Georgia', serif" }}
+          >
+            Get in Touch with{" "}
+            <span style={{ color: "#fa43ae" }}>Barangay West Rembo</span>
+          </h2>
+          <div
+            className="mx-auto mt-3 rounded-full"
+            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
+          />
+        </div>
+
+        {/* Main grid — left text + right form */}
+        <div className="grid lg:grid-cols-2 gap-10 items-start mb-14">
+
+          {/* Left Side */}
+          <div className="">
+            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-8">
+              If you have any inquiries, concerns, or clarifications, choose one (or several) of the many
+              ways to get in touch with us. You can fill out the form below, dial our numbers, send a
+              direct email, or get in touch through our social media pages. We'd love to hear from you.
+            </p>
+
+            {/* Contact info stacked on left for large screens */}
+            <div className="hidden lg:flex flex-col gap-4">
+              {contactInfo.map((info) => {
+                const Icon = info.icon;
+                return (
+                  <div
+                    key={info.title}
+                    className="flex items-start gap-4 bg-card rounded-xl p-4 border border-border transition-all duration-200 hover:shadow-md"
+                    style={{ borderLeftWidth: 3, borderLeftColor: "#d45ea3" }}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ backgroundColor: "#fce7f3" }}
+                    >
+                      <Icon className="w-4 h-4" style={{ color: "#d45ea3" }} />
+                    </div>
+                    <div>
+                      <p
+                        className="text-xs font-bold uppercase tracking-wider mb-0.5"
+                        style={{ color: "#d45ea3" }}
+                      >
+                        {info.title}
+                      </p>
+                      <p className="text-sm text-foreground">{info.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+
+          {/* Right Side — Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className=" text-sm mb-1 block">First name</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">First name</label>
                 <Input
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
                   placeholder="John"
-                  className="bg-navy border-navy  placeholder:/50"
+                  className="rounded-xl border-border focus-visible:ring-1"
+                  style={{ "--tw-ring-color": "#d45ea3" } as React.CSSProperties}
                 />
               </div>
               <div>
-                <label className=" text-sm mb-1 block">Last name</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Last name</label>
                 <Input
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
                   placeholder="Doe"
-                  className="bg-navy border-navy  placeholder:/50"
+                  className="rounded-xl border-border"
                 />
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className=" text-sm mb-1 block">Email</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
                 <Input
                   name="email"
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="123-45-678"
-                  className="bg-navy border-navy  placeholder:/50"
+                  placeholder="john@example.com"
+                  className="rounded-xl border-border"
                 />
               </div>
               <div>
-                <label className=" text-sm mb-1 block">Phone number</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Phone number</label>
                 <Input
                   name="phoneNumber"
                   value={formData.phoneNumber}
                   onChange={handleChange}
-                  placeholder="123-45-678"
-                  className="bg-navy border-navy  placeholder:/50"
+                  placeholder="09XX-XXX-XXXX"
+                  className="rounded-xl border-border"
                 />
               </div>
             </div>
 
             <div>
-              <label className=" text-sm mb-1 block">Address</label>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Address</label>
               <Input
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
-                placeholder="john.doe@company.com"
-                className="bg-navy border-navy  placeholder:/50"
+                placeholder="Your home address"
+                className="rounded-xl border-border"
               />
             </div>
 
             <div>
-              <label className=" text-sm mb-1 block">Topic</label>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Topic</label>
               <Input
                 name="topic"
                 value={formData.topic}
                 onChange={handleChange}
-                className="bg-navy border-navy  placeholder:/50"
+                placeholder="What is your concern about?"
+                className="rounded-xl border-border"
               />
             </div>
 
             <div>
-              <label className=" text-sm mb-1 block">Your message</label>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Your message</label>
               <Textarea
                 name="message"
                 value={formData.message}
                 onChange={handleChange}
                 placeholder="Write your thoughts here..."
                 rows={4}
-                className="bg-navy border-navy  placeholder:/50 resize-none"
+                className="rounded-xl border-border resize-none"
               />
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 "
+              className="w-full h-12 rounded-xl font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.01]"
+              style={{
+                backgroundColor: "#d45ea3",
+                boxShadow: "0 4px 20px rgba(212,94,163,0.30)",
+              }}
             >
-              Submit
+              Submit Message
             </Button>
           </form>
         </div>
 
-        {/* Contact Info Cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-16">
-          {contactInfo.map((info) => (
-            <div
-              key={info.title}
-              className="bg-navy rounded-lg p-6 border border-navy-dark/50"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <info.icon className="w-5 h-5 " />
-                <h3 className="font-heading font-bold ">
-                  {info.title}
-                </h3>
+        {/* Contact Info Cards — shown below form on mobile */}
+        <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-2">
+          {contactInfo.map((info) => {
+            const Icon = info.icon;
+            return (
+              <div
+                key={info.title}
+                className="flex items-start gap-4 bg-card rounded-xl p-4 border border-border"
+                style={{ borderLeftWidth: 3, borderLeftColor: "#d45ea3" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "#fce7f3" }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: "#d45ea3" }} />
+                </div>
+                <div>
+                  <p
+                    className="text-xs font-bold uppercase tracking-wider mb-0.5"
+                    style={{ color: "#d45ea3" }}
+                  >
+                    {info.title}
+                  </p>
+                  <p className="text-sm text-foreground">{info.content}</p>
+                </div>
               </div>
-              <p className=" text-sm">{info.content}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
       </div>
     </section>
   );

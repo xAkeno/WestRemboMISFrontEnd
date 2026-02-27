@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Clock, MapPin, FileText, AlertCircle, Maximize2, X } from "lucide-react";
+import { Calendar, Clock, MapPin, FileText, AlertCircle, Maximize2, X, ArrowLeft } from "lucide-react";
 import Header from "@/components/forms/Header";
 
 const EventDetail: React.FC = () => {
@@ -9,7 +9,19 @@ const EventDetail: React.FC = () => {
   const event = location.state as any;
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  if (!event) return <div className="p-6 text-center">No event selected.</div>;
+  if (!event) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+          style={{ backgroundColor: "#fce7f3" }}
+        >
+          <Calendar className="w-8 h-8" style={{ color: "#d45ea3" }} />
+        </div>
+        <p className="text-foreground font-semibold">No event selected.</p>
+      </div>
+    </div>
+  );
 
   const { description, image, location: venue, important } = event.extendedProps;
 
@@ -33,108 +45,181 @@ const EventDetail: React.FC = () => {
   const endTime = formatTime(event.end);
   const isSameDay = startDate === endDate;
 
+  const metaItems = [
+    {
+      icon: Calendar,
+      label: "Date",
+      value: isSameDay ? startDate : `${startDate} to ${endDate}`,
+    },
+    {
+      icon: Clock,
+      label: "Time",
+      value: `${startTime} – ${endTime}`,
+    },
+    ...(venue ? [{ icon: MapPin, label: "Location", value: venue }] : []),
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto p-6 mt-32 pb-12">
+    <div className="min-h-screen bg-background">
       <Header />
 
       {/* Lightbox */}
       {lightboxOpen && image && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(26,10,19,0.92)" }}
           onClick={() => setLightboxOpen(false)}
         >
           <button
-            className="absolute top-4 right-4 text-white bg-white/20 hover:bg-white/30 rounded-full p-2 transition"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-200"
+            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
             onClick={() => setLightboxOpen(false)}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.25)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.15)")}
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5 text-white" />
           </button>
           <img
             src={image}
             alt={event.title}
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
-            onClick={e => e.stopPropagation()}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}
 
-      <button
-        onClick={() => navigate(-1)}
-        className="mb-4 text-sm text-blue-500 hover:underline flex items-center gap-1"
-      >
-        ← Back to Calendar
-      </button>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-28 pb-16">
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md overflow-hidden">
+        {/* Back button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 text-sm font-medium mb-8 transition-colors duration-200 group"
+          style={{ color: "#d45ea3" }}
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
+          Back to Calendar
+        </button>
 
-        {/* Image Row — horizontal, full width */}
-        {image && (
-          <div className="relative w-full h-64">
-            <img
-              src={image}
-              alt={event.title}
-              className="w-full h-full object-cover"
-            />
-            {/* Circle button on bottom-right */}
-            <button
-              onClick={() => setLightboxOpen(true)}
-              className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-full p-2.5 shadow-lg backdrop-blur-sm transition"
-              title="View full image"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        {/* Card */}
+        <div
+          className="bg-card rounded-2xl border border-border overflow-hidden"
+          style={{ boxShadow: "0 4px 32px rgba(212,94,163,0.10)" }}
+        >
+          {/* Pink top accent bar */}
+          <div style={{ height: 4, backgroundColor: "#d45ea3" }} />
 
-        {/* Details below image */}
-        <div className="px-6 py-5 space-y-4">
-          {/* Title + Important Badge */}
-          <div className="flex items-start gap-2">
-            <h1 className="text-xl font-bold leading-snug">{event.title}</h1>
-            {important === 1 && (
-              <span className="mt-1 inline-flex items-center gap-1 bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
-                <AlertCircle className="h-3 w-3" /> Important
-              </span>
-            )}
-          </div>
+          {/* Image */}
+          {image && (
+            <div className="relative w-full h-64 sm:h-72">
+              <img
+                src={image}
+                alt={event.title}
+                className="w-full h-full object-cover"
+              />
+              {/* Gradient overlay */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: "linear-gradient(to top, rgba(26,10,19,0.5) 0%, transparent 50%)",
+                }}
+              />
+              {/* Expand button */}
+              <button
+                onClick={() => setLightboxOpen(true)}
+                className="absolute bottom-3 right-3 w-9 h-9 rounded-xl flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+                style={{ backgroundColor: "#d45ea3", boxShadow: "0 2px 12px rgba(212,94,163,0.40)" }}
+                title="View full image"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
-          <ul className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-            <li className="flex items-start gap-3">
-              <Calendar className="h-4 w-4 mt-0.5 text-blue-500 shrink-0" />
-              <div>
-                <span className="font-semibold text-gray-900 dark:text-white">Date</span>
-                <p>{isSameDay ? startDate : `${startDate} to ${endDate}`}</p>
-              </div>
-            </li>
+          <div className="px-6 sm:px-8 py-7 space-y-6">
 
-            <li className="flex items-start gap-3">
-              <Clock className="h-4 w-4 mt-0.5 text-blue-500 shrink-0" />
-              <div>
-                <span className="font-semibold text-gray-900 dark:text-white">Time</span>
-                <p>{startTime} – {endTime}</p>
-              </div>
-            </li>
-
-            {venue && (
-              <li className="flex items-start gap-3">
-                <MapPin className="h-4 w-4 mt-0.5 text-blue-500 shrink-0" />
-                <div>
-                  <span className="font-semibold text-gray-900 dark:text-white">Location</span>
-                  <p>{venue}</p>
+            {/* Title + Important badge */}
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="flex-1 min-w-0">
+                {/* Eyebrow */}
+                <div className="inline-flex items-center gap-2 mb-2">
+                  <div className="h-px w-6" style={{ backgroundColor: "#d45ea3" }} />
+                  <span
+                    className="text-xs font-bold uppercase tracking-[0.2em]"
+                    style={{ color: "#d45ea3" }}
+                  >
+                    Barangay Event
+                  </span>
                 </div>
-              </li>
-            )}
+                <h1
+                  className="text-2xl sm:text-3xl font-bold text-foreground leading-snug"
+                  style={{ fontFamily: "'Georgia', serif" }}
+                >
+                  {event.title}
+                </h1>
+                <div
+                  className="mt-2 rounded-full"
+                  style={{ width: 40, height: 3, backgroundColor: "#d45ea3" }}
+                />
+              </div>
 
+              {important === 1 && (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: "#fce7f3", color: "#d45ea3", border: "1px solid #f9a8d4" }}
+                >
+                  <AlertCircle className="h-3 w-3" />
+                  Important
+                </span>
+              )}
+            </div>
+
+            {/* Meta info */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              {metaItems.map(({ icon: Icon, label, value }) => (
+                <div
+                  key={label}
+                  className="flex items-start gap-3 rounded-xl p-4"
+                  style={{ backgroundColor: "#fdf2f8", border: "1px solid #fce7f3" }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ backgroundColor: "#fce7f3" }}
+                  >
+                    <Icon className="h-4 w-4" style={{ color: "#d45ea3" }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "#d45ea3" }}>
+                      {label}
+                    </p>
+                    <p className="text-sm text-foreground font-medium">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Description */}
             {description && (
-              <li className="flex items-start gap-3">
-                <FileText className="h-4 w-4 mt-0.5 text-blue-500 shrink-0" />
-                <div>
-                  <span className="font-semibold text-gray-900 dark:text-white">Description</span>
-                  <p className="mt-1 whitespace-pre-line leading-relaxed">{description}</p>
+              <div
+                className="rounded-xl p-5"
+                style={{ backgroundColor: "#fdf2f8", border: "1px solid #fce7f3" }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: "#fce7f3" }}
+                  >
+                    <FileText className="h-4 w-4" style={{ color: "#d45ea3" }} />
+                  </div>
+                  <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#d45ea3" }}>
+                    Description
+                  </p>
                 </div>
-              </li>
+                <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                  {description}
+                </p>
+              </div>
             )}
-          </ul>
+          </div>
         </div>
       </div>
     </div>
