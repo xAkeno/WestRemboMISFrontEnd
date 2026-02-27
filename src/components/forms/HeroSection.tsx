@@ -2,8 +2,10 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroImage from "@/assets/hero-barangay.jpg";
 import { useNavigate } from "react-router-dom";
+
 const HeroSection = () => {
   const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -12,114 +14,114 @@ const HeroSection = () => {
         style={{ backgroundImage: `url(${heroImage})` }}
       />
 
-      {/* Overlay — dark teal tint to match civic palette */}
+      {/* Overlay — deep navy tint for official/government feel */}
       <div
-        className="absolute inset-0 bg-gray-900/50"
+        className="absolute inset-0"
+        style={{ background: "linear-gradient(160deg, rgba(10, 25, 60, 0.53) 0%, rgba(15, 43, 94, 0.56) 50%, rgba(15, 43, 94, 0.53)" }}
       />
 
-      {/* Subtle dot texture */}
-      <div
-        className="absolute inset-0 opacity-[0.05] pointer-events-none"
+      {/* Subtle diagonal stripe texture */}
+      {/* <div
+        className="absolute inset-0 pointer-events-none opacity-[0.04]"
         style={{
-          backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
+          backgroundImage: `repeating-linear-gradient(-45deg, #fff, #fff 1px, transparent 1px, transparent 18px)`,
         }}
-      />
+      /> */}
 
-      {/* Content — matches original structure exactly */}
-      <div className="relative z-10 container mx-auto px-4 text-center pt-20">
+      {/* Content */}
+      <div className="relative z-10 container mx-auto px-4 sm:px-6 text-center pt-24 max-w-4xl">
 
-        {/* Small eyebrow label */}
-        <div className="inline-flex items-center gap-2 mb-6 animate-fade-in">
-          <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+        {/* Republic branding eyebrow */}
+        <div className="inline-flex items-center gap-3 mb-8">
+          <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
           <span
-            className="text-md font-bold uppercase tracking-[0.2em]"
-            style={{ color: "#ff3bad" }}
+            className="text-xs font-bold uppercase tracking-[0.22em]"
+            style={{ color: "#e8a0bf", letterSpacing: "0.22em" }}
           >
-            Official Barangay Portal
+            Republic of the Philippines · City of Makati
           </span>
-          <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+          <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
         </div>
 
-        {/* Heading */}
+        {/* Main heading */}
         <h1
-          className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-3 animate-fade-in leading-tight"
-          style={{ fontFamily: "'Georgia', serif", letterSpacing: "-0.01em" }}
+          className="font-bold text-white leading-tight mb-2"
+          style={{
+            fontFamily: "'Georgia', 'Times New Roman', serif",
+            fontSize: "clamp(2rem, 5vw, 3.25rem)",
+            letterSpacing: "-0.01em",
+          }}
         >
           Welcome to
         </h1>
         <h1
-          className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 animate-fade-in leading-tight"
+          className="font-extrabold leading-tight mb-6"
           style={{
-            fontFamily: "'Georgia', serif",
+            fontFamily: "'Georgia', 'Times New Roman', serif",
+            fontSize: "clamp(2.2rem, 6vw, 3.75rem)",
             letterSpacing: "-0.01em",
-            color: "#fa43ae",
+            color: "#e8a0bf",
           }}
         >
           Barangay West Rembo
         </h1>
 
-        {/* Underline accent */}
+        {/* Thin divider */}
         <div
-          className="mx-auto mb-8 rounded-full animate-fade-in"
-          style={{
-            width: 64,
-            height: 3,
-            backgroundColor: "#d45ea3",
-            animationDelay: "0.05s",
-          }}
+          className="mx-auto mb-8"
+          style={{ width: 60, height: 2, backgroundColor: "#c2467d" }}
         />
 
-        {/* Paragraph */}
+        {/* Subtitle */}
         <p
-          className="text-lg md:text-xl max-w-3xl mx-auto mb-10 animate-fade-in leading-relaxed"
-          style={{ color: "rgba(255,255,255,0.72)", animationDelay: "0.1s" }}
+          className="text-lg max-w-2xl mx-auto mb-10 leading-relaxed"
+          style={{
+            color: "rgba(255,255,255,0.65)",
+            fontFamily: "'Georgia', serif",
+            fontStyle: "italic",
+            fontSize: "clamp(1rem, 2vw, 1.15rem)",
+          }}
         >
-          Stay informed with official announcements, upcoming events, and important updates to help
-          keep the West Rembo community safe, connected, and thriving.
+          Official Digital Services Portal — Stay informed with announcements, events, and
+          government services for the West Rembo community.
         </p>
 
         {/* Buttons */}
-        <div
-          className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in"
-          style={{ animationDelay: "0.2s" }}
-        >
-          <Button
-            size="lg"
-            className="font-semibold px-8 h-12 rounded-xl transition-all duration-200 hover:scale-105"
-            onClick={() => {navigate("/contact")}}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <button
+            onClick={() => navigate("/calendar")}
+            className="inline-flex items-center justify-center gap-2 px-8 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
             style={{
-              backgroundColor: "#d45ea3",
-              color: "#fff",
-              boxShadow: "0 4px 20px rgba(42,125,111,0.35)",
+              backgroundColor: "#c2467d",
+              borderRadius: 2,
+              letterSpacing: "0.08em",
+              boxShadow: "0 4px 20px rgba(194,70,125,0.35)",
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#d43d95")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#d45ea3")}
+            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#a33568"}
+            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#c2467d"}
           >
-            Calendar of Activity
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+            Calendar of Activities
+            <ArrowRight className="w-4 h-4" />
+          </button>
 
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => {navigate("/aboutus")}}
-            className="font-semibold px-8 h-12 rounded-xl transition-all duration-200 hover:scale-105"
+          <button
+            onClick={() => navigate("/aboutus")}
+            className="inline-flex items-center justify-center gap-2 px-8 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
             style={{
-              borderColor: "rgba(255,255,255,0.35)",
-              color: "#fff",
-              backgroundColor: "rgba(255,255,255,0.08)",
-              backdropFilter: "blur(8px)",
+              borderRadius: 2,
+              border: "1px solid rgba(255,255,255,0.30)",
+              backgroundColor: "rgba(255,255,255,0.06)",
+              letterSpacing: "0.08em",
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.15)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.08)")}
+            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.12)"}
+            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.06)"}
           >
-            Learn about us
-          </Button>
+            About Our Barangay
+          </button>
         </div>
       </div>
 
-      {/* Bottom fade into next section */}
+      {/* Bottom fade */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
     </section>
   );

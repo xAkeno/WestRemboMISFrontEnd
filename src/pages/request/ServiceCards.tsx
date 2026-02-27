@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Users, 
-  FileText, 
-  ShieldCheck, 
-  Briefcase, 
-  HardHat, 
-  ArrowRight, 
-  Building2, 
+import {
+  Users,
+  FileText,
+  ShieldCheck,
+  Briefcase,
+  HardHat,
+  ArrowRight,
   X
 } from 'lucide-react';
 import BuildingClearanceForm from '../forms/BuildingClearanceForm';
@@ -78,7 +77,7 @@ const SERVICES = [
   },
 ];
 
-// --- ServiceCard Component ---
+// --- ServiceCard ---
 
 const ServiceCards = ({ service, onClick }) => {
   const Icon = service.icon;
@@ -86,40 +85,38 @@ const ServiceCards = ({ service, onClick }) => {
   return (
     <div
       onClick={() => onClick(service)}
-      className="group relative bg-white dark:bg-gray-800 rounded-2xl p-6 mb-3 border border-border hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col h-full overflow-hidden"
-      style={{ boxShadow: "0 2px 12px rgba(212,94,163,0.06)" }}
+      className="group relative bg-card border border-border p-6 mb-3 transition-all duration-300 cursor-pointer flex flex-col h-full"
+      style={{ borderRadius: 2 }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 8px 32px rgba(212,94,163,0.16)";
-        (e.currentTarget as HTMLElement).style.borderColor = "#f9a8d4";
+        (e.currentTarget as HTMLElement).style.borderTopColor = "#c2467d";
+        (e.currentTarget as HTMLElement).style.borderTopWidth = "2px";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 24px rgba(15,42,94,0.10)";
+        (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 12px rgba(212,94,163,0.06)";
-        (e.currentTarget as HTMLElement).style.borderColor = "";
+        (e.currentTarget as HTMLElement).style.borderTopColor = "";
+        (e.currentTarget as HTMLElement).style.borderTopWidth = "";
+        (e.currentTarget as HTMLElement).style.boxShadow = "";
+        (e.currentTarget as HTMLElement).style.transform = "";
       }}
     >
-      {/* Top pink accent bar */}
-      <div
-        className="absolute top-0 left-0 w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-2xl"
-        style={{ height: 3, backgroundColor: "#d45ea3" }}
-      />
-
       <div className="flex items-start justify-between mb-4">
         {/* Icon */}
         <div
-          className="p-3 rounded-xl transition-all duration-300"
-          style={{ backgroundColor: "#fce7f3" }}
+          className="p-3 transition-all duration-300"
+          style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}
         >
           <Icon
-            className="w-6 h-6 transition-colors duration-300"
-            style={{ color: "#d45ea3" }}
+            className="w-6 h-6"
+            style={{ color: "#0f2a5e" }}
           />
         </div>
 
         {/* Popular badge */}
         {service.popular && (
           <span
-            className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full"
-            style={{ backgroundColor: "#fce7f3", color: "#d45ea3", border: "1px solid #f9a8d4" }}
+            className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider"
+            style={{ backgroundColor: "#fdf5f8", color: "#c2467d", border: "1px solid #f0c4d8", borderRadius: 1 }}
           >
             Popular
           </span>
@@ -127,7 +124,7 @@ const ServiceCards = ({ service, onClick }) => {
       </div>
 
       <h3
-        className="text-lg font-bold text-foreground mb-2 transition-colors duration-200 group-hover:text-[#d45ea3]"
+        className="text-base font-bold text-foreground mb-2 transition-colors duration-200 group-hover:text-[#0f2a5e]"
         style={{ fontFamily: "'Georgia', serif" }}
       >
         {service.title}
@@ -138,42 +135,45 @@ const ServiceCards = ({ service, onClick }) => {
       </p>
 
       <div
-        className="mt-auto flex items-center text-sm font-semibold gap-1 transition-all duration-300 group-hover:gap-2"
-        style={{ color: "#d45ea3" }}
+        className="mt-auto flex items-center text-xs font-bold uppercase tracking-wider gap-1.5 transition-all duration-300 group-hover:gap-2.5"
+        style={{ color: "#c2467d", letterSpacing: "0.08em" }}
       >
         Apply Now
-        <ArrowRight className="w-4 h-4" />
+        <ArrowRight className="w-3.5 h-3.5" />
       </div>
     </div>
   );
 };
 
-// --- Modal Component ---
+// --- Modal ---
 
 const Modal = ({ service, onClose, onProceed, selectedType, renderForm }) => {
   if (!service) return null;
   const Icon = service.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(26,10,19,0.60)" }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(10,20,60,0.65)" }}
+    >
       <div
-        className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
-        style={{ boxShadow: "0 24px 64px rgba(212,94,163,0.18)" }}
+        className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        style={{ borderRadius: 2, boxShadow: "0 24px 64px rgba(10,20,60,0.25)", borderTop: "3px solid #c2467d" }}
       >
         {/* Modal Header */}
         <div
-          className="flex justify-between items-center px-6 py-5"
-          style={{ borderBottom: "1px solid #fce7f3" }}
+          className="flex justify-between items-center px-6 py-4"
+          style={{ borderBottom: "1px solid #dde3ed" }}
         >
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: "#fce7f3" }}
+              className="w-8 h-8 flex items-center justify-center"
+              style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
             >
-              <Icon className="w-5 h-5" style={{ color: "#d45ea3" }} />
+              <Icon className="w-4 h-4" style={{ color: "#0f2a5e" }} />
             </div>
             <h2
-              className="text-lg font-bold text-foreground"
+              className="text-base font-bold text-foreground"
               style={{ fontFamily: "'Georgia', serif" }}
             >
               {service.title}
@@ -181,7 +181,8 @@ const Modal = ({ service, onClose, onProceed, selectedType, renderForm }) => {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-200 hover:bg-gray-100"
+            className="w-8 h-8 flex items-center justify-center transition-colors duration-200 hover:bg-gray-100"
+            style={{ borderRadius: 1 }}
           >
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
@@ -194,11 +195,10 @@ const Modal = ({ service, onClose, onProceed, selectedType, renderForm }) => {
               <p className="text-muted-foreground mb-6 text-sm leading-relaxed">{service.description}</p>
               <button
                 onClick={() => onProceed(service.type)}
-                className="w-full py-3 rounded-xl text-white font-semibold transition-all duration-200 hover:opacity-90 hover:scale-[1.01]"
-                style={{
-                  backgroundColor: "#d45ea3",
-                  boxShadow: "0 4px 20px rgba(212,94,163,0.30)",
-                }}
+                className="w-full py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200 hover:opacity-90"
+                style={{ backgroundColor: "#0f2a5e", borderRadius: 1, letterSpacing: "0.08em" }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"}
               >
                 Proceed with Application
               </button>
@@ -219,9 +219,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedService, setSelectedService] = useState(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Filter Logic
   const filteredServices = SERVICES.filter(service => {
     const matchesSearch = service.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = activeCategory === 'all' || service.category === activeCategory;
@@ -252,32 +250,26 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background font-sans text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
         {/* Page header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
-            <span
-              className="text-xs font-bold uppercase tracking-[0.2em]"
-              style={{ color: "#d45ea3" }}
-            >
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
+            <span className="text-xs font-bold uppercase tracking-[0.20em]" style={{ color: "#c2467d" }}>
               Online Services
             </span>
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+            <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
           </div>
           <h1
-            className="text-3xl sm:text-4xl font-bold text-foreground mb-3"
-            style={{ fontFamily: "'Georgia', serif" }}
+            className="font-bold text-foreground mb-3"
+            style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem, 3.5vw, 2.25rem)" }}
           >
             How Can We{" "}
-            <span style={{ color: "#fa43ae" }}>Serve You?</span>
+            <span style={{ color: "#c2467d" }}>Serve You?</span>
           </h1>
-          <div
-            className="mx-auto mt-3 rounded-full"
-            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
-          />
+          <div style={{ width: 48, height: 2, backgroundColor: "#c2467d", margin: "12px auto 0" }} />
         </div>
 
         {/* Category Filters */}
@@ -286,31 +278,22 @@ export default function App() {
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className="px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200"
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
               style={
                 activeCategory === cat.id
-                  ? {
-                      backgroundColor: "#d45ea3",
-                      color: "#fff",
-                      boxShadow: "0 4px 14px rgba(212,94,163,0.30)",
-                      transform: "scale(1.05)",
-                    }
-                  : {
-                      backgroundColor: "#fff",
-                      color: "#607a86",
-                      border: "1px solid #e8eff2",
-                    }
+                  ? { backgroundColor: "#0f2a5e", color: "#fff", borderRadius: 1 }
+                  : { backgroundColor: "transparent", color: "#6b7280", border: "1px solid #dde3ed", borderRadius: 1 }
               }
               onMouseEnter={(e) => {
                 if (activeCategory !== cat.id) {
-                  (e.currentTarget as HTMLElement).style.borderColor = "#f9a8d4";
-                  (e.currentTarget as HTMLElement).style.color = "#d45ea3";
+                  (e.currentTarget as HTMLElement).style.borderColor = "#c2467d";
+                  (e.currentTarget as HTMLElement).style.color = "#c2467d";
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeCategory !== cat.id) {
-                  (e.currentTarget as HTMLElement).style.borderColor = "#e8eff2";
-                  (e.currentTarget as HTMLElement).style.color = "#607a86";
+                  (e.currentTarget as HTMLElement).style.borderColor = "#dde3ed";
+                  (e.currentTarget as HTMLElement).style.color = "#6b7280";
                 }
               }}
             >
@@ -320,22 +303,18 @@ export default function App() {
 
           <button
             onClick={() => navigate("/myrequest")}
-            className="px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200"
-            style={{
-              backgroundColor: "#fff",
-              color: "#607a86",
-              border: "1px solid #e8eff2",
-            }}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
+            style={{ backgroundColor: "transparent", color: "#6b7280", border: "1px solid #dde3ed", borderRadius: 1 }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.borderColor = "#f9a8d4";
-              (e.currentTarget as HTMLElement).style.color = "#d45ea3";
+              (e.currentTarget as HTMLElement).style.borderColor = "#c2467d";
+              (e.currentTarget as HTMLElement).style.color = "#c2467d";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.borderColor = "#e8eff2";
-              (e.currentTarget as HTMLElement).style.color = "#607a86";
+              (e.currentTarget as HTMLElement).style.borderColor = "#dde3ed";
+              (e.currentTarget as HTMLElement).style.color = "#6b7280";
             }}
           >
-            View my request
+            View My Requests
           </button>
         </div>
 

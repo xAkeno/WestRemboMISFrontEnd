@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -12,69 +11,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Camera, 
-  Save, 
-  User, 
-  FileText, 
+import {
+  Camera,
+  Save,
+  User,
+  FileText,
   Activity,
   ClipboardList,
   Phone,
   MapPin,
-  Home
+  Home,
 } from "lucide-react";
 import Header from "@/components/forms/Header";
 
+// ─── Token colors ──────────────────────────────────────────────────────────────
+const NAVY = "#0f2a5e";
+const PINK = "#c2467d";
+
 interface ProfileData {
-  prefix: string;
-  surname: string;
-  first_name: string;
-  middle_name: string;
-  extension_name: string;
-  nickname: string;
-  sex: string;
-  marital_status: string;
-  name_of_spouse: string;
-  date_of_birth: string;
-  place_of_birth: string;
-  religion: string;
-  height_cm: string;
-  weight_kg: string;
-  blood_type: string;
-  complexion: string;
-  profile_image: string;
-  email: string;
-  contact_number: string;
-  house_block_lot_no: string;
-  street: string;
-  zone_purok: string;
-  house_owner: string;
-  relationship_to_owner: string;
-  resident_status: string;
-  period_of_residency: string;
-  voter_status: string;
-  precinct_no: string;
-  employment_status: string;
-  occupation: string;
-  position: string;
-  pwd_status: boolean;
+  prefix: string; surname: string; first_name: string; middle_name: string;
+  extension_name: string; nickname: string; sex: string; marital_status: string;
+  name_of_spouse: string; date_of_birth: string; place_of_birth: string;
+  religion: string; height_cm: string; weight_kg: string; blood_type: string;
+  complexion: string; profile_image: string; email: string; contact_number: string;
+  house_block_lot_no: string; street: string; zone_purok: string; house_owner: string;
+  relationship_to_owner: string; resident_status: string; period_of_residency: string;
+  voter_status: string; precinct_no: string; employment_status: string;
+  occupation: string; position: string; pwd_status: boolean;
 }
 
 interface ServiceRequest {
-  id: number;
-  title: string;
-  status: "pending" | "approved" | "rejected" | "processing";
-  date: string;
+  id: number; title: string;
+  status: "pending" | "approved" | "rejected" | "processing"; date: string;
 }
 
 const tabs = [
-  { id: "personal", label: "Personal Info", icon: User },
-  { id: "contact", label: "Contact Info", icon: Phone },
-  { id: "address", label: "Address", icon: MapPin },
-  { id: "residency", label: "Residency", icon: Home },
-  { id: "physical", label: "Physical Info", icon: FileText },
-  { id: "services", label: "Service Requests", icon: ClipboardList },
-  { id: "activity", label: "Activity", icon: Activity },
+  { id: "personal",  label: "Personal Info",    icon: User },
+  { id: "contact",   label: "Contact Info",     icon: Phone },
+  { id: "address",   label: "Address",          icon: MapPin },
+  { id: "residency", label: "Residency",        icon: Home },
+  { id: "physical",  label: "Physical Info",    icon: FileText },
+  { id: "services",  label: "Service Requests", icon: ClipboardList },
+  { id: "activity",  label: "Activity",         icon: Activity },
 ];
 
 const statusStyle: Record<string, { bg: string; text: string; border: string }> = {
@@ -101,16 +79,16 @@ const ProfileManagement = () => {
   });
 
   const [serviceRequests] = useState<ServiceRequest[]>([
-    { id: 1, title: "Barangay Clearance", status: "approved", date: "2024-01-15" },
-    { id: 2, title: "Barangay ID", status: "processing", date: "2024-01-20" },
-    { id: 3, title: "Certificate of Indigency", status: "pending", date: "2024-01-25" },
-    { id: 4, title: "Business Permit", status: "rejected", date: "2024-01-10" },
+    { id: 1, title: "Barangay Clearance",      status: "approved",   date: "2024-01-15" },
+    { id: 2, title: "Barangay ID",             status: "processing", date: "2024-01-20" },
+    { id: 3, title: "Certificate of Indigency",status: "pending",    date: "2024-01-25" },
+    { id: 4, title: "Business Permit",         status: "rejected",   date: "2024-01-10" },
   ]);
 
   const [recentActivity] = useState([
-    { id: 1, title: "Updated profile picture", time: "2 hours ago" },
+    { id: 1, title: "Updated profile picture",              time: "2 hours ago" },
     { id: 2, title: "Submitted Barangay Clearance request", time: "Yesterday" },
-    { id: 3, title: "Updated personal information", time: "3 days ago" },
+    { id: 3, title: "Updated personal information",         time: "3 days ago" },
   ]);
 
   const fetchProfile = async () => {
@@ -195,79 +173,79 @@ const ProfileManagement = () => {
   };
 
   const statusCounts = {
-    total: serviceRequests.length,
-    pending: serviceRequests.filter((r) => r.status === "pending").length,
-    approved: serviceRequests.filter((r) => r.status === "approved").length,
+    total:      serviceRequests.length,
+    pending:    serviceRequests.filter((r) => r.status === "pending").length,
+    approved:   serviceRequests.filter((r) => r.status === "approved").length,
     processing: serviceRequests.filter((r) => r.status === "processing").length,
-    rejected: serviceRequests.filter((r) => r.status === "rejected").length,
+    rejected:   serviceRequests.filter((r) => r.status === "rejected").length,
   };
 
-  // Shared save button
+  // ─── Sub-components ──────────────────────────────────────────────────────────
+
   const SaveButton = () => (
-    <div className="flex justify-end pt-6" style={{ borderTop: "1px solid #fce7f3" }}>
+    <div className="flex justify-end pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
       <button
         type="submit"
         disabled={isSaving}
-        className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.02] disabled:opacity-60"
-        style={{ backgroundColor: "#d45ea3", boxShadow: "0 4px 16px rgba(212,94,163,0.28)" }}
+        className="inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-60"
+        style={{ backgroundColor: NAVY, borderRadius: 1 }}
+        onMouseEnter={(e) => { if (!isSaving) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+        onMouseLeave={(e) => { if (!isSaving) (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
       >
-        <Save className="w-4 h-4" />
+        <Save className="w-3.5 h-3.5" />
         {isSaving ? "Saving..." : "Save Changes"}
       </button>
     </div>
   );
 
-  // Shared section title
   const SectionTitle = ({ children }: { children: React.ReactNode }) => (
     <div className="mb-6">
-      <h2 className="text-xl font-bold text-foreground mb-1" style={{ fontFamily: "'Georgia', serif" }}>
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-1" style={{ color: PINK }}>
+        Profile
+      </p>
+      <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Georgia', serif" }}>
         {children}
       </h2>
-      <div className="h-0.5 rounded-full" style={{ width: 40, backgroundColor: "#d45ea3" }} />
+      <div style={{ width: 36, height: 2, backgroundColor: PINK, marginTop: 8 }} />
     </div>
   );
+
+  const inputCls = "border-0 border-b rounded-none focus-visible:ring-0 text-sm px-0 py-2";
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Cover banner */}
+      {/* Cover banner — navy gradient */}
       <div
-        className="h-48 relative mt-12"
-        style={{
-          background: "linear-gradient(135deg, #1a0a13 0%, #7c1d56 50%, #d45ea3 100%)",
-        }}
+        className="h-44 relative mt-16"
+        style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #1a3d7c 50%, #3b1a3a 100%)` }}
       >
-        {/* Dot texture */}
+        {/* Diagonal texture */}
         <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{
-            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
+          className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{ backgroundImage: `repeating-linear-gradient(-45deg,#fff,#fff 1px,transparent 1px,transparent 18px)` }}
         />
+        {/* Pink accent bar */}
+        <div className="absolute bottom-0 left-0 right-0" style={{ height: 3, backgroundColor: PINK }} />
 
         {/* Profile photo */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2">
           <div className="relative">
             <div
               className="w-28 h-28 rounded-full overflow-hidden bg-card flex items-center justify-center"
-              style={{ border: "4px solid #fff", boxShadow: "0 0 0 4px rgba(212,94,163,0.25)" }}
+              style={{ border: `4px solid #fff`, boxShadow: `0 0 0 3px ${PINK}` }}
             >
               {profileImage ? (
-                <img
-                  src={"http://127.0.0.1:8000/storage/" + profileImage}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
+                <img src={"http://127.0.0.1:8000/storage/" + profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-14 h-14 text-muted-foreground" />
               )}
             </div>
             <label
               htmlFor="profileImage"
-              className="absolute bottom-1 right-1 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110"
-              style={{ backgroundColor: "#d45ea3", boxShadow: "0 2px 8px rgba(212,94,163,0.40)" }}
+              className="absolute bottom-1 right-1 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-110"
+              style={{ backgroundColor: PINK, borderRadius: 1, boxShadow: "0 2px 8px rgba(194,70,125,0.40)" }}
             >
               <Camera className="w-4 h-4 text-white" />
               <input type="file" id="profileImage" accept="image/*" onChange={handleImageChange} className="hidden" />
@@ -278,19 +256,15 @@ const ProfileManagement = () => {
 
       {/* Name */}
       <div className="text-center pt-16 pb-8">
-        <h1
-          className="text-2xl font-bold text-foreground mb-1"
-          style={{ fontFamily: "'Georgia', serif" }}
-        >
+        <h1 className="text-2xl font-bold text-foreground mb-1" style={{ fontFamily: "'Georgia', serif" }}>
           {formData.first_name || formData.surname
             ? `${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.extension_name}`.trim()
             : "Your Name"}
         </h1>
-        <p className="text-sm text-muted-foreground">Account Management</p>
-        <div
-          className="mx-auto mt-3 rounded-full"
-          style={{ width: 40, height: 2, backgroundColor: "#d45ea3" }}
-        />
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: PINK }}>
+          Resident · Account Management
+        </p>
+        <div style={{ width: 36, height: 2, backgroundColor: PINK, margin: "10px auto 0" }} />
       </div>
 
       {/* Main layout */}
@@ -298,11 +272,11 @@ const ProfileManagement = () => {
         <div className="flex flex-col lg:flex-row gap-6">
 
           {/* Sidebar */}
-          <div className="lg:w-64 shrink-0 space-y-4">
+          <div className="lg:w-60 shrink-0 space-y-4">
             {/* Tab nav */}
             <div
-              className="bg-card rounded-2xl border border-border p-3 space-y-1"
-              style={{ boxShadow: "0 2px 12px rgba(212,94,163,0.07)" }}
+              className="bg-card border border-border overflow-hidden"
+              style={{ borderRadius: 2, borderTopWidth: 2, borderTopColor: PINK }}
             >
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id;
@@ -310,17 +284,23 @@ const ProfileManagement = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all duration-200 text-sm font-medium"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider transition-all duration-150"
                     style={
                       isActive
-                        ? { backgroundColor: "#d45ea3", color: "#fff" }
-                        : { color: "#607a86" }
+                        ? { backgroundColor: NAVY, color: "#fff", borderLeft: `3px solid ${PINK}` }
+                        : { color: "#6b7280", borderLeft: "3px solid transparent" }
                     }
                     onMouseEnter={(e) => {
-                      if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf2f8";
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = "#f0f4ff";
+                        (e.currentTarget as HTMLElement).style.color = NAVY;
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                        (e.currentTarget as HTMLElement).style.color = "#6b7280";
+                      }
                     }}
                   >
                     <tab.icon className="w-4 h-4 flex-shrink-0" />
@@ -332,26 +312,23 @@ const ProfileManagement = () => {
 
             {/* Request summary */}
             <div
-              className="bg-card rounded-2xl border border-border p-5"
-              style={{ boxShadow: "0 2px 12px rgba(212,94,163,0.07)" }}
+              className="bg-card border border-border p-5"
+              style={{ borderRadius: 2, borderTopWidth: 2, borderTopColor: NAVY }}
             >
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-px w-5" style={{ backgroundColor: "#d45ea3" }} />
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#d45ea3" }}>
-                  Request Summary
-                </h3>
-              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] mb-4" style={{ color: NAVY }}>
+                Request Summary
+              </p>
               <div className="space-y-2.5 text-sm">
                 {[
-                  { label: "Total", value: statusCounts.total, color: "#1e4a5c" },
-                  { label: "Approved", value: statusCounts.approved, color: "#16a34a" },
+                  { label: "Total",      value: statusCounts.total,      color: NAVY },
+                  { label: "Approved",   value: statusCounts.approved,   color: "#16a34a" },
                   { label: "Processing", value: statusCounts.processing, color: "#2563eb" },
-                  { label: "Pending", value: statusCounts.pending, color: "#ca8a04" },
-                  { label: "Rejected", value: statusCounts.rejected, color: "#e11d48" },
+                  { label: "Pending",    value: statusCounts.pending,    color: "#ca8a04" },
+                  { label: "Rejected",   value: statusCounts.rejected,   color: "#e11d48" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="flex justify-between items-center">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="font-bold" style={{ color }}>{value}</span>
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="text-xs font-bold" style={{ color }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -361,99 +338,81 @@ const ProfileManagement = () => {
           {/* Content */}
           <div className="flex-1">
             <div
-              className="bg-card rounded-2xl border border-border p-6 sm:p-8"
-              style={{ boxShadow: "0 2px 16px rgba(212,94,163,0.07)" }}
+              className="bg-card border border-border p-6 sm:p-8"
+              style={{ borderRadius: 2, borderTopWidth: 2, borderTopColor: PINK }}
             >
               <form onSubmit={handleSubmit}>
 
-                {/* Personal Info */}
+                {/* Personal */}
                 {activeTab === "personal" && (
                   <div className="space-y-5">
                     <SectionTitle>Personal Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                       <div className="space-y-1.5">
-                        <Label>Prefix</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Prefix</Label>
                         <Select value={formData.prefix} onValueChange={(v) => handleInputChange("prefix", v)}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {["Mr.", "Mrs.", "Ms.", "Dr.", "Engr.", "Atty."].map((p) => (
-                              <SelectItem key={p} value={p}>{p}</SelectItem>
-                            ))}
-                          </SelectContent>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>{["Mr.","Mrs.","Ms.","Dr.","Engr.","Atty."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label>Surname <span style={{ color: "#d45ea3" }}>*</span></Label>
-                        <Input className="rounded-xl" value={formData.surname} onChange={(e) => handleInputChange("surname", e.target.value)} required />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>First Name <span style={{ color: "#d45ea3" }}>*</span></Label>
-                        <Input className="rounded-xl" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} required />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Middle Name</Label>
-                        <Input className="rounded-xl" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Extension (Jr., Sr.)</Label>
-                        <Input className="rounded-xl" value={formData.extension_name} onChange={(e) => handleInputChange("extension_name", e.target.value)} placeholder="e.g., Jr., Sr., III" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Nickname</Label>
-                        <Input className="rounded-xl" value={formData.nickname} onChange={(e) => handleInputChange("nickname", e.target.value)} />
-                      </div>
+                      {[
+                        { field: "surname",         label: "Surname *",      required: true },
+                        { field: "first_name",      label: "First Name *",   required: true },
+                        { field: "middle_name",     label: "Middle Name" },
+                        { field: "extension_name",  label: "Extension (Jr., Sr.)", placeholder: "e.g., Jr., Sr., III" },
+                        { field: "nickname",        label: "Nickname" },
+                      ].map(({ field, label, required, placeholder }: any) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} required={required} placeholder={placeholder} />
+                        </div>
+                      ))}
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Sex <span style={{ color: "#d45ea3" }}>*</span></Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Sex *</Label>
                       <RadioGroup value={formData.sex} onValueChange={(v) => handleInputChange("sex", v)} className="flex gap-6">
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Male" id="male" /><Label htmlFor="male" className="cursor-pointer">Male</Label></div>
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Female" id="female" /><Label htmlFor="female" className="cursor-pointer">Female</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Male" id="male" /><Label htmlFor="male" className="cursor-pointer text-sm">Male</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Female" id="female" /><Label htmlFor="female" className="cursor-pointer text-sm">Female</Label></div>
                       </RadioGroup>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                       <div className="space-y-1.5">
-                        <Label>Marital Status</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Marital Status</Label>
                         <Select value={formData.marital_status} onValueChange={(v) => handleInputChange("marital_status", v)}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {["Single", "Married", "Widowed", "Separated", "Divorced"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>{["Single","Married","Widowed","Separated","Divorced"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label>Name of Spouse</Label>
-                        <Input className="rounded-xl" value={formData.name_of_spouse} onChange={(e) => handleInputChange("name_of_spouse", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Date of Birth <span style={{ color: "#d45ea3" }}>*</span></Label>
-                        <Input className="rounded-xl" type="date" value={formData.date_of_birth} onChange={(e) => handleInputChange("date_of_birth", e.target.value)} required />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Place of Birth</Label>
-                        <Input className="rounded-xl" value={formData.place_of_birth} onChange={(e) => handleInputChange("place_of_birth", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Religion</Label>
-                        <Input className="rounded-xl" value={formData.religion} onChange={(e) => handleInputChange("religion", e.target.value)} />
-                      </div>
+                      {[
+                        { field: "name_of_spouse", label: "Name of Spouse" },
+                        { field: "date_of_birth",  label: "Date of Birth *", type: "date", required: true },
+                        { field: "place_of_birth", label: "Place of Birth" },
+                        { field: "religion",       label: "Religion" },
+                      ].map(({ field, label, type, required }: any) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} type={type || "text"} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} required={required} />
+                        </div>
+                      ))}
                     </div>
                     <SaveButton />
                   </div>
                 )}
 
-                {/* Contact Info */}
+                {/* Contact */}
                 {activeTab === "contact" && (
                   <div className="space-y-5">
                     <SectionTitle>Contact Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label>Email Address</Label>
-                        <Input className="rounded-xl" type="email" value={formData.email} onChange={(e) => handleInputChange("email", e.target.value)} placeholder="example@email.com" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Contact Number</Label>
-                        <Input className="rounded-xl" value={formData.contact_number} onChange={(e) => handleInputChange("contact_number", e.target.value)} placeholder="09123456789" />
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                      {[
+                        { field: "email",          label: "Email Address",  type: "email", ph: "example@email.com" },
+                        { field: "contact_number", label: "Contact Number", ph: "09123456789" },
+                      ].map(({ field, label, type, ph }) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} type={type || "text"} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} placeholder={ph} />
+                        </div>
+                      ))}
                     </div>
                     <SaveButton />
                   </div>
@@ -463,12 +422,19 @@ const ProfileManagement = () => {
                 {activeTab === "address" && (
                   <div className="space-y-5">
                     <SectionTitle>Address Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>House/Block/Lot No. <span style={{ color: "#d45ea3" }}>*</span></Label><Input className="rounded-xl" value={formData.house_block_lot_no} onChange={(e) => handleInputChange("house_block_lot_no", e.target.value)} required /></div>
-                      <div className="space-y-1.5"><Label>Street <span style={{ color: "#d45ea3" }}>*</span></Label><Input className="rounded-xl" value={formData.street} onChange={(e) => handleInputChange("street", e.target.value)} required /></div>
-                      <div className="space-y-1.5"><Label>Zone/Purok <span style={{ color: "#d45ea3" }}>*</span></Label><Input className="rounded-xl" value={formData.zone_purok} onChange={(e) => handleInputChange("zone_purok", e.target.value)} required /></div>
-                      <div className="space-y-1.5"><Label>House Owner</Label><Input className="rounded-xl" value={formData.house_owner} onChange={(e) => handleInputChange("house_owner", e.target.value)} /></div>
-                      <div className="space-y-1.5"><Label>Relationship to Owner</Label><Input className="rounded-xl" value={formData.relationship_to_owner} onChange={(e) => handleInputChange("relationship_to_owner", e.target.value)} placeholder="e.g., Owner, Renter, Relative" /></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                      {[
+                        { field: "house_block_lot_no",    label: "House / Block / Lot No. *", required: true },
+                        { field: "street",                label: "Street *",                  required: true },
+                        { field: "zone_purok",            label: "Zone / Purok *",            required: true },
+                        { field: "house_owner",           label: "House Owner" },
+                        { field: "relationship_to_owner", label: "Relationship to Owner",     ph: "e.g., Owner, Renter, Relative" },
+                      ].map(({ field, label, required, ph }: any) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} required={required} placeholder={ph} />
+                        </div>
+                      ))}
                     </div>
                     <SaveButton />
                   </div>
@@ -478,38 +444,51 @@ const ProfileManagement = () => {
                 {activeTab === "residency" && (
                   <div className="space-y-5">
                     <SectionTitle>Residency Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                       <div className="space-y-1.5">
-                        <Label>Resident Status</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Resident Status</Label>
                         <Select value={formData.resident_status} onValueChange={(v) => handleInputChange("resident_status", v)}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>{["Permanent","Temporary","Transient"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5"><Label>Period of Residency</Label><Input className="rounded-xl" value={formData.period_of_residency} onChange={(e) => handleInputChange("period_of_residency", e.target.value)} placeholder="e.g., 5 years" /></div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Period of Residency</Label>
+                        <Input className={inputCls} value={formData.period_of_residency} onChange={(e) => handleInputChange("period_of_residency", e.target.value)} placeholder="e.g., 5 years" />
+                      </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Voter Status</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Voter Status</Label>
                       <RadioGroup value={formData.voter_status} onValueChange={(v) => handleInputChange("voter_status", v)} className="flex gap-6">
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Registered" id="registered" /><Label htmlFor="registered" className="cursor-pointer">Registered</Label></div>
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Not Registered" id="notRegistered" /><Label htmlFor="notRegistered" className="cursor-pointer">Not Registered</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Registered" id="registered" /><Label htmlFor="registered" className="cursor-pointer text-sm">Registered</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Not Registered" id="notRegistered" /><Label htmlFor="notRegistered" className="cursor-pointer text-sm">Not Registered</Label></div>
                       </RadioGroup>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>Precinct No.</Label><Input className="rounded-xl" value={formData.precinct_no} onChange={(e) => handleInputChange("precinct_no", e.target.value)} /></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                       <div className="space-y-1.5">
-                        <Label>Employment Status</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Precinct No.</Label>
+                        <Input className={inputCls} value={formData.precinct_no} onChange={(e) => handleInputChange("precinct_no", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Employment Status</Label>
                         <Select value={formData.employment_status} onValueChange={(v) => handleInputChange("employment_status", v)}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>{["Employed","Self-Employed","Unemployed","Student","Retired","OFW"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5"><Label>Occupation</Label><Input className="rounded-xl" value={formData.occupation} onChange={(e) => handleInputChange("occupation", e.target.value)} /></div>
-                      <div className="space-y-1.5"><Label>Position</Label><Input className="rounded-xl" value={formData.position} onChange={(e) => handleInputChange("position", e.target.value)} /></div>
+                      {[
+                        { field: "occupation", label: "Occupation" },
+                        { field: "position",   label: "Position" },
+                      ].map(({ field, label }) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} />
+                        </div>
+                      ))}
                       <div className="space-y-1.5">
-                        <Label>PWD Status</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>PWD Status</Label>
                         <Select value={formData.pwd_status ? "true" : "false"} onValueChange={(v) => handleInputChange("pwd_status", v === "true")}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
                         </Select>
                       </div>
@@ -518,21 +497,28 @@ const ProfileManagement = () => {
                   </div>
                 )}
 
-                {/* Physical Info */}
+                {/* Physical */}
                 {activeTab === "physical" && (
                   <div className="space-y-5">
                     <SectionTitle>Physical Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label>Height (cm)</Label><Input className="rounded-xl" type="number" value={formData.height_cm} onChange={(e) => handleInputChange("height_cm", e.target.value)} placeholder="e.g., 170" /></div>
-                      <div className="space-y-1.5"><Label>Weight (kg)</Label><Input className="rounded-xl" type="number" value={formData.weight_kg} onChange={(e) => handleInputChange("weight_kg", e.target.value)} placeholder="e.g., 65" /></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                      {[
+                        { field: "height_cm",  label: "Height (cm)", type: "number", ph: "e.g., 170" },
+                        { field: "weight_kg",  label: "Weight (kg)", type: "number", ph: "e.g., 65" },
+                        { field: "complexion", label: "Complexion",                  ph: "e.g., Fair, Medium, Dark" },
+                      ].map(({ field, label, type, ph }) => (
+                        <div key={field} className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
+                          <Input className={inputCls} type={type || "text"} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} placeholder={ph} />
+                        </div>
+                      ))}
                       <div className="space-y-1.5">
-                        <Label>Blood Type</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Blood Type</Label>
                         <Select value={formData.blood_type} onValueChange={(v) => handleInputChange("blood_type", v)}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>{["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5"><Label>Complexion</Label><Input className="rounded-xl" value={formData.complexion} onChange={(e) => handleInputChange("complexion", e.target.value)} placeholder="e.g., Fair, Medium, Dark" /></div>
                     </div>
                     <SaveButton />
                   </div>
@@ -548,16 +534,16 @@ const ProfileManagement = () => {
                         return (
                           <div
                             key={req.id}
-                            className="flex items-center justify-between p-4 rounded-xl border"
-                            style={{ backgroundColor: "#fdf2f8", borderColor: "#fce7f3" }}
+                            className="flex items-center justify-between p-4 border"
+                            style={{ borderRadius: 2, backgroundColor: "#f8faff", borderColor: "#dde3ed", borderLeft: `3px solid ${NAVY}` }}
                           >
                             <div>
-                              <h4 className="font-semibold text-foreground text-sm">{req.title}</h4>
+                              <h4 className="font-semibold text-sm text-foreground" style={{ fontFamily: "'Georgia', serif" }}>{req.title}</h4>
                               <p className="text-xs text-muted-foreground mt-0.5">{req.date}</p>
                             </div>
                             <span
-                              className="text-xs font-bold capitalize px-3 py-1 rounded-full border"
-                              style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}
+                              className="text-[10px] font-bold capitalize px-3 py-1 border uppercase tracking-wider"
+                              style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border, borderRadius: 1 }}
                             >
                               {req.status}
                             </span>
@@ -572,13 +558,10 @@ const ProfileManagement = () => {
                 {activeTab === "activity" && (
                   <div className="space-y-5">
                     <SectionTitle>Recent Activity</SectionTitle>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       {recentActivity.map((activity) => (
-                        <div key={activity.id} className="flex items-start gap-3">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5"
-                            style={{ backgroundColor: "#d45ea3" }}
-                          />
+                        <div key={activity.id} className="flex items-start gap-4">
+                          <div style={{ width: 3, height: 36, backgroundColor: PINK, borderRadius: 1, flexShrink: 0 }} />
                           <div>
                             <p className="font-medium text-sm text-foreground">{activity.title}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">{activity.time}</p>

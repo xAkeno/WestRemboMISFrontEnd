@@ -62,11 +62,12 @@ const officials = [
   },
 ];
 
-const positionBadge: Record<string, { bg: string; text: string }> = {
-  "PUNONG BARANGAY": { bg: "#fce7f3", text: "#be185d" },
-  KAGAWAD:           { bg: "#fdf2f8", text: "#d45ea3" },
-  "INGAT-YAMAN":     { bg: "#fce7f3", text: "#9d174d" },
-  KALIHIM:           { bg: "#fdf2f8", text: "#a21caf" },
+// Position badge colors — navy/pink family
+const positionBadge: Record<string, { bg: string; text: string; border: string }> = {
+  "PUNONG BARANGAY": { bg: "#0f2a5e",     text: "#fff",     border: "#0f2a5e" },
+  KAGAWAD:           { bg: "#fdf5f8",     text: "#c2467d",  border: "#f0c4d8" },
+  "INGAT-YAMAN":     { bg: "#fdf5f8",     text: "#9b3a6b",  border: "#f0c4d8" },
+  KALIHIM:           { bg: "#f0f4ff",     text: "#0f2a5e",  border: "#c8d5f0" },
 };
 
 const OfficialsSection = () => {
@@ -76,31 +77,25 @@ const OfficialsSection = () => {
 
         {/* Section Header */}
         <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 mb-5">
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
-            <span
-              className="text-xs font-bold uppercase tracking-[0.2em]"
-              style={{ color: "#d45ea3" }}
-            >
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
+            <span className="text-xs font-bold uppercase tracking-[0.20em]" style={{ color: "#c2467d" }}>
               Term 2023 – 2026
             </span>
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+            <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
           </div>
 
           <h2
-            className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight"
-            style={{ fontFamily: "'Georgia', serif" }}
+            className="font-bold text-foreground mb-3 leading-tight"
+            style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem, 3.5vw, 2.5rem)" }}
           >
             Elected{" "}
-            <span style={{ color: "#fa43ae" }}>Officials</span>
+            <span style={{ color: "#c2467d" }}>Officials</span>
           </h2>
 
-          <div
-            className="mx-auto mt-3 mb-5 rounded-full"
-            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
-          />
+          <div style={{ width: 48, height: 2, backgroundColor: "#c2467d", margin: "12px auto 20px" }} />
 
-          <p className="text-muted-foreground max-w-xl mx-auto text-base sm:text-lg leading-relaxed">
+          <p className="text-muted-foreground max-w-xl mx-auto text-base leading-relaxed">
             Meet the dedicated public servants of Barangay West Rembo committed to serving every resident.
           </p>
         </div>
@@ -108,13 +103,13 @@ const OfficialsSection = () => {
         {/* Barangay Captain — featured card */}
         <div className="flex justify-center mb-14">
           <div
-            className="relative flex flex-col sm:flex-row items-center gap-6 bg-card rounded-2xl p-6 sm:p-8 border w-full max-w-md transition-shadow duration-300 hover:shadow-xl"
-            style={{ borderColor: "#f9a8d4", boxShadow: "0 2px 20px rgba(212,94,163,0.10)" }}
+            className="relative flex flex-col sm:flex-row items-center gap-6 bg-card w-full max-w-lg p-8 border border-border transition-shadow duration-300 hover:shadow-lg"
+            style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: "#c2467d" }}
           >
-            {/* Punong Barangay badge */}
+            {/* Badge */}
             <div
-              className="absolute -top-3 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-6 sm:-top-3 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
-              style={{ backgroundColor: "#d45ea3", color: "#fff" }}
+              className="absolute -top-3.5 left-8 px-3 py-1 text-[10px] font-black uppercase tracking-widest"
+              style={{ backgroundColor: "#0f2a5e", color: "#fff", borderRadius: 1 }}
             >
               Punong Barangay
             </div>
@@ -122,14 +117,14 @@ const OfficialsSection = () => {
             {/* Photo */}
             <div
               className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden flex-shrink-0"
-              style={{ border: "3px solid #d45ea3", boxShadow: "0 0 0 5px #fce7f3" }}
+              style={{ border: "3px solid #c2467d", boxShadow: "0 0 0 4px rgba(194,70,125,0.12)" }}
             >
               <img
                 src={captain.image}
                 alt={captain.name}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(captain.name)}&size=200&background=d45ea3&color=fff`;
+                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(captain.name)}&size=200&background=0f2a5e&color=fff`;
                 }}
               />
             </div>
@@ -142,17 +137,11 @@ const OfficialsSection = () => {
               >
                 {captain.name}
               </h3>
-              <p
-                className="text-sm font-bold uppercase tracking-wider mb-1"
-                style={{ color: "#d45ea3" }}
-              >
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#c2467d" }}>
                 {captain.position}
               </p>
               <p className="text-sm text-muted-foreground">{captain.committee}</p>
-              <div
-                className="mt-3 h-0.5 w-10 rounded-full mx-auto sm:mx-0"
-                style={{ backgroundColor: "#d45ea3" }}
-              />
+              <div style={{ width: 36, height: 2, backgroundColor: "#c2467d", marginTop: 12 }} className="mx-auto sm:mx-0" />
             </div>
           </div>
         </div>
@@ -161,7 +150,8 @@ const OfficialsSection = () => {
         <div className="flex items-center gap-4 mb-10">
           <div className="h-px flex-1 bg-border" />
           <span
-            className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: "#0f2a5e" }}
           >
             Council Members
           </span>
@@ -171,24 +161,32 @@ const OfficialsSection = () => {
         {/* Officials Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-5 sm:gap-6 max-w-5xl mx-auto">
           {officials.map((official, index) => {
-            const badge = positionBadge[official.position] ?? { bg: "#fdf2f8", text: "#d45ea3" };
+            const badge = positionBadge[official.position] ?? { bg: "#fdf5f8", text: "#c2467d", border: "#f0c4d8" };
             return (
               <div
                 key={index}
-                className="group flex flex-col items-center text-center bg-card rounded-2xl p-5 sm:p-6 border border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
-                style={{ "--hover-shadow": "0 8px 30px rgba(212,94,163,0.12)" } as React.CSSProperties}
+                className="group flex flex-col items-center text-center bg-card border border-border p-5 sm:p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                style={{ borderRadius: 2 }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderTopColor = "#c2467d";
+                  (e.currentTarget as HTMLElement).style.borderTopWidth = "2px";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderTopColor = "";
+                  (e.currentTarget as HTMLElement).style.borderTopWidth = "";
+                }}
               >
                 {/* Photo */}
                 <div
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden mb-4 transition-transform duration-300 group-hover:scale-105"
-                  style={{ border: "2px solid #f9a8d4" }}
+                  style={{ border: "2px solid #c2467d" }}
                 >
                   <img
                     src={official.image}
                     alt={official.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(official.name)}&size=200&background=d45ea3&color=fff`;
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(official.name)}&size=200&background=0f2a5e&color=fff`;
                     }}
                   />
                 </div>
@@ -203,8 +201,8 @@ const OfficialsSection = () => {
 
                 {/* Position badge */}
                 <span
-                  className="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full mb-2"
-                  style={{ backgroundColor: badge.bg, color: badge.text }}
+                  className="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 mb-2"
+                  style={{ backgroundColor: badge.bg, color: badge.text, border: `1px solid ${badge.border}`, borderRadius: 1 }}
                 >
                   {official.position}
                 </span>
@@ -213,12 +211,6 @@ const OfficialsSection = () => {
                 <p className="text-xs text-muted-foreground leading-snug">
                   {official.committee}
                 </p>
-
-                {/* Bottom accent on hover */}
-                <div
-                  className="mt-3 h-0.5 w-0 group-hover:w-8 rounded-full transition-all duration-300"
-                  style={{ backgroundColor: "#d45ea3" }}
-                />
               </div>
             );
           })}

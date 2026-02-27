@@ -4,12 +4,11 @@ import { Link } from "react-router-dom";
 const ContactCTA = () => {
   return (
     <section className="py-20 sm:py-28 bg-background relative overflow-hidden">
-      {/* Subtle dot texture */}
+      {/* Subtle diagonal texture */}
       <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{
-          backgroundImage: "radial-gradient(circle, #d45ea3 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
+          backgroundImage: `repeating-linear-gradient(-45deg, #0f2a5e, #0f2a5e 1px, transparent 1px, transparent 20px)`,
         }}
       />
 
@@ -18,49 +17,42 @@ const ContactCTA = () => {
 
           {/* Left — text */}
           <div className="flex-1 text-center lg:text-left">
-            {/* Eyebrow */}
-            <div className="inline-flex items-center gap-2 mb-5 justify-center lg:justify-start">
-              <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
-              <span
-                className="text-xs font-bold uppercase tracking-[0.2em]"
-                style={{ color: "#d45ea3" }}
-              >
+            <div className="inline-flex items-center gap-3 mb-4 justify-center lg:justify-start">
+              <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
+              <span className="text-xs font-bold uppercase tracking-[0.20em]" style={{ color: "#c2467d" }}>
                 Get in Touch
               </span>
-              <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+              <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
             </div>
 
             <h2
-              className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight"
-              style={{ fontFamily: "'Georgia', serif" }}
+              className="font-bold text-foreground mb-3 leading-tight"
+              style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem, 3.5vw, 2.25rem)" }}
             >
               Have a Question or{" "}
-              <span style={{ color: "#fa43ae" }}>Concern?</span>
+              <span style={{ color: "#c2467d" }}>Concern?</span>
             </h2>
 
-            <div
-              className="mb-5 rounded-full mx-auto lg:mx-0"
-              style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
-            />
+            <div style={{ width: 48, height: 2, backgroundColor: "#c2467d", margin: "12px auto 20px" }} className="mx-auto lg:mx-0" />
 
-            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-8 max-w-lg mx-auto lg:mx-0">
-              We're here to help. Reach out to the Barangay West Rembo office for any
+            <p className="text-muted-foreground text-base leading-relaxed mb-8 max-w-lg mx-auto lg:mx-0">
+              We are here to help. Reach out to the Barangay West Rembo office for any
               inquiries, concerns, or feedback. Our team is ready to assist you.
             </p>
 
-            {/* Quick contact snippets */}
+            {/* Quick contact info */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               {[
                 { icon: Phone, text: "(02) 8836 9731" },
                 { icon: Mail, text: "westrembo@gmail.com" },
                 { icon: MapPin, text: "West Rembo, Makati City" },
               ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-2">
+                <div key={text} className="flex items-center gap-2.5">
                   <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: "#fce7f3" }}
+                    className="w-7 h-7 flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
                   >
-                    <Icon className="w-3.5 h-3.5" style={{ color: "#d45ea3" }} />
+                    <Icon className="w-3.5 h-3.5" style={{ color: "#0f2a5e" }} />
                   </div>
                   <span className="text-sm text-muted-foreground">{text}</span>
                 </div>
@@ -70,65 +62,79 @@ const ContactCTA = () => {
             {/* CTA button */}
             <Link
               to="/contact"
-              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl text-white font-semibold text-sm transition-all duration-200 hover:opacity-90 hover:scale-[1.02] hover:gap-3 group"
+              className="inline-flex items-center gap-2 px-8 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200 group"
               style={{
-                backgroundColor: "#d45ea3",
-                boxShadow: "0 4px 20px rgba(212,94,163,0.30)",
+                backgroundColor: "#0f2a5e",
+                borderRadius: 1,
+                letterSpacing: "0.08em",
               }}
+              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"}
             >
-              Contact Us
+              Contact the Barangay
               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
             </Link>
           </div>
 
-          {/* Right — decorative card */}
-          <div className="flex-shrink-0 w-full max-w-sm lg:max-w-xs xl:max-w-sm">
+          {/* Right — office hours card */}
+          <div className="flex-shrink-0 w-full max-w-sm">
             <div
-              className="relative rounded-2xl overflow-hidden p-8 text-center"
+              className="relative overflow-hidden p-8 text-center"
               style={{
-                background: "linear-gradient(135deg, #1a0a13 0%, #7c1d56 60%, #d45ea3 100%)",
-                boxShadow: "0 8px 40px rgba(212,94,163,0.25)",
+                background: "linear-gradient(145deg, #0f2a5e 0%, #1a3d7c 50%, #3b1030 100%)",
+                borderRadius: 2,
+                borderTop: "3px solid #c2467d",
+                boxShadow: "0 8px 40px rgba(10,20,60,0.25)",
               }}
             >
-              {/* Dot texture inside card */}
+              {/* Subtle texture */}
               <div
-                className="absolute inset-0 opacity-[0.06] pointer-events-none"
+                className="absolute inset-0 opacity-[0.04] pointer-events-none"
                 style={{
-                  backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-                  backgroundSize: "20px 20px",
+                  backgroundImage: `repeating-linear-gradient(-45deg, #fff, #fff 1px, transparent 1px, transparent 18px)`,
                 }}
               />
 
               {/* Icon */}
               <div
-                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5 relative"
-                style={{ backgroundColor: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.20)" }}
+                className="w-14 h-14 flex items-center justify-center mx-auto mb-5 relative"
+                style={{ backgroundColor: "rgba(194,70,125,0.20)", border: "1px solid rgba(194,70,125,0.35)", borderRadius: 2 }}
               >
-                <Mail className="w-8 h-8 text-white" strokeWidth={1.5} />
+                <Mail className="w-7 h-7" style={{ color: "#e8a0bf" }} strokeWidth={1.5} />
               </div>
 
+              <p
+                className="text-xs font-bold uppercase tracking-[0.18em] mb-2 relative"
+                style={{ color: "#e8a0bf" }}
+              >
+                Barangay Hall
+              </p>
+
               <h3
-                className="text-xl font-bold text-white mb-2"
+                className="text-xl font-bold text-white mb-2 relative"
                 style={{ fontFamily: "'Georgia', serif" }}
               >
                 Office Hours
               </h3>
+
               <div
-                className="mx-auto mb-4 rounded-full"
-                style={{ width: 36, height: 2, backgroundColor: "rgba(255,255,255,0.30)" }}
+                className="mx-auto mb-5 relative"
+                style={{ width: 36, height: 1, backgroundColor: "rgba(194,70,125,0.50)" }}
               />
 
-              <div className="space-y-2 text-sm relative">
-                <p className="text-white/80">Monday – Saturday</p>
-                <p className="text-white font-bold text-lg">5:00 AM – 6:00 PM</p>
+              <div className="space-y-1.5 text-sm relative mb-6">
+                <p className="text-white/60 uppercase tracking-wider text-xs">Monday – Saturday</p>
+                <p className="text-white font-bold text-xl" style={{ fontFamily: "'Georgia', serif" }}>
+                  5:00 AM – 6:00 PM
+                </p>
               </div>
 
               <div
-                className="mt-6 pt-5 space-y-1.5 relative"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}
+                className="pt-5 space-y-1.5 relative"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}
               >
-                <p className="text-white/60 text-xs">Barangay Hall</p>
-                <p className="text-white/80 text-sm font-medium leading-snug">
+                <p className="text-white/40 text-xs uppercase tracking-wider">Address</p>
+                <p className="text-white/75 text-sm leading-relaxed">
                   Plaza Drive A. Mabini St. (21st),<br />West Rembo, Makati City
                 </p>
               </div>

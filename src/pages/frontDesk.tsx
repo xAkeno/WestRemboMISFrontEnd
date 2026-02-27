@@ -1,12 +1,9 @@
 import { useState } from "react";
 import axios from "axios";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
-import { FileText, Building2, Briefcase, Users } from "lucide-react";
+import { FileText, Building2, Briefcase, Users, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +16,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
-import {useLanguage} from "@/components/context/LanguageContext";
+import { useLanguage } from "@/components/context/LanguageContext";
+
+// ─── Shared token colors ───────────────────────────────────────────────────────
+const NAVY   = "#0f2a5e";
+const PINK   = "#c2467d";
+const BLUSH  = "#e8a0bf";
 
 const FrontDesk = () => {
   const { t } = useLanguage();
@@ -31,10 +33,12 @@ const FrontDesk = () => {
   const [consentChecked, setConsentChecked] = useState(false);
 
   const handleSubmitClick = () => {
-    if (!formData.first_name || !formData.last_name || !formData.address || !formData.date_of_birth ||
-        !formData.place_of_birth || !formData.period_of_residency ||
-        !formData.registered_voter || !formData.house_owner ||
-        !formData.relation_to_house_owner || !formData.contact || !formData.purpose) {
+    if (
+      !formData.first_name || !formData.last_name || !formData.address || !formData.date_of_birth ||
+      !formData.place_of_birth || !formData.period_of_residency ||
+      !formData.registered_voter || !formData.house_owner ||
+      !formData.relation_to_house_owner || !formData.contact || !formData.purpose
+    ) {
       toast.error(t("message.fillRequired"));
       return;
     }
@@ -44,20 +48,16 @@ const FrontDesk = () => {
 
   const getServiceType = (tab: DocumentType): string => {
     switch (tab) {
-      case "clearance": return "Barangay Clearance";
+      case "clearance":          return "Barangay Clearance";
       case "building-clearance": return "Building Clearance";
       case "business-clearance": return "Business Clearance";
-      case "resident": return "Resident Registration";
-      default: return "Barangay Clearance";
+      case "resident":           return "Resident Registration";
+      default:                   return "Barangay Clearance";
     }
   };
 
   const handleConfirmSubmit = async () => {
-    if (!consentChecked) {
-      toast.error(t("message.consentRequired"));
-      return;
-    }
-
+    if (!consentChecked) { toast.error(t("message.consentRequired")); return; }
     try {
       await axios.post(
         "http://127.0.0.1:8000/api/kiosk/submit",
@@ -89,153 +89,222 @@ const FrontDesk = () => {
     }
   };
 
-  const handleClear = () => {
-    setFormData({});
-    toast.success(t("message.formCleared"));
-  };
+  const handleClear = () => { setFormData({}); toast.success(t("message.formCleared")); };
 
-  const getIcon = (type: DocumentType) => {
-    switch (type) {
-      case "clearance": return <FileText className="h-5 w-5" />;
-      case "building-clearance": return <Building2 className="h-5 w-5" />;
-      case "business-clearance": return <Briefcase className="h-5 w-5" />;
-      case "resident": return <Users className="h-5 w-5" />;
-    }
-  };
+  const TABS: { type: DocumentType; label: string; icon: React.ReactNode }[] = [
+    { type: "clearance",          label: t("tab.clearance"),  icon: <FileText className="h-4 w-4" /> },
+    { type: "building-clearance", label: t("tab.building"),   icon: <Building2 className="h-4 w-4" /> },
+    { type: "business-clearance", label: t("tab.business"),   icon: <Briefcase className="h-4 w-4" /> },
+    { type: "resident",           label: t("tab.resident"),   icon: <Users className="h-4 w-4" /> },
+  ];
+
+  // Shared underline input style
+  const inputCls = "w-full bg-transparent border-0 border-b py-2.5 text-sm text-foreground placeholder-gray-400 focus:outline-none focus:border-[#c2467d] transition-colors duration-200";
+  const labelCls = "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
 
   const renderFormFields = () => (
-    <div className="space-y-4">
-      <MaskedInput
-        value={formData.first_name || ""}
-        onValueChange={(val) => setFormData({ ...formData, first_name: val })}
-        placeholder={t("placeholder.firstName")}
-      />
-      <MaskedInput
-        value={formData.middle_name || ""}
-        onValueChange={(val) => setFormData({ ...formData, middle_name: val })}
-        placeholder={t("placeholder.middleName")}
-      />
-      <MaskedInput
-        value={formData.last_name || ""}
-        onValueChange={(val) => setFormData({ ...formData, last_name: val })}
-        placeholder={t("placeholder.lastName")}
-      />
-      <MaskedInput
-        value={formData.address || ""}
-        onValueChange={(val) => setFormData({ ...formData, address: val })}
-        placeholder={t("placeholder.address")}
-      />
-      <MaskedInput
-        type="date"
-        value={formData.date_of_birth || ""}
-        onValueChange={(val) => setFormData({ ...formData, date_of_birth: val })}
-        placeholder={t("field.dateOfBirth")}
-      />
-      <MaskedInput
-        value={formData.place_of_birth || ""}
-        onValueChange={(val) => setFormData({ ...formData, place_of_birth: val })}
-        placeholder={t("placeholder.placeOfBirth")}
-      />
-      <MaskedInput
-        value={formData.period_of_residency || ""}
-        onValueChange={(val) => setFormData({ ...formData, period_of_residency: val })}
-        placeholder={t("placeholder.residency")}
-      />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+      {[
+        { field: "first_name",             ph: t("placeholder.firstName") },
+        { field: "middle_name",            ph: t("placeholder.middleName") },
+        { field: "last_name",              ph: t("placeholder.lastName") },
+        { field: "address",                ph: t("placeholder.address") },
+        { field: "place_of_birth",         ph: t("placeholder.placeOfBirth") },
+        { field: "period_of_residency",    ph: t("placeholder.residency") },
+        { field: "house_owner",            ph: t("field.houseOwner") },
+        { field: "relation_to_house_owner",ph: t("placeholder.relationToOwner") },
+        { field: "contact",                ph: t("placeholder.contact") },
+        { field: "purpose",                ph: t("placeholder.purpose") },
+      ].map(({ field, ph }) => (
+        <div key={field}>
+          <label className={labelCls} style={{ color: PINK }}>{ph}</label>
+          <MaskedInput
+            value={(formData as any)[field] || ""}
+            onValueChange={(val) => setFormData({ ...formData, [field]: val })}
+            placeholder={ph}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </div>
+      ))}
+
+      {/* Date of Birth */}
       <div>
-        <label className="block text-sm font-medium text-foreground mb-1">{t("field.registeredVoter")}</label>
+        <label className={labelCls} style={{ color: PINK }}>{t("field.dateOfBirth")}</label>
+        <MaskedInput
+          type="date"
+          value={formData.date_of_birth || ""}
+          onValueChange={(val) => setFormData({ ...formData, date_of_birth: val })}
+          placeholder={t("field.dateOfBirth")}
+          className={inputCls}
+          style={{ borderColor: "#d1d5db" }}
+        />
+      </div>
+
+      {/* Registered Voter */}
+      <div>
+        <label className={labelCls} style={{ color: PINK }}>{t("field.registeredVoter")}</label>
         <select
           value={formData.registered_voter || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, registered_voter: e.target.value as "Yes" | "No" })
-          }
-          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          onChange={(e) => setFormData({ ...formData, registered_voter: e.target.value as "Yes" | "No" })}
+          className="w-full bg-transparent border-0 border-b py-2.5 text-sm text-foreground focus:outline-none focus:border-[#c2467d] transition-colors duration-200 cursor-pointer"
+          style={{ borderColor: "#d1d5db" }}
         >
           <option value="">{t("option.select")}</option>
           <option value="Yes">{t("option.yes")}</option>
           <option value="No">{t("option.no")}</option>
         </select>
       </div>
-      <MaskedInput
-        value={formData.house_owner || ""}
-        onValueChange={(val) => setFormData({ ...formData, house_owner: val })}
-        placeholder={t("field.houseOwner")}
-      />
-      <MaskedInput
-        value={formData.relation_to_house_owner || ""}
-        onValueChange={(val) => setFormData({ ...formData, relation_to_house_owner: val })}
-        placeholder={t("placeholder.relationToOwner")}
-      />
-      <MaskedInput
-        value={formData.contact || ""}
-        onValueChange={(val) => setFormData({ ...formData, contact: val })}
-        placeholder={t("placeholder.contact")}
-      />
-      <MaskedInput
-        value={formData.purpose || ""}
-        onValueChange={(val) => setFormData({ ...formData, purpose: val })}
-        placeholder={t("placeholder.purpose")}
-      />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
+    <div className="min-h-screen bg-background py-10 px-4">
       <div className="container max-w-5xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-heading font-bold text-primary mb-2">
+
+        {/* Page header */}
+        <div className="text-center mb-10">
+          <p className="text-xs font-bold uppercase tracking-[0.20em] mb-2" style={{ color: PINK }}>
+            Republic of the Philippines · Barangay West Rembo
+          </p>
+          <h1
+            className="font-bold text-foreground mb-2"
+            style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem,3vw,2.25rem)" }}
+          >
             {t("header.title")}
           </h1>
-          <p className="text-muted-foreground text-lg">{t("header.subtitle")}</p>
+          <div style={{ width: 48, height: 2, backgroundColor: PINK, margin: "10px auto 12px" }} />
+          <p className="text-muted-foreground text-sm">{t("header.subtitle")}</p>
         </div>
-        
 
-        <Card className="shadow-lg border-2">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardTitle className="text-2xl font-heading">{t("card.title")}</CardTitle>
-            <CardDescription>{t("card.description")}</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DocumentType)}>
-              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 mb-8 h-auto p-1">
-                {(["clearance","building-clearance","business-clearance","resident"] as DocumentType[]).map((tab) => (
-                  <TabsTrigger key={tab} value={tab} className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-3">
-                    {getIcon(tab)} <span className="hidden sm:inline">{t(`tab.${tab.split("-")[0]}`)}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <TabsContent value={activeTab}>{renderFormFields()}</TabsContent>
-            </Tabs>
+        {/* Card */}
+        <div
+          className="bg-card border border-border overflow-hidden"
+          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
+        >
+          {/* Card header */}
+          <div className="px-8 pt-7 pb-5" style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] mb-0.5" style={{ color: NAVY }}>
+              {t("card.title")}
+            </p>
+            <p className="text-sm text-muted-foreground">{t("card.description")}</p>
+          </div>
 
-            <div className="mt-8 flex justify-end gap-4">
-              <Button variant="outline" size="lg" onClick={() => navigate("/frontdesk")}>{t("button.backHome")}</Button>
-              <Button variant="outline" size="lg" onClick={handleClear}>{t("button.clear")}</Button>
-              <Button size="lg" onClick={handleSubmitClick} className="bg-primary hover:bg-primary/90">{t("button.submit")}</Button>
+          <div className="p-6 sm:p-8">
+            {/* Tab row */}
+            <div className="flex flex-wrap gap-2 mb-8">
+              {TABS.map(({ type, label, icon }) => (
+                <button
+                  key={type}
+                  onClick={() => setActiveTab(type)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
+                  style={
+                    activeTab === type
+                      ? { backgroundColor: NAVY, color: "#fff", borderRadius: 1 }
+                      : { backgroundColor: "transparent", color: "#6b7280", border: "1px solid #dde3ed", borderRadius: 1 }
+                  }
+                  onMouseEnter={(e) => {
+                    if (activeTab !== type) {
+                      (e.currentTarget as HTMLElement).style.borderColor = PINK;
+                      (e.currentTarget as HTMLElement).style.color = PINK;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeTab !== type) {
+                      (e.currentTarget as HTMLElement).style.borderColor = "#dde3ed";
+                      (e.currentTarget as HTMLElement).style.color = "#6b7280";
+                    }
+                  }}
+                >
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Form fields */}
+            {renderFormFields()}
+
+            {/* Actions */}
+            <div className="mt-10 flex flex-wrap justify-end gap-3" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 24 }}>
+              <button
+                onClick={() => navigate("/frontdesk")}
+                className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground border border-border transition-all duration-200"
+                style={{ borderRadius: 1 }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = NAVY}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = ""}
+              >
+                {t("button.backHome")}
+              </button>
+              <button
+                onClick={handleClear}
+                className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200"
+                style={{ border: `1px solid ${PINK}`, color: PINK, borderRadius: 1 }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}
+              >
+                {t("button.clear")}
+              </button>
+              <button
+                onClick={handleSubmitClick}
+                className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
+                style={{ backgroundColor: NAVY, borderRadius: 1 }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+              >
+                {t("button.submit")}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Consent Dialog */}
       <AlertDialog open={showConsentDialog} onOpenChange={setShowConsentDialog}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl">{t("consent.title")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-base leading-relaxed pt-4 space-y-4">
-              <p className="text-foreground">{t("consent.text")}</p>
-              <div className="flex items-start space-x-3 pt-4">
-                <Checkbox 
-                  id="consent" 
-                  checked={consentChecked}
-                  onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
-                />
-                <label htmlFor="consent" className="text-sm font-medium leading-none cursor-pointer text-foreground">
-                  {t("consent.checkbox")}
-                </label>
-              </div>
-            </AlertDialogDescription>
+        <AlertDialogContent
+          className="max-w-2xl bg-white p-0 overflow-hidden"
+          style={{ borderRadius: 2, borderTop: `3px solid ${PINK}` }}
+        >
+          <AlertDialogHeader className="px-7 pt-7 pb-4" style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK }}>
+              Data Privacy Notice
+            </p>
+            <AlertDialogTitle
+              className="text-lg font-bold"
+              style={{ fontFamily: "'Georgia', serif", color: NAVY }}
+            >
+              {t("consent.title")}
+            </AlertDialogTitle>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConsentChecked(false)}>{t("button.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmSubmit} disabled={!consentChecked} className="disabled:opacity-50 disabled:cursor-not-allowed">
+
+          <AlertDialogDescription className="px-7 pt-4 pb-6 text-sm leading-relaxed space-y-4">
+            <p className="text-foreground">{t("consent.text")}</p>
+            <div className="flex items-start gap-3 pt-2 p-4" style={{ backgroundColor: "#f8faff", borderRadius: 1, border: "1px solid #dde3ed" }}>
+              <Checkbox
+                id="consent"
+                checked={consentChecked}
+                onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
+              />
+              <label htmlFor="consent" className="text-sm cursor-pointer text-foreground leading-snug">
+                {t("consent.checkbox")}
+              </label>
+            </div>
+          </AlertDialogDescription>
+
+          <AlertDialogFooter className="px-7 pb-7 flex gap-3">
+            <AlertDialogCancel
+              onClick={() => setConsentChecked(false)}
+              className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider border border-border text-foreground"
+              style={{ borderRadius: 1 }}
+            >
+              {t("button.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmSubmit}
+              disabled={!consentChecked}
+              className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: NAVY, borderRadius: 1 }}
+            >
               {t("consent.submit")}
             </AlertDialogAction>
           </AlertDialogFooter>

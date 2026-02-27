@@ -53,6 +53,8 @@ import RequestDetail from "./components/myrequest/RequestDetail";
 import Calendar from "./pages/Calendar";4
 import EventDetail from "./pages/EventDetail";
 import { useEffect } from "react";
+import ForgotPassword from "./pages/ForgotPassword";
+import EmailVerification from "./pages/EmailVerification";
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -84,6 +86,9 @@ const App = () => {
                 <Route path="/contact" element={<ContactSection />} />
                 <Route path="/services/:serviceId" element={<ServicePage />} />
                 <Route path="/services" element={<ServicesRequest />} />
+
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/email-verification" element={<EmailVerification />} />
 
                 <Route path="/document-edit/:id/:bcertNumber" element={<CertificateEditor />} />
                 <Route path="/document-edit/:id" element={<CertificateEditor />} />

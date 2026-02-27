@@ -3,9 +3,9 @@ import { ArrowLeft, Users, FileText, ShieldCheck, Building2, Hammer, CheckCircle
 import Header from "@/components/forms/Header";
 import Footer from "@/components/forms/Footer";
 
-const serviceData: Record<string, { 
-  icon: typeof Users; 
-  title: string; 
+const serviceData: Record<string, {
+  icon: typeof Users;
+  title: string;
   description: string;
   requirements: string[];
   processingTime: string;
@@ -89,26 +89,26 @@ const ServicePage = () => {
         <main className="flex-1 flex items-center justify-center px-4">
           <div className="text-center">
             <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ backgroundColor: "#fce7f3" }}
+              className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}
             >
-              <FileText className="w-8 h-8" style={{ color: "#d45ea3" }} />
+              <FileText className="w-7 h-7" style={{ color: "#0f2a5e" }} />
             </div>
             <h1
               className="text-2xl font-bold text-foreground mb-2"
               style={{ fontFamily: "'Georgia', serif" }}
             >
-              Service not found
+              Service Not Found
             </h1>
             <p className="text-muted-foreground text-sm mb-6">
-              The service you're looking for doesn't exist.
+              The service you're looking for doesn't exist or may have been moved.
             </p>
             <Link
               to="/"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-              style={{ backgroundColor: "#d45ea3", boxShadow: "0 4px 14px rgba(212,94,163,0.28)" }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all"
+              style={{ backgroundColor: "#0f2a5e", borderRadius: 1, letterSpacing: "0.08em" }}
             >
-              Go back home
+              Return to Home
             </Link>
           </div>
         </main>
@@ -129,8 +129,10 @@ const ServicePage = () => {
           {/* Back link */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-sm font-medium mb-8 transition-colors duration-200 group"
-            style={{ color: "#d45ea3" }}
+            className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider mb-8 transition-colors duration-200 group"
+            style={{ color: "#6b7280", letterSpacing: "0.07em" }}
+            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = "#0f2a5e"}
+            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "#6b7280"}
           >
             <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
             Back to Services
@@ -138,47 +140,34 @@ const ServicePage = () => {
 
           {/* Main card */}
           <div
-            className="bg-card rounded-2xl border border-border overflow-hidden"
-            style={{ boxShadow: "0 4px 32px rgba(212,94,163,0.10)" }}
+            className="bg-card border border-border overflow-hidden"
+            style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: "#c2467d" }}
           >
-            {/* Pink top accent bar */}
-            <div style={{ height: 4, backgroundColor: "#d45ea3" }} />
-
             <div className="p-6 sm:p-8 md:p-12">
-              {/* Icon */}
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
-                style={{ backgroundColor: "#fce7f3" }}
-              >
-                <Icon className="w-8 h-8" style={{ color: "#d45ea3" }} strokeWidth={1.6} />
-              </div>
 
-              {/* Eyebrow */}
-              <div className="inline-flex items-center gap-2 mb-3">
-                <div className="h-px w-6" style={{ backgroundColor: "#d45ea3" }} />
-                <span
-                  className="text-xs font-bold uppercase tracking-[0.2em]"
-                  style={{ color: "#d45ea3" }}
+              {/* Header row */}
+              <div className="flex items-start gap-5 mb-8">
+                <div
+                  className="w-14 h-14 flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}
                 >
-                  Barangay Service
-                </span>
+                  <Icon className="w-7 h-7" style={{ color: "#0f2a5e" }} strokeWidth={1.6} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#c2467d" }}>
+                    Barangay Service
+                  </p>
+                  <h1
+                    className="font-bold text-foreground"
+                    style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.4rem, 3vw, 2rem)" }}
+                  >
+                    {service.title}
+                  </h1>
+                  <div style={{ width: 40, height: 2, backgroundColor: "#c2467d", marginTop: 10 }} />
+                </div>
               </div>
 
-              {/* Title */}
-              <h1
-                className="text-3xl md:text-4xl font-bold text-foreground mb-3"
-                style={{ fontFamily: "'Georgia', serif" }}
-              >
-                {service.title}
-              </h1>
-
-              {/* Underline */}
-              <div
-                className="mb-5 rounded-full"
-                style={{ width: 48, height: 3, backgroundColor: "#d45ea3" }}
-              />
-
-              <p className="text-base sm:text-lg text-muted-foreground mb-10 leading-relaxed">
+              <p className="text-base text-muted-foreground mb-10 leading-relaxed">
                 {service.description}
               </p>
 
@@ -187,8 +176,8 @@ const ServicePage = () => {
                 {/* Requirements */}
                 <div>
                   <h3
-                    className="text-lg font-bold text-foreground mb-4"
-                    style={{ fontFamily: "'Georgia', serif" }}
+                    className="text-base font-bold text-foreground mb-4 uppercase tracking-wider"
+                    style={{ fontSize: "0.75rem", color: "#0f2a5e", letterSpacing: "0.12em" }}
                   >
                     Requirements
                   </h3>
@@ -196,10 +185,10 @@ const ServicePage = () => {
                     {service.requirements.map((req, index) => (
                       <li key={index} className="flex items-start gap-3">
                         <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{ backgroundColor: "#fce7f3" }}
+                          className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{ backgroundColor: "#fdf5f8", borderRadius: 1 }}
                         >
-                          <CheckCircle className="w-3.5 h-3.5" style={{ color: "#d45ea3" }} />
+                          <CheckCircle className="w-3.5 h-3.5" style={{ color: "#c2467d" }} />
                         </div>
                         <span className="text-muted-foreground text-sm leading-relaxed">{req}</span>
                       </li>
@@ -210,37 +199,31 @@ const ServicePage = () => {
                 {/* Meta cards */}
                 <div className="space-y-4">
                   <div
-                    className="rounded-2xl p-5 border"
-                    style={{ backgroundColor: "#fdf2f8", borderColor: "#f9a8d4" }}
+                    className="p-5 border"
+                    style={{ backgroundColor: "#f8faff", borderColor: "#dde3ed", borderRadius: 2, borderLeftWidth: 2, borderLeftColor: "#0f2a5e" }}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <Clock className="w-4 h-4" style={{ color: "#d45ea3" }} />
-                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#d45ea3" }}>
+                      <Clock className="w-4 h-4" style={{ color: "#0f2a5e" }} />
+                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
                         Processing Time
                       </h4>
                     </div>
-                    <p
-                      className="text-xl font-bold text-foreground"
-                      style={{ fontFamily: "'Georgia', serif" }}
-                    >
+                    <p className="text-lg font-bold text-foreground" style={{ fontFamily: "'Georgia', serif" }}>
                       {service.processingTime}
                     </p>
                   </div>
 
                   <div
-                    className="rounded-2xl p-5 border"
-                    style={{ backgroundColor: "#fdf2f8", borderColor: "#f9a8d4" }}
+                    className="p-5 border"
+                    style={{ backgroundColor: "#fdf5f8", borderColor: "#f0c4d8", borderRadius: 2, borderLeftWidth: 2, borderLeftColor: "#c2467d" }}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <Banknote className="w-4 h-4" style={{ color: "#d45ea3" }} />
-                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#d45ea3" }}>
+                      <Banknote className="w-4 h-4" style={{ color: "#c2467d" }} />
+                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "#c2467d" }}>
                         Service Fee
                       </h4>
                     </div>
-                    <p
-                      className="text-xl font-bold text-foreground"
-                      style={{ fontFamily: "'Georgia', serif" }}
-                    >
+                    <p className="text-lg font-bold text-foreground" style={{ fontFamily: "'Georgia', serif" }}>
                       {service.fee}
                     </p>
                   </div>
@@ -250,13 +233,12 @@ const ServicePage = () => {
               {/* CTA Button */}
               <button
                 onClick={() => navigate("/services")}
-                className="w-full md:w-auto px-12 py-3 rounded-xl text-white font-semibold text-sm transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
-                style={{
-                  backgroundColor: "#d45ea3",
-                  boxShadow: "0 4px 20px rgba(212,94,163,0.30)",
-                }}
+                className="px-10 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
+                style={{ backgroundColor: "#0f2a5e", borderRadius: 1, letterSpacing: "0.08em" }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"}
               >
-                Go to Application
+                Proceed to Application
               </button>
             </div>
           </div>

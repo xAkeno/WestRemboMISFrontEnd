@@ -1,47 +1,22 @@
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { MapPin, Mail, Phone, Facebook, Clock } from "lucide-react";
+import { MapPin, Mail, Phone, Facebook, Clock, Send } from "lucide-react";
 import Header from "./Header";
 
+const NAVY = "#0f2a5e";
+const PINK = "#c2467d";
+
 const contactInfo = [
-  {
-    icon: MapPin,
-    title: "Location",
-    content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City",
-  },
-  {
-    icon: Mail,
-    title: "Email",
-    content: "westrembo@gmail.com",
-  },
-  {
-    icon: Phone,
-    title: "Telephone",
-    content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733",
-  },
-  {
-    icon: Facebook,
-    title: "Facebook",
-    content: "West Rembo FB",
-  },
-  {
-    icon: Clock,
-    title: "Office Hours",
-    content: "Monday-Saturday 5:00 am - 6:00 pm",
-  },
+  { icon: MapPin,    title: "Location",     content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City" },
+  { icon: Mail,      title: "Email",        content: "westrembo@gmail.com" },
+  { icon: Phone,     title: "Telephone",    content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733" },
+  { icon: Facebook,  title: "Facebook",     content: "West Rembo FB" },
+  { icon: Clock,     title: "Office Hours", content: "Monday–Saturday  5:00 AM – 6:00 PM" },
 ];
 
 const ContactSection = () => {
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phoneNumber: "",
-    address: "",
-    topic: "",
-    message: "",
+    firstName: "", lastName: "", email: "",
+    phoneNumber: "", address: "", topic: "", message: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -51,72 +26,78 @@ const ContactSection = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Form submitted:", formData);
-    // Handle form submission
   };
 
+  // Shared underline input style
+  const inputBase = {
+    display: "block",
+    width: "100%",
+    background: "transparent",
+    border: "none",
+    borderBottom: "1px solid #d1d5db",
+    borderRadius: 0,
+    padding: "8px 0",
+    fontSize: "0.875rem",
+    color: "inherit",
+    outline: "none",
+    transition: "border-color 0.2s",
+  } as React.CSSProperties;
+
+  const labelCls = "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
+
   return (
-    <section id="contact" className="py-20 bg-background">
+    <section id="contact" className="min-h-screen bg-background">
       <Header />
 
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-6xl">
+      <div className="container mx-auto pt-32 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl">
 
         {/* Section Header */}
-        <div className="text-center mb-14 ">
-          <div className="inline-flex items-center gap-2 mb-5">
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
-            <span
-              className="text-xs font-bold uppercase tracking-[0.2em]"
-              style={{ color: "#d45ea3" }}
-            >
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div style={{ width: 32, height: 1, backgroundColor: PINK }} />
+            <span className="text-xs font-bold uppercase tracking-[0.20em]" style={{ color: PINK }}>
               Reach Out
             </span>
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+            <div style={{ width: 32, height: 1, backgroundColor: PINK }} />
           </div>
           <h2
-            className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight"
-            style={{ fontFamily: "'Georgia', serif" }}
+            className="font-bold text-foreground mb-3 leading-tight"
+            style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem,3.5vw,2.25rem)" }}
           >
             Get in Touch with{" "}
-            <span style={{ color: "#fa43ae" }}>Barangay West Rembo</span>
+            <span style={{ color: PINK }}>Barangay West Rembo</span>
           </h2>
-          <div
-            className="mx-auto mt-3 rounded-full"
-            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
-          />
+          <div style={{ width: 48, height: 2, backgroundColor: PINK, margin: "12px auto 0" }} />
         </div>
 
-        {/* Main grid — left text + right form */}
-        <div className="grid lg:grid-cols-2 gap-10 items-start mb-14">
+        {/* Main grid */}
+        <div className="grid lg:grid-cols-2 gap-12 items-start mb-14">
 
-          {/* Left Side */}
-          <div className="">
-            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-8">
-              If you have any inquiries, concerns, or clarifications, choose one (or several) of the many
-              ways to get in touch with us. You can fill out the form below, dial our numbers, send a
-              direct email, or get in touch through our social media pages. We'd love to hear from you.
+          {/* Left — info */}
+          <div>
+            <p className="text-muted-foreground text-base leading-relaxed mb-8">
+              If you have any inquiries, concerns, or clarifications, choose one of the many ways to
+              get in touch with us. You can fill out the form, dial our numbers, send a direct email,
+              or reach us through social media. We'd love to hear from you.
             </p>
 
-            {/* Contact info stacked on left for large screens */}
-            <div className="hidden lg:flex flex-col gap-4">
+            <div className="hidden lg:flex flex-col gap-3">
               {contactInfo.map((info) => {
                 const Icon = info.icon;
                 return (
                   <div
                     key={info.title}
-                    className="flex items-start gap-4 bg-card rounded-xl p-4 border border-border transition-all duration-200 hover:shadow-md"
-                    style={{ borderLeftWidth: 3, borderLeftColor: "#d45ea3" }}
+                    className="flex items-start gap-4 p-4 border border-border bg-card transition-all duration-200 hover:shadow-sm"
+                    style={{ borderRadius: 2, borderLeftWidth: 2, borderLeftColor: PINK }}
                   >
                     <div
-                      className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ backgroundColor: "#fce7f3" }}
+                      className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
                     >
-                      <Icon className="w-4 h-4" style={{ color: "#d45ea3" }} />
+                      <Icon className="w-4 h-4" style={{ color: NAVY }} />
                     </div>
                     <div>
-                      <p
-                        className="text-xs font-bold uppercase tracking-wider mb-0.5"
-                        style={{ color: "#d45ea3" }}
-                      >
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>
                         {info.title}
                       </p>
                       <p className="text-sm text-foreground">{info.content}</p>
@@ -126,135 +107,133 @@ const ContactSection = () => {
               })}
             </div>
           </div>
-          
 
-          {/* Right Side — Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">First name</label>
-                <Input
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  placeholder="John"
-                  className="rounded-xl border-border focus-visible:ring-1"
-                  style={{ "--tw-ring-color": "#d45ea3" } as React.CSSProperties}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Last name</label>
-                <Input
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  placeholder="Doe"
-                  className="rounded-xl border-border"
-                />
-              </div>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
-                <Input
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="john@example.com"
-                  className="rounded-xl border-border"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Phone number</label>
-                <Input
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  placeholder="09XX-XXX-XXXX"
-                  className="rounded-xl border-border"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Address</label>
-              <Input
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                placeholder="Your home address"
-                className="rounded-xl border-border"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Topic</label>
-              <Input
-                name="topic"
-                value={formData.topic}
-                onChange={handleChange}
-                placeholder="What is your concern about?"
-                className="rounded-xl border-border"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Your message</label>
-              <Textarea
-                name="message"
-                value={formData.message}
-                onChange={handleChange}
-                placeholder="Write your thoughts here..."
-                rows={4}
-                className="rounded-xl border-border resize-none"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full h-12 rounded-xl font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.01]"
-              style={{
-                backgroundColor: "#d45ea3",
-                boxShadow: "0 4px 20px rgba(212,94,163,0.30)",
-              }}
+          {/* Right — Form */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div
+              className="bg-card border border-border p-6 sm:p-8"
+              style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
             >
-              Submit Message
-            </Button>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: NAVY }}>
+                Official Inquiry Form
+              </p>
+              <p className="text-xs text-muted-foreground mb-8">
+                All fields marked are required to process your inquiry.
+              </p>
+
+              <div className="space-y-6">
+                <div className="grid sm:grid-cols-2 gap-6">
+                  {[
+                    { name: "firstName",  label: "First Name",   ph: "Juan" },
+                    { name: "lastName",   label: "Last Name",    ph: "dela Cruz" },
+                  ].map(({ name, label, ph }) => (
+                    <div key={name}>
+                      <label className={labelCls} style={{ color: PINK }}>{label}</label>
+                      <input
+                        name={name}
+                        value={(formData as any)[name]}
+                        onChange={handleChange}
+                        placeholder={ph}
+                        style={inputBase}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
+                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-6">
+                  {[
+                    { name: "email",       label: "Email Address", type: "email", ph: "juan@example.com" },
+                    { name: "phoneNumber", label: "Phone Number",                 ph: "09XX-XXX-XXXX" },
+                  ].map(({ name, label, type, ph }) => (
+                    <div key={name}>
+                      <label className={labelCls} style={{ color: PINK }}>{label}</label>
+                      <input
+                        name={name}
+                        type={type || "text"}
+                        value={(formData as any)[name]}
+                        onChange={handleChange}
+                        placeholder={ph}
+                        style={inputBase}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
+                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {[
+                  { name: "address", label: "Home Address", ph: "Your full home address" },
+                  { name: "topic",   label: "Subject / Topic", ph: "What is your concern about?" },
+                ].map(({ name, label, ph }) => (
+                  <div key={name}>
+                    <label className={labelCls} style={{ color: PINK }}>{label}</label>
+                    <input
+                      name={name}
+                      value={(formData as any)[name]}
+                      onChange={handleChange}
+                      placeholder={ph}
+                      style={inputBase}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                    />
+                  </div>
+                ))}
+
+                <div>
+                  <label className={labelCls} style={{ color: PINK }}>Message</label>
+                  <textarea
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    placeholder="Write your message here..."
+                    rows={4}
+                    style={{ ...inputBase, resize: "none" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 inline-flex items-center justify-center gap-2 text-white text-xs font-bold uppercase tracking-wider transition-all duration-200"
+                  style={{ backgroundColor: NAVY, borderRadius: 1 }}
+                  onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+                  onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+                >
+                  <Send className="w-4 h-4" />
+                  Submit Inquiry
+                </button>
+              </div>
+            </div>
           </form>
         </div>
 
-        {/* Contact Info Cards — shown below form on mobile */}
-        <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-2">
+        {/* Contact info — mobile */}
+        <div className="lg:hidden grid sm:grid-cols-2 gap-3">
           {contactInfo.map((info) => {
             const Icon = info.icon;
             return (
               <div
                 key={info.title}
-                className="flex items-start gap-4 bg-card rounded-xl p-4 border border-border"
-                style={{ borderLeftWidth: 3, borderLeftColor: "#d45ea3" }}
+                className="flex items-start gap-4 p-4 border border-border bg-card"
+                style={{ borderRadius: 2, borderLeftWidth: 2, borderLeftColor: PINK }}
               >
                 <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: "#fce7f3" }}
+                  className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
                 >
-                  <Icon className="w-4 h-4" style={{ color: "#d45ea3" }} />
+                  <Icon className="w-4 h-4" style={{ color: NAVY }} />
                 </div>
                 <div>
-                  <p
-                    className="text-xs font-bold uppercase tracking-wider mb-0.5"
-                    style={{ color: "#d45ea3" }}
-                  >
-                    {info.title}
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>{info.title}</p>
                   <p className="text-sm text-foreground">{info.content}</p>
                 </div>
               </div>
             );
           })}
         </div>
-
       </div>
     </section>
   );
