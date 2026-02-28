@@ -51,8 +51,8 @@ const tabs = [
   { id: "address",   label: "Address",          icon: MapPin },
   { id: "residency", label: "Residency",        icon: Home },
   { id: "physical",  label: "Physical Info",    icon: FileText },
-  { id: "services",  label: "Service Requests", icon: ClipboardList },
-  { id: "activity",  label: "Activity",         icon: Activity },
+  // { id: "services",  label: "Service Requests", icon: ClipboardList },
+  // { id: "activity",  label: "Activity",         icon: Activity },
 ];
 
 const statusStyle: Record<string, { bg: string; text: string; border: string }> = {

@@ -92,51 +92,51 @@ const App = () => {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/email-verification" element={<EmailVerification />} />
 
-                <Route path="/document-edit/:id/:bcertNumber" element={<CertificateEditor />} />
-                <Route path="/document-edit/:id" element={<CertificateEditor />} />
-                <Route path="/certificatehome" element={<Certificate />} /> 
-                <Route path="/certificatehome/create" element={<Certifications/>} /> {/*Certificate home*/}
+                <Route path="/document-edit/:id/:bcertNumber" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
+                <Route path="/document-edit/:id" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
+                <Route path="/certificatehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certificate /></ProtectedRoute>} /> 
+                <Route path="/certificatehome/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certifications/></ProtectedRoute>} /> {/*Certificate home*/}
 
-                <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
+                <Route path="/clearancehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ClearanceForm/></ProtectedRoute>} /> {/*Clearance home */}
 
                 <Route path="/myrequest" element={<MyRequest />} />
                 <Route path="/request/:type/:id" element={<RequestDetail />} />
                 
-                <Route path="/clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
-                <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
+                <Route path="/clearancehome/bussinessclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BusinessClearance /></ProtectedRoute>} /> 
+                <Route path="/clearancehome/bussinessclearance/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BussinessClearanceForm /></ProtectedRoute>} /> {/*Residents ???*/}
 
-                <Route path="/clearancehome/buildingclearance" element={<BuildingClearance />} /> 
-                <Route path="/clearancehome/buildingclearance/create" element={<BuildingClearanceForm/>} /> {/*BARANGAY BUILDING CLEARANCE*/}
+                <Route path="/clearancehome/buildingclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BuildingClearance /></ProtectedRoute>} /> 
+                <Route path="/clearancehome/buildingclearance/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BuildingClearanceForm/></ProtectedRoute>} /> {/*BARANGAY BUILDING CLEARANCE*/}
 
-                <Route path="/clearancehome/clearance" element={<BarangayClearance />} /> {/*Barangay Clearance */}
-                <Route path="/clearancehome/clearance/create" element={<IndexBCS />} /> {/*Barangay Clearance */}
+                <Route path="/clearancehome/clearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BarangayClearance /></ProtectedRoute>} /> {/*Barangay Clearance */}
+                <Route path="/clearancehome/clearance/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><IndexBCS /></ProtectedRoute>} /> {/*Barangay Clearance */}
 
-                <Route path="/residenthome" element={<ResidentsPage />} /> {/*Resident Form*/}
-                <Route path="/residenthome/create" element={<ResidentForm/>} /> {/*Create Resident */}
+                <Route path="/residenthome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ResidentsPage /></ProtectedRoute>} /> {/*Resident Form*/}
+                <Route path="/residenthome/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ResidentForm /></ProtectedRoute>} /> {/*Create Resident */}
 
                 {/* Admin */}
-                <Route path="/aboutus-admin" element={<AboutUsCms />} /> {/*About Us CMS*/}
-                <Route path="/contact-admin" element={<Contact />} /> {/*Contact Admin*/}
-                <Route path="/backup-recovery" element={<ProtectedRoute allowedRoles={["admin","staff"]}><BackupRecovery /></ProtectedRoute>} /> {/*Backup Recovery*/}
+                <Route path="/aboutus-admin" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><AboutUsCms /></ProtectedRoute>} /> {/*About Us CMS*/}
+                <Route path="/contact-admin" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Contact /></ProtectedRoute>} /> {/*Contact Admin*/}
+                <Route path="/backup-recovery" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BackupRecovery /></ProtectedRoute>} /> {/*Backup Recovery*/}
                 <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
                 <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
-                <Route path="/websitesetting" element={<ProtectedRoute allowedRoles={["admin","staff"]}><WebsiteSettings /></ProtectedRoute>} /> {/*Website Settings*/}
-                <Route path="/activity-log" element={<ProtectedRoute allowedRoles={["admin","staff"]}><ActivityLog /></ProtectedRoute>} /> {/*Activity Log*/}
-                <Route path="/document-setting" element={<ProtectedRoute allowedRoles={["admin","staff"]}><DocumentGrid /></ProtectedRoute>} /> {/*Document Grid*/}
+                <Route path="/websitesetting" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><WebsiteSettings /></ProtectedRoute>} /> {/*Website Settings*/}
+                <Route path="/activity-log" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ActivityLog /></ProtectedRoute>} /> {/*Activity Log*/}
+                <Route path="/document-setting" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><DocumentGrid /></ProtectedRoute>} /> {/*Document Grid*/}
                 {/* <Route path="/document-table" element={<DocumentTable />} /> */}
 
 
                 <Route path="/register" element={<Register />} /> {/*Register*/}
                 <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
-                <Route path="/certificatehome/certificate" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Index /></ProtectedRoute>} /> {/*Barangay Certificate */}
+                <Route path="/certificatehome/certificate" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Index /></ProtectedRoute>} /> {/*Barangay Certificate */}
 
                 <Route path="/reports" element={<Reports />} /> {/*Report*/}
                 <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
-                <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Dashboard /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin","staff"]}><SettingsPage /></ProtectedRoute>} /> {/*Setting ?? */}
+                <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Dashboard /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><SettingsPage /></ProtectedRoute>} /> {/*Setting ?? */}
 
 
-                <Route path="/cashier" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Cashier /></ProtectedRoute>} /> {/*Residents ???*/}
+                <Route path="/cashier" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Cashier /></ProtectedRoute>} /> {/*Residents ???*/}
                 <Route path="/settings/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>

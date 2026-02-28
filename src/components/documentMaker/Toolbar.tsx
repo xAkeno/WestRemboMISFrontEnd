@@ -7,8 +7,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PREDEFINED_FIELD_GROUPS } from '@/types/certificate';
-
+import { DEFAULT_FIELD, PREDEFINED_FIELD_GROUPS } from '@/types/certificate';
+import type { TextField, PDFTemplateInfo } from '@/types/certificate';
 interface ToolbarProps {
   onUpload: (file: File) => void;
   onAddField: (label: string) => void;
@@ -20,8 +20,27 @@ interface ToolbarProps {
   onSubmit: () => void;
   isUpdate: boolean;
   onPrint: () => void;
+  selectedClearanceType: string | null;
+  onChangeClearanceType: (type: string) => void;
+  fields: TextField[];
+  selectedId: string | null;
 }
-
+ const CLEARANCE_FIELDS: Record<string, string[]> = {
+  'Barangay Certificate': ['First Name', 'Last Name', 'Date', 'Purpose'],
+  'Barangay Clearance': ['First Name', 'Last Name', 'Age', 'Purpose', 'Issued On'],
+  'Business Clearance': ['Business Name', 'Business Type', 'Capital', 'Owner Name'],
+  'Building Clearance': ['Owner Name', 'Building Address', 'Inspected By', 'Date of Inspection'],
+};
+// Radix UI Select components
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Label } from '../ui/label';
+import { useState } from 'react';
 const GROUP_LABELS: Record<string, string> = {
   personal: 'Personal Information',
   address: 'Address Information',
@@ -31,7 +50,7 @@ const GROUP_LABELS: Record<string, string> = {
   additional: 'Additional Information',
 };
 
-export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin, onSubmit, isUpdate, onPrint }: ToolbarProps) {
+export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin, onSubmit, isUpdate, onPrint, selectedClearanceType, onChangeClearanceType, fields, selectedId }: ToolbarProps) {
 
   return (
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
@@ -123,6 +142,22 @@ export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoad
         <SaveAll className="mr-2 h-4 w-4" />
         {isUpdate ? "Update Data" : "Save Data"}
       </Button>
+
+      <Select
+        value={selectedClearanceType ?? ''}
+        onValueChange={onChangeClearanceType} // from props
+      >
+        <SelectTrigger className="h-9 text-xs w-56"> {/* <-- set fixed width */}
+          <SelectValue placeholder="Select Clearance Type" />
+        </SelectTrigger>
+        <SelectContent className="w-56"> {/* <-- match trigger width */}
+          {Object.keys(CLEARANCE_FIELDS).map((type) => (
+            <SelectItem key={type} value={type}>
+              {type}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
 
 

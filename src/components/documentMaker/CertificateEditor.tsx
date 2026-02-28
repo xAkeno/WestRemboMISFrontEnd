@@ -10,6 +10,19 @@ import { PDFPreview } from './PDFPreview';
 import { toast } from 'sonner';
 import { Layout } from '../Layout';
 import { useLocation } from 'react-router-dom';
+// Assuming Label is from your UI components (like shadcn/ui)
+import { Label } from "@/components/ui/label";
+
+// Radix UI Select components
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+
+// Types
 export interface DocumentUserData {
   // Common identifiers
   id?: number;
@@ -106,6 +119,125 @@ const DOCUMENT_API_PATHS: Record<string, string> = {
   "3": "building-clearances",
   "4": "business-clearances",
 };
+
+  // Example: define which fields should appear for each clearance/document type
+export const CLEARANCE_FIELDS: Record<string, string[]> = {
+  'Barangay Certificate': [
+    'Barangay Clearance No',
+    'First Name',
+    'M.I.',
+    'Last Name',
+    'Ext Name',
+    'Date of Birth',
+    'Age',
+    'Prefix',
+    'Place of Birth',
+    'Contact No',
+    'Registered Voter',
+    'Period of Residency',
+    'House Owner',
+    'Relationship to House Owner',
+    'Purpose Details',
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'Purpose',
+    'Status',
+    'Created By',
+  ],
+
+  'Barangay Clearance': [
+    'Barangay Clearance No',
+    'First Name',
+    'M.I.',
+    'Last Name',
+    'Ext Name',
+    'Date of Birth',
+    'Place of Birth',
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'Purpose',
+    'Issued At',
+    'Remarks',
+    'Status',
+    'Created By',
+    'Barangay Clearance No',
+    'Period of Residency',
+    'House Owner',
+    'Relationship to House Owner',
+    'Purpose Details',
+    'CTC/VRR No',
+    'Issued On',
+    'OR No',
+    'Date'
+  ],
+
+  'Business Clearance': [
+    'Brgy Business No',
+    'Issued Date',
+    'Prefix',
+    'Ext Name',
+    'First Name',
+    'M.I.',
+    'Last Name',
+    'Business Name',
+    'Business Type',
+    'Business Details',
+    'Capital',
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'OR No',
+    'Inspected By',
+    'Inspection Remarks',
+    'Inspected Remarks',
+    'Date Inspected',
+    'Inspected Note',
+    'Issued Date',
+    'Status',
+    'Created By',
+    'Brgy Business No',
+    'Seperator'
+  ],
+
+  'Building Clearance': [
+    'Barangay Clearance No',
+    'First Name',
+    'M.I.',
+    'Last Name',
+    'Ext Name',
+    'Prefix',
+    'Establishment',
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'Purpose',
+    'Purpose Details',
+    'OR No',
+    'Remarks',
+    'Status',
+    'Created By',
+  ],
+
+  'Certificate': [
+    'First Name',
+    'Middle Name',
+    'Last Name',
+    'Extension',
+    'Block No',
+    'Street',
+    'Zone',
+    'Date of Birth',
+    'Age',
+    'Registered Voter',
+    'Period of Residency',
+    'Purpose',
+    'Status',
+    'Created By',
+    'Barangay Clearance No',
+  ],
+};
 export const LABEL_TO_KEY: Record<string, string> = {
   // Name / Personal info
   'First Name': 'first_name',
@@ -195,7 +327,7 @@ export const LABEL_TO_KEY: Record<string, string> = {
 
 export function CertificateEditor() {
   const { id,bcertNumber } = useParams<{ id: string, bcertNumber: string }>(); // Get ID from URL
-  
+  const [selectedClearanceType, setSelectedClearanceType] = useState<string | null>(null);
   const [fields, setFields] = useState<TextField[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [templateInfo, setTemplateInfo] = useState<PDFTemplateInfo | null>(null);
@@ -211,6 +343,21 @@ export function CertificateEditor() {
   const ticket = location.state?.ticket;
   const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
   const [selectedStreet, setSelectedStreet] = useState<number | null>(null);
+
+
+const handleClearanceChange = (type: string) => {
+  setSelectedClearanceType(type);
+  const defaultFields = CLEARANCE_FIELDS[type] ?? [];
+  const newFields: TextField[] = defaultFields.map((label) => ({
+    ...DEFAULT_FIELD,
+    id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    label,
+    value: '',
+    page: 0,
+  }));
+  setFields(newFields);
+  setSelectedId(null);
+};
 
   const getApiPath = (documentId: string | number) => {
     return DOCUMENT_API_PATHS[String(documentId)] || "barangay-clearances";
@@ -795,6 +942,10 @@ export function CertificateEditor() {
     <Layout>
       <div className="flex h-screen flex-col bg-background text-foreground">
         <Toolbar
+          selectedClearanceType={selectedClearanceType}
+          fields={fields}
+          selectedId={selectedId}
+          onChangeClearanceType={handleClearanceChange}
           onUpload={handleUpload}
           onAddField={handleAddField}
           onDownload={handleDownload}
@@ -806,6 +957,7 @@ export function CertificateEditor() {
           isUpdate={isUpdate}
           onPrint={handlePrint}
         />
+        
         <div className="flex flex-1 min-h-0">
           <EditorSidebar
             fields={fields}

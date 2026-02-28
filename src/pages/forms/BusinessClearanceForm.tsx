@@ -278,11 +278,11 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <ReviewRow label="Street" value={formData.street} />
             <ReviewRow label="Zone / Purok" value={formData.zone} />
           </ReviewCard>
-          <ReviewCard title="Clearance Details">
+          {/* <ReviewCard title="Clearance Details">
             <ReviewRow label="O.R. Number" value={formData.or_no} />
             <ReviewRow label="Inspected By" value={formData.inspected_by} />
             <ReviewRow label="Date of Inspection" value={formData.date_of_inspection} />
-          </ReviewCard>
+          </ReviewCard> */}
         </div>
       );
 

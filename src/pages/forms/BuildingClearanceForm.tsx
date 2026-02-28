@@ -252,11 +252,11 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             <ReviewRow label="Street" value={formData.street} />
             <ReviewRow label="Zone / Purok" value={formData.zone} />
           </ReviewCard>
-          <ReviewCard title="Clearance Info">
+          {/* <ReviewCard title="Clearance Info">
             <ReviewRow label="O.R. Number" value={formData.or_no} />
             <ReviewRow label="Remarks" value={formData.remarks} />
             <ReviewRow label="Punong Barangay" value={formData.punong_barangay} />
-          </ReviewCard>
+          </ReviewCard> */}
         </div>
       );
 
