@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Calendar, Clock, MapPin, FileText, AlertCircle, Maximize2, X, ArrowLeft } from "lucide-react";
 import Header from "@/components/forms/Header";
 
+const NAVY = "#0f2a5e";
+const PINK = "#c2467d";
+
 const EventDetail: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -13,12 +16,24 @@ const EventDetail: React.FC = () => {
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
         <div
-          className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-          style={{ backgroundColor: "#fce7f3" }}
+          className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
+          style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}
         >
-          <Calendar className="w-8 h-8" style={{ color: "#d45ea3" }} />
+          <Calendar className="w-7 h-7" style={{ color: NAVY }} />
         </div>
-        <p className="text-foreground font-semibold">No event selected.</p>
+        <p className="text-foreground font-semibold" style={{ fontFamily: "'Georgia', serif" }}>
+          No event selected.
+        </p>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
+          style={{ backgroundColor: NAVY, borderRadius: 1 }}
+          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Calendar
+        </button>
       </div>
     </div>
   );
@@ -40,16 +55,16 @@ const EventDetail: React.FC = () => {
   };
 
   const startDate = formatDate(event.start);
-  const endDate = formatDate(event.end);
+  const endDate   = formatDate(event.end);
   const startTime = formatTime(event.start);
-  const endTime = formatTime(event.end);
+  const endTime   = formatTime(event.end);
   const isSameDay = startDate === endDate;
 
   const metaItems = [
     {
       icon: Calendar,
       label: "Date",
-      value: isSameDay ? startDate : `${startDate} to ${endDate}`,
+      value: isSameDay ? startDate : `${startDate} — ${endDate}`,
     },
     {
       icon: Clock,
@@ -67,22 +82,23 @@ const EventDetail: React.FC = () => {
       {lightboxOpen && image && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: "rgba(26,10,19,0.92)" }}
+          style={{ backgroundColor: "rgba(10,20,60,0.92)" }}
           onClick={() => setLightboxOpen(false)}
         >
           <button
-            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-200"
-            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center transition-colors duration-200"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 1 }}
             onClick={() => setLightboxOpen(false)}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.25)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.15)")}
+            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.22)"}
+            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.12)"}
           >
             <X className="h-5 w-5 text-white" />
           </button>
           <img
             src={image}
             alt={event.title}
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-2xl"
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            style={{ borderRadius: 2 }}
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -93,8 +109,10 @@ const EventDetail: React.FC = () => {
         {/* Back button */}
         <button
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-sm font-medium mb-8 transition-colors duration-200 group"
-          style={{ color: "#d45ea3" }}
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-8 transition-colors duration-200 group"
+          style={{ color: "#6b7280" }}
+          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = NAVY}
+          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "#6b7280"}
         >
           <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
           Back to Calendar
@@ -102,13 +120,10 @@ const EventDetail: React.FC = () => {
 
         {/* Card */}
         <div
-          className="bg-card rounded-2xl border border-border overflow-hidden"
-          style={{ boxShadow: "0 4px 32px rgba(212,94,163,0.10)" }}
+          className="bg-card border border-border overflow-hidden"
+          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
         >
-          {/* Pink top accent bar */}
-          <div style={{ height: 4, backgroundColor: "#d45ea3" }} />
-
-          {/* Image */}
+          {/* Event image */}
           {image && (
             <div className="relative w-full h-64 sm:h-72">
               <img
@@ -116,18 +131,16 @@ const EventDetail: React.FC = () => {
                 alt={event.title}
                 className="w-full h-full object-cover"
               />
-              {/* Gradient overlay */}
+              {/* Navy gradient overlay */}
               <div
                 className="absolute inset-0"
-                style={{
-                  background: "linear-gradient(to top, rgba(26,10,19,0.5) 0%, transparent 50%)",
-                }}
+                style={{ background: "linear-gradient(to top, rgba(10,20,60,0.55) 0%, transparent 55%)" }}
               />
               {/* Expand button */}
               <button
                 onClick={() => setLightboxOpen(true)}
-                className="absolute bottom-3 right-3 w-9 h-9 rounded-xl flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
-                style={{ backgroundColor: "#d45ea3", boxShadow: "0 2px 12px rgba(212,94,163,0.40)" }}
+                className="absolute bottom-3 right-3 w-9 h-9 flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+                style={{ backgroundColor: PINK, borderRadius: 1, boxShadow: "0 2px 12px rgba(194,70,125,0.40)" }}
                 title="View full image"
               >
                 <Maximize2 className="h-4 w-4" />
@@ -137,35 +150,39 @@ const EventDetail: React.FC = () => {
 
           <div className="px-6 sm:px-8 py-7 space-y-6">
 
-            {/* Title + Important badge */}
+            {/* Title row */}
             <div className="flex flex-wrap items-start gap-3">
               <div className="flex-1 min-w-0">
                 {/* Eyebrow */}
-                <div className="inline-flex items-center gap-2 mb-2">
-                  <div className="h-px w-6" style={{ backgroundColor: "#d45ea3" }} />
+                <div className="inline-flex items-center gap-3 mb-2">
+                  <div style={{ width: 24, height: 1, backgroundColor: PINK }} />
                   <span
-                    className="text-xs font-bold uppercase tracking-[0.2em]"
-                    style={{ color: "#d45ea3" }}
+                    className="text-xs font-bold uppercase tracking-[0.20em]"
+                    style={{ color: PINK }}
                   >
                     Barangay Event
                   </span>
                 </div>
+
                 <h1
-                  className="text-2xl sm:text-3xl font-bold text-foreground leading-snug"
-                  style={{ fontFamily: "'Georgia', serif" }}
+                  className="font-bold text-foreground leading-snug"
+                  style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.3rem, 3vw, 1.9rem)" }}
                 >
                   {event.title}
                 </h1>
-                <div
-                  className="mt-2 rounded-full"
-                  style={{ width: 40, height: 3, backgroundColor: "#d45ea3" }}
-                />
+
+                <div style={{ width: 40, height: 2, backgroundColor: PINK, marginTop: 10 }} />
               </div>
 
               {important === 1 && (
                 <span
-                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: "#fce7f3", color: "#d45ea3", border: "1px solid #f9a8d4" }}
+                  className="inline-flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 flex-shrink-0 uppercase tracking-wider"
+                  style={{
+                    backgroundColor: "#fdf5f8",
+                    color: PINK,
+                    border: `1px solid #f0c4d8`,
+                    borderRadius: 1,
+                  }}
                 >
                   <AlertCircle className="h-3 w-3" />
                   Important
@@ -173,22 +190,30 @@ const EventDetail: React.FC = () => {
               )}
             </div>
 
-            {/* Meta info */}
+            {/* Meta info grid */}
             <div className="grid sm:grid-cols-2 gap-3">
               {metaItems.map(({ icon: Icon, label, value }) => (
                 <div
                   key={label}
-                  className="flex items-start gap-3 rounded-xl p-4"
-                  style={{ backgroundColor: "#fdf2f8", border: "1px solid #fce7f3" }}
+                  className="flex items-start gap-3 p-4"
+                  style={{
+                    backgroundColor: "#f8faff",
+                    border: "1px solid #dde3ed",
+                    borderRadius: 2,
+                    borderLeft: `2px solid ${NAVY}`,
+                  }}
                 >
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ backgroundColor: "#fce7f3" }}
+                    className="w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
                   >
-                    <Icon className="h-4 w-4" style={{ color: "#d45ea3" }} />
+                    <Icon className="h-4 w-4" style={{ color: NAVY }} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "#d45ea3" }}>
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-wider mb-0.5"
+                      style={{ color: PINK }}
+                    >
                       {label}
                     </p>
                     <p className="text-sm text-foreground font-medium">{value}</p>
@@ -200,17 +225,25 @@ const EventDetail: React.FC = () => {
             {/* Description */}
             {description && (
               <div
-                className="rounded-xl p-5"
-                style={{ backgroundColor: "#fdf2f8", border: "1px solid #fce7f3" }}
+                className="p-5"
+                style={{
+                  backgroundColor: "#f8faff",
+                  border: "1px solid #dde3ed",
+                  borderRadius: 2,
+                  borderLeft: `2px solid ${PINK}`,
+                }}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: "#fce7f3" }}
+                    className="w-7 h-7 flex items-center justify-center"
+                    style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
                   >
-                    <FileText className="h-4 w-4" style={{ color: "#d45ea3" }} />
+                    <FileText className="h-4 w-4" style={{ color: NAVY }} />
                   </div>
-                  <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#d45ea3" }}>
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: PINK }}
+                  >
                     Description
                   </p>
                 </div>
@@ -219,6 +252,7 @@ const EventDetail: React.FC = () => {
                 </p>
               </div>
             )}
+
           </div>
         </div>
       </div>

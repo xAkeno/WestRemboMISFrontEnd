@@ -112,7 +112,7 @@ const Header = () => {
                 className="uppercase tracking-widest"
                 style={{ color: "rgba(255,255,255,0.38)", fontSize: 9 }}
               >
-                Makati City · District II
+                Taguig City · District II
               </p>
             </div>
           </div>

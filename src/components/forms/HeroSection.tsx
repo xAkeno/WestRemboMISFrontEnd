@@ -10,7 +10,7 @@ const HeroSection = () => {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        className="absolute inset-0 bg-cover bg-center bg-fixed"
         style={{ backgroundImage: `url(${heroImage})` }}
       />
 
@@ -38,7 +38,7 @@ const HeroSection = () => {
             className="text-xs font-bold uppercase tracking-[0.22em]"
             style={{ color: "#e8a0bf", letterSpacing: "0.22em" }}
           >
-            Republic of the Philippines · City of Makati
+            Republic of the Philippines · City of Taguig
           </span>
           <div style={{ width: 32, height: 1, backgroundColor: "#c2467d" }} />
         </div>

@@ -29,8 +29,11 @@ const footerLinks = {
 
 const Footer = () => {
   return (
-    <footer className="dark:bg-pink-800  bg-[#ce73a7] pt-14 pb-6">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+    <footer style={{ backgroundColor: "#0a1d4a" }} className="pt-14 pb-6">
+      {/* Top pink accent bar */}
+      <div style={{ height: 3, backgroundColor: "#c2467d", marginBottom: 0 }} />
+
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl pt-10">
 
         {/* Main Footer Content */}
         <div className="flex flex-col lg:flex-row justify-between gap-10 mb-10">
@@ -41,28 +44,33 @@ const Footer = () => {
               <div
                 className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
                 style={{
-                  border: "2px solid #ffffff",
-                  boxShadow: "0 0 0 4px rgba(212,94,163,0.12)",
+                  backgroundColor: "rgba(255,255,255,0.07)",
+                  border: "1.5px solid rgba(194,70,125,0.45)",
                 }}
               >
                 <img src={Logo} alt="Barangay West Rembo Logo" className="w-11 h-11 object-contain" />
               </div>
-              <span
-                className="text-lg font-bold text-white leading-snug"
-                style={{ fontFamily: "'Georgia', serif" }}
-              >
-                Barangay<br />
-                <span style={{ color: "#ffffff" }}>West Rembo</span>
-              </span>
+              <div>
+                <p
+                  className="text-xs font-semibold uppercase tracking-[0.16em] mb-0.5"
+                  style={{ color: "#e8a0bf" }}
+                >
+                  Republic of the Philippines
+                </p>
+                <span
+                  className="text-base font-bold text-white leading-snug"
+                  style={{ fontFamily: "'Georgia', serif" }}
+                >
+                  Barangay <span style={{ color: "#e8a0bf" }}>West Rembo</span>
+                </span>
+              </div>
             </div>
-            <p className="text-sm leading-relaxed" style={{ color: "rgba(255, 255, 255, 0.45)" }}>
+            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.38)" }}>
               Serving every resident of West Rembo with transparency, efficiency, and care.
+              Makati City · District II
             </p>
             {/* Pink accent bar */}
-            <div
-              className="rounded-full"
-              style={{ width: 40, height: 2, backgroundColor: "#d45ea3" }}
-            />
+            <div style={{ width: 40, height: 1, backgroundColor: "#c2467d" }} />
           </div>
 
           {/* Links Grid */}
@@ -70,8 +78,8 @@ const Footer = () => {
             {Object.values(footerLinks).map((section) => (
               <div key={section.title}>
                 <h4
-                  className="text-sm font-black uppercase tracking-[0.18em] mb-4"
-                  style={{ color: "#fdfdfd" }}
+                  className="text-xs font-black uppercase tracking-[0.18em] mb-4"
+                  style={{ color: "#e8a0bf" }}
                 >
                   {section.title}
                 </h4>
@@ -80,10 +88,10 @@ const Footer = () => {
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="text-sm transition-colors duration-200 hover:text-white"
-                        style={{ color: "rgb(255, 255, 255)" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#000000")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "rgb(255, 255, 255)")}
+                        className="text-xs transition-colors duration-200"
+                        style={{ color: "rgba(255,255,255,0.45)" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#e8a0bf")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
                       >
                         {link.label}
                       </a>
@@ -96,14 +104,14 @@ const Footer = () => {
         </div>
 
         {/* Divider */}
-        <div className="h-px mb-6" style={{ backgroundColor: "rgba(212,94,163,0.15)" }} />
+        <div className="h-px mb-6" style={{ backgroundColor: "rgba(194,70,125,0.15)" }} />
 
         {/* Copyright */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.30)" }}>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
             © 2025 Barangay West Rembo™. All Rights Reserved.
           </p>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.20)" }}>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>
             Official Barangay Portal · Makati City
           </p>
         </div>

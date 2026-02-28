@@ -1,6 +1,9 @@
 import { useState } from "react";
 import Header from "./Header";
 
+const NAVY = "#0f2a5e";
+const PINK = "#c2467d";
+
 const tabs = ["Our Story", "Our Geography", "Our Mission", "Our Vision"];
 
 const tabContent = {
@@ -18,57 +21,27 @@ const tabContent = {
     sections: [
       {
         title: "Geographic Location",
-        items: [
-          "Longitude: 121° 3' 32\"",
-          "Latitude: 14° 33' 44\"",
-          "Land Area: 55.25 Hectares",
-        ],
+        items: ["Longitude: 121° 3' 32\"", "Latitude: 14° 33' 44\"", "Land Area: 55.25 Hectares"],
       },
       {
         title: "Barangay Boundaries",
-        items: [
-          "North: Pasig City",
-          "South: Post Proper Northside",
-          "East: East Rembo",
-          "West: Portions of Cembo and Post Proper Northside",
-        ],
+        items: ["North: Pasig City", "South: Post Proper Northside", "East: East Rembo", "West: Portions of Cembo and Post Proper Northside"],
       },
       {
         title: "Street Boundaries",
-        items: [
-          "North: Pasig River",
-          "South: Kalayaan Avenue",
-          "East: C-5",
-          "West: Lawton Avenue",
-        ],
+        items: ["North: Pasig River", "South: Kalayaan Avenue", "East: C-5", "West: Lawton Avenue"],
       },
       {
         title: "Cluster Boundaries",
-        items: [
-          "North: Pasig River",
-          "South: BGC, Taguig",
-          "East: East Rembo",
-          "West: Cembo",
-        ],
+        items: ["North: Pasig River", "South: BGC, Taguig", "East: East Rembo", "West: Cembo"],
       },
       {
         title: "Barangay Cluster",
-        items: [
-          "North: Pasig River",
-          "South: Pembo",
-          "East: East Rembo",
-          "West: Cembo",
-        ],
+        items: ["North: Pasig River", "South: Pembo", "East: East Rembo", "West: Cembo"],
       },
       {
         title: "Additional Info",
-        items: [
-          "Number of Zones: 8 Zones",
-          "Topography: Undulating tuffaceous plain",
-          "Flood Intensity: None to low",
-          "Earthquake Risk: Moderate to heavy",
-          "Hydrology: Pasig River",
-        ],
+        items: ["Number of Zones: 8 Zones", "Topography: Undulating tuffaceous plain", "Flood Intensity: None to low", "Earthquake Risk: Moderate to heavy", "Hydrology: Pasig River"],
       },
     ],
     hasMap: true,
@@ -86,7 +59,7 @@ const tabContent = {
     content: [
       "A progressive, peaceful, and self-sufficient Barangay West Rembo where residents enjoy a high quality of life, sustainable development, and equal opportunities for growth and prosperity.",
       "We envision a community united by shared values of respect, integrity, and bayanihan spirit—where families are safe, children are educated, and the elderly are cared for.",
-      "By 2030, Barangay West Rembo shall be recognized as a model barangay in Makati City, known for its innovative programs, engaged citizenry, and resilient community spirit.",
+      "By 2030, Barangay West Rembo shall be recognized as a model barangay in Taguig City, known for its innovative programs, engaged citizenry, and resilient community spirit.",
     ],
   },
 };
@@ -103,8 +76,8 @@ const AboutUsSection = () => {
           {/* Map */}
           <div className="lg:w-1/2">
             <div
-              className="rounded-2xl overflow-hidden"
-              style={{ border: "1px solid #f9a8d4", boxShadow: "0 4px 20px rgba(212,94,163,0.10)" }}
+              className="overflow-hidden"
+              style={{ borderRadius: 2, border: "1px solid #dde3ed" }}
             >
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3861.5!2d121.056!3d14.561!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3397c8f0a0000001%3A0x1!2sWest%20Rembo%2C%20Makati!5e0!3m2!1sen!2sph!4v1234567890"
@@ -120,23 +93,23 @@ const AboutUsSection = () => {
           </div>
 
           {/* Geography Details */}
-          <div className="lg:w-1/2 grid sm:grid-cols-2 gap-5">
+          <div className="lg:w-1/2 grid sm:grid-cols-2 gap-4">
             {data.sections.map((section) => (
               <div
                 key={section.title}
-                className="bg-card rounded-xl p-4 border border-border"
-                style={{ borderLeftWidth: 3, borderLeftColor: "#d45ea3" }}
+                className="bg-card border border-border p-4"
+                style={{ borderRadius: 2, borderLeftWidth: 2, borderLeftColor: PINK }}
               >
                 <h4
-                  className="font-bold text-foreground mb-2 text-sm"
-                  style={{ fontFamily: "'Georgia', serif", color: "#d45ea3" }}
+                  className="font-bold mb-2 text-sm uppercase tracking-wider"
+                  style={{ fontFamily: "'Georgia', serif", color: NAVY }}
                 >
                   {section.title}
                 </h4>
                 <ul className="space-y-1">
                   {section.items.map((item, idx) => (
-                    <li key={idx} className="text-muted-foreground text-xs flex gap-1.5 items-start">
-                      <span style={{ color: "#d45ea3" }}>·</span>
+                    <li key={idx} className="text-muted-foreground text-xs flex gap-2 items-start">
+                      <span style={{ color: PINK, flexShrink: 0, marginTop: 1 }}>—</span>
                       {item}
                     </li>
                   ))}
@@ -155,12 +128,12 @@ const AboutUsSection = () => {
           {hasImage && (
             <div className="lg:w-1/2">
               <div
-                className="rounded-2xl overflow-hidden"
-                style={{ border: "1px solid #f9a8d4", boxShadow: "0 4px 20px rgba(212,94,163,0.10)" }}
+                className="overflow-hidden"
+                style={{ borderRadius: 2, border: "1px solid #dde3ed" }}
               >
                 <img
                   src="https://images.unsplash.com/photo-1555899434-94d1368aa7af?w=600&h=400&fit=crop"
-                  alt="Barangay West Rembo Welcome Sign"
+                  alt="Barangay West Rembo"
                   className="w-full h-auto object-cover"
                 />
               </div>
@@ -169,18 +142,20 @@ const AboutUsSection = () => {
 
           <div className={hasImage ? "lg:w-1/2" : "w-full max-w-4xl mx-auto"}>
             <h3
-              className="text-2xl font-bold text-foreground mb-5"
+              className="text-xl font-bold text-foreground mb-5"
               style={{ fontFamily: "'Georgia', serif" }}
             >
               {data.title}
             </h3>
-            <ul className="space-y-4">
+            <ul className="space-y-5">
               {data.content.map((paragraph, idx) => (
                 <li key={idx} className="text-muted-foreground text-sm leading-relaxed flex gap-3">
                   <span
-                    className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: "#d45ea3" }}
-                  />
+                    className="flex-shrink-0 font-bold"
+                    style={{ color: PINK, marginTop: 1, fontSize: 15 }}
+                  >
+                    —
+                  </span>
                   <span>{paragraph}</span>
                 </li>
               ))}
@@ -201,66 +176,60 @@ const AboutUsSection = () => {
 
         {/* Section Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 mb-5">
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div style={{ width: 32, height: 1, backgroundColor: PINK }} />
             <span
-              className="text-xs font-bold uppercase tracking-[0.2em]"
-              style={{ color: "#d45ea3" }}
+              className="text-xs font-bold uppercase tracking-[0.20em]"
+              style={{ color: PINK }}
             >
               Barangay West Rembo
             </span>
-            <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
+            <div style={{ width: 32, height: 1, backgroundColor: PINK }} />
           </div>
 
           <h2
-            className="text-3xl sm:text-4xl font-bold text-foreground mb-3"
-            style={{ fontFamily: "'Georgia', serif" }}
+            className="font-bold text-foreground mb-3"
+            style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem, 3.5vw, 2.5rem)" }}
           >
             About{" "}
-            <span style={{ color: "#fa43ae" }}>Us</span>
+            <span style={{ color: PINK }}>Us</span>
           </h2>
 
-          <div
-            className="mx-auto mt-3 mb-6 rounded-full"
-            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
-          />
+          <div style={{ width: 48, height: 2, backgroundColor: PINK, margin: "12px auto 20px" }} />
 
           <p className="text-muted-foreground max-w-4xl mx-auto text-sm sm:text-base leading-relaxed">
-            BARANGAY WEST REMBO is located in the District 2 of Makati and situated at the Eastside Cluster along with barangays East Rembo, Comembo, Pembo and Rizal. Based on the 2015 Census of Population conducted by the Philippine Statistics Authority, West Rembo has a total population of 29,826. Its population density is fifty-four persons per 1,000 square meters. It has a total land area of 552,500 square meters and a predominantly residential area. Barangay West Rembo houses several institutional properties such as the Makati Parks and Garden and University of Makati. At present, the leadership of the City and Barangay West Rembo attained multiple development milestones. Public schools were established within the barangay such as, The University of Makati, Fort Bonifacio High School, Fort Bonifacio Elementary School and West Rembo Elementary School.
+            BARANGAY WEST REMBO is located in the District 2 of Taguig and situated at the Eastside
+            Cluster along with barangays East Rembo, Comembo, Pembo and Rizal. Based on the 2015
+            Census of Population conducted by the Philippine Statistics Authority, West Rembo has a
+            total population of 29,826. Its population density is fifty-four persons per 1,000 square
+            meters. It has a total land area of 552,500 square meters and a predominantly residential
+            area. Barangay West Rembo houses several institutional properties such as the People Parks
+            and Garden and University of Makati.
           </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-10 ">
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8">
           {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className="px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200"
+              className="px-5 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
               style={
                 activeTab === tab
-                  ? {
-                      backgroundColor: "#d45ea3",
-                      color: "#fff",
-                      boxShadow: "0 4px 14px rgba(212,94,163,0.28)",
-                      transform: "scale(1.05)",
-                    }
-                  : {
-                      backgroundColor: "#fff",
-                      color: "#607a86",
-                      border: "1px solid #e8eff2",
-                    }
+                  ? { backgroundColor: NAVY, color: "#fff", borderRadius: 1 }
+                  : { backgroundColor: "transparent", color: "#6b7280", border: "1px solid #dde3ed", borderRadius: 1 }
               }
               onMouseEnter={(e) => {
                 if (activeTab !== tab) {
-                  (e.currentTarget as HTMLElement).style.borderColor = "#f9a8d4";
-                  (e.currentTarget as HTMLElement).style.color = "#d45ea3";
+                  (e.currentTarget as HTMLElement).style.borderColor = PINK;
+                  (e.currentTarget as HTMLElement).style.color = PINK;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== tab) {
-                  (e.currentTarget as HTMLElement).style.borderColor = "#e8eff2";
-                  (e.currentTarget as HTMLElement).style.color = "#607a86";
+                  (e.currentTarget as HTMLElement).style.borderColor = "#dde3ed";
+                  (e.currentTarget as HTMLElement).style.color = "#6b7280";
                 }
               }}
             >
@@ -269,10 +238,10 @@ const AboutUsSection = () => {
           ))}
         </div>
 
-        {/* Tab Content card */}
+        {/* Tab Content */}
         <div
-          className="bg-card rounded-2xl p-6 sm:p-8 border border-border"
-          style={{ boxShadow: "0 4px 24px rgba(212,94,163,0.08)" }}
+          className="bg-card border border-border p-6 sm:p-8"
+          style={{ borderRadius: 2, borderTopWidth: 2, borderTopColor: PINK }}
         >
           {renderContent()}
         </div>
