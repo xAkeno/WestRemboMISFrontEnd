@@ -14,18 +14,23 @@ const statusStyle: Record<string, { bg: string; text: string; border: string }> 
   processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
   incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
   rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
+  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
 };
-
 interface Props {
   request: DocumentRequest;
 }
 
 export default function RequestCard({ request }: Props) {
-  const status = STATUS_CONFIG[request.status];
-  const badge = statusStyle[request.status] ?? { bg: "#f0f4ff", text: NAVY, border: "#c8d5f0" };
+  const normalizedStatus = request.raw.status?.toLowerCase();
+  const badge = statusStyle[normalizedStatus] ?? {
+    bg: "#f3f4f6",
+    text: "#374151",
+    border: "#d1d5db",
+  };
+  
 
   return (
-    <Link to={`/request/${request.id}`} className="block group">
+    <Link to={`/request/${request.document_type}/${request.id}`} state={{ request }} className="block group">
       <div
         className="bg-card border border-border transition-all duration-200"
         style={{ borderRadius: 2 }}
@@ -65,17 +70,16 @@ export default function RequestCard({ request }: Props) {
                     borderRadius: 1,
                   }}
                 >
-                  {status?.label || request.status}
+                  {normalizedStatus}
                 </span>
               </div>
 
               {/* Ref ID */}
               <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: PINK }}>
-                Ref: {request.id}
+                {request.bcert_number}
               </p>
 
-              {/* Purpose */}
-              <p className="text-sm text-muted-foreground truncate">{request.purpose}</p>
+
             </div>
 
             {/* Chevron */}
@@ -111,14 +115,16 @@ export default function RequestCard({ request }: Props) {
 
           {/* Footer row — schedule + files + date */}
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            {request.scheduled_date && (
+            {/* {request.scheduled_date && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5 flex-shrink-0" style={{ color: NAVY }} />
                 <span>
                   Pickup: {format(new Date(request.scheduled_date), "MMM d, yyyy 'at' h:mm a")}
                 </span>
               </div>
-            )}
+            )} */}
+              {/* Purpose */}
+            <p className="text-sm text-muted-foreground truncate">{request.purpose}</p>
 
             {request.uploaded_files && request.uploaded_files.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

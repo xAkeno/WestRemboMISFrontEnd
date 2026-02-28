@@ -160,7 +160,7 @@ const ForgotPassword = () => {
                 </button>
 
                 <div className="pt-2 text-center">
-                  <Link to="/" className="text-xs font-semibold hover:underline inline-flex items-center gap-1" style={{ color: "#0f2a5e" }}>
+                  <Link to="/login" className="text-xs font-semibold hover:underline inline-flex items-center gap-1" style={{ color: "#0f2a5e" }}>
                     <ArrowLeft className="w-3 h-3" /> Back to Login
                   </Link>
                 </div>

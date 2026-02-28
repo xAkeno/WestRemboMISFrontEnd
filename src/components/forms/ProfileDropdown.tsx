@@ -53,9 +53,13 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
       >
         <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/20">
           <img
-            src={"http://127.0.0.1:8000/storage/" + self.url_photo}
-            alt="Profile"
+            src={
+              self.url_photo
+                ? "http://127.0.0.1:8000/storage/" + self.url_photo
+                : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
+            }
             className="w-full h-full object-cover"
+            alt="Avatar"
           />
         </div>
         <span className="text-white/70 text-xs">{isOpen ? "↑" : "↓"}</span>

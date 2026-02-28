@@ -5,31 +5,241 @@ import { DOCUMENT_LABELS, STATUS_CONFIG } from "@/types/types";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import {
-  ArrowLeft,
-  Calendar,
-  AlertTriangle,
-  FileCheck,
-  FileText,
-  Upload,
-  Loader2,
-  MessageSquare,
+  ArrowLeft, Calendar, AlertTriangle, FileCheck,
+  FileText, Upload, Loader2, MessageSquare,
+  User, MapPin, Phone, Building2, Briefcase,
+  ClipboardList, ShieldCheck, Hash, BadgeInfo,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import Header from "../forms/Header";
+
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
+// ─── Status badge colors ───────────────────────────────────────────────────────
+const statusStyle: Record<string, { bg: string; text: string; border: string }> = {
+  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
+  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
+  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
+  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
+  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
+};
+
+
+// ─── Shared primitives ─────────────────────────────────────────────────────────
+const DetailLabel = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: PINK }}>
+    {children}
+  </p>
+);
+
+const DetailValue = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-sm font-medium text-foreground">{children || <span className="text-gray-400 italic font-normal text-xs">—</span>}</p>
+);
+
+const DetailGrid = ({ children }: { children: React.ReactNode }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">{children}</div>
+);
+
+const DetailField = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
+  const display =
+    value === true ? "Yes" :
+    value === false ? "No" :
+    value != null ? String(value) : "";
+  return (
+    <div>
+      <DetailLabel>{label}</DetailLabel>
+      <DetailValue>{display}</DetailValue>
+    </div>
+  );
+};
+
+/** A named section within the card body */
+const Section = ({ icon: Icon, title, children }: {
+  icon: React.ElementType;
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <div>
+    {/* Section header */}
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-6 h-6 flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}>
+        <Icon className="h-3.5 w-3.5" style={{ color: NAVY }} />
+      </div>
+      <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: NAVY }}>{title}</p>
+      <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+    </div>
+    {children}
+  </div>
+);
+
+// ─── Document-type-specific sections ──────────────────────────────────────────
+
+const CertificateFields = ({ r }: { r: any }) => (
+  <>
+    <Section icon={User} title="Requester Details">
+      <DetailGrid>
+        <DetailField label="Full Name"           value={r.requester_name} />
+        <DetailField label="Age"                 value={r.age} />
+        <DetailField label="Date of Birth"       value={r.date_of_birth} />
+        <DetailField label="Place of Birth"      value={r.place_of_birth} />
+        <DetailField label="Contact No."         value={r.contact_no} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={MapPin} title="Address">
+      <DetailGrid>
+        <DetailField label="Address"             value={r.address} />
+        <DetailField label="House Owner"         value={r.house_owner} />
+        <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={ClipboardList} title="Certificate Details">
+      <DetailGrid>
+        <DetailField label="Certificate No."     value={r.bcert_number} />
+        <DetailField label="Purpose"             value={r.purpose} />
+        <DetailField label="Purpose Details"     value={r.purpose_details} />
+        <DetailField label="Period of Residency" value={r.period_of_residency} />
+        <DetailField label="Registered Voter"    value={r.registered_voter} />
+      </DetailGrid>
+    </Section>
+  </>
+);
+
+const ClearanceFields = ({ r }: { r: any }) => (
+  <>
+    <Section icon={User} title="Requester Details">
+      <DetailGrid>
+        <DetailField label="Full Name"           value={r.requester_name} />
+        <DetailField label="Date of Birth"       value={r.dob} />
+        <DetailField label="Place of Birth"      value={r.pob} />
+        <DetailField label="Contact No."         value={r.contact_no} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={MapPin} title="Address">
+      <DetailGrid>
+        <DetailField label="Address"             value={r.address} />
+        <DetailField label="House Owner"         value={r.house_owner} />
+        <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={ClipboardList} title="Clearance Details">
+      <DetailGrid>
+        <DetailField label="Clearance No."       value={r.bcert_number} />
+        <DetailField label="Purpose"             value={r.purpose} />
+        <DetailField label="Purpose Details"     value={r.purpose_details} />
+        <DetailField label="Period of Residency" value={r.period_of_residency} />
+        <DetailField label="Registered Voter"    value={r.registered_voter} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={Hash} title="Official Reference">
+      <DetailGrid>
+        <DetailField label="CTC / VRR No."       value={r.ctc_vrr_no} />
+        <DetailField label="Issued At"           value={r.issued_at} />
+        <DetailField label="Issued On"           value={r.issued_on} />
+        <DetailField label="O.R. Number"         value={r.or_no} />
+      </DetailGrid>
+    </Section>
+  </>
+);
+
+const BuildingFields = ({ r }: { r: any }) => (
+  <>
+    <Section icon={User} title="Applicant Details">
+      <DetailGrid>
+        <DetailField label="Full Name"           value={r.requester_name} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={Building2} title="Building Details">
+      <DetailGrid>
+        <DetailField label="Establishment"       value={r.raw?.establishment} />
+        <DetailField label="Purpose"             value={r.purpose} />
+        <DetailField label="Purpose Details"     value={r.purpose_details} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={MapPin} title="Project Location">
+      <DetailGrid>
+        <DetailField label="Address"             value={r.address} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={ShieldCheck} title="Clearance Info">
+      <DetailGrid>
+        <DetailField label="Clearance No."       value={r.bcert_number} />
+        <DetailField label="O.R. Number"         value={r.raw?.orNo} />
+        <DetailField label="Punong Barangay"     value={r.raw?.punongBarangay} />
+        <DetailField label="Barangay Position"   value={r.raw?.barangayPosition} />
+        {r.updated_by && <DetailField label="Updated By"     value={r.updated_by} />}
+      </DetailGrid>
+    </Section>
+  </>
+);
+
+const BusinessFields = ({ r }: { r: any }) => (
+  <>
+    <Section icon={User} title="Owner Details">
+      <DetailGrid>
+        <DetailField label="Full Name"           value={r.requester_name} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={Briefcase} title="Business Information">
+      <DetailGrid>
+        <DetailField label="Business Name"       value={r.raw?.businessName ?? r.purpose} />
+        <DetailField label="Business Type"       value={r.raw?.businessType} />
+        <DetailField label="Business Details"    value={r.purpose_details} />
+        <DetailField label="Capital (PHP)"       value={r.capital != null ? `₱${r.capital}` : ""} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={MapPin} title="Business Address">
+      <DetailGrid>
+        <DetailField label="Address"             value={r.address} />
+      </DetailGrid>
+    </Section>
+
+    <Section icon={ClipboardList} title="Clearance Details">
+      <DetailGrid>
+        <DetailField label="Barangay Business No." value={r.bcert_number} />
+        <DetailField label="O.R. Number"         value={r.raw?.orNo} />
+        {r.updated_by && <DetailField label="Updated By"   value={r.updated_by} />}
+      </DetailGrid>
+    </Section>
+
+    <Section icon={BadgeInfo} title="Inspection Details">
+      <DetailGrid>
+        <DetailField label="Inspected By"        value={r.inspected_by} />
+        <DetailField label="Date of Inspection"  value={r.date_of_inspection} />
+        <DetailField label="Inspection Remarks"  value={r.raw?.inspectionRemarks} />
+        <DetailField label="Additional Notes"    value={r.inspected_notes} />
+      </DetailGrid>
+    </Section>
+  </>
+);
+
+// ─── Main component ────────────────────────────────────────────────────────────
 export default function RequestDetail() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
 
+  const { id, type } = useParams<{ id: string; type: string }>();
+
   const { data: request, isLoading } = useQuery({
-    queryKey: ["request", id],
-    queryFn: () => fetchRequestById(id!),
-    enabled: !!id,
+    queryKey: ["request", type, id],
+    queryFn: () => fetchRequestById(type!, id!),
+    enabled: !!id && !!type,
   });
+
+  console.log("Request data:", request); // Debug log to check the structure of request
 
   const handleUpload = () => {
     setUploading(true);
@@ -39,269 +249,238 @@ export default function RequestDetail() {
     }, 1500);
   };
 
+
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin" style={{ color: NAVY }} />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin" style={{ color: NAVY }} />
       </div>
     );
   }
 
   if (!request) {
     return (
-      <div className="text-center py-20">
-        <div
-          className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
-          style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}
-        >
-          <FileText className="w-7 h-7" style={{ color: NAVY }} />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
+            style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}>
+            <FileText className="w-7 h-7" style={{ color: NAVY }} />
+          </div>
+          <p className="text-muted-foreground text-sm mb-4">Request not found.</p>
+          <button
+            className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
+            style={{ backgroundColor: NAVY, borderRadius: 1 }}
+            onClick={() => navigate("/myrequest")}
+            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
+            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+          >
+            Back to Requests
+          </button>
         </div>
-        <p className="text-muted-foreground text-sm mb-4">Request not found.</p>
-        <button
-          className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
-          style={{ backgroundColor: NAVY, borderRadius: 1 }}
-          onClick={() => navigate("/")}
-          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
-          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
-        >
-          Back to Dashboard
-        </button>
       </div>
     );
   }
 
-  const status = STATUS_CONFIG[request.status];
+  // const status = STATUS_CONFIG[request.status];
+  // const badge = statusStyle[request.status] ?? { bg: "#f0f4ff", text: NAVY, border: "#c8d5f0" };
+
+  const normalizedStatus = request.raw.status?.toLowerCase();
+  const badge = statusStyle[normalizedStatus] ?? {
+    bg: "#f3f4f6",
+    text: "#374151",
+    border: "#d1d5db",
+  };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-background">
       <Header />
-      <div className="mb-24">
 
-      </div>
-      {/* Back button */}
-      <button
-        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-6 transition-colors duration-200 group"
-        style={{ color: "#6b7280" }}
-        onClick={() => navigate("/myrequest")}
-        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = NAVY}
-        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "#6b7280"}
-      >
-        <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-        Back to Requests
-      </button>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 pb-16">
 
-      {/* Main card */}
-      <div
-        className="bg-card border border-border overflow-hidden"
-        style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
-      >
-        {/* Card header */}
-        <div
-          className="px-6 py-5"
-          style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
+        {/* Back button */}
+        <button
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-6 transition-colors duration-200 group"
+          style={{ color: "#6b7280" }}
+          onClick={() => navigate("/myrequest")}
+          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = NAVY}
+          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "#6b7280"}
         >
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div>
-              <p
-                className="text-[10px] font-bold uppercase tracking-[0.16em] mb-1"
-                style={{ color: PINK }}
-              >
-                Service Request
-              </p>
-              <h2
-                className="font-bold text-foreground flex items-center gap-2"
-                style={{ fontFamily: "'Georgia', serif", fontSize: "1.1rem" }}
-              >
-                <FileText className="h-5 w-5 flex-shrink-0" style={{ color: NAVY }} />
-                {DOCUMENT_LABELS[request.document_type]}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">Ref: {request.id}</p>
-            </div>
+          <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" />
+          Back to Requests
+        </button>
 
-            {/* Status badge */}
-            <span
-              className="self-start text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 border"
-              style={{
-                backgroundColor: "#f0f4ff",
-                color: NAVY,
-                borderColor: "#c8d5f0",
-                borderRadius: 1,
-              }}
-            >
-              {status?.label || request.status}
-            </span>
-          </div>
-        </div>
-
-        {/* Card body */}
-        <div className="p-6 space-y-5">
-
-          {/* Details grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-sm">
-            <div>
-              <p
-                className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                style={{ color: PINK }}
-              >
-                Purpose
-              </p>
-              <p className="text-foreground font-medium">{request.purpose}</p>
-            </div>
-            <div>
-              <p
-                className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                style={{ color: PINK }}
-              >
-                Date Submitted
-              </p>
-              <p className="text-foreground font-medium">
-                {format(new Date(request.created_at), "MMMM d, yyyy")}
-              </p>
-            </div>
-          </div>
-
-          {/* Schedule */}
-          {request.scheduled_date && (
-            <div
-              className="flex items-center gap-3 p-4"
-              style={{
-                backgroundColor: "#f0fdf4",
-                borderRadius: 2,
-                border: "1px solid #bbf7d0",
-                borderLeftWidth: 3,
-                borderLeftColor: "#16a34a",
-              }}
-            >
-              <Calendar className="h-5 w-5 flex-shrink-0" style={{ color: "#16a34a" }} />
+        {/* ── Main card ── */}
+        <div
+          className="bg-card border border-border overflow-hidden"
+          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
+        >
+          {/* Card header */}
+          <div
+            className="px-6 py-5"
+            style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
-                <p className="font-semibold text-sm" style={{ color: "#15803d" }}>
-                  Scheduled Pickup
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {format(new Date(request.scheduled_date), "MMMM d, yyyy 'at' h:mm a")}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Missing items */}
-          {request.missing_items && request.missing_items.length > 0 && (
-            <div
-              className="p-4"
-              style={{
-                backgroundColor: "#fefce8",
-                borderRadius: 2,
-                border: "1px solid #fde68a",
-                borderLeftWidth: 3,
-                borderLeftColor: "#ca8a04",
-              }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="h-5 w-5 flex-shrink-0" style={{ color: "#ca8a04" }} />
-                <p className="font-semibold text-sm" style={{ color: "#92400e" }}>
-                  Missing Information Required
-                </p>
-              </div>
-              <ul className="space-y-1.5 ml-7">
-                {request.missing_items.map((item, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                    <span style={{ color: "#ca8a04", flexShrink: 0 }}>—</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Remarks */}
-          {request.remarks && (
-            <div
-              className="p-4"
-              style={{
-                backgroundColor: "#fff1f2",
-                borderRadius: 2,
-                border: "1px solid #fecdd3",
-                borderLeftWidth: 3,
-                borderLeftColor: "#e11d48",
-              }}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <MessageSquare className="h-5 w-5 flex-shrink-0" style={{ color: "#e11d48" }} />
-                <p className="font-semibold text-sm" style={{ color: "#9f1239" }}>Remarks</p>
-              </div>
-              <p className="text-sm text-muted-foreground ml-7">{request.remarks}</p>
-            </div>
-          )}
-
-          {/* Uploaded files */}
-          {request.uploaded_files && request.uploaded_files.length > 0 && (
-            <div>
-              <p
-                className="text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2"
-                style={{ color: NAVY }}
-              >
-                <FileCheck className="h-4 w-4" />
-                Uploaded Documents
-              </p>
-              <div className="space-y-2">
-                {request.uploaded_files.map((file, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 text-sm p-3"
-                    style={{
-                      backgroundColor: "#f8faff",
-                      borderRadius: 2,
-                      border: "1px solid #dde3ed",
-                    }}
-                  >
-                    <FileText className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
-                    <span className="text-foreground">{file}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Upload section */}
-          {(request.status === "incomplete" || request.status === "pending") && (
-            <div className="pt-5" style={{ borderTop: "1px solid #e5e7eb" }}>
-              <p
-                className="text-[10px] font-bold uppercase tracking-wider mb-3"
-                style={{ color: PINK }}
-              >
-                Upload Additional Documents
-              </p>
-              <div className="flex gap-3">
-                <Input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="flex-1 text-sm border-border"
-                  style={{ borderRadius: 1 }}
-                />
-                <button
-                  onClick={handleUpload}
-                  disabled={uploading}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-60 shrink-0"
-                  style={{ backgroundColor: NAVY, borderRadius: 1 }}
-                  onMouseEnter={(e) => {
-                    if (!uploading)
-                      (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!uploading)
-                      (e.currentTarget as HTMLElement).style.backgroundColor = NAVY;
-                  }}
+                {/* Eyebrow */}
+                <div className="inline-flex items-center gap-2 mb-1.5">
+                  <div style={{ width: 16, height: 1, backgroundColor: PINK }} />
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: PINK }}>
+                    Service Request
+                  </p>
+                </div>
+                <h2
+                  className="font-bold text-foreground flex items-center gap-2"
+                  style={{ fontFamily: "'Georgia', serif", fontSize: "1.1rem" }}
                 >
-                  {uploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
+                  <FileText className="h-5 w-5 flex-shrink-0" style={{ color: NAVY }} />
+                  {DOCUMENT_LABELS[request.document_type]}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="font-bold" style={{ color: PINK }}>Ref: </span>
+                  {request.id}
+                  {request.bcert_number && (
+                    <span className="ml-3">
+                      <span className="font-bold" style={{ color: PINK }}>Doc No.: </span>
+                      {request.bcert_number}
+                    </span>
                   )}
-                  Upload
-                </button>
+                </p>
               </div>
+
+              {/* Status badge */}
+              <span
+                className="self-start text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 border flex-shrink-0"
+                style={{
+                  backgroundColor: badge.bg,
+                  color: badge.text,
+                  borderColor: badge.border,
+                  borderRadius: 2,
+                }}
+              >
+                {normalizedStatus}
+              </span>
             </div>
-          )}
+          </div>
+
+          {/* ── Card body ── */}
+          <div className="p-6 space-y-7">
+
+            {/* ── Submission meta ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pb-5"
+              style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <div>
+                <DetailLabel>Date Submitted</DetailLabel>
+                <DetailValue>{format(new Date(request.created_at), "MMMM d, yyyy")}</DetailValue>
+              </div>
+              {request.updated_at && (
+                <div>
+                  <DetailLabel>Last Updated</DetailLabel>
+                  <DetailValue>{format(new Date(request.updated_at), "MMMM d, yyyy")}</DetailValue>
+                </div>
+              )}
+            </div>
+
+            {/* ── Document-type-specific fields ── */}
+            {request.document_type === "barangay_certificate" && <CertificateFields r={request} />}
+            {request.document_type === "barangay_clearance"   && <ClearanceFields   r={request} />}
+            {request.document_type === "building_clearance"   && <BuildingFields    r={request} />}
+            {request.document_type === "business_clearance"   && <BusinessFields    r={request} />}
+
+            {/* ── Scheduled pickup ── */}
+            {request.scheduled_date && (
+              <div
+                className="flex items-center gap-3 p-4"
+                style={{ backgroundColor: "#f0fdf4", borderRadius: 2, border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a" }}
+              >
+                <Calendar className="h-5 w-5 flex-shrink-0" style={{ color: "#16a34a" }} />
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: "#15803d" }}>Scheduled Pickup</p>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(request.scheduled_date), "MMMM d, yyyy 'at' h:mm a")}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Missing items ── */}
+            {request.missing_items && request.missing_items.length > 0 && (
+              <div
+                className="p-4"
+                style={{ backgroundColor: "#fefce8", borderRadius: 2, border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04" }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0" style={{ color: "#ca8a04" }} />
+                  <p className="font-semibold text-sm" style={{ color: "#92400e" }}>Missing Information Required</p>
+                </div>
+                <ul className="space-y-1.5 ml-7">
+                  {request.missing_items.map((item: string, i: number) => (
+                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span style={{ color: "#ca8a04", flexShrink: 0 }}>—</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* ── Remarks ── */}
+            {request.remarks && (
+              <div
+                className="p-4"
+                style={{ backgroundColor: "#fff1f2", borderRadius: 2, border: "1px solid #fecdd3", borderLeftWidth: 3, borderLeftColor: "#e11d48" }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageSquare className="h-5 w-5 flex-shrink-0" style={{ color: "#e11d48" }} />
+                  <p className="font-semibold text-sm" style={{ color: "#9f1239" }}>Remarks</p>
+                </div>
+                <p className="text-sm text-muted-foreground ml-7">{request.remarks}</p>
+              </div>
+            )}
+
+            {/* ── Uploaded files (commented out in original, preserved) ── */}
+            {/* {request.uploaded_files && request.uploaded_files.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: NAVY }}>
+                  <FileCheck className="h-4 w-4" />
+                  Uploaded Documents
+                </p>
+                <div className="space-y-2">
+                  {request.uploaded_files.map((file: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm p-3"
+                      style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}>
+                      <FileText className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
+                      <span className="text-foreground">{file}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )} */}
+
+            {/* ── Upload section (commented out in original, preserved) ── */}
+            {/* {(request.status === "incomplete" || request.status === "pending") && (
+              <div className="pt-5" style={{ borderTop: "1px solid #e5e7eb" }}>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: PINK }}>
+                  Upload Additional Documents
+                </p>
+                <div className="flex gap-3">
+                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" className="flex-1 text-sm border-border" style={{ borderRadius: 1 }} />
+                  <button
+                    onClick={handleUpload}
+                    disabled={uploading}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-60 shrink-0"
+                    style={{ backgroundColor: NAVY, borderRadius: 1 }}
+                    onMouseEnter={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                    onMouseLeave={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
+                  >
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    Upload
+                  </button>
+                </div>
+              </div>
+            )} */}
+
+          </div>
         </div>
       </div>
     </div>

@@ -14,7 +14,7 @@ const PINK = "#c2467d";
 const FILTERS: { label: string; value: RequestStatus | "all" }[] = [
   { label: "All",        value: "all" },
   { label: "Pending",    value: "pending" },
-  { label: "Approved",   value: "approved" },
+  { label: "Released",   value: "released" },
   { label: "Incomplete", value: "incomplete" },
   { label: "Rejected",   value: "rejected" },
 ];
@@ -54,7 +54,7 @@ export default function MyRequest() {
             </h1>
             <div style={{ width: 48, height: 2, backgroundColor: PINK, margin: "10px auto 12px" }} />
             <p className="text-muted-foreground text-xs uppercase tracking-wider">
-              Track and manage your document requests
+              Track and view your document requests
             </p>
           </div>
 
@@ -144,7 +144,10 @@ export default function MyRequest() {
           ) : (
             <div className="grid gap-3">
               {filtered.map((req) => (
-                <RequestCard key={req.id} request={req} />
+                <RequestCard
+                  key={`${req.document_type}-${req.id}`}
+                  request={req}
+                />
               ))}
             </div>
           )}

@@ -1,374 +1,319 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { useState, useEffect } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
-interface BarangayCertificateFormProps {
-  onBack: () => void;
-}
+import {
+  NAVY, PINK,
+  FieldLabel, FieldInput, FieldTextarea,
+  SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
+} from "./LguFormPrimitives";
 
-const stepLabels = [
-  "Personal Info",
-  "Contact",
-  "Address",
-  "Certificate Details",
-  "Review",
-];
+interface BarangayCertificateFormProps { onBack: () => void; }
+interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
+
+const stepLabels = ["Personal Info", "Contact", "Address", "Certificate Details", "Review"];
+
+const ST = {
+  className: "border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none",
+  style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
+};
 
 const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [streets, setStreets] = useState<StreetOption[]>([]);
   const { toast } = useToast();
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) { console.error("Failed to fetch streets:", e); }
+    };
+    load();
+  }, []);
+
+  const uniqueZones = Array.from(new Set(
+    streets.map((s) => s.sitio).filter(Boolean)
+  ));
+
   const [formData, setFormData] = useState({
-    // Personal Information
     requester_type: "Online",
-    prefix: "",
-    firstname: "",
-    middle_name: "",
-    surname: "",
-    extension: "",
-    age: "",
-    date_of_birth: "",
-    place_of_birth: "",
-    // Contact
-    contact_no: "",
-    // Address
-    house_block_lot_no: "",
-    street: "",
-    zone: "",
-    house_owner: "",
-    relationship_to_owner: "",
-    // Certificate Details
-    bcert_number: "",
-    issued_date: "",
-    period_of_residency: "",
-    registered_voter: "",
-    purpose: "",
-    purpose_details: "",
-    punong_barangay: "",
-    for_the_punong_barangay: "",
+    prefix: "", firstname: "", middle_name: "", surname: "", extension: "",
+    age: "", date_of_birth: "", place_of_birth: "",
+    contact_no: "", email: "",
+    house_block_lot_no: "", street: "", zone: "",
+    house_owner: "", relationship_to_owner: "",
+    period_of_residency: "", registered_voter: "",
+    purpose: "", purpose_details: "",
+    punong_barangay: "", for_the_punong_barangay: "",
   });
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
+  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+  const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
-  const handleNext = () => {
-    if (currentStep < stepLabels.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      onBack();
-    }
-  };
+  console.log("Form data:", formData);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-
     try {
-      const response = await axios.post(
+      const res = await axios.post(
         "http://127.0.0.1:8000/api/barangay-certificates",
-        {
-          ...formData,
-          age: formData.age ? Number(formData.age) : null,
-        },
+        { ...formData, age: formData.age ? Number(formData.age) : null },
         { withCredentials: true }
       );
-
-      if (response.status === 201 || response.status === 200) {
-        toast({
-          title: "Success",
-          description: "Barangay certificate request submitted successfully.",
-        });
-
-        console.log("Created record:", response.data);
-
-        const savedRecordId = response.data?.data?.service?.id;
-        console.log("Saved Record ID:", savedRecordId);
-
+      if (res.status === 201 || res.status === 200) {
+        toast({ title: "Success", description: "Barangay certificate request submitted successfully." });
+        console.log("Created record:", res.data);
         onBack();
       }
     } catch (error: any) {
-      if (error.response?.status === 422) {
-        console.error("Validation errors:", error.response.data.errors);
-        toast({
-          title: "Validation Error",
-          description: "Please check the form. Some fields are invalid.",
-        });
-      } else {
-        console.error("Submission error:", error);
-        toast({
-          title: "Submission Error",
-          description: "Something went wrong. Please try again.",
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+      toast({
+        title: error.response?.status === 422 ? "Validation Error" : "Submission Error",
+        description: error.response?.status === 422
+          ? "Please check the form. Some fields are invalid."
+          : "Something went wrong. Please try again.",
+      });
+    } finally { setIsSubmitting(false); }
   };
-
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0:
-        return (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="prefix">Prefix</Label>
-                <Select value={formData.prefix} onValueChange={(v) => updateFormData("prefix", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mr.">Mr.</SelectItem>
-                    <SelectItem value="Mrs.">Mrs.</SelectItem>
-                    <SelectItem value="Ms.">Ms.</SelectItem>
-                    <SelectItem value="Dr.">Dr.</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="surname">Surname *</Label>
-                <Input id="surname" value={formData.surname} onChange={(e) => updateFormData("surname", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="firstname">First Name *</Label>
-                <Input id="firstname" value={formData.firstname} onChange={(e) => updateFormData("firstname", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="middle_name">Middle Name</Label>
-                <Input id="middle_name" value={formData.middle_name} onChange={(e) => updateFormData("middle_name", e.target.value)} />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="extension">Extension</Label>
-                <Input id="extension" placeholder="Jr., Sr., III" value={formData.extension} onChange={(e) => updateFormData("extension", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="age">Age *</Label>
-                <Input id="age" type="number" value={formData.age} onChange={(e) => updateFormData("age", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="date_of_birth">Date of Birth *</Label>
-                <Input id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => updateFormData("date_of_birth", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="place_of_birth">Place of Birth</Label>
-                <Input id="place_of_birth" value={formData.place_of_birth} onChange={(e) => updateFormData("place_of_birth", e.target.value)} />
-              </div>
-            </div>
-          </div>
-        );
+      // ── Step 0: Personal Info ───────────────────────────────────────────────
+      case 0: return (
+        <div className="space-y-6">
+          <SectionDivider title="Personal Information" />
 
-      case 1:
-        return (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
-              <Label htmlFor="contact_no">Contact Number *</Label>
-              <Input id="contact_no" type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} onChange={(e) => updateFormData("contact_no", e.target.value)} required />
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="house_block_lot_no">House/Block/Lot No. *</Label>
-              <Input id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => updateFormData("house_block_lot_no", e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="street">Street *</Label>
-              <Input id="street" value={formData.street} onChange={(e) => updateFormData("street", e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="zone">Zone/Purok *</Label>
-              <Input id="zone" value={formData.zone} onChange={(e) => updateFormData("zone", e.target.value)} required />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="house_owner">House Owner</Label>
-                <Input id="house_owner" value={formData.house_owner} onChange={(e) => updateFormData("house_owner", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="relationship_to_owner">Relationship to Owner</Label>
-                <Select value={formData.relationship_to_owner} onValueChange={(v) => updateFormData("relationship_to_owner", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Owner">Owner</SelectItem>
-                    <SelectItem value="Spouse">Spouse</SelectItem>
-                    <SelectItem value="Child">Child</SelectItem>
-                    <SelectItem value="Parent">Parent</SelectItem>
-                    <SelectItem value="Sibling">Sibling</SelectItem>
-                    <SelectItem value="Relative">Relative</SelectItem>
-                    <SelectItem value="Tenant">Tenant</SelectItem>
-                    <SelectItem value="Boarder">Boarder</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="bcert_number">Certificate Number</Label>
-                <Input id="bcert_number" placeholder="Auto-generated" value={formData.bcert_number} disabled />
-              </div>
-              <div>
-                <Label htmlFor="issued_date">Issued Date</Label>
-                <Input id="issued_date" type="date" value={formData.issued_date} onChange={(e) => updateFormData("issued_date", e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="period_of_residency">Period of Residency *</Label>
-                <Input id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => updateFormData("period_of_residency", e.target.value)} required />
-              </div>
-              <div>
-                <Label>Registered Voter</Label>
-                <RadioGroup value={formData.registered_voter} onValueChange={(v) => updateFormData("registered_voter", v)} className="flex gap-4 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Yes" id="cert-voter-yes" />
-                    <Label htmlFor="cert-voter-yes" className="font-normal">Yes</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="No" id="cert-voter-no" />
-                    <Label htmlFor="cert-voter-no" className="font-normal">No</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="purpose">Purpose *</Label>
-              <Select value={formData.purpose} onValueChange={(v) => updateFormData("purpose", v)}>
-                <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
+              <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
+              <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Residency">Proof of Residency</SelectItem>
-                  <SelectItem value="Employment">Employment</SelectItem>
-                  <SelectItem value="School">School Requirement</SelectItem>
-                  <SelectItem value="Travel">Travel</SelectItem>
-                  <SelectItem value="Legal">Legal Purposes</SelectItem>
-                  <SelectItem value="Bank">Bank Transaction</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  {["Mr.","Mrs.","Ms.","Dr."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-
             <div>
-              <Label htmlFor="purpose_details">Purpose Details</Label>
-              <Textarea id="purpose_details" placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => updateFormData("purpose_details", e.target.value)} />
+              <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
+              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="punong_barangay">Punong Barangay</Label>
-                <Input id="punong_barangay" value={formData.punong_barangay} onChange={(e) => updateFormData("punong_barangay", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="for_the_punong_barangay">For the Punong Barangay</Label>
-                <Input id="for_the_punong_barangay" value={formData.for_the_punong_barangay} onChange={(e) => updateFormData("for_the_punong_barangay", e.target.value)} />
-              </div>
+            <div>
+              <FieldLabel htmlFor="firstname" required>First Name</FieldLabel>
+              <FieldInput id="firstname" value={formData.firstname} onChange={(e) => upd("firstname", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
+              <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-6">
-            <h3 className="font-semibold text-lg mb-4">Review Your Information</h3>
-            
-            <div className="grid gap-6">
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Personal Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span>{formData.prefix} {formData.firstname} {formData.middle_name} {formData.surname} {formData.extension}</span>
-                  <span className="text-muted-foreground">Age:</span>
-                  <span>{formData.age || "Not specified"}</span>
-                  <span className="text-muted-foreground">Date of Birth:</span>
-                  <span>{formData.date_of_birth || "Not specified"}</span>
-                  <span className="text-muted-foreground">Place of Birth:</span>
-                  <span>{formData.place_of_birth || "Not specified"}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Contact Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Contact No.:</span>
-                  <span>{formData.contact_no || "Not specified"}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Address Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Address:</span>
-                  <span>{formData.house_block_lot_no} {formData.street}, Zone {formData.zone}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Certificate Details</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Purpose:</span>
-                  <span>{formData.purpose || "Not specified"}</span>
-                  <span className="text-muted-foreground">Period of Residency:</span>
-                  <span>{formData.period_of_residency || "Not specified"}</span>
-                  <span className="text-muted-foreground">Registered Voter:</span>
-                  <span>{formData.registered_voter || "Not specified"}</span>
-                </div>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="extension">Extension</FieldLabel>
+              <FieldInput id="extension" placeholder="Jr., Sr., III" value={formData.extension} onChange={(e) => upd("extension", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="age" required>Age</FieldLabel>
+              <FieldInput id="age" type="number" value={formData.age} onChange={(e) => upd("age", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="date_of_birth" required>Date of Birth</FieldLabel>
+              <FieldInput id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => upd("date_of_birth", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="place_of_birth" required>Place of Birth</FieldLabel>
+              <FieldInput id="place_of_birth" value={formData.place_of_birth} onChange={(e) => upd("place_of_birth", e.target.value)} />
             </div>
           </div>
-        );
+        </div>
+      );
 
-      default:
-        return null;
+      // ── Step 1: Contact ─────────────────────────────────────────────────────
+      case 1: return (
+        <div className="space-y-6">
+          <SectionDivider title="Contact Information" />
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="contact_no" required>Contact Number</FieldLabel>
+            <FieldInput id="contact_no" type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} onChange={(e) => upd("contact_no", e.target.value)} />
+          </div>
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="email" required>Email Address</FieldLabel>
+            <FieldInput id="email" type="email" placeholder="example@domain.com" value={formData.email} onChange={(e) => upd("email", e.target.value)} />
+          </div>
+        </div>
+      );
+
+      // ── Step 2: Address ─────────────────────────────────────────────────────
+      case 2: return (
+        <div className="space-y-6">
+          <SectionDivider title="Address Information" />
+          <div>
+            <FieldLabel htmlFor="house_block_lot_no" required>House / Block / Lot No.</FieldLabel>
+            <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="street" required>Street</FieldLabel>
+            {streets.length > 0 ? (
+              <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select street" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {streets.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" />
+            )}
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
+            {uniqueZones.length > 0 ? (
+              <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select zone" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="house_owner">House Owner</FieldLabel>
+              <FieldInput id="house_owner" value={formData.house_owner} onChange={(e) => upd("house_owner", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── Step 3: Certificate Details ─────────────────────────────────────────
+      case 3: return (
+        <div className="space-y-6">
+          <SectionDivider title="Certificate Details" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            {/* <div>
+              <FieldLabel htmlFor="bcert_number">Certificate Number</FieldLabel>
+              <FieldInput id="bcert_number" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
+            </div> */}
+            {/* <div>
+              <FieldLabel htmlFor="issued_date">Issued Date</FieldLabel>
+              <FieldInput id="issued_date" type="date" value={formData.issued_date} onChange={(e) => upd("issued_date", e.target.value)} />
+            </div> */}
+            <div>
+              <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
+              <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel>Registered Voter</FieldLabel>
+              <RadioGroup value={formData.registered_voter} onValueChange={(v) => upd("registered_voter", v)} className="flex gap-6 mt-2.5">
+                {["Yes","No"].map((opt) => (
+                  <div key={opt} className="flex items-center gap-2">
+                    <RadioGroupItem value={opt} id={`cert-voter-${opt}`} />
+                    <label htmlFor={`cert-voter-${opt}`} className="text-sm cursor-pointer">{opt}</label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
+            <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
+              <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
+              <SelectContent>
+                {["Residency","Employment","School","Travel","Legal","Bank","Other"].map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="purpose_details">Purpose Details</FieldLabel>
+            <FieldTextarea id="purpose_details" rows={3} placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} />
+          </div>
+
+          {/* <SectionDivider title="Authorization" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="punong_barangay">Punong Barangay</FieldLabel>
+              <FieldInput id="punong_barangay" value={formData.punong_barangay} onChange={(e) => upd("punong_barangay", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="for_the_punong_barangay">For the Punong Barangay</FieldLabel>
+              <FieldInput id="for_the_punong_barangay" value={formData.for_the_punong_barangay} onChange={(e) => upd("for_the_punong_barangay", e.target.value)} />
+            </div>
+          </div> */}
+        </div>
+      );
+
+      // ── Step 4: Review ──────────────────────────────────────────────────────
+      case 4: return (
+        <div className="space-y-5">
+          <ReviewHeader current={5} total={5} />
+          <ReviewCard title="Personal Information">
+            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.firstname} ${formData.middle_name} ${formData.surname} ${formData.extension}`.trim()} />
+            <ReviewRow label="Age" value={formData.age} />
+            <ReviewRow label="Date of Birth" value={formData.date_of_birth} />
+            <ReviewRow label="Place of Birth" value={formData.place_of_birth} />
+          </ReviewCard>
+          <ReviewCard title="Contact Information">
+            <ReviewRow label="Contact No." value={formData.contact_no} />
+          </ReviewCard>
+          <ReviewCard title="Address">
+            <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
+            <ReviewRow label="Street" value={formData.street} />
+            <ReviewRow label="Zone / Purok" value={formData.zone} />
+          </ReviewCard>
+          <ReviewCard title="Certificate Details">
+            <ReviewRow label="Purpose" value={formData.purpose} />
+            <ReviewRow label="Period of Residency" value={formData.period_of_residency} />
+            <ReviewRow label="Registered Voter" value={formData.registered_voter} />
+          </ReviewCard>
+        </div>
+      );
+
+      default: return null;
     }
   };
 
   return (
-    <Card className="shadow-lg">
-
-      <CardContent className="pt-6">
-        <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
-        {renderStep()}
-        <FormNavigation
-          currentStep={currentStep}
-          totalSteps={stepLabels.length}
-          onBack={handleBack}
-          onNext={handleNext}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </CardContent>
-    </Card>
+    <FormCard title="Barangay Certificate" subtitle="Online Application">
+      <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
+      <div className="mt-6">{renderStep()}</div>
+      <FormNavigation
+        currentStep={currentStep} totalSteps={stepLabels.length}
+        onBack={handleBack} onNext={handleNext}
+        onSubmit={handleSubmit} isSubmitting={isSubmitting}
+      />
+    </FormCard>
   );
 };
 

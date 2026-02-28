@@ -193,7 +193,7 @@ const EmailVerification = () => {
                   className="flex items-center justify-between pt-2"
                   style={{ borderTop: "1px solid #f0f0f0" }}
                 >
-                  <Link to="/" className="text-xs font-semibold hover:underline inline-flex items-center gap-1" style={{ color: "#6b7280" }}>
+                  <Link to="/login" className="text-xs font-semibold hover:underline inline-flex items-center gap-1" style={{ color: "#6b7280" }}>
                     <ArrowLeft className="w-3 h-3" /> Back to Login
                   </Link>
                   <button

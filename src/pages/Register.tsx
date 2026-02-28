@@ -105,7 +105,7 @@ const Register = () => {
         <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>
-              Republic of the Philippines · City of Makati
+              Republic of the Philippines · City of Taguig
             </p>
             <h1
               className="text-white font-bold"
@@ -329,7 +329,7 @@ const Register = () => {
             >
               <p className="text-xs" style={{ color: "#9ca3af" }}>
                 Already registered?{" "}
-                <Link to="/" className="font-semibold hover:underline" style={{ color: "#0f2a5e" }}>Sign in here</Link>
+                <Link to="/login" className="font-semibold hover:underline" style={{ color: "#0f2a5e" }}>Sign in here</Link>
               </p>
               <div className="flex gap-3">
                 <button

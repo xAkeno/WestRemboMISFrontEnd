@@ -1,534 +1,472 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { useState, useEffect } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
+import { UserCircle2 } from "lucide-react";
+import {
+  NAVY, PINK,
+  FieldLabel, FieldInput, FieldTextarea,
+  SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
+} from "./LguFormPrimitives";
 
-interface ResidentRegistrationFormProps {
-  onBack: () => void;
-}
+interface ResidentRegistrationFormProps { onBack: () => void; }
+interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 
-const stepLabels = [
-  "Personal Info",
-  "Contact",
-  "Address",
-  "Residency",
-  "Review",
-];
+const stepLabels = ["Personal Info", "Contact", "Address", "Residency", "Review"];
+
+const ST = {
+  className: "border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none",
+  style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
+};
 
 const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
+  const [streets, setStreets] = useState<StreetOption[]>([]);
   const [residentImage, setResidentImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) { console.error("Failed to fetch streets:", e); }
+    };
+    load();
+  }, []);
+
+  const uniqueZones = Array.from(new Set(
+    streets.map((s) => s.sitio).filter(Boolean)
+  ));
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setResidentImage(file);
     setImagePreview(URL.createObjectURL(file));
   };
 
-
-  
   const [formData, setFormData] = useState({
-    // Personal Information
     requester_type: "Online",
-    prefix: "",
-    surname: "",
-    first_name: "",
-    middle_name: "",
-    ext_name: "",
-    nick_name: "",
-    sex: "",
-    marital_status: "",
-    name_of_spouse: "",
-    date_of_birth: "",
-    place_of_birth: "",
-    height_cm: 0,
-    weight_kg: 0,
-    blood_type: "",
-    complexion: "",
-    religion: "",
-    // Contact Information
-    phone_number: "",
-    email_address: "",
-    // Address Information
-    house_block_lot_no: "",
-    street: "",
-    zone: "",
-    house_owner: "",
-    relationship_to_owner: "",
-    // Residency & Status
-    resident_status: "",
-    voter_status: "",
-    precinct_no: "",
-    emp_status: "",
-    occupation: "",
-    position: "",
-    pwd: "",
+    prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
+    nick_name: "", sex: "", marital_status: "", name_of_spouse: "",
+    date_of_birth: "", place_of_birth: "",
+    height_cm: 0, weight_kg: 0, blood_type: "", complexion: "", religion: "",
+    phone_number: "", email_address: "",
+    house_block_lot_no: "", street: "", zone: "",
+    house_owner: "", relationship_to_owner: "",
+    resident_status: "", voter_status: "", precinct_no: "",
+    emp_status: "", occupation: "", position: "", pwd: "",
     period_of_residency: "",
-    // Additional Details
     notes: "",
   });
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleNext = () => {
-    if (currentStep < stepLabels.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      onBack();
-    }
-  };
+  const upd = (f: string, v: string | number) => setFormData((p) => ({ ...p, [f]: v }));
+  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+  const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-
     try {
-      // Prepare FormData for file upload
       const payload = new FormData();
-      Object.entries(formData).forEach(([key, value]) =>
-        payload.append(key, String(value))
-      );
+      Object.entries(formData).forEach(([k, v]) => payload.append(k, String(v)));
+      if (residentImage) payload.append("photo", residentImage);
 
-      if (residentImage) {
-        payload.append("photo", residentImage);
-      }
-
-      console.log("Submitting resident data:", formData);
-
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/residents",
-        payload,
-        { withCredentials: true }
-      );
-
-
-      
-
-      if (response.status === 201 || response.status === 200) {
-        toast({
-          title: "Request Submitted",
-          description: "Your resident registration request has been submitted successfully.",
-        });
+      const res = await axios.post("http://127.0.0.1:8000/api/residents", payload, { withCredentials: true });
+      if (res.status === 201 || res.status === 200) {
+        toast({ title: "Request Submitted", description: "Your resident registration request has been submitted successfully." });
         onBack();
       }
-    } catch (error) {
-      toast({
-        title: "Submission Failed",
-        description: "There was an error submitting your request. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch {
+      toast({ title: "Submission Failed", description: "There was an error submitting your request. Please try again.", variant: "destructive" });
+    } finally { setIsSubmitting(false); }
   };
-
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0:
-        return (
-          <div className="grid gap-4">
-            <div className="flex items-center gap-6 mb-6">
-            {/* Image Preview */}
-            <div className="w-28 h-28 rounded-full border flex items-center justify-center overflow-hidden bg-muted">
+      // ── Step 0: Personal Info ───────────────────────────────────────────────
+      case 0: return (
+        <div className="space-y-6">
+          {/* Photo upload */}
+          <div
+            className="flex items-center gap-6 p-4"
+            style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}
+          >
+            {/* Avatar preview */}
+            <div
+              className="flex-shrink-0 overflow-hidden"
+              style={{
+                width: 80, height: 80, borderRadius: 2,
+                border: `2px solid ${PINK}`,
+                backgroundColor: "#f0f4ff",
+              }}
+            >
               {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Resident Preview"
-                  className="w-full h-full object-cover"
-                />
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-xs text-muted-foreground text-center px-2">
-                  No Image
-                </span>
+                <div className="w-full h-full flex items-center justify-center">
+                  <UserCircle2 className="w-10 h-10" style={{ color: "#c8d5f0" }} />
+                </div>
               )}
             </div>
 
-            {/* Upload Button */}
-            <div>
-              <Label htmlFor="resident_image">Resident Photo</Label>
-              <Input
+            {/* Upload control */}
+            <div className="flex-1">
+              <FieldLabel htmlFor="resident_image">Resident Photo</FieldLabel>
+              <input
                 id="resident_image"
                 type="file"
                 accept="image/*"
                 onChange={handleImageChange}
-                className="mt-2"
+                className="block w-full text-sm text-gray-500 mt-1
+                  file:mr-3 file:py-1.5 file:px-3
+                  file:border file:rounded-none file:text-[10px] file:font-bold
+                  file:uppercase file:tracking-wider file:cursor-pointer
+                  file:transition-colors file:duration-200"
+                style={{
+                  ["--file-bg" as any]: "#f0f4ff",
+                  ["--file-color" as any]: NAVY,
+                  ["--file-border-color" as any]: "#c8d5f0",
+                }}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                JPG, PNG — max 5MB
-              </p>
+              <p className="text-[10px] text-gray-400 mt-1">JPG, PNG — max 5MB</p>
             </div>
           </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="prefix">Prefix</Label>
-                <Select value={formData.prefix} onValueChange={(v) => updateFormData("prefix", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mr.">Mr.</SelectItem>
-                    <SelectItem value="Mrs.">Mrs.</SelectItem>
-                    <SelectItem value="Ms.">Ms.</SelectItem>
-                    <SelectItem value="Dr.">Dr.</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="surname">Surname *</Label>
-                <Input id="surname" value={formData.surname} onChange={(e) => updateFormData("surname", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="first_name">First Name *</Label>
-                <Input id="first_name" value={formData.first_name} onChange={(e) => updateFormData("first_name", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="middle_name">Middle Name</Label>
-                <Input id="middle_name" value={formData.middle_name} onChange={(e) => updateFormData("middle_name", e.target.value)} />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="ext_name">Extension (Jr., Sr.)</Label>
-                <Input id="ext_name" value={formData.ext_name} onChange={(e) => updateFormData("ext_name", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="nick_name">Nickname</Label>
-                <Input id="nick_name" value={formData.nick_name} onChange={(e) => updateFormData("nick_name", e.target.value)} />
-              </div>
-              <div>
-                <Label>Sex *</Label>
-                <RadioGroup value={formData.sex} onValueChange={(v) => updateFormData("sex", v)} className="flex gap-4 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Male" id="male" />
-                    <Label htmlFor="male" className="font-normal">Male</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Female" id="female" />
-                    <Label htmlFor="female" className="font-normal">Female</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              <div>
-                <Label htmlFor="marital_status">Marital Status</Label>
-                <Select value={formData.marital_status} onValueChange={(v) => updateFormData("marital_status", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Single">Single</SelectItem>
-                    <SelectItem value="Married">Married</SelectItem>
-                    <SelectItem value="Widowed">Widowed</SelectItem>
-                    <SelectItem value="Separated">Separated</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+          <SectionDivider title="Personal Information" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name_of_spouse">Name of Spouse</Label>
-                <Input id="name_of_spouse" value={formData.name_of_spouse} onChange={(e) => updateFormData("name_of_spouse", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="date_of_birth">Date of Birth *</Label>
-                <Input id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => updateFormData("date_of_birth", e.target.value)} required />
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
+              <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Mr.","Mrs.","Ms.","Dr."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="place_of_birth">Place of Birth</Label>
-                <Input id="place_of_birth" value={formData.place_of_birth} onChange={(e) => updateFormData("place_of_birth", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="religion">Religion</Label>
-                <Input id="religion" value={formData.religion} onChange={(e) => updateFormData("religion", e.target.value)} />
-              </div>
+            <div>
+              <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
+              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="height_cm">Height (cm)</Label>
-                <Input id="height_cm" type="number" value={formData.height_cm} onChange={(e) => updateFormData("height_cm", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="weight_kg">Weight (kg)</Label>
-                <Input id="weight_kg" type="number" value={formData.weight_kg} onChange={(e) => updateFormData("weight_kg", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="blood_type">Blood Type</Label>
-                <Select value={formData.blood_type} onValueChange={(v) => updateFormData("blood_type", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="A+">A+</SelectItem>
-                    <SelectItem value="A-">A-</SelectItem>
-                    <SelectItem value="B+">B+</SelectItem>
-                    <SelectItem value="B-">B-</SelectItem>
-                    <SelectItem value="O+">O+</SelectItem>
-                    <SelectItem value="O-">O-</SelectItem>
-                    <SelectItem value="AB+">AB+</SelectItem>
-                    <SelectItem value="AB-">AB-</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="complexion">Complexion</Label>
-                <Select value={formData.complexion} onValueChange={(v) => updateFormData("complexion", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Fair">Fair</SelectItem>
-                    <SelectItem value="Light">Light</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Tan">Tan</SelectItem>
-                    <SelectItem value="Dark">Dark</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
+              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
+              <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-        );
 
-      case 1:
-        return (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
-              <Label htmlFor="phone_number">Phone Number *</Label>
-              <Input id="phone_number" type="tel" placeholder="09XX XXX XXXX" value={formData.phone_number} onChange={(e) => updateFormData("phone_number", e.target.value)} required />
+              <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
+              <FieldInput id="ext_name" placeholder="Jr., Sr." value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="email_address">Email Address</Label>
-              <Input id="email_address" type="email" placeholder="your.email@example.com" value={formData.email_address} onChange={(e) => updateFormData("email_address", e.target.value)} />
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="house_block_lot_no">House/Block/Lot No. *</Label>
-              <Input id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => updateFormData("house_block_lot_no", e.target.value)} required />
+              <FieldLabel htmlFor="nick_name">Nickname</FieldLabel>
+              <FieldInput id="nick_name" value={formData.nick_name} onChange={(e) => upd("nick_name", e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="street">Street *</Label>
-              <Input id="street" value={formData.street} onChange={(e) => updateFormData("street", e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="zone">Zone/Purok *</Label>
-              <Input id="zone" value={formData.zone} onChange={(e) => updateFormData("zone", e.target.value)} required />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="house_owner">House Owner</Label>
-                <Input id="house_owner" value={formData.house_owner} onChange={(e) => updateFormData("house_owner", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="relationship_to_owner">Relationship to Owner</Label>
-                <Select value={formData.relationship_to_owner} onValueChange={(v) => updateFormData("relationship_to_owner", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Owner">Owner</SelectItem>
-                    <SelectItem value="Spouse">Spouse</SelectItem>
-                    <SelectItem value="Child">Child</SelectItem>
-                    <SelectItem value="Parent">Parent</SelectItem>
-                    <SelectItem value="Sibling">Sibling</SelectItem>
-                    <SelectItem value="Relative">Relative</SelectItem>
-                    <SelectItem value="Tenant">Tenant</SelectItem>
-                    <SelectItem value="Boarder">Boarder</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="resident_status">Resident Status</Label>
-                <Select value={formData.resident_status} onValueChange={(v) => updateFormData("resident_status", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Permanent">Permanent</SelectItem>
-                    <SelectItem value="Temporary">Temporary</SelectItem>
-                    <SelectItem value="Transient">Transient</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="period_of_residency">Period of Residency</Label>
-                <Input id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => updateFormData("period_of_residency", e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Voter Status</Label>
-                <RadioGroup value={formData.voter_status} onValueChange={(v) => updateFormData("voter_status", v)} className="flex gap-4 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Registered" id="registered" />
-                    <Label htmlFor="registered" className="font-normal">Registered</Label>
+              <FieldLabel required>Sex</FieldLabel>
+              <RadioGroup value={formData.sex} onValueChange={(v) => upd("sex", v)} className="flex gap-5 mt-2.5">
+                {["Male","Female"].map((s) => (
+                  <div key={s} className="flex items-center gap-2">
+                    <RadioGroupItem value={s} id={`sex-${s}`} />
+                    <label htmlFor={`sex-${s}`} className="text-sm cursor-pointer">{s}</label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Not Registered" id="not-registered" />
-                    <Label htmlFor="not-registered" className="font-normal">Not Registered</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              <div>
-                <Label htmlFor="precinct_no">Precinct No.</Label>
-                <Input id="precinct_no" value={formData.precinct_no} onChange={(e) => updateFormData("precinct_no", e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="emp_status">Employment Status</Label>
-                <Select value={formData.emp_status} onValueChange={(v) => updateFormData("emp_status", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Employed">Employed</SelectItem>
-                    <SelectItem value="Self-Employed">Self-Employed</SelectItem>
-                    <SelectItem value="Unemployed">Unemployed</SelectItem>
-                    <SelectItem value="Student">Student</SelectItem>
-                    <SelectItem value="Retired">Retired</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="occupation">Occupation</Label>
-                <Input id="occupation" value={formData.occupation} onChange={(e) => updateFormData("occupation", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="position">Position</Label>
-                <Input id="position" value={formData.position} onChange={(e) => updateFormData("position", e.target.value)} />
-              </div>
-            </div>
-
-            <div>
-              <Label>PWD Status</Label>
-              <RadioGroup value={formData.pwd} onValueChange={(v) => updateFormData("pwd", v)} className="flex gap-4 mt-2">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Yes" id="pwd-yes" />
-                  <Label htmlFor="pwd-yes" className="font-normal">Yes</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="No" id="pwd-no" />
-                  <Label htmlFor="pwd-no" className="font-normal">No</Label>
-                </div>
+                ))}
               </RadioGroup>
             </div>
-          </div>
-        );
-
-      case 4:
-        return (
-          <div className="space-y-6">
             <div>
-              <h3 className="font-semibold text-lg mb-4">Review Your Information</h3>
-              
-              <div className="grid gap-6">
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gold mb-2">Personal Information</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Name:</span>
-                    <span>{formData.prefix} {formData.first_name} {formData.middle_name} {formData.surname} {formData.ext_name}</span>
-                    <span className="text-muted-foreground">Sex:</span>
-                    <span>{formData.sex || "Not specified"}</span>
-                    <span className="text-muted-foreground">Date of Birth:</span>
-                    <span>{formData.date_of_birth || "Not specified"}</span>
-                    <span className="text-muted-foreground">Marital Status:</span>
-                    <span>{formData.marital_status || "Not specified"}</span>
-                  </div>
-                </div>
+              <FieldLabel htmlFor="marital_status" required>Marital Status</FieldLabel>
+              <Select value={formData.marital_status} onValueChange={(v) => upd("marital_status", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Single","Married","Widowed","Separated"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gold mb-2">Contact Information</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Phone:</span>
-                    <span>{formData.phone_number || "Not specified"}</span>
-                    <span className="text-muted-foreground">Email:</span>
-                    <span>{formData.email_address || "Not specified"}</span>
-                  </div>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="name_of_spouse">Name of Spouse</FieldLabel>
+              <FieldInput id="name_of_spouse" value={formData.name_of_spouse} onChange={(e) => upd("name_of_spouse", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="date_of_birth" required>Date of Birth</FieldLabel>
+              <FieldInput id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => upd("date_of_birth", e.target.value)} />
+            </div>
+          </div>
 
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gold mb-2">Address Information</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Address:</span>
-                    <span>{formData.house_block_lot_no} {formData.street}, Zone {formData.zone}</span>
-                    <span className="text-muted-foreground">House Owner:</span>
-                    <span>{formData.house_owner || "Not specified"}</span>
-                  </div>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="place_of_birth" required>Place of Birth</FieldLabel>
+              <FieldInput id="place_of_birth" value={formData.place_of_birth} onChange={(e) => upd("place_of_birth", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="religion" required>Religion</FieldLabel>
+              <FieldInput id="religion" value={formData.religion} onChange={(e) => upd("religion", e.target.value)} />
+            </div>
+          </div>
 
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gold mb-2">Residency & Status</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Resident Status:</span>
-                    <span>{formData.resident_status || "Not specified"}</span>
-                    <span className="text-muted-foreground">Voter Status:</span>
-                    <span>{formData.voter_status || "Not specified"}</span>
-                    <span className="text-muted-foreground">Employment:</span>
-                    <span>{formData.emp_status || "Not specified"}</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="height_cm" required>Height (cm)</FieldLabel>
+              <FieldInput id="height_cm" type="number" value={formData.height_cm || ""} onChange={(e) => upd("height_cm", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="weight_kg" required>Weight (kg)</FieldLabel>
+              <FieldInput id="weight_kg" type="number" value={formData.weight_kg || ""} onChange={(e) => upd("weight_kg", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="blood_type" required>Blood Type</FieldLabel>
+              <Select value={formData.blood_type} onValueChange={(v) => upd("blood_type", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["A+","A-","B+","B-","O+","O-","AB+","AB-","N/A"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <FieldLabel htmlFor="complexion" required>Complexion</FieldLabel>
+              <Select value={formData.complexion} onValueChange={(v) => upd("complexion", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Fair","Light","Medium","Tan","Dark"].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── Step 1: Contact ─────────────────────────────────────────────────────
+      case 1: return (
+        <div className="space-y-6">
+          <SectionDivider title="Contact Information" />
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="phone_number" required>Phone Number</FieldLabel>
+            <FieldInput id="phone_number" type="tel" placeholder="09XX XXX XXXX" value={formData.phone_number} onChange={(e) => upd("phone_number", e.target.value)} />
+          </div>
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="email_address" required>Email Address</FieldLabel>
+            <FieldInput id="email_address" type="email" placeholder="your.email@example.com" value={formData.email_address} onChange={(e) => upd("email_address", e.target.value)} />
+          </div>
+        </div>
+      );
+
+      // ── Step 2: Address ─────────────────────────────────────────────────────
+      case 2: return (
+        <div className="space-y-6">
+          <SectionDivider title="Address Information" />
+
+          <div>
+            <FieldLabel htmlFor="house_block_lot_no" required>House / Block / Lot No.</FieldLabel>
+            <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="street" required>Street</FieldLabel>
+            {streets.length > 0 ? (
+              <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select street" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {streets.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" />
+            )}
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
+            {uniqueZones.length > 0 ? (
+              <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select zone" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="house_owner">House Owner</FieldLabel>
+              <FieldInput id="house_owner" value={formData.house_owner} onChange={(e) => upd("house_owner", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── Step 3: Residency & Status ──────────────────────────────────────────
+      case 3: return (
+        <div className="space-y-6">
+          <SectionDivider title="Residency Information" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="resident_status" required>Resident Status</FieldLabel>
+              <Select value={formData.resident_status} onValueChange={(v) => upd("resident_status", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Permanent","Temporary","Transient"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
+              <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
+            </div>
+          </div>
+
+          <SectionDivider title="Voter & Employment Status" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel required>Voter Status</FieldLabel>
+              <RadioGroup value={formData.voter_status} onValueChange={(v) => upd("voter_status", v)} className="flex gap-5 mt-2.5">
+                {["Registered","Not Registered"].map((s) => (
+                  <div key={s} className="flex items-center gap-2">
+                    <RadioGroupItem value={s} id={`voter-${s}`} />
+                    <label htmlFor={`voter-${s}`} className="text-sm cursor-pointer">{s}</label>
                   </div>
+                ))}
+              </RadioGroup>
+            </div>
+            <div>
+              <FieldLabel htmlFor="precinct_no">Precinct No.</FieldLabel>
+              <FieldInput id="precinct_no" value={formData.precinct_no} onChange={(e) => upd("precinct_no", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="emp_status" required>Employment Status</FieldLabel>
+              <Select value={formData.emp_status} onValueChange={(v) => upd("emp_status", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Employed","Self-Employed","Unemployed","Student","Retired"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
+              <FieldInput id="occupation" value={formData.occupation} onChange={(e) => upd("occupation", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="position">Position</FieldLabel>
+              <FieldInput id="position" value={formData.position} onChange={(e) => upd("position", e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel required>PWD Status</FieldLabel>
+            <RadioGroup value={formData.pwd} onValueChange={(v) => upd("pwd", v)} className="flex gap-6 mt-2.5">
+              {["Yes","No"].map((opt) => (
+                <div key={opt} className="flex items-center gap-2">
+                  <RadioGroupItem value={opt} id={`pwd-${opt}`} />
+                  <label htmlFor={`pwd-${opt}`} className="text-sm cursor-pointer">{opt}</label>
                 </div>
+              ))}
+            </RadioGroup>
+          </div>
+        </div>
+      );
+
+      // ── Step 4: Review ──────────────────────────────────────────────────────
+      case 4: return (
+        <div className="space-y-5">
+          <ReviewHeader current={5} total={5} />
+
+          {/* Photo preview in review */}
+          {imagePreview && (
+            <div className="flex items-center gap-4 p-4" style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}>
+              <img src={imagePreview} alt="Resident" className="w-14 h-14 object-cover flex-shrink-0" style={{ borderRadius: 2, border: `2px solid ${PINK}` }} />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PINK }}>Photo</p>
+                <p className="text-sm text-foreground">{residentImage?.name}</p>
               </div>
             </div>
+          )}
 
-            <div>
-              <Label htmlFor="notes">Additional Notes</Label>
-              <Textarea id="notes" placeholder="Any additional information..." value={formData.notes} onChange={(e) => updateFormData("notes", e.target.value)} />
-            </div>
+          <ReviewCard title="Personal Information">
+            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+            <ReviewRow label="Sex" value={formData.sex} />
+            <ReviewRow label="Date of Birth" value={formData.date_of_birth} />
+            <ReviewRow label="Marital Status" value={formData.marital_status} />
+            <ReviewRow label="Religion" value={formData.religion} />
+          </ReviewCard>
+
+          <ReviewCard title="Contact Information">
+            <ReviewRow label="Phone" value={formData.phone_number} />
+            <ReviewRow label="Email" value={formData.email_address} />
+          </ReviewCard>
+
+          <ReviewCard title="Address Information">
+            <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
+            <ReviewRow label="Street" value={formData.street} />
+            <ReviewRow label="Zone / Purok" value={formData.zone} />
+            <ReviewRow label="House Owner" value={formData.house_owner} />
+          </ReviewCard>
+
+          <ReviewCard title="Residency & Status">
+            <ReviewRow label="Resident Status" value={formData.resident_status} />
+            <ReviewRow label="Voter Status" value={formData.voter_status} />
+            <ReviewRow label="Employment" value={formData.emp_status} />
+            <ReviewRow label="PWD" value={formData.pwd} />
+          </ReviewCard>
+
+          {/* Notes */}
+          <div>
+            <FieldLabel htmlFor="notes">Additional Notes</FieldLabel>
+            <FieldTextarea id="notes" rows={3} placeholder="Any additional information..." value={formData.notes} onChange={(e) => upd("notes", e.target.value)} />
           </div>
-        );
+        </div>
+      );
 
-      default:
-        return null;
+      default: return null;
     }
   };
 
   return (
-    <Card className="shadow-lg">
-      <CardContent className="pt-6">
-        <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
-        {renderStep()}
-        <FormNavigation
-          currentStep={currentStep}
-          totalSteps={stepLabels.length}
-          onBack={handleBack}
-          onNext={handleNext}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </CardContent>
-    </Card>
+    <FormCard title="Resident Registration" subtitle="Online Application">
+      <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
+      <div className="mt-6">{renderStep()}</div>
+      <FormNavigation
+        currentStep={currentStep} totalSteps={stepLabels.length}
+        onBack={handleBack} onNext={handleNext}
+        onSubmit={handleSubmit} isSubmitting={isSubmitting}
+      />
+    </FormCard>
   );
 };
 

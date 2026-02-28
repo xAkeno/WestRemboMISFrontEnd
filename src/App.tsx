@@ -56,7 +56,8 @@ import { useEffect } from "react";
 import ForgotPassword from "./pages/ForgotPassword";
 import EmailVerification from "./pages/EmailVerification";
 const queryClient = new QueryClient();
-
+import { Navigate } from "react-router-dom";
+import ProtectedRoute from "./ProtectedRoute";
 const App = () => {
 
   useEffect(() => {
@@ -77,9 +78,10 @@ const App = () => {
           <LanguageProvider>
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<Login />} /> {/*Login*/}
+                <Route path="/login" element={<Login />} /> {/*Login*/}
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/event-detail/:id" element={<EventDetail />} />
+                <Route path="/" element={<Navigate to="/home" replace />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/profile" element={<ProfileManagement />} />
                 <Route path="/aboutus" element={<AboutUsSection />} />
@@ -98,7 +100,7 @@ const App = () => {
                 <Route path="/clearancehome" element={<ClearanceForm/>} /> {/*Clearance home */}
 
                 <Route path="/myrequest" element={<MyRequest />} />
-                <Route path="/request/:id" element={<RequestDetail />} />
+                <Route path="/request/:type/:id" element={<RequestDetail />} />
                 
                 <Route path="/clearancehome/bussinessclearance" element={<BusinessClearance />} /> 
                 <Route path="/clearancehome/bussinessclearance/create" element={<BussinessClearanceForm />} /> {/*Residents ???*/}
@@ -115,26 +117,26 @@ const App = () => {
                 {/* Admin */}
                 <Route path="/aboutus-admin" element={<AboutUsCms />} /> {/*About Us CMS*/}
                 <Route path="/contact-admin" element={<Contact />} /> {/*Contact Admin*/}
-                <Route path="/backup-recovery" element={<BackupRecovery />} /> {/*Backup Recovery*/}
+                <Route path="/backup-recovery" element={<ProtectedRoute allowedRoles={["admin","staff"]}><BackupRecovery /></ProtectedRoute>} /> {/*Backup Recovery*/}
                 <Route path="/elected-officials" element={<ElectedOfficials />} /> {/*Elected Officials*/}
                 <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
-                <Route path="/websitesetting" element={<WebsiteSettings />} /> {/*Website Settings*/}
-                <Route path="/activity-log" element={<ActivityLog />} /> {/*Activity Log*/}
-                <Route path="/document-setting" element={<DocumentGrid />} /> {/*Document Grid*/}
+                <Route path="/websitesetting" element={<ProtectedRoute allowedRoles={["admin","staff"]}><WebsiteSettings /></ProtectedRoute>} /> {/*Website Settings*/}
+                <Route path="/activity-log" element={<ProtectedRoute allowedRoles={["admin","staff"]}><ActivityLog /></ProtectedRoute>} /> {/*Activity Log*/}
+                <Route path="/document-setting" element={<ProtectedRoute allowedRoles={["admin","staff"]}><DocumentGrid /></ProtectedRoute>} /> {/*Document Grid*/}
                 {/* <Route path="/document-table" element={<DocumentTable />} /> */}
 
 
                 <Route path="/register" element={<Register />} /> {/*Register*/}
                 <Route path="/kiosk" element={<FrontDesk />} /> {/*Front Desk*/}
-                <Route path="/certificatehome/certificate" element={<Index />} /> {/*Barangay Certificate */}
+                <Route path="/certificatehome/certificate" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Index /></ProtectedRoute>} /> {/*Barangay Certificate */}
 
                 <Route path="/reports" element={<Reports />} /> {/*Report*/}
                 <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
-                <Route path="/dashboard" element={<Dashboard />} /> {/*Dashboard*/}
-                <Route path="/settings" element={<SettingsPage/>} /> {/*Setting ?? */}
+                <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Dashboard /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin","staff"]}><SettingsPage /></ProtectedRoute>} /> {/*Setting ?? */}
 
 
-                <Route path="/cashier" element={<Cashier />} /> {/*Residents ???*/}
+                <Route path="/cashier" element={<ProtectedRoute allowedRoles={["admin","staff"]}><Cashier /></ProtectedRoute>} /> {/*Residents ???*/}
                 <Route path="/settings/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>

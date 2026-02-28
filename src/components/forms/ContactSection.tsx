@@ -1,31 +1,55 @@
 import { useState } from "react";
 import { MapPin, Mail, Phone, Facebook, Clock, Send } from "lucide-react";
 import Header from "./Header";
+import axios from "axios";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 const contactInfo = [
-  { icon: MapPin,    title: "Location",     content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City" },
-  { icon: Mail,      title: "Email",        content: "westrembo@gmail.com" },
-  { icon: Phone,     title: "Telephone",    content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733" },
-  { icon: Facebook,  title: "Facebook",     content: "West Rembo FB" },
-  { icon: Clock,     title: "Office Hours", content: "Monday–Saturday  5:00 AM – 6:00 PM" },
+  { icon: MapPin, title: "Location", content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City" },
+  { icon: Mail, title: "Email", content: "westrembo@gmail.com" },
+  { icon: Phone, title: "Telephone", content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733" },
+  { icon: Facebook, title: "Facebook", content: "West Rembo FB" },
+  { icon: Clock, title: "Office Hours", content: "Monday–Saturday  5:00 AM – 6:00 PM" },
 ];
 
 const ContactSection = () => {
   const [formData, setFormData] = useState({
-    firstName: "", lastName: "", email: "",
-    phoneNumber: "", address: "", topic: "", message: "",
+    first_name: "", last_name: "", email: "",
+    phone: "", home_address: "", subject: "", message: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
+    setLoading(true);
+    setSuccess("");
+    setError("");
+
+    try {
+      await axios.post("http://127.0.0.1:8000/api/contact", formData)
+        .then(res => console.log(res.data))
+        .catch(err => console.error(err));
+
+
+      setSuccess("Your inquiry has been sent successfully!");
+      setFormData({
+        first_name: "", last_name: "", email: "",
+        phone: "", home_address: "", subject: "", message: "",
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError("Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Shared underline input style
@@ -50,7 +74,6 @@ const ContactSection = () => {
       <Header />
 
       <div className="container mx-auto pt-32 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl">
-
         {/* Section Header */}
         <div className="text-center mb-14">
           <div className="inline-flex items-center gap-3 mb-4">
@@ -72,7 +95,6 @@ const ContactSection = () => {
 
         {/* Main grid */}
         <div className="grid lg:grid-cols-2 gap-12 items-start mb-14">
-
           {/* Left — info */}
           <div>
             <p className="text-muted-foreground text-base leading-relaxed mb-8">
@@ -121,22 +143,25 @@ const ContactSection = () => {
                 All fields marked are required to process your inquiry.
               </p>
 
+              {success && <p className="mb-4 text-green-600">{success}</p>}
+              {error && <p className="mb-4 text-red-600">{error}</p>}
+
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
-                  {[
-                    { name: "firstName",  label: "First Name",   ph: "Juan" },
-                    { name: "lastName",   label: "Last Name",    ph: "dela Cruz" },
-                  ].map(({ name, label, ph }) => (
+                  {["firstName", "lastName"].map((name) => (
                     <div key={name}>
-                      <label className={labelCls} style={{ color: PINK }}>{label}</label>
+                      <label className={labelCls} style={{ color: PINK }}>
+                        {name === "firstName" ? "First Name" : "Last Name"}
+                      </label>
                       <input
                         name={name}
                         value={(formData as any)[name]}
                         onChange={handleChange}
-                        placeholder={ph}
+                        placeholder={name === "firstName" ? "Juan" : "dela Cruz"}
                         style={inputBase}
                         onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                         onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                        required
                       />
                     </div>
                   ))}
@@ -144,8 +169,8 @@ const ContactSection = () => {
 
                 <div className="grid sm:grid-cols-2 gap-6">
                   {[
-                    { name: "email",       label: "Email Address", type: "email", ph: "juan@example.com" },
-                    { name: "phoneNumber", label: "Phone Number",                 ph: "09XX-XXX-XXXX" },
+                    { name: "email", label: "Email Address", type: "email", ph: "juan@example.com" },
+                    { name: "phoneNumber", label: "Phone Number", ph: "09XX-XXX-XXXX" },
                   ].map(({ name, label, type, ph }) => (
                     <div key={name}>
                       <label className={labelCls} style={{ color: PINK }}>{label}</label>
@@ -158,25 +183,26 @@ const ContactSection = () => {
                         style={inputBase}
                         onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                         onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                        required
                       />
                     </div>
                   ))}
                 </div>
 
-                {[
-                  { name: "address", label: "Home Address", ph: "Your full home address" },
-                  { name: "topic",   label: "Subject / Topic", ph: "What is your concern about?" },
-                ].map(({ name, label, ph }) => (
+                {["address", "topic"].map((name) => (
                   <div key={name}>
-                    <label className={labelCls} style={{ color: PINK }}>{label}</label>
+                    <label className={labelCls} style={{ color: PINK }}>
+                      {name === "address" ? "Home Address" : "Subject / Topic"}
+                    </label>
                     <input
                       name={name}
                       value={(formData as any)[name]}
                       onChange={handleChange}
-                      placeholder={ph}
+                      placeholder={name === "address" ? "Your full home address" : "What is your concern about?"}
                       style={inputBase}
                       onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                       onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                      required
                     />
                   </div>
                 ))}
@@ -192,6 +218,7 @@ const ContactSection = () => {
                     style={{ ...inputBase, resize: "none" }}
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
+                    required
                   />
                 </div>
 
@@ -201,38 +228,14 @@ const ContactSection = () => {
                   style={{ backgroundColor: NAVY, borderRadius: 1 }}
                   onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
                   onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+                  disabled={loading}
                 >
                   <Send className="w-4 h-4" />
-                  Submit Inquiry
+                  {loading ? "Sending..." : "Submit Inquiry"}
                 </button>
               </div>
             </div>
           </form>
-        </div>
-
-        {/* Contact info — mobile */}
-        <div className="lg:hidden grid sm:grid-cols-2 gap-3">
-          {contactInfo.map((info) => {
-            const Icon = info.icon;
-            return (
-              <div
-                key={info.title}
-                className="flex items-start gap-4 p-4 border border-border bg-card"
-                style={{ borderRadius: 2, borderLeftWidth: 2, borderLeftColor: PINK }}
-              >
-                <div
-                  className="w-8 h-8 flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}
-                >
-                  <Icon className="w-4 h-4" style={{ color: NAVY }} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>{info.title}</p>
-                  <p className="text-sm text-foreground">{info.content}</p>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </section>

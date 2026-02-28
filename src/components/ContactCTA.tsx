@@ -135,7 +135,7 @@ const ContactCTA = () => {
               >
                 <p className="text-white/40 text-xs uppercase tracking-wider">Address</p>
                 <p className="text-white/75 text-sm leading-relaxed">
-                  Plaza Drive A. Mabini St. (21st),<br />West Rembo, Makati City
+                  Plaza Drive A. Mabini St. (21st),<br />West Rembo, Taguig City
                 </p>
               </div>
             </div>

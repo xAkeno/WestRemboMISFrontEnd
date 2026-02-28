@@ -1,416 +1,348 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { useState, useEffect } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/components/services/clearanceApi";
+import {
+  NAVY, PINK,
+  FieldLabel, FieldInput, FieldTextarea,
+  SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
+} from "./LguFormPrimitives";
 
-interface BarangayClearanceFormProps {
-  onBack: () => void;
-}
+interface BarangayClearanceFormProps { onBack: () => void; }
+interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 
-const stepLabels = [
-  "Personal Info",
-  "Contact",
-  "Address",
-  "Clearance Details",
-  "Review",
-];
+const stepLabels = ["Personal Info", "Contact", "Address", "Clearance Details", "Review"];
+
+const ST = {
+  className: "border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none",
+  style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
+};
 
 const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [streets, setStreets] = useState<StreetOption[]>([]);
   const { toast } = useToast();
 
+  // Fetch streets from API on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get("/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) { console.error("Failed to fetch streets:", e); }
+    };
+    load();
+  }, []);
+
+  const uniqueZones = Array.from(new Set(
+    streets.map((s) => s.sitio).filter(Boolean)
+  ));
+
   const [formData, setFormData] = useState({
-    // Personal Information
     requester_type: "Online",
-    prefix: "",
-    surname: "",
-    first_name: "",
-    middle_name: "",
-    ext_name: "",
-    dob: "",
-    pob: "",
-    // Contact
-    contact_no: "",
-    // Address
-    house_block_lot_no: "",
-    street: "",
-    zone: "",
-    house_owner: "",
-    relationship_to_owner: "",
-    // Clearance Details
-    bcert_number: "",
-    issued_date: "",
-    period_of_residency: "",
-    registered_voter: "",
-    purpose: "",
-    purpose_details: "",
-    ctc_vrr_no: "",
-    issued_at: "",
-    issued_on: "",
-    or_no: "",
-    remarks: "",
+    prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
+    dob: "", pob: "",
+    contact_no: "", email: "",
+    house_block_lot_no: "", street: "", zone: "",
+    house_owner: "", relationship_to_owner: "",
+    bcert_number: "", issued_date: "",
+    period_of_residency: "", registered_voter: "",
+    purpose: "", purpose_details: "",
+    ctc_vrr_no: "", issued_at: "", issued_on: "", or_no: "", remarks: "",
   });
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleNext = () => {
-    if (currentStep < stepLabels.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      onBack();
-    }
-  };
+  const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
+  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+  const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-
-    // Map front-end keys to Laravel keys
     const payload = {
-      requester_type: formData.requester_type,
-      prefix: formData.prefix,
-      surname: formData.surname,
-      first_name: formData.first_name,
-      middle_name: formData.middle_name,
-      ext_name: formData.ext_name,
-      house_block_lot_no: formData.house_block_lot_no,
-      street: formData.street,
-      zone: formData.zone,
-      dob: formData.dob,
-      pob: formData.pob,
-      contact_no: formData.contact_no,
-      period_of_residency: formData.period_of_residency,
-      registered_voter: formData.registered_voter,
-      house_owner: formData.house_owner,
+      requester_type: formData.requester_type, prefix: formData.prefix,
+      surname: formData.surname, first_name: formData.first_name,
+      middle_name: formData.middle_name, ext_name: formData.ext_name,
+      house_block_lot_no: formData.house_block_lot_no, street: formData.street,
+      zone: formData.zone, dob: formData.dob, pob: formData.pob,
+      contact_no: formData.contact_no, period_of_residency: formData.period_of_residency,
+      email: formData.email,
+      registered_voter: formData.registered_voter, house_owner: formData.house_owner,
       relationship_to_owner: formData.relationship_to_owner,
-      bcert_number: formData.bcert_number,
-      issued_date: formData.issued_date,
-      purpose: formData.purpose,
-      purpose_details: formData.purpose_details,
-      ctc_vrr_no: formData.ctc_vrr_no,
-      issued_at: formData.issued_at,
-      issued_on: formData.issued_on,
-      or_no: formData.or_no,
-      bomarke: formData.remarks, // map remarks to bomarke
+      bcert_number: formData.bcert_number, issued_date: formData.issued_date,
+      purpose: formData.purpose, purpose_details: formData.purpose_details,
+      ctc_vrr_no: formData.ctc_vrr_no, issued_at: formData.issued_at,
+      issued_on: formData.issued_on, or_no: formData.or_no,
+      bomarke: formData.remarks,
     };
-
-
     try {
-      const response = await api.post("/barangay-clearances", payload, {
-        withCredentials: true,
-      });
-
-      if (response.status === 200 || response.status === 201) {
-        toast({
-          title: "Request Submitted",
-          description:
-            "Your barangay clearance request has been submitted successfully.",
-        });
-
-        console.log("Created clearance record:", response.data);
-
-        const savedRecordId = response.data?.data?.service?.id;
-        console.log("Saved Record ID:", savedRecordId);
-
+      const res = await api.post("/barangay-clearances", payload, { withCredentials: true });
+      if (res.status === 200 || res.status === 201) {
+        toast({ title: "Request Submitted", description: "Your barangay clearance request has been submitted successfully." });
         onBack();
       }
     } catch (error: any) {
-      if (error.response?.status === 422) {
-        console.error("Validation errors:", error.response.data.errors);
-        toast({
-          title: "Validation Error",
-          description: "Please check required fields and try again.",
-          variant: "destructive",
-        });
-      } else {
-        console.error("Submission error:", error);
-        toast({
-          title: "Error",
-          description: "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+      toast({
+        title: error.response?.status === 422 ? "Validation Error" : "Error",
+        description: error.response?.status === 422 ? "Please check required fields and try again." : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally { setIsSubmitting(false); }
   };
-
-
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0:
-        return (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="prefix">Prefix</Label>
-                <Select value={formData.prefix} onValueChange={(v) => updateFormData("prefix", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mr.">Mr.</SelectItem>
-                    <SelectItem value="Mrs.">Mrs.</SelectItem>
-                    <SelectItem value="Ms.">Ms.</SelectItem>
-                    <SelectItem value="Dr.">Dr.</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="surname">Surname *</Label>
-                <Input id="surname" value={formData.surname} onChange={(e) => updateFormData("surname", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="first_name">First Name *</Label>
-                <Input id="first_name" value={formData.first_name} onChange={(e) => updateFormData("first_name", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="middle_name">Middle Name</Label>
-                <Input id="middle_name" value={formData.middle_name} onChange={(e) => updateFormData("middle_name", e.target.value)} />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="ext_name">Extension</Label>
-                <Input id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => updateFormData("ext_name", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="dob">Date of Birth *</Label>
-                <Input id="dob" type="date" value={formData.dob} onChange={(e) => updateFormData("dob", e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="pob">Place of Birth</Label>
-                <Input id="pob" value={formData.pob} onChange={(e) => updateFormData("pob", e.target.value)} />
-              </div>
-            </div>
-          </div>
-        );
+      // ── Step 0: Personal Info ───────────────────────────────────────────────
+      case 0: return (
+        <div className="space-y-6">
+          <SectionDivider title="Personal Information" />
 
-      case 1:
-        return (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+            {/* Prefix */}
             <div>
-              <Label htmlFor="contact_no">Contact Number *</Label>
-              <Input id="contact_no" type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} onChange={(e) => updateFormData("contact_no", e.target.value)} required />
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="house_block_lot_no">House/Block/Lot No. *</Label>
-              <Input id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => updateFormData("house_block_lot_no", e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="street">Street *</Label>
-              <Input id="street" value={formData.street} onChange={(e) => updateFormData("street", e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="zone">Zone/Purok *</Label>
-              <Input id="zone" value={formData.zone} onChange={(e) => updateFormData("zone", e.target.value)} required />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="house_owner">House Owner</Label>
-                <Input id="house_owner" value={formData.house_owner} onChange={(e) => updateFormData("house_owner", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="relationship_to_owner">Relationship to Owner</Label>
-                <Select value={formData.relationship_to_owner} onValueChange={(v) => updateFormData("relationship_to_owner", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Owner">Owner</SelectItem>
-                    <SelectItem value="Spouse">Spouse</SelectItem>
-                    <SelectItem value="Child">Child</SelectItem>
-                    <SelectItem value="Parent">Parent</SelectItem>
-                    <SelectItem value="Sibling">Sibling</SelectItem>
-                    <SelectItem value="Relative">Relative</SelectItem>
-                    <SelectItem value="Tenant">Tenant</SelectItem>
-                    <SelectItem value="Boarder">Boarder</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="bcert_number">Clearance Number</Label>
-                <Input id="bcert_number" placeholder="Auto-generated" value={formData.bcert_number} onChange={(e) => updateFormData("bcert_number", e.target.value)} disabled />
-              </div>
-              <div>
-                <Label htmlFor="issued_date">Issued Date</Label>
-                <Input id="issued_date" type="date" value={formData.issued_date} onChange={(e) => updateFormData("issued_date", e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="period_of_residency">Period of Residency *</Label>
-                <Input id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => updateFormData("period_of_residency", e.target.value)} required />
-              </div>
-              <div>
-                <Label>Registered Voter</Label>
-                <RadioGroup value={formData.registered_voter} onValueChange={(v) => updateFormData("registered_voter", v)} className="flex gap-4 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Yes" id="voter-yes" />
-                    <Label htmlFor="voter-yes" className="font-normal">Yes</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="No" id="voter-no" />
-                    <Label htmlFor="voter-no" className="font-normal">No</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="purpose">Purpose *</Label>
-              <Select value={formData.purpose} onValueChange={(v) => updateFormData("purpose", v)}>
-                <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
+              <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
+              <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Employment">Employment</SelectItem>
-                  <SelectItem value="Business">Business</SelectItem>
-                  <SelectItem value="Travel">Travel</SelectItem>
-                  <SelectItem value="Legal">Legal Purposes</SelectItem>
-                  <SelectItem value="School">School Requirement</SelectItem>
-                  <SelectItem value="Bank">Bank Transaction</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  {["Mr.","Mrs.","Ms.","Dr."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-
             <div>
-              <Label htmlFor="purpose_details">Purpose Details</Label>
-              <Textarea id="purpose_details" placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => updateFormData("purpose_details", e.target.value)} />
+              <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
+              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="ctc_vrr_no">CTC/VRR No.</Label>
-                <Input id="ctc_vrr_no" value={formData.ctc_vrr_no} onChange={(e) => updateFormData("ctc_vrr_no", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="issued_at">Issued At</Label>
-                <Input id="issued_at" value={formData.issued_at} onChange={(e) => updateFormData("issued_at", e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="issued_on">Issued On</Label>
-                <Input id="issued_on" type="date" value={formData.issued_on} onChange={(e) => updateFormData("issued_on", e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="or_no">O.R. Number</Label>
-                <Input id="or_no" value={formData.or_no} onChange={(e) => updateFormData("or_no", e.target.value)} />
-              </div>
-            </div>
-
             <div>
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea id="remarks" value={formData.remarks} onChange={(e) => updateFormData("remarks", e.target.value)} />
+              <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
+              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
+              <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-6">
-            <h3 className="font-semibold text-lg mb-4">Review Your Information</h3>
-            
-            <div className="grid gap-6">
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Personal Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span>{formData.prefix} {formData.first_name} {formData.middle_name} {formData.surname} {formData.ext_name}</span>
-                  <span className="text-muted-foreground">Date of Birth:</span>
-                  <span>{formData.dob || "Not specified"}</span>
-                  <span className="text-muted-foreground">Place of Birth:</span>
-                  <span>{formData.pob || "Not specified"}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Contact Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Contact No.:</span>
-                  <span>{formData.contact_no || "Not specified"}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Address Information</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Address:</span>
-                  <span>{formData.house_block_lot_no} {formData.street}, Zone {formData.zone}</span>
-                </div>
-              </div>
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gold mb-2">Clearance Details</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Purpose:</span>
-                  <span>{formData.purpose || "Not specified"}</span>
-                  <span className="text-muted-foreground">Period of Residency:</span>
-                  <span>{formData.period_of_residency || "Not specified"}</span>
-                  <span className="text-muted-foreground">Registered Voter:</span>
-                  <span>{formData.registered_voter || "Not specified"}</span>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
+              <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
+              <FieldInput id="pob" value={formData.pob} onChange={(e) => upd("pob", e.target.value)} />
             </div>
           </div>
-        );
+        </div>
+      );
 
-      default:
-        return null;
+      // ── Step 1: Contact ─────────────────────────────────────────────────────
+      case 1: return (
+        <div className="space-y-6">
+          <SectionDivider title="Contact Information" />
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="contact_no" required>Contact Number</FieldLabel>
+            <FieldInput id="contact_no" type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} onChange={(e) => upd("contact_no", e.target.value)} />
+          </div>
+          <div className="max-w-sm">
+            <FieldLabel htmlFor="email" required>Email Address</FieldLabel>
+            <FieldInput id="email" type="email" placeholder="example@domain.com" value={formData.email} onChange={(e) => upd("email", e.target.value)} />
+          </div>
+        </div>
+      );
+
+      // ── Step 2: Address ─────────────────────────────────────────────────────
+      case 2: return (
+        <div className="space-y-6">
+          <SectionDivider title="Address Information" />
+
+          <div>
+            <FieldLabel htmlFor="house_block_lot_no" required>House / Block / Lot No.</FieldLabel>
+            <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
+          </div>
+
+          {/* Street — fetched dropdown, fallback to text input */}
+          <div>
+            <FieldLabel htmlFor="street" required>Street</FieldLabel>
+            {streets.length > 0 ? (
+              <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select street" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {streets.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" />
+            )}
+          </div>
+
+          {/* Zone — derived from fetched streets' sitio field */}
+          <div>
+            <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
+            {uniqueZones.length > 0 ? (
+              <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select zone" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {uniqueZones.map((z) => (
+                    <SelectItem key={z} value={z}>{z}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="house_owner">House Owner</FieldLabel>
+              <FieldInput id="house_owner" value={formData.house_owner} onChange={(e) => upd("house_owner", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── Step 3: Clearance Details ───────────────────────────────────────────
+      case 3: return (
+        <div className="space-y-6">
+          <SectionDivider title="Clearance Details" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            {/* <div>
+              <FieldLabel htmlFor="bcert_number">Clearance Number</FieldLabel>
+              <FieldInput id="bcert_number" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="issued_date">Issued Date</FieldLabel>
+              <FieldInput id="issued_date" type="date" value={formData.issued_date} onChange={(e) => upd("issued_date", e.target.value)} />
+            </div> */}
+            <div>
+              <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
+              <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel>Registered Voter</FieldLabel>
+              <RadioGroup value={formData.registered_voter} onValueChange={(v) => upd("registered_voter", v)} className="flex gap-6 mt-2.5">
+                {["Yes","No"].map((opt) => (
+                  <div key={opt} className="flex items-center gap-2">
+                    <RadioGroupItem value={opt} id={`voter-${opt}`} />
+                    <label htmlFor={`voter-${opt}`} className="text-sm cursor-pointer">{opt}</label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
+            <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
+              <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
+              <SelectContent>
+                {["Employment","Business","Travel","Legal Purposes","School Requirement","Bank Transaction","Other"].map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="purpose_details">Purpose Details</FieldLabel>
+            <FieldTextarea id="purpose_details" rows={3} placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} />
+          </div>
+
+          {/* <SectionDivider title="Official Use Only" />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="ctc_vrr_no">CTC / VRR No.</FieldLabel>
+              <FieldInput id="ctc_vrr_no" value={formData.ctc_vrr_no} onChange={(e) => upd("ctc_vrr_no", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="issued_at">Issued At</FieldLabel>
+              <FieldInput id="issued_at" value={formData.issued_at} onChange={(e) => upd("issued_at", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="issued_on">Issued On</FieldLabel>
+              <FieldInput id="issued_on" type="date" value={formData.issued_on} onChange={(e) => upd("issued_on", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="max-w-xs">
+            <FieldLabel htmlFor="or_no">O.R. Number</FieldLabel>
+            <FieldInput id="or_no" value={formData.or_no} onChange={(e) => upd("or_no", e.target.value)} />
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="remarks">Remarks</FieldLabel>
+            <FieldTextarea id="remarks" rows={3} value={formData.remarks} onChange={(e) => upd("remarks", e.target.value)} />
+          </div> */}
+        </div>
+      );
+
+      // ── Step 4: Review ──────────────────────────────────────────────────────
+      case 4: return (
+        <div className="space-y-5">
+          <ReviewHeader current={5} total={5} />
+          <ReviewCard title="Personal Information">
+            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+            <ReviewRow label="Date of Birth" value={formData.dob} />
+            <ReviewRow label="Place of Birth" value={formData.pob} />
+          </ReviewCard>
+          <ReviewCard title="Contact Information">
+            <ReviewRow label="Contact No." value={formData.contact_no} />
+          </ReviewCard>
+          <ReviewCard title="Address">
+            <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
+            <ReviewRow label="Street" value={formData.street} />
+            <ReviewRow label="Zone / Purok" value={formData.zone} />
+            <ReviewRow label="House Owner" value={formData.house_owner} />
+            <ReviewRow label="Relationship" value={formData.relationship_to_owner} />
+          </ReviewCard>
+          <ReviewCard title="Clearance Details">
+            <ReviewRow label="Purpose" value={formData.purpose} />
+            <ReviewRow label="Period of Residency" value={formData.period_of_residency} />
+            <ReviewRow label="Registered Voter" value={formData.registered_voter} />
+            <ReviewRow label="Purpose Details" value={formData.purpose_details} />
+          </ReviewCard>
+        </div>
+      );
+
+      default: return null;
     }
   };
 
   return (
-    <Card className="shadow-lg">
-
-      <CardContent className="pt-6">
-        <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
-        {renderStep()}
-        <FormNavigation
-          currentStep={currentStep}
-          totalSteps={stepLabels.length}
-          onBack={handleBack}
-          onNext={handleNext}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </CardContent>
-    </Card>
+    <FormCard title="Barangay Clearance" subtitle="Online Application">
+      <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
+      <div className="mt-6">{renderStep()}</div>
+      <FormNavigation
+        currentStep={currentStep} totalSteps={stepLabels.length}
+        onBack={handleBack} onNext={handleNext}
+        onSubmit={handleSubmit} isSubmitting={isSubmitting}
+      />
+    </FormCard>
   );
 };
 
