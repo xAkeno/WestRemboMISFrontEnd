@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import AuthLayout from "@/components/AuthLayout";
@@ -8,13 +8,16 @@ import { Label } from "@/components/ui/label";
 import { ShieldCheck, CheckCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import logo from "@/assets/West_Rembo_Logo.png";
 
+
 const EmailVerification = () => {
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [verified, setVerified] = useState(false);
   const { toast } = useToast();
-
+  const location = useLocation();
+  const email = location.state?.email || "";
+  const [cooldown, setCooldown] = useState(0);
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code) {
@@ -23,7 +26,7 @@ const EmailVerification = () => {
     }
     setIsLoading(true);
     try {
-      await api.post("/api/verify-email", { code });
+      await api.post("/api/verify", { email,code });
       setVerified(true);
       toast({ title: "Verified", description: "Your email has been verified successfully." });
     } catch (error: any) {
@@ -45,6 +48,50 @@ const EmailVerification = () => {
       setIsResending(false);
     }
   };
+  const startCooldown = () => {
+    setCooldown(60);
+
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendVerification = async () => {
+    if (cooldown > 0) return;
+    if (!email.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your email first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await api.post("/resend-verification-code", { email });
+
+      toast({
+        title: "Code Sent ✅",
+        description: "A new verification code has been sent to your email.",
+      });
+      startCooldown();
+    } catch (error: any) {
+      toast({
+        title: "Failed ❌",
+        description:
+          error.response?.data?.message ||
+          "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   return (
     <AuthLayout>
@@ -103,7 +150,7 @@ const EmailVerification = () => {
                 Your email address has been verified. You may now proceed to log in to your account.
               </p>
               <Link
-                to="/"
+                to="/login"
                 className="inline-flex items-center gap-2 px-6 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
                 onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
@@ -203,7 +250,7 @@ const EmailVerification = () => {
                     className="text-xs font-semibold hover:underline inline-flex items-center gap-1 disabled:opacity-50"
                     style={{ color: "#c2467d" }}
                   >
-                    {isResending && <RefreshCw className="w-3 h-3 animate-spin" />}
+                    {isResending && <RefreshCw onClick={handleResendVerification} className="w-3 h-3 animate-spin" />}
                     Resend Code
                   </button>
                 </div>

@@ -75,6 +75,21 @@ const Header = () => {
     }
   };
 
+  const signout = async () => {
+    try {
+      await axios.post(
+        "http://127.0.0.1:8000/api/logout",
+        { withCredentials: true }
+      );
+
+      setSelf(null);
+      navigate("/home");
+      toast.success("You have been signed out.");
+    } catch (error) {
+      toast.error("Failed to sign out.");
+    }
+  };
+
   const isActive = (href: string) => location.pathname === href;
   return (
     <>
@@ -292,6 +307,21 @@ const MobileProfilePanel = ({
     self: any;
     onClose: () => void;
   }) => {
+    const navigate = useNavigate();
+
+  const signout = async () => {
+    try {
+      await axios.post(
+        "http://127.0.0.1:8000/api/logout",
+        {},
+        { withCredentials: true }
+      );
+      navigate("/home");
+      toast.success("You have been signed out.");
+    } catch (error) {
+      toast.error("Failed to sign out.");
+    }
+  };
 
     
   const [isDark, setIsDark] = useState(
@@ -415,7 +445,7 @@ const MobileProfilePanel = ({
       {/* Sign out */}
       <a
         href="/"
-        onClick={onClose}
+        onClick={signout}
         className={row}
         style={{ color: "#f87171" }}
       >

@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-
+import { toast } from "../ui/sonner";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 export default function ProfileDropdown({ self }: { self: { url_photo: string, first_name: string, surname: string, email: string, role: string } | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -18,6 +21,21 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const signout = async () => {
+    try {
+      await axios.post(
+        "http://127.0.0.1:8000/api/logout",
+        {},
+        { withCredentials: true }
+      );
+
+      navigate("/home");
+      toast.success("You have been signed out.");
+    } catch (error) {
+      toast.error("Failed to sign out.");
+    }
+  };
 
   const toggleDarkMode = () => {
     const html = document.documentElement;
@@ -140,7 +158,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
             <li><div className="h-px mx-2 my-1" style={{ backgroundColor: "#fce7f3" }} /></li>
 
             <li>
-              <a href="/" className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 hover:bg-red-50" style={{ color: "#e11d48" }}>
+              <a onClick={signout} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 hover:bg-red-50" style={{ color: "#e11d48" }}>
                 <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H8m12 0-4 4m4-4-4-4M9 4H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h2"/>
                 </svg>

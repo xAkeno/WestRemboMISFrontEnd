@@ -74,8 +74,8 @@ const Register = () => {
       form.append("password_confirmation", formData.confirmPassword);
       form.append("id_url", idFile);
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
-      toast({ title: "Registration Successful", description: "Your account has been created." });
-      navigate("/");
+      toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
+      navigate("/email-verification", { state: { email: formData.email } });
     } catch (error: any) {
       toast({ title: "Error", description: error.response?.data?.message || "Registration failed.", variant: "destructive" });
     } finally {
