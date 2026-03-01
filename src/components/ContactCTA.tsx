@@ -44,8 +44,8 @@ const ContactCTA = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               {[
                 { icon: Phone, text: "(02) 8836 9731" },
-                { icon: Mail, text: "westrembo@gmail.com" },
-                { icon: MapPin, text: "West Rembo, Makati City" },
+                { icon: Mail, text: "leobes27@gmail.com" },
+                { icon: MapPin, text: "West Rembo, Taguig City" },
               ].map(({ icon: Icon, text }) => (
                 <div key={text} className="flex items-center gap-2.5">
                   <div

@@ -8,9 +8,9 @@ const PINK = "#c2467d";
 
 const contactInfo = [
   { icon: MapPin, title: "Location", content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City" },
-  { icon: Mail, title: "Email", content: "westrembo@gmail.com" },
+  { icon: Mail, title: "Email", content: "leobes27@gmail.com" },
   { icon: Phone, title: "Telephone", content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733" },
-  { icon: Facebook, title: "Facebook", content: "West Rembo FB" },
+  { icon: Facebook, title: "Facebook", content: "https://www.facebook.com/KapLeoBes" },
   { icon: Clock, title: "Office Hours", content: "Monday–Saturday  5:00 AM – 6:00 PM" },
 ];
 

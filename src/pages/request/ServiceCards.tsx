@@ -212,7 +212,7 @@ export default function ServiceCards() {
   // Fetch current user once
   useEffect(() => {
     axios
-      .get('http://127.0.0.1:8000/api/details', { withCredentials: true })
+      .get('https://westrembomis.onrender.com/api/details', { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
       .catch(() => {/* not logged in */});
   }, []);
@@ -256,7 +256,7 @@ export default function ServiceCards() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:max-w-7xl">
 
         {/* Page header */}
         <div className="text-center mb-10">

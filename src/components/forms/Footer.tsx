@@ -3,29 +3,31 @@ import Logo from "../../assets/West_Rembo_Logo.png";
 const footerLinks = {
   about: {
     title: "ABOUT",
-    links: [
-      { label: "History", href: "#" },
-      { label: "Geographic", href: "#" },
-      { label: "Vision", href: "#" },
-      { label: "Mission", href: "#" },
-    ],
-  },
-  quickAccess: {
-    title: "QUICK ACCESS",
-    links: [
-      { label: "Announcement", href: "#" },
-      { label: "Calendar", href: "#" },
-    ],
-  },
-  followUs: {
-    title: "FOLLOW US",
-    links: [{ label: "Facebook", href: "#" }],
-  },
-  help: {
-    title: "HELP",
-    links: [{ label: "Contact", href: "#" }],
-  },
-};
+      links: [
+        { label: "About Us", href: "/aboutus" },
+        // { label: "Geographic", href: "#" },
+        // { label: "Vision", href: "#" },
+        // { label: "Mission", href: "#" },
+      ],
+      },
+      quickAccess: {
+        title: "QUICK ACCESS",
+        links: [
+          { label: "Services", href: "/services" },
+          { label: "Calendar", href: "/calendar" },
+          { label: "Log in", href: "/login" },
+          { label: "Register", href: "/register" },
+        ],
+      },
+      followUs: {
+        title: "FOLLOW US",
+        links: [{ label: "Facebook", href: "https://www.facebook.com/KapLeoBes" }],
+      },
+      help: {
+        title: "HELP",
+        links: [{ label: "Contact", href: "/contact" }],
+      },
+  };
 
 const Footer = () => {
   return (

@@ -7,7 +7,7 @@ const ServicesRequest = () => {
   return (
     <div>
         <Header/>
-        <div className='p-24'>
+        <div className='pt-24'>
             <ServiceCards />
         </div>
     </div>

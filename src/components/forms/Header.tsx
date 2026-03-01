@@ -116,7 +116,7 @@ const Header = () => {
                   border: "1.5px solid rgba(194,70,125,0.45)",
                 }}
               >
-                <img src={Logo} alt="Barangay West Rembo" className="w-9 h-9 object-contain" />
+                <img src={Logo} alt="Barangay West Rembo" className="w-11 h-11 object-contain" />
               </div>
               <div>
                 <p
@@ -399,7 +399,7 @@ const MobileProfilePanel = ({
             }
           }
           className={row}
-          style={{ color: "rgba(255,255,255,0.72)" }}
+          style={{ color: "rgba(255,255,255,0.72)", cursor: "pointer" }}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">{icon}</svg>
           {label}
