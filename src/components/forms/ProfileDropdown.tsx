@@ -56,7 +56,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
     return (
       <a
         onClick={() => navigate("/login")}
-        className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors"
+        className="text-primary-foreground underline underline-offset-4 text-sm font-medium hover:text-gold transition-colors cursor-pointer"
       >
         Sign In
       </a>
@@ -106,7 +106,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
 
           <ul className="p-2 space-y-0.5">
             <li>
-              <a onClick={() => navigate("/profile")} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
+              <a onClick={() => navigate("/profile")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
                 <svg className="w-4 h-4 text-muted-foreground group-hover:text-[#d45ea3]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeWidth="2" d="M7 17v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3Zm8-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
                 </svg>
@@ -114,7 +114,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
               </a>
             </li>
             <li>
-              <a onClick={() => navigate("/myrequests")} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
+              <a onClick={() => navigate("/myrequests")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
                 <svg className="w-4 h-4 text-muted-foreground group-hover:text-[#d45ea3]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4"/>
                 </svg>
@@ -124,7 +124,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
 
             {self.role === "ADMIN" && (
               <li>
-                <a onClick={() => navigate("/dashboard")} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
+                <a onClick={() => navigate("/dashboard")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
                   <svg className="w-4 h-4 text-muted-foreground group-hover:text-[#d45ea3]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                     <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>
                   </svg>

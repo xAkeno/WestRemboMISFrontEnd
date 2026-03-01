@@ -67,8 +67,12 @@ const Register = () => {
       form.append("first_name", formData.firstName);
       form.append("surname", formData.surname);
       form.append("email", formData.email);
-      form.append("contact", formData.phone);
-      form.append("gender", formData.gender);
+      form.append("contact_number", formData.phone);
+      const normalizeSex = (value: string) => {
+        if (!value) return '';
+        return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+      };
+      form.append("sex", normalizeSex(formData.gender));
       form.append("date_of_birth", formData.dateOfBirth);
       form.append("password", formData.password);
       form.append("password_confirmation", formData.confirmPassword);
@@ -203,9 +207,9 @@ const Register = () => {
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
