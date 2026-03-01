@@ -9,10 +9,10 @@ interface FilterTabsProps {
 
 const tabs: FilterTab[] = ['All', 'Verified', 'Voters', 'Active'];
 const FILTER_URLS: Record<FilterTab, string> = {
-  All: 'http://127.0.0.1:8000/api/residents',
-  Verified: 'http://127.0.0.1:8000/api/residents?verified=1',
-  Voters: 'http://127.0.0.1:8000/api/residents?voter=1',
-  Active: 'http://127.0.0.1:8000/api/residents?active=1',
+  All: 'https://westrembomis.onrender.com/api/residents',
+  Verified: 'https://westrembomis.onrender.com/api/residents?verified=1',
+  Voters: 'https://westrembomis.onrender.com/api/residents?voter=1',
+  Active: 'https://westrembomis.onrender.com/api/residents?active=1',
 };
 
 

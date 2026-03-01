@@ -56,7 +56,7 @@ export default function Accounts() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/getAllUser", { withCredentials: true });
+      const response = await axios.get("https://westrembomis.onrender.com/api/getAllUser", { withCredentials: true });
       // Assuming API response: { status: 'success', data: [ ...users ] }
       setAccounts(response.data?.data || []);
     } catch (err: any) {

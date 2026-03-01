@@ -2,7 +2,7 @@ import axios from 'axios';
 import { ResidentsResponse, FilterTab } from '@/types/resident';
 import type { DocumentRequest, Notification } from '@/types/types';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = 'https://westrembomis.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -467,7 +467,7 @@ export async function fetchRequestById(
 
 
 // const apiRequest = axios.create({
-//   baseURL: "http://127.0.0.1:8000/api",
+//   baseURL: "https://westrembomis.onrender.com/api",
 //   headers: { "Content-Type": "application/json" },
 // });
 

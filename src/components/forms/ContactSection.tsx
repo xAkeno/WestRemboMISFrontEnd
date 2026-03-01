@@ -34,7 +34,7 @@ const ContactSection = () => {
     setError("");
 
     try {
-      await axios.post("http://127.0.0.1:8000/api/contacts", formData)
+      await axios.post("https://westrembomis.onrender.com/api/contacts", formData)
         .then(res => {
             setSuccess("Your inquiry has been sent successfully!");
         })

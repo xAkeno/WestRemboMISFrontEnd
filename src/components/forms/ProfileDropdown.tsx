@@ -25,7 +25,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
   const signout = async () => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},
         { withCredentials: true }
       );
@@ -73,7 +73,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
           <img
             src={
               self.url_photo
-                ? "http://127.0.0.1:8000/storage/" + self.url_photo
+                ? "https://westrembomis.onrender.com/storage/" + self.url_photo
                 : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
             }
             className="w-full h-full object-cover"
@@ -93,7 +93,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
           <div className="p-4" style={{ borderBottom: "1px solid #fce7f3" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{ border: "2px solid #d45ea3" }}>
-                <img className="w-full h-full object-cover" src={"http://127.0.0.1:8000/storage/" + self.url_photo} alt="Avatar" />
+                <img className="w-full h-full object-cover" src={"https://westrembomis.onrender.com/storage/" + self.url_photo} alt="Avatar" />
               </div>
               <div className="min-w-0">
                 <p className="font-bold text-sm text-foreground truncate" style={{ fontFamily: "'Georgia', serif" }}>

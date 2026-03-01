@@ -114,7 +114,7 @@ export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving, updat
   useEffect(() => {
     const get = async () => {
       try{
-        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyBusiness',{withCredentials:true})
+        const res = await axios.get('https://westrembomis.onrender.com/api/latestRecordBrgyBusiness',{withCredentials:true})
         var json = res.data.data
         setLatestId(json);
 //        console.log(json);

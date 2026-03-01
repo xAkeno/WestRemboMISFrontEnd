@@ -50,7 +50,7 @@ export function Sidebar() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/api/me", {
+        const response = await axios.get("https://westrembomis.onrender.com/api/me", {
           withCredentials: true
         });
         setPermissions(response.data.data.permissions || []);

@@ -31,7 +31,7 @@ export function DocumentGrid() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const API_BASE = "http://127.0.0.1:8000/api"; // adjust as needed
+  const API_BASE = "https://westrembomis.onrender.com/api"; // adjust as needed
 
   // Fetch documents from backend and merge with defaults
   useEffect(() => {
@@ -100,7 +100,7 @@ export function DocumentGrid() {
                 id: updated.id,
                 name: updated.name,
                 file_name: updated.file_name,
-                file_url: `http://127.0.0.1:8000/storage/${updated.file_path.replace("public/", "")}`,
+                file_url: `https://westrembomis.onrender.com/storage/${updated.file_path.replace("public/", "")}`,
               }
             : d
         )

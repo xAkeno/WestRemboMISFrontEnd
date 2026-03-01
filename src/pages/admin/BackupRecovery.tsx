@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = 'https://westrembomis.onrender.com/api';
 
 interface Backup {
   id: number;
@@ -55,7 +55,7 @@ const BackupRecovery = () => {
   const [uploadType, setUploadType] = useState<'database' | 'files' | 'full'>('database');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
-  const API_BASE = "http://127.0.0.1:8000/api/backup";
+  const API_BASE = "https://westrembomis.onrender.com/api/backup";
 
 
 

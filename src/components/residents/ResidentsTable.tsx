@@ -99,7 +99,7 @@ export const ResidentsTable = ({
   useEffect(() => {
     const url =
       filterValue === ''
-        ? 'http://127.0.0.1:8000/api/residents'
+        ? 'https://westrembomis.onrender.com/api/residents'
         : filterValue;
 
     fetchResidents(url);

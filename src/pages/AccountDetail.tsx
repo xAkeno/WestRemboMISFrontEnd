@@ -75,7 +75,7 @@ export default function AccountDetail() {
 
     try {
       const ers = await axios.put(
-        `http://127.0.0.1:8000/api/users/${account.id}/permissions`,
+        `https://westrembomis.onrender.com/api/users/${account.id}/permissions`,
         { permissions: updatedPermissions },
         { withCredentials: true }
       );

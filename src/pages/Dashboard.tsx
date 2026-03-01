@@ -62,11 +62,11 @@ const Dashboard = () => {
       };
 
       const [businessRes, buildingRes, barangayRes, residentRes, certificateRes] = await Promise.all([
-        axios.get("http://127.0.0.1:8000/api/chart/business-clearances", { params, withCredentials: true }),
-        axios.get("http://127.0.0.1:8000/api/chart/building-clearances", { params, withCredentials: true }),
-        axios.get("http://127.0.0.1:8000/api/chart/barangay-clearances", { params, withCredentials: true }),
-        axios.get("http://127.0.0.1:8000/api/chart/residents", { params, withCredentials: true }),
-        axios.get("http://127.0.0.1:8000/api/chart/barangay-certificates", { params, withCredentials: true }),
+        axios.get("https://westrembomis.onrender.com/api/chart/business-clearances", { params, withCredentials: true }),
+        axios.get("https://westrembomis.onrender.com/api/chart/building-clearances", { params, withCredentials: true }),
+        axios.get("https://westrembomis.onrender.com/api/chart/barangay-clearances", { params, withCredentials: true }),
+        axios.get("https://westrembomis.onrender.com/api/chart/residents", { params, withCredentials: true }),
+        axios.get("https://westrembomis.onrender.com/api/chart/barangay-certificates", { params, withCredentials: true }),
       ]);
 
       const businessData = businessRes.data.data || [];
@@ -153,7 +153,7 @@ const Dashboard = () => {
         per_page: 100, // get more if needed
       };
 
-      const res = await axios.get("http://127.0.0.1:8000/api/tickets/pending", {
+      const res = await axios.get("https://westrembomis.onrender.com/api/tickets/pending", {
         params,
         withCredentials: true,
       });
@@ -187,11 +187,11 @@ const Dashboard = () => {
       setPendingRequests(pendingData);
 
       // Now Serving
-      const nowServingRes = await axios.get("http://127.0.0.1:8000/api/tickets/now-serving", { withCredentials: true });
+      const nowServingRes = await axios.get("https://westrembomis.onrender.com/api/tickets/now-serving", { withCredentials: true });
       setNowServing(nowServingRes.data.ticket_number || null);
 
       // Notifications
-      const notifRes = await axios.get("http://127.0.0.1:8000/api/notifications", { withCredentials: true });
+      const notifRes = await axios.get("https://westrembomis.onrender.com/api/notifications", { withCredentials: true });
       const backendNotifications: Notification[] = notifRes.data.data.map((n: any) => ({
         id: n.id,
         message: n.message,
@@ -224,7 +224,7 @@ const Dashboard = () => {
 
   const fetchActivities = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/latest-activities", { withCredentials: true });
+      const res = await axios.get("https://westrembomis.onrender.com/api/latest-activities", { withCredentials: true });
       const data = res.data.data;
       const simplified = data.map(item => ({
         name: `${item.first_name || ''} ${item.middle_name || ''} ${item.surname || ''}`.trim(),

@@ -98,7 +98,7 @@ const Index = () => {
       if (recordStatus === "Save") {
         // Create new record
         response = await axios.post(
-          "http://127.0.0.1:8000/api/business-clearances",
+          "https://westrembomis.onrender.com/api/business-clearances",
           payload,
           { withCredentials: true }
         );
@@ -121,7 +121,7 @@ const Index = () => {
         console.log("Updating record ID:", clearanceData.id);
 
         response = await axios.put(
-          `http://127.0.0.1:8000/api/business-clearances/${clearanceData.id}`,
+          `https://westrembomis.onrender.com/api/business-clearances/${clearanceData.id}`,
           payload,
           { withCredentials: true }
         );
@@ -140,7 +140,7 @@ const Index = () => {
       if (savedRecordId) {
         console.log("Updating ticket for service ID:", savedRecordId);
         await axios.post(
-          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          `https://westrembomis.onrender.com/api/tickets/update-by-service/${ticket.ticket_number}`,
           {
             status: "ENCODED"
           },

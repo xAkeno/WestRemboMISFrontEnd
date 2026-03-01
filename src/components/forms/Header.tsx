@@ -54,7 +54,7 @@ const Header = () => {
   // Fetch logged-in user
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/details", { withCredentials: true })
+      .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
       .catch(() => {/* not authenticated — silently ignore */});
   }, []);
@@ -78,7 +78,7 @@ const Header = () => {
   const signout = async () => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         { withCredentials: true }
       );
 
@@ -198,7 +198,7 @@ const Header = () => {
                   <img
                     src={
                       self.url_photo
-                        ? "http://127.0.0.1:8000/storage/" + self.url_photo
+                        ? "https://westrembomis.onrender.com/storage/" + self.url_photo
                         : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
                     }
                     className="w-full h-full object-cover"
@@ -312,7 +312,7 @@ const MobileProfilePanel = ({
   const signout = async () => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},
         { withCredentials: true }
       );
@@ -360,7 +360,7 @@ const MobileProfilePanel = ({
         <img
           src={
             self.url_photo
-              ? "http://127.0.0.1:8000/storage/" + self.url_photo
+              ? "https://westrembomis.onrender.com/storage/" + self.url_photo
               : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
           }
           className="w-full h-full object-cover"

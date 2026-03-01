@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   useEffect(() => {
     // Fetch user details including role
     axios
-      .get("http://127.0.0.1:8000/api/details", { withCredentials: true })
+      .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
       .then((res) => {
         const role = res.data.data?.role; // assuming API returns role in data.role
         if (allowedRoles.includes(role)) {

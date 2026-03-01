@@ -85,11 +85,11 @@ const Cashier = () => {
 
 
     const getEndpoint = () => {
-        if (choose === "Resident") return "http://127.0.0.1:8000/api/residents";
-        if (choose === "Barangay Clearance") return "http://127.0.0.1:8000/api/barangay-clearances";
-        if (choose === "Business Clearance") return "http://127.0.0.1:8000/api/business-clearances";
-        if (choose === "Building Clearance") return "http://127.0.0.1:8000/api/building-clearances";
-        if (choose === "Barangay Certificate") return "http://127.0.0.1:8000/api/barangay-certificates";
+        if (choose === "Resident") return "https://westrembomis.onrender.com/api/residents";
+        if (choose === "Barangay Clearance") return "https://westrembomis.onrender.com/api/barangay-clearances";
+        if (choose === "Business Clearance") return "https://westrembomis.onrender.com/api/business-clearances";
+        if (choose === "Building Clearance") return "https://westrembomis.onrender.com/api/building-clearances";
+        if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
     };
     const mapData = (entity: string, data: any[]) => {
@@ -300,19 +300,19 @@ const Cashier = () => {
                                                                 let statusEndpoint = "";
                                                                 switch (choose) {
                                                                     case "Barangay Clearance":
-                                                                        statusEndpoint = `http://127.0.0.1:8000/api/barangay-clearances/status/${row.id}`;
+                                                                        statusEndpoint = `https://westrembomis.onrender.com/api/barangay-clearances/status/${row.id}`;
                                                                         break;
                                                                     case "Business Clearance":
-                                                                        statusEndpoint = `http://127.0.0.1:8000/api/business-clearances/status/${row.id}`;
+                                                                        statusEndpoint = `https://westrembomis.onrender.com/api/business-clearances/status/${row.id}`;
                                                                         break;
                                                                     case "Building Clearance":
-                                                                        statusEndpoint = `http://127.0.0.1:8000/api/building-clearances/status/${row.record_id}`;
+                                                                        statusEndpoint = `https://westrembomis.onrender.com/api/building-clearances/status/${row.record_id}`;
                                                                         break;
                                                                     case "Barangay Certificate":
-                                                                        statusEndpoint = `http://127.0.0.1:8000/api/barangay-certificates/status/${row.id}`;
+                                                                        statusEndpoint = `https://westrembomis.onrender.com/api/barangay-certificates/status/${row.id}`;
                                                                         break;
                                                                     case "Resident":
-                                                                        statusEndpoint = `http://127.0.0.1:8000/api/residents/status/${row.id}`;
+                                                                        statusEndpoint = `https://westrembomis.onrender.com/api/residents/status/${row.id}`;
                                                                         break;
                                                                     default:
                                                                         statusEndpoint = `${getEndpoint()}/${row.id}`;
