@@ -139,7 +139,6 @@ const Header = () => {
               {navLinks.map((link) => (
                 <a
                   key={link.label}
-                  href={link.href}
                   onClick={(e) => {
                     handleNavClick(e as any, link); // keep your protected guard
                     if (!link.protected || self) navigate(link.href);
@@ -231,7 +230,6 @@ const Header = () => {
               {navLinks.map((link) => (
                 <a
                   key={link.label}
-                  href={link.href}
                   onClick={(e) => {
                     handleNavClick(e as any, link);
                     if (!link.protected || self) {
@@ -395,8 +393,11 @@ const MobileProfilePanel = ({
       ].map(({ href, label, icon }) => (
         <a
           key={href}
-          href={href}
-          onClick={onClose}
+          onClick={() => {
+              onClose();
+              navigate(href);
+            }
+          }
           className={row}
           style={{ color: "rgba(255,255,255,0.72)" }}
         >
@@ -407,8 +408,11 @@ const MobileProfilePanel = ({
 
       {isAdminStaff && (
         <a
-          href="/dashboard"
-          onClick={onClose}
+          onClick={() => {
+              onClose
+              navigate("/dashboard")
+            }
+          }
           className={row}
           style={{ color: "rgba(255,255,255,0.72)" }}
         >

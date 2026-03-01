@@ -305,21 +305,24 @@ export default function ServiceCards() {
             </button>
           ))}
 
-          <button
-            onClick={() => navigate('/myrequest')}
-            className="px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
-            style={{ backgroundColor: 'transparent', color: '#6b7280', border: '1px solid #dde3ed', borderRadius: 1 }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.borderColor = '#c2467d';
-              (e.currentTarget as HTMLElement).style.color = '#c2467d';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.borderColor = '#dde3ed';
-              (e.currentTarget as HTMLElement).style.color = '#6b7280';
-            }}
-          >
-            View My Requests
-          </button>
+          {/* Show View My Requests only if user is logged in */}
+          {self && (
+            <button
+              onClick={() => navigate('/myrequest')}
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200"
+              style={{ backgroundColor: 'transparent', color: '#6b7280', border: '1px solid #dde3ed', borderRadius: 1 }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.borderColor = '#c2467d';
+                (e.currentTarget as HTMLElement).style.color = '#c2467d';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.borderColor = '#dde3ed';
+                (e.currentTarget as HTMLElement).style.color = '#6b7280';
+              }}
+            >
+              View My Requests
+            </button>
+          )}
         </div>
 
         {/* Cards Grid */}
