@@ -67,7 +67,7 @@ const Register = () => {
       form.append("first_name", formData.firstName);
       form.append("surname", formData.surname);
       form.append("email", formData.email);
-      form.append("contact_number", formData.phone);
+      form.append("contact", formData.phone);
       const normalizeSex = (value: string) => {
         if (!value) return '';
         return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
