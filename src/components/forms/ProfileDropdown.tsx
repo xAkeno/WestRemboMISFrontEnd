@@ -114,7 +114,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
               </a>
             </li>
             <li>
-              <a onClick={() => navigate("/myrequests")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
+              <a onClick={() => navigate("/myrequest")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
                 <svg className="w-4 h-4 text-muted-foreground group-hover:text-[#d45ea3]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4"/>
                 </svg>
@@ -158,7 +158,10 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
             <li><div className="h-px mx-2 my-1" style={{ backgroundColor: "#fce7f3" }} /></li>
 
             <li>
-              <a onClick={signout} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 hover:bg-red-50" style={{ color: "#e11d48" }}>
+              <a onClick={() => {
+                signout();
+                navigate("/logout")
+              }} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 hover:bg-red-50" style={{ color: "#e11d48" }}>
                 <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H8m12 0-4 4m4-4-4-4M9 4H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h2"/>
                 </svg>
