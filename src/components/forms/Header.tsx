@@ -143,7 +143,7 @@ const Header = () => {
                     handleNavClick(e as any, link); // keep your protected guard
                     if (!link.protected || self) navigate(link.href);
                   }}
-                  className="px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-all duration-200"
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-all duration-200"
                   style={{
                     color: isActive(link.href) ? "#fff" : "rgba(255,255,255,0.60)",
                     borderBottom: isActive(link.href)
@@ -174,7 +174,7 @@ const Header = () => {
                 ) : (
                   <a
                     onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
-                    className="px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white transition-all duration-200"
+                    className="px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white transition-all duration-200 cursor-pointer"
                     style={{ border: "1px solid rgba(194,70,125,0.50)", borderRadius: 2, letterSpacing: "0.06em" }}
                     onMouseEnter={(e) =>
                       ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(194,70,125,0.15)")
@@ -208,7 +208,7 @@ const Header = () => {
                 </div>
               )}
               <button
-                className="w-9 h-9 flex items-center justify-center"
+                className="w-9 h-9 flex items-center justify-center cursor-pointer"
                 style={{ color: "rgba(255,255,255,0.80)" }}
                 onClick={() => setMobileMenuOpen((v) => !v)}
                 aria-label="Toggle menu"
@@ -237,7 +237,7 @@ const Header = () => {
                       setMobileMenuOpen(false);
                     }
                   }}
-                  className="flex items-center justify-between px-3 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-150"
+                  className="flex items-center justify-between px-3 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-150 cursor-pointer"
                   style={{
                     color: isActive(link.href) ? "#fff" : "rgba(255,255,255,0.65)",
                     borderLeft: isActive(link.href)
@@ -276,7 +276,7 @@ const Header = () => {
               ) : (
                 <a
                   onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors duration-150"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors duration-150 cursor-pointer"
                   style={{ border: "1px solid rgba(194,70,125,0.50)", borderRadius: 2 }}
                   onMouseEnter={(e) =>
                     ((e.currentTarget as HTMLElement).style.backgroundColor = "rgba(194,70,125,0.12)")
@@ -344,7 +344,7 @@ const MobileProfilePanel = ({
   };
 
   const row =
-    "flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium transition-colors duration-150";
+    "flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium transition-colors duration-150 cursor-pointer";
   return (
     <div
       className="overflow-hidden"
@@ -441,7 +441,7 @@ const MobileProfilePanel = ({
         </div>
         {/* Toggle pill */}
         <div
-          className="relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200"
+          className="relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 cursor-pointer"
           style={{ backgroundColor: isDark ? "#c2467d" : "rgba(255,255,255,0.18)" }}
         >
           <div
