@@ -265,7 +265,7 @@ const ForgotPassword = () => {
 
               <div className="pt-1 text-center">
                 <Link
-                  to="/"
+                  to="/login"
                   className="text-xs font-semibold hover:underline inline-flex items-center gap-1 transition-colors duration-150"
                   style={{ color: NAVY }}
                 >

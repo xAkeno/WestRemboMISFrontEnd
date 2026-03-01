@@ -14,7 +14,6 @@ const navLinks = [
   { label: "Calendar", href: "/calendar", protected: false  },
   { label: "Contact",  href: "/contact",  protected: false },
 ];
-
 var isAdminStaff = false;
 
 const Header = () => {
@@ -141,7 +140,10 @@ const Header = () => {
                 <a
                   key={link.label}
                   href={link.href}
-                  onClick={(e) => handleNavClick(e, link)}
+                  onClick={(e) => {
+                    handleNavClick(e as any, link); // keep your protected guard
+                    if (!link.protected || self) navigate(link.href);
+                  }}
                   className="px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-all duration-200"
                   style={{
                     color: isActive(link.href) ? "#fff" : "rgba(255,255,255,0.60)",
@@ -172,7 +174,7 @@ const Header = () => {
                   <ProfileDropdown self={self} />
                 ) : (
                   <a
-                    href="/login"
+                    onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
                     className="px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white transition-all duration-200"
                     style={{ border: "1px solid rgba(194,70,125,0.50)", borderRadius: 2, letterSpacing: "0.06em" }}
                     onMouseEnter={(e) =>
@@ -230,7 +232,13 @@ const Header = () => {
                 <a
                   key={link.label}
                   href={link.href}
-                  onClick={(e) => handleNavClick(e, link)}
+                  onClick={(e) => {
+                    handleNavClick(e as any, link);
+                    if (!link.protected || self) {
+                      navigate(link.href);
+                      setMobileMenuOpen(false);
+                    }
+                  }}
                   className="flex items-center justify-between px-3 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-150"
                   style={{
                     color: isActive(link.href) ? "#fff" : "rgba(255,255,255,0.65)",
@@ -269,7 +277,7 @@ const Header = () => {
                 />
               ) : (
                 <a
-                  onClick={() => {navigate("/login")}}
+                  onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
                   className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors duration-150"
                   style={{ border: "1px solid rgba(194,70,125,0.50)", borderRadius: 2 }}
                   onMouseEnter={(e) =>
@@ -444,7 +452,7 @@ const MobileProfilePanel = ({
 
       {/* Sign out */}
       <a
-        href="/"
+
         onClick={signout}
         className={row}
         style={{ color: "#f87171" }}
