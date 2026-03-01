@@ -311,7 +311,7 @@ const ProfileManagement = () => {
             </div>
 
             {/* Request summary */}
-            <div
+            {/* <div
               className="bg-card border border-border p-5"
               style={{ borderRadius: 2, borderTopWidth: 2, borderTopColor: NAVY }}
             >
@@ -332,7 +332,7 @@ const ProfileManagement = () => {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Content */}

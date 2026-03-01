@@ -94,6 +94,45 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
     } finally { setIsSubmitting(false); }
   };
 
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const res = await api.get("/details", { withCredentials: true });
+        const user = res.data.data;
+        console.log("Authenticated user details:", user);
+
+        setFormData(prev => ({
+          ...prev,
+          // Owner Info
+          prefix: user.prefix ?? "",
+          surname: user.surname ?? "",
+          first_name: user.first_name ?? "",
+          middle_name: user.middle_name ?? "",
+          ext_name: user.extension_name ?? "",
+
+          dob: user.date_of_birth ?? "",
+          pob: user.place_of_birth ?? "",
+          contact_no: user.contact_number ?? "",
+          email: user.email ?? "",
+
+          // Address
+          house_block_lot_no: user.house_block_lot_no ?? "",
+          street: user.street ?? "",
+          zone: user.zone_purok ?? "",
+
+          house_owner: user.house_owner ?? "",
+          relationship_to_owner: user.relationship_to_owner ?? "",
+          period_of_residency: user.period_of_residency ?? "",
+          registered_voter: user.voter_status ? "Yes" : "No",
+        }));
+      } catch (error) {
+        console.error("Failed to load authenticated user:", error);
+      }
+    };
+
+    loadUser();
+  }, []);
+
   const renderStep = () => {
     switch (currentStep) {
       // ── Step 0: Personal Info ───────────────────────────────────────────────

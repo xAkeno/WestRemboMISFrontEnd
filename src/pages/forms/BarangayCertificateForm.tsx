@@ -50,6 +50,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
     contact_no: "", email: "",
     house_block_lot_no: "", street: "", zone: "",
     house_owner: "", relationship_to_owner: "",
+    bcert_number: "Example", issued_date: "",
     period_of_residency: "", registered_voter: "",
     purpose: "", purpose_details: "",
     punong_barangay: "", for_the_punong_barangay: "",
@@ -83,6 +84,48 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
       });
     } finally { setIsSubmitting(false); }
   };
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+        const user = res.data.data;
+        console.log("Authenticated user details:", user);
+
+        setFormData(prev => ({
+          ...prev,
+          // Personal Info
+          prefix: user.prefix ?? "",
+          firstname: user.first_name ?? "",
+          middle_name: user.middle_name ?? "",
+          surname: user.surname ?? "",
+          extension: user.extension_name ?? "",
+          date_of_birth: user.date_of_birth ?? "",
+          place_of_birth: user.place_of_birth ?? "",
+          age: user.date_of_birth ? new Date().getFullYear() - new Date(user.date_of_birth).getFullYear() + "" : "",
+
+          // Contact Info
+          contact_no: user.contact_number ?? "",
+          email: user.email ?? "",
+
+          // Address
+          house_block_lot_no: user.house_block_lot_no ?? "",
+          street: user.street ?? "",
+          zone: user.zone_purok ?? "",
+
+          // Other
+          house_owner: user.house_owner ?? "",
+          relationship_to_owner: user.relationship_to_owner ?? "",
+          period_of_residency: user.period_of_residency ?? "",
+          registered_voter: user.voter_status ? "Yes" : "No",
+        }));
+      } catch (error) {
+        console.error("Failed to load authenticated user:", error);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   const renderStep = () => {
     switch (currentStep) {

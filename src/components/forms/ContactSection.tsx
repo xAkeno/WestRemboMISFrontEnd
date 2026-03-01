@@ -17,7 +17,7 @@ const contactInfo = [
 const ContactSection = () => {
   const [formData, setFormData] = useState({
     first_name: "", last_name: "", email: "",
-    phone: "", home_address: "", subject: "", message: "",
+    phone: "", home_address: "", topic: "", message: "",
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
@@ -26,7 +26,7 @@ const ContactSection = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-
+  console.log("Submitting form data:", formData);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -34,15 +34,15 @@ const ContactSection = () => {
     setError("");
 
     try {
-      await axios.post("http://127.0.0.1:8000/api/contact", formData)
-        .then(res => console.log(res.data))
+      await axios.post("http://127.0.0.1:8000/api/contacts", formData)
+        .then(res => {
+            setSuccess("Your inquiry has been sent successfully!");
+        })
         .catch(err => console.error(err));
 
-
-      setSuccess("Your inquiry has been sent successfully!");
       setFormData({
         first_name: "", last_name: "", email: "",
-        phone: "", home_address: "", subject: "", message: "",
+        phone: "", home_address: "", topic: "", message: "",
       });
     } catch (err: any) {
       console.error(err);
@@ -148,16 +148,16 @@ const ContactSection = () => {
 
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
-                  {["firstName", "lastName"].map((name) => (
+                  {["first_name", "last_name"].map((name) => (
                     <div key={name}>
                       <label className={labelCls} style={{ color: PINK }}>
-                        {name === "firstName" ? "First Name" : "Last Name"}
+                        {name === "first_name" ? "First Name" : "Last Name"}
                       </label>
                       <input
                         name={name}
                         value={(formData as any)[name]}
                         onChange={handleChange}
-                        placeholder={name === "firstName" ? "Juan" : "dela Cruz"}
+                        placeholder={name === "first_name" ? "Juan" : "dela Cruz"}
                         style={inputBase}
                         onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                         onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}
@@ -170,7 +170,7 @@ const ContactSection = () => {
                 <div className="grid sm:grid-cols-2 gap-6">
                   {[
                     { name: "email", label: "Email Address", type: "email", ph: "juan@example.com" },
-                    { name: "phoneNumber", label: "Phone Number", ph: "09XX-XXX-XXXX" },
+                    { name: "phone", label: "Phone Number", ph: "09XX-XXX-XXXX" },
                   ].map(({ name, label, type, ph }) => (
                     <div key={name}>
                       <label className={labelCls} style={{ color: PINK }}>{label}</label>
@@ -189,16 +189,16 @@ const ContactSection = () => {
                   ))}
                 </div>
 
-                {["address", "topic"].map((name) => (
+                {["home_address", "subject"].map((name) => (
                   <div key={name}>
                     <label className={labelCls} style={{ color: PINK }}>
-                      {name === "address" ? "Home Address" : "Subject / Topic"}
+                      {name === "home_address" ? "Home Address" : "Subject / Topic"}
                     </label>
                     <input
                       name={name}
                       value={(formData as any)[name]}
                       onChange={handleChange}
-                      placeholder={name === "address" ? "Your full home address" : "What is your concern about?"}
+                      placeholder={name === "home_address" ? "Your full home address" : "What is your concern about?"}
                       style={inputBase}
                       onFocus={(e) => (e.currentTarget.style.borderBottomColor = PINK)}
                       onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#d1d5db")}

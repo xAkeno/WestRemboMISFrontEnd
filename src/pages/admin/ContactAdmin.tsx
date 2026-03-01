@@ -50,7 +50,7 @@ const ContactAdmin = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/contacts`);
+      const res = await axios.get(`${API_BASE}/contacts`,{ withCredentials: true });
       setMessages(res.data?.data ?? res.data ?? defaultMessages);
     } catch {
       setMessages(defaultMessages);
@@ -68,23 +68,68 @@ const ContactAdmin = () => {
 
   const handleReply = async () => {
     if (!viewMessage || !replyText.trim()) return;
+
     setIsSending(true);
-    const updated = { ...viewMessage, admin_reply: replyText, status: 'replied' as const };
+
     try {
-      await axios.put(`${API_BASE}/contacts/${viewMessage.id}`, { admin_reply: replyText, status: 'replied' });
-    } catch { /* local fallback */ }
-    setMessages(prev => prev.map(m => m.id === viewMessage.id ? updated : m));
-    setViewMessage(null);
-    setIsSending(false);
-    toast({ title: 'Reply Sent', description: 'Response saved successfully' });
+      await axios.post(
+        `${API_BASE}/contacts/${viewMessage.id}/reply`,
+        { reply_message: replyText },
+        { withCredentials: true }
+      );
+
+      // Update locally after success
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === viewMessage.id
+            ? { ...m, admin_reply: replyText, status: 'replied' }
+            : m
+        )
+      );
+
+      toast({
+        title: 'Reply Sent',
+        description: 'Email reply sent successfully.',
+      });
+
+      setViewMessage(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to send reply.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const updateStatus = async (id: number, status: 'new' | 'replied' | 'resolved') => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+  const updateStatus = async (
+    id: number,
+    status: 'new' | 'replied' | 'resolved'
+  ) => {
     try {
-      await axios.put(`${API_BASE}/contacts/${id}`, { status });
-    } catch { /* local fallback */ }
-    toast({ title: 'Status Updated', description: `Message marked as ${status}` });
+      await axios.patch(
+        `${API_BASE}/contacts/${id}/status`,
+        { status },
+        { withCredentials: true }
+      );
+
+      setMessages(prev =>
+        prev.map(m => (m.id === id ? { ...m, status } : m))
+      );
+
+      toast({
+        title: 'Status Updated',
+        description: `Message marked as ${status}`,
+      });
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to update status',
+        variant: 'destructive',
+      });
+    }
   };
 
   const filtered = activeTab === 'all' ? messages : messages.filter(m => m.status === activeTab);
@@ -162,15 +207,20 @@ const ContactAdmin = () => {
           {/* View / Reply Dialog */}
           <Dialog open={!!viewMessage} onOpenChange={() => setViewMessage(null)}>
             <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{viewMessage?.subject}</DialogTitle>
-              </DialogHeader>
+              <DialogTitle>
+                Reply to: {viewMessage?.subject}
+              </DialogTitle>
+              
               {viewMessage && (
                 <div className="space-y-4 py-2">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium">{viewMessage.name}</span>
                     <span className="text-muted-foreground">({viewMessage.email})</span>
                     <span className="text-xs text-muted-foreground ml-auto">{viewMessage.created_at}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Subject</p>
+                    <p className="text-sm font-medium">{viewMessage.subject}</p>
                   </div>
                   <div className="p-4 bg-muted/30 rounded-lg text-sm">{viewMessage.message}</div>
                   {viewMessage.admin_reply && (

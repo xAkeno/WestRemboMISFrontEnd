@@ -89,6 +89,36 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     } finally { setIsSubmitting(false); }
   };
 
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const res = await api.get("/details", { withCredentials: true });
+        const user = res.data.data;
+        console.log("Authenticated user details:", user);
+        setFormData((prev) => ({
+          ...prev,
+
+          // Owner Info
+          prefix: user.prefix || "",
+          surname: user.surname || "",
+          first_name: user.first_name || "",
+          middle_name: user.middle_name || "",
+          ext_name: user.extension_name || "",
+
+          // Address
+          house_block_lot_no: user.house_block_lot_no || "",
+          street: user.street || "",
+          zone: user.zone_purok || "",
+        }));
+
+      } catch (error) {
+        console.error("Failed to load authenticated user:", error);
+      }
+    };
+
+    loadUser();
+  }, []);
+
   const renderStep = () => {
     switch (currentStep) {
       // ── Step 0: Applicant Info ──────────────────────────────────────────────

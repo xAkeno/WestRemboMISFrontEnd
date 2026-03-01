@@ -89,6 +89,67 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
     } finally { setIsSubmitting(false); }
   };
 
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+        const user = res.data.data;
+        console.log("Authenticated user details:", user);
+
+        setFormData(prev => ({
+          ...prev,
+          // Personal Info
+          prefix: user.prefix ?? "",
+          surname: user.surname ?? "",
+          first_name: user.first_name ?? "",
+          middle_name: user.middle_name ?? "",
+          ext_name: user.extension_name ?? "",
+          nick_name: user.nick_name ?? "",
+          sex: user.sex ?? "",
+          marital_status: user.marital_status ?? "",
+          name_of_spouse: user.name_of_spouse ?? "",
+          date_of_birth: user.date_of_birth ?? "",
+          place_of_birth: user.place_of_birth ?? "",
+          height_cm: user.height_cm ?? 0,
+          weight_kg: user.weight_kg ?? 0,
+          blood_type: user.blood_type ?? "",
+          complexion: user.complexion ?? "",
+          religion: user.religion ?? "",
+
+          // Contact Info
+          phone_number: user.phone_number ?? "",
+          email_address: user.email_address ?? "",
+
+          // Address
+          house_block_lot_no: user.house_block_lot_no ?? "",
+          street: user.street ?? "",
+          zone: user.zone_purok ?? "",
+          house_owner: user.house_owner ?? "",
+          relationship_to_owner: user.relationship_to_owner ?? "",
+
+          // Residency & Status
+          resident_status: user.resident_status ?? "",
+          voter_status: user.voter_status ? "Registered" : "Not Registered",
+          precinct_no: user.precinct_no ?? "",
+          emp_status: user.emp_status ?? "",
+          occupation: user.occupation ?? "",
+          position: user.position ?? "",
+          pwd: user.pwd ? "Yes" : "No",
+          period_of_residency: user.period_of_residency ?? "",
+          notes: user.notes ?? "",
+        }));
+
+        // Optionally, load resident photo
+        if (user.photo_url) setImagePreview(user.photo_url);
+
+      } catch (error) {
+        console.error("Failed to load authenticated user:", error);
+      }
+    };
+
+    loadUser();
+  }, []);
+
   const renderStep = () => {
     switch (currentStep) {
       // ── Step 0: Personal Info ───────────────────────────────────────────────
