@@ -127,7 +127,7 @@ const EventDetail: React.FC = () => {
           {image && (
             <div className="relative w-full h-64 sm:h-72">
               <img
-                src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + image}
+                src={image}
                 alt={event.title}
                 className="w-full h-full object-cover"
               />
