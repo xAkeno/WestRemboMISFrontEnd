@@ -199,7 +199,7 @@ const Header = () => {
                   <img
                     src={
                       self.url_photo
-                        ? "https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + self.url_photo
+                        ? self.url_photo
                         : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
                     }
                     className="w-full h-full object-cover"
