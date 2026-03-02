@@ -93,18 +93,19 @@ export function DocumentGrid() {
 
       const updated = res.data;
 
-      setDocs(prev =>
-        prev.map((d, i) =>
-          i === replaceIdx
-            ? {
-                id: updated.id,
-                name: updated.name,
-                file_name: updated.file_name,
-                file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev/${updated.file_path.replace(/^public\//, "")}`,
-              }
-            : d
-        )
-      );
+    setDocs(prev =>
+      prev.map((d, i) =>
+        i === replaceIdx
+          ? {
+              id: updated.id,
+              name: updated.name,
+              file_name: updated.file_name,
+              // just use the file_path as-is
+              file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev/${updated.file_path}`,
+            }
+          : d
+      )
+    );
 
     } catch (err) {
       console.error(err);
@@ -135,7 +136,7 @@ export function DocumentGrid() {
                 {doc.file_url ? (
                   <>
                     <iframe
-                      src={doc.file_url}
+                      src={`https://bold-sunset-533d.clarkkentraguhos.workers.dev/${doc.file_url}`}
                       title={doc.name}
                       className="w-full h-full pointer-events-none"
                     />
