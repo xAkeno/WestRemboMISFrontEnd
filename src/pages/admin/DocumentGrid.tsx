@@ -101,7 +101,7 @@ export function DocumentGrid() {
               name: updated.name,
               file_name: updated.file_name,
               // just use the file_path as-is
-              file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev/${updated.file_path}`,
+              file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev${updated.file_path}`,
             }
           : d
       )
@@ -136,7 +136,7 @@ export function DocumentGrid() {
                 {doc.file_url ? (
                   <>
                     <iframe
-                      src={`https://bold-sunset-533d.clarkkentraguhos.workers.dev/${doc.file_url}`}
+                      src={`https://bold-sunset-533d.clarkkentraguhos.workers.dev${doc.file_url}`}
                       title={doc.name}
                       className="w-full h-full pointer-events-none"
                     />
@@ -208,7 +208,7 @@ export function DocumentGrid() {
             <div className="flex-1 mt-2">
               {previewUrl && (
                 <iframe
-                  src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + previewUrl}
+                  src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev" + previewUrl}
                   className="w-full h-full rounded-md border"
                   title="PDF Preview"
                 />

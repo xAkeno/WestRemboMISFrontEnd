@@ -636,112 +636,110 @@ const handleClearanceChange = (type: string) => {
 
 
   const fetchPDFTemplate = async (documentId: string) => {
-    setIsLoading(true);
-    try {
-      console.log('Fetching PDF from API endpoint...');
-      const id = parseInt(documentId, 10);
-      const metadata = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/single/${id}`, 
-        { withCredentials: true }
-      );
+      setIsLoading(true);
+      try {
+        console.log('Fetching PDF metadata...');
+        const id = parseInt(documentId, 10);
 
-      console.log(metadata);
-      
-      const filename = metadata.data.file_path.replace(/^public\/documents\//, '');
+        // Fetch document metadata from your Laravel backend
+        const metadataRes = await axios.get(
+          `https://westrembomis.onrender.com/api/documents/single/${id}`,
+          { withCredentials: true }
+        );
 
-      // Then fetch the PDF using the filename
-      const pdfResponse = await axios.get(`https://westrembomis.onrender.com/api/documents/${filename}`, {
-        responseType: 'arraybuffer',
-        withCredentials: true,
-      });
+        const metadata = metadataRes.data;
+        if (!metadata.file_url) throw new Error('Document URL missing');
 
-      const buffer = pdfResponse.data;
+        console.log("pdf" + "https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url);
 
-      // Debug check
-      const firstBytes = new Uint8Array(buffer.slice(0, 10));
-      console.log('First 10 bytes:', Array.from(firstBytes).map(b => String.fromCharCode(b)).join(''));
-      
-      templateBytesRef.current = buffer;
-      const { info } = await loadPDFTemplate(buffer);
-      setTemplateInfo(info);
-      setCurrentPage(0);
+        // Fetch the actual PDF as ArrayBuffer
+        const pdfRes = await axios.get("https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url, {
+          responseType: 'arraybuffer',
+          withCredentials: true,
+        });
 
-      let savedLayout: TextField[] = [];
-      if (metadata.data.layout) {
-        try {
-          savedLayout = Array.isArray(metadata.data.layout)
-            ? metadata.data.layout
-            : JSON.parse(metadata.data.layout);
-        } catch (err) {
-          console.error("Invalid layout format:", err);
+        const arrayBuffer = pdfRes.data;
+
+        // Convert to Blob (important for editable PDF libraries)
+        const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
+        // Save the Blob into the ref
+        templateBytesRef.current = await pdfBlob.arrayBuffer(); // pdf-lib still expects ArrayBuffer
+        console.log('PDF Blob ready for editing:', pdfBlob);
+
+        // Load template info (your utility function)
+        const { info } = await loadPDFTemplate(templateBytesRef.current);
+        setTemplateInfo(info);
+        setCurrentPage(0);
+
+        // Load saved layout if exists
+        let savedLayout: TextField[] = [];
+        if (metadata.layout) {
+          try {
+            savedLayout = Array.isArray(metadata.layout)
+              ? metadata.layout
+              : JSON.parse(metadata.layout);
+          } catch (err) {
+            console.error('Invalid layout format:', err);
+          }
         }
-      }
 
-      let mergedFields = savedLayout.map((field) => {
+        // Merge layout with existing record or ticket
+        const mergedFields = savedLayout.map((field) => {
           const key = LABEL_TO_KEY[field.label];
-          let value: any = "";
-
-          // PRIORITY ORDER:
-          // 1️⃣ Existing record (edit mode)
-          // 2️⃣ Ticket serviceable
-          // 3️⃣ Empty
+          let value: any = '';
 
           if (key) {
             if (existingRecord) {
               value = existingRecord[key];
-            } 
-            else if (ticket?.serviceable) {
+            } else if (ticket?.serviceable) {
               const source = ticket.serviceable;
-
               const keyMap: Record<string, string> = {
-                surname: "last_name",
-                dob: "date_of_birth",
-                pob: "place_of_birth",
-                relationship_to_owner: "relation_to_house_owner",
+                surname: 'last_name',
+                dob: 'date_of_birth',
+                pob: 'place_of_birth',
+                relationship_to_owner: 'relation_to_house_owner',
               };
-
               const finalKey = keyMap[key] ?? key;
               value = source[finalKey];
             }
           }
 
           // Format dates properly
-          if (value && typeof value === "string") {
-            if (value.includes("T") || key?.includes("date") || key?.includes("birth")) {
-              const date = new Date(value);
-              if (!isNaN(date.getTime())) {
-                value = date.toISOString().split("T")[0];
-              }
+          if (typeof value === 'string' && (value.includes('T') || key?.toLowerCase().includes('date') || key?.toLowerCase().includes('birth'))) {
+            const date = new Date(value);
+            if (!isNaN(date.getTime())) {
+              value = date.toISOString().split('T')[0];
             }
           }
 
-          return { ...field, value: value ?? "" };
+          return { ...field, value: value ?? '' };
         });
 
+        setFields(mergedFields);
+        setSelectedId(null);
 
-      setFields(mergedFields);
-      setSelectedId(null);
-      await renderPreview([]);
-      toast.success('Template loaded successfully');
-    } catch (error) {
-      console.error('Failed to fetch PDF:', error);
-      
-      // More specific error messages
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
-          toast.error('Document not found');
-        } else if (error.response?.status === 401 || error.response?.status === 403) {
-          toast.error('Not authorized to access this document');
+        // Render initial preview
+        await renderPreview([]);
+
+        toast.success('Template loaded successfully');
+      } catch (error) {
+        console.error('Failed to fetch PDF:', error);
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            toast.error('Document not found');
+          } else if ([401, 403].includes(error.response?.status || 0)) {
+            toast.error('Not authorized to access this document');
+          } else {
+            toast.error(`Server error: ${error.response?.status || 'Unknown'}`);
+          }
         } else {
-          toast.error(`Server error: ${error.response?.status || 'Unknown'}`);
+          toast.error('Failed to load PDF template from server');
         }
-      } else {
-        toast.error('Failed to load PDF template from server');
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
   useEffect(() => {
     fetchUser();
