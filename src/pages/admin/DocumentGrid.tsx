@@ -100,7 +100,7 @@ export function DocumentGrid() {
                 id: updated.id,
                 name: updated.name,
                 file_name: updated.file_name,
-                file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev/${updated.file_path.replace("public/", "")}`,
+                file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev/${updated.file_path.replace(/^public\//, "")}`,
               }
             : d
         )
