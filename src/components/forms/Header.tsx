@@ -87,7 +87,7 @@ const Header = () => {
     } catch (error) {
       toast.error("Failed to sign out.");
     }
-  };
+  }; 
 
   const isActive = (href: string) => location.pathname === href;
   return (
@@ -199,7 +199,7 @@ const Header = () => {
                   <img
                     src={
                       self.url_photo
-                        ? "https://westrembomis.onrender.com/storage/" + self.url_photo
+                        ? "https://pub-ac8a9453b771431ba35a02dd460d8da1.r2.dev/" + self.url_photo
                         : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
                     }
                     className="w-full h-full object-cover"
@@ -366,7 +366,7 @@ const MobileProfilePanel = ({
         <img
           src={
             self.url_photo
-              ? "https://westrembomis.onrender.com/storage/" + self.url_photo
+              ? "ttps://pub-ac8a9453b771431ba35a02dd460d8da1.r2.dev/" + self.url_photo
               : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
           }
           className="w-full h-full object-cover"

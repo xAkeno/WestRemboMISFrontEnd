@@ -237,7 +237,7 @@ const ProfileManagement = () => {
               style={{ border: `4px solid #fff`, boxShadow: `0 0 0 3px ${PINK}` }}
             >
               {profileImage ? (
-                <img src={"https://westrembomis.onrender.com/storage/" + profileImage} alt="Profile" className="w-full h-full object-cover" />
+                <img src={"https://pub-ac8a9453b771431ba35a02dd460d8da1.r2.dev/" + profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-14 h-14 text-muted-foreground" />
               )}
