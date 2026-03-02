@@ -207,7 +207,7 @@ export function DocumentGrid() {
             <div className="flex-1 mt-2">
               {previewUrl && (
                 <iframe
-                  src={previewUrl}
+                  src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + previewUrl}
                   className="w-full h-full rounded-md border"
                   title="PDF Preview"
                 />
