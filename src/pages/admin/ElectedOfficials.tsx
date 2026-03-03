@@ -85,7 +85,7 @@ const ElectedOfficials = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/officials`);
+      const res = await axios.get(`${API_BASE}/officials`, {withCredentials:true});
       const data: ElectedOfficial[] = res.data.data.map((o: any) => ({
         id: o.id,
         fullName: o.full_name,
@@ -163,6 +163,7 @@ const ElectedOfficials = () => {
         formData.append('_method', 'PUT'); // Laravel supports POST + _method=PUT
         const res = await axios.post(`${API_BASE}/officials/${editingId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials:true
         });
         const updated = res.data.data;
         setOfficials(prev =>
@@ -186,6 +187,7 @@ const ElectedOfficials = () => {
         // Create
         const res = await axios.post(`${API_BASE}/officials`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials:true
         });
         const created = res.data.data;
         setOfficials(prev => [
@@ -217,7 +219,7 @@ const ElectedOfficials = () => {
   const handleDelete = async () => {
     if (!deletingId) return;
     try {
-      await axios.delete(`${API_BASE}/officials/${deletingId}`);
+      await axios.delete(`${API_BASE}/officials/${deletingId}`,{withCredentials:true});
     } catch {
       // ignore errors
     }
