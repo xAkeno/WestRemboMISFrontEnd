@@ -59,19 +59,6 @@ const POSITION_OPTIONS = [
   'SK CHAIRPERSON',
 ];
 
-const defaultOfficials: ElectedOfficial[] = [
-  { id: 1, fullName: 'Roberto C. Dela Cruz', position: 'PUNONG BARANGAY', committee: 'Barangay Captain', order: 1, image: null, term: '2023-2025', visible: true },
-  { id: 2, fullName: 'Leonard J. Mercado', position: 'KAGAWAD', committee: 'Youth and Sports Development Committee', order: 2, image: null, term: '2023-2025', visible: true },
-  { id: 3, fullName: 'Clarisse H. Navarro', position: 'KAGAWAD', committee: 'Health and Sanitation Committee', order: 3, image: null, term: '2023-2025', visible: true },
-  { id: 4, fullName: 'Rowena G. Santos', position: 'KAGAWAD', committee: 'Livelihood and Economic Development', order: 4, image: null, term: '2023-2025', visible: true },
-  { id: 5, fullName: 'Joshua L. Ferrer', position: 'KAGAWAD', committee: 'Disaster Preparedness and Emergency Response', order: 5, image: null, term: '2023-2025', visible: true },
-  { id: 6, fullName: 'Diana V. Aquino', position: 'KAGAWAD', committee: 'Peace and Order Committee', order: 6, image: null, term: '2023-2025', visible: true },
-  { id: 7, fullName: 'Geraldine M. Roldan', position: 'KAGAWAD', committee: 'Education, Culture and Gender Equality', order: 7, image: null, term: '2023-2025', visible: true },
-  { id: 8, fullName: 'Marco Elias D. Trinidad', position: 'INGAT-YAMAN', committee: 'Barangay Budget and Fiscal Management', order: 8, image: null, term: '2023-2025', visible: true },
-  { id: 9, fullName: 'Kristine Joy P. Lacson', position: 'KALIHIM', committee: 'Community Records and Documentation', order: 9, image: null, term: '2023-2025', visible: true },
-  { id: 10, fullName: 'Benjamin A. Reyes', position: 'KAGAWAD', committee: 'Environmental Protection and Cleanliness', order: 10, image: null, term: '2023-2025', visible: true },
-];
-
 const emptyForm: Omit<ElectedOfficial, 'id'> = {
   fullName: '',
   position: '',
@@ -94,22 +81,36 @@ const ElectedOfficials = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  // Load officials from API
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/elected-officials`);
-      setOfficials(res.data?.data ?? res.data ?? defaultOfficials);
-    } catch {
-      setOfficials(defaultOfficials);
+      const res = await axios.get(`${API_BASE}/officials`);
+      const data: ElectedOfficial[] = res.data.data.map((o: any) => ({
+        id: o.id,
+        fullName: o.full_name,
+        position: o.position,
+        committee: o.committee_role,
+        order: o.display_order,
+        term: o.term,
+        visible: o.visible,
+        image: o.profile_image ? `${o.profile_image}` : null,
+      }));
+      setOfficials(data);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error', description: 'Failed to load officials', variant: 'destructive' });
+      setOfficials([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  // Open create dialog
   const openCreate = () => {
     setEditingId(null);
     setForm({ ...emptyForm, order: officials.length + 1 });
@@ -117,81 +118,130 @@ const ElectedOfficials = () => {
     setDialogOpen(true);
   };
 
+  // Open edit dialog
   const openEdit = (official: ElectedOfficial) => {
     setEditingId(official.id);
-    setForm({ fullName: official.fullName, position: official.position, committee: official.committee, order: official.order, image: official.image, term: official.term, visible: official.visible });
+    setForm({
+      fullName: official.fullName,
+      position: official.position,
+      committee: official.committee,
+      order: official.order,
+      term: official.term,
+      visible: official.visible,
+      image: official.image,
+    });
     setImageFile(null);
     setDialogOpen(true);
   };
 
+  // Open delete dialog
   const openDelete = (id: number) => {
     setDeletingId(id);
     setDeleteDialogOpen(true);
   };
 
+  // Save official (create or update)
   const handleSave = async () => {
     if (!form.fullName || !form.position || !form.committee) {
       toast({ title: 'Validation Error', description: 'Please fill all required fields', variant: 'destructive' });
       return;
     }
+
     setIsSaving(true);
     try {
       const formData = new FormData();
-      formData.append('fullName', form.fullName);
+      formData.append('full_name', form.fullName);
       formData.append('position', form.position);
-      formData.append('committee', form.committee);
-      formData.append('order', String(form.order));
+      formData.append('committee_role', form.committee);
+      formData.append('display_order', String(form.order));
       formData.append('term', form.term);
       formData.append('visible', form.visible ? '1' : '0');
-      if (imageFile) formData.append('image', imageFile);
+      if (imageFile) formData.append('profile_image', imageFile);
 
       if (editingId) {
-        formData.append('_method', 'PUT');
-        await axios.post(`${API_BASE}/elected-officials/${editingId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setOfficials(prev => prev.map(o => o.id === editingId ? { ...o, ...form } : o));
+        // Update
+        formData.append('_method', 'PUT'); // Laravel supports POST + _method=PUT
+        const res = await axios.post(`${API_BASE}/officials/${editingId}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const updated = res.data.data;
+        setOfficials(prev =>
+          prev.map(o =>
+            o.id === editingId
+              ? {
+                  ...o,
+                  fullName: updated.full_name,
+                  position: updated.position,
+                  committee: updated.committee_role,
+                  order: updated.display_order,
+                  term: updated.term,
+                  visible: updated.visible,
+                  image: updated.profile_image ? `${updated.profile_image}` : null,
+                }
+              : o
+          )
+        );
         toast({ title: 'Updated', description: 'Official updated successfully' });
       } else {
-        const res = await axios.post(`${API_BASE}/elected-officials`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        const newOfficial: ElectedOfficial = res.data?.data ?? { id: Date.now(), ...form };
-        setOfficials(prev => [...prev, newOfficial]);
+        // Create
+        const res = await axios.post(`${API_BASE}/officials`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const created = res.data.data;
+        setOfficials(prev => [
+          ...prev,
+          {
+            id: created.id,
+            fullName: created.full_name,
+            position: created.position,
+            committee: created.committee_role,
+            order: created.display_order,
+            term: created.term,
+            visible: created.visible,
+            image: created.profile_image ? `${created.profile_image}` : null,
+          },
+        ]);
         toast({ title: 'Created', description: 'Official added successfully' });
       }
+
       setDialogOpen(false);
-    } catch {
-      // Fallback: update local state anyway for demo
-      if (editingId) {
-        setOfficials(prev => prev.map(o => o.id === editingId ? { ...o, ...form } : o));
-      } else {
-        setOfficials(prev => [...prev, { id: Date.now(), ...form }]);
-      }
-      setDialogOpen(false);
-      toast({ title: 'Saved locally', description: 'API unavailable — saved locally' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error', description: 'Failed to save official', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Delete official
   const handleDelete = async () => {
     if (!deletingId) return;
     try {
-      await axios.delete(`${API_BASE}/elected-officials/${deletingId}`);
+      await axios.delete(`${API_BASE}/officials/${deletingId}`);
     } catch {
-      // continue with local delete
+      // ignore errors
     }
     setOfficials(prev => prev.filter(o => o.id !== deletingId));
-    setDeleteDialogOpen(false);
     setDeletingId(null);
+    setDeleteDialogOpen(false);
     toast({ title: 'Deleted', description: 'Official removed successfully' });
   };
 
+  // Position colors
   const getPositionColor = (position: string) => {
     switch (position) {
-      case 'PUNONG BARANGAY': return 'bg-primary/10 text-primary border-primary/20';
-      case 'KAGAWAD': return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
-      case 'INGAT-YAMAN': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
-      case 'KALIHIM': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
-      case 'SK CHAIRPERSON': return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
-      default: return 'bg-muted text-muted-foreground border-border';
+      case 'PUNONG BARANGAY':
+        return 'bg-primary/10 text-primary border-primary/20';
+      case 'KAGAWAD':
+        return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+      case 'INGAT-YAMAN':
+        return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+      case 'KALIHIM':
+        return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+      case 'SK CHAIRPERSON':
+        return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
+      default:
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
 
@@ -205,8 +255,7 @@ const ElectedOfficials = () => {
               <p className="text-sm text-muted-foreground mt-1">Manage barangay elected officials and their committees</p>
             </div>
             <Button className="gap-2" onClick={openCreate}>
-              <Plus className="h-4 w-4" />
-              Add Official
+              <Plus className="h-4 w-4" /> Add Official
             </Button>
           </div>
 
@@ -236,7 +285,9 @@ const ElectedOfficials = () => {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary overflow-hidden">
-                              {official.image ? <img src={official.image} alt="" className="w-full h-full object-cover" /> : official.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                              {official.image ? (
+                                <img src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + official.image} alt="" className="w-full h-full object-cover" />
+                              ) : official.fullName.split(' ').map(n => n[0]).slice(0, 2).join('')}
                             </div>
                             <span className="text-sm font-medium">{official.fullName}</span>
                           </div>
@@ -283,7 +334,8 @@ const ElectedOfficials = () => {
             )}
           </div>
 
-          {/* Create / Edit Dialog */}
+          {/* Dialogs */}
+          {/* Create/Edit Dialog */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -305,33 +357,31 @@ const ElectedOfficials = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="e.g. Juan A. Dela Cruz" />
+                  <Input id="fullName" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="position">Position</Label>
+                  <Label>Position</Label>
                   <Select value={form.position} onValueChange={v => setForm(f => ({ ...f, position: v }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select position" />
                     </SelectTrigger>
                     <SelectContent>
-                      {POSITION_OPTIONS.map(p => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
+                      {POSITION_OPTIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="committee">Committee / Role</Label>
-                  <Input id="committee" value={form.committee} onChange={e => setForm(f => ({ ...f, committee: e.target.value }))} placeholder="e.g. Health and Sanitation Committee" />
+                  <Label>Committee / Role</Label>
+                  <Input value={form.committee} onChange={e => setForm(f => ({ ...f, committee: e.target.value }))} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="term">Term</Label>
-                    <Input id="term" value={form.term} onChange={e => setForm(f => ({ ...f, term: e.target.value }))} placeholder="e.g. 2023-2025" />
+                    <Label>Term</Label>
+                    <Input value={form.term} onChange={e => setForm(f => ({ ...f, term: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="order">Display Order</Label>
-                    <Input id="order" type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 0 }))} />
+                    <Label>Display Order</Label>
+                    <Input type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 0 }))} />
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -341,9 +391,7 @@ const ElectedOfficials = () => {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? 'Saving...' : editingId ? 'Update' : 'Add Official'}
-                </Button>
+                <Button onClick={handleSave} disabled={isSaving}>{isSaving ? 'Saving...' : editingId ? 'Update' : 'Add Official'}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

@@ -869,6 +869,7 @@ const handleClearanceChange = (type: string) => {
     const url = URL.createObjectURL(blob);
     console.log('Saving layout:', fields);
     const apiPath = getApiPath(id);
+    console.log()
     const save = axios.put(`https://westrembomis.onrender.com/api/documents/${id}/layout`, { layout: fields }, { withCredentials: true });
     save.then((response) => {
       if(response.status === 200) {
