@@ -143,11 +143,16 @@ const ElectedOfficials = () => {
   // Save official (create or update)
   const handleSave = async () => {
     if (!form.fullName || !form.position || !form.committee) {
-      toast({ title: 'Validation Error', description: 'Please fill all required fields', variant: 'destructive' });
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill all required fields',
+        variant: 'destructive',
+      });
       return;
     }
 
     setIsSaving(true);
+
     try {
       const formData = new FormData();
       formData.append('full_name', form.fullName);
@@ -156,18 +161,30 @@ const ElectedOfficials = () => {
       formData.append('display_order', String(form.order));
       formData.append('term', form.term);
       formData.append('visible', form.visible ? '1' : '0');
-      if (imageFile) formData.append('profile_image', imageFile);
+
+      if (imageFile) {
+        formData.append('profile_image', imageFile);
+      }
+
+      let res;
 
       if (editingId) {
-        // Update
-        formData.append('_method', 'PUT'); // Laravel supports POST + _method=PUT
-        const res = await axios.post(`${API_BASE}/officials/${editingId}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          withCredentials:true
-        });
+        // ✅ UPDATE (correct endpoint!)
+        formData.append('_method', 'PUT');
+
+        res = await axios.post(
+          `${API_BASE}/officials/${editingId}`, // 🔥 FIXED HERE
+          formData,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            withCredentials: true,
+          }
+        );
+
         const updated = res.data.data;
-        setOfficials(prev =>
-          prev.map(o =>
+
+        setOfficials((prev) =>
+          prev.map((o) =>
             o.id === editingId
               ? {
                   ...o,
@@ -177,20 +194,27 @@ const ElectedOfficials = () => {
                   order: updated.display_order,
                   term: updated.term,
                   visible: updated.visible,
-                  image: updated.profile_image ? `${updated.profile_image}` : null,
+                  image: updated.profile_image ?? o.image, // keep old if not replaced
                 }
               : o
           )
         );
-        toast({ title: 'Updated', description: 'Official updated successfully' });
-      } else {
-        // Create
-        const res = await axios.post(`${API_BASE}/officials`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          withCredentials:true
+
+        toast({
+          title: 'Updated',
+          description: 'Official updated successfully',
         });
+
+      } else {
+        // ✅ CREATE
+        res = await axios.post(`${API_BASE}/officials`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
+        });
+
         const created = res.data.data;
-        setOfficials(prev => [
+
+        setOfficials((prev) => [
           ...prev,
           {
             id: created.id,
@@ -200,16 +224,28 @@ const ElectedOfficials = () => {
             order: created.display_order,
             term: created.term,
             visible: created.visible,
-            image: created.profile_image ? `${created.profile_image}` : null,
+            image: created.profile_image ?? null,
           },
         ]);
-        toast({ title: 'Created', description: 'Official added successfully' });
+
+        toast({
+          title: 'Created',
+          description: 'Official added successfully',
+        });
       }
 
       setDialogOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast({ title: 'Error', description: 'Failed to save official', variant: 'destructive' });
+      setEditingId(null);
+      setImageFile(null);
+
+    } catch (err: any) {
+      console.error(err.response?.data || err);
+
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Failed to save official',
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
