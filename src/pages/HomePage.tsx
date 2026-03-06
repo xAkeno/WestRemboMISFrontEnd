@@ -1,59 +1,59 @@
-import { useEffect, useState } from "react";
 import Header from "@/components/forms/Header";
 import HeroSection from "@/components/forms/HeroSection";
 import RequestFormSection from "@/components/forms/RequestFormSection";
 import OfficialsSection from "@/components/forms/OfficialsSection";
 import Footer from "@/components/forms/Footer";
 import AboutSection from "@/components/AboutSection";
+import { useEffect, useState } from "react";
 import ServicesSection from "./request/ServicesSection";
 import Calendar from "./Calendar";
 import ContactCTA from "@/components/ContactCTA";
-
 const HomePage = () => {
-  const [showTopBtn, setShowTopBtn] = useState(false);
 
-  // Scroll to hash section
   useEffect(() => {
     if (location.hash) {
       const id = location.hash.replace("#", "");
       const el = document.getElementById(id);
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 100);
+
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+      }
     }
   }, [location]);
 
-  // Show "scroll to top" button
+  const [showTopBtn, setShowTopBtn] = useState(false);
+
+  // Show button only after scrolling 300px
   useEffect(() => {
-    const handleScroll = () => setShowTopBtn(window.scrollY > 300);
+    const handleScroll = () => {
+      setShowTopBtn(window.scrollY > 300);
+    };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-
-  // Load Chatbot script once
-  useEffect(() => {
-    if (!document.getElementById("chatbase-script")) {
-      const script = document.createElement("script");
-      script.src = "https://www.chatbase.co/embed.min.js";
-      script.id = "chatbase-script";
-      document.body.appendChild(script);
-    }
-  }, []);
-
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  
   return (
-    <div className="min-h-screen bg-background relative">
+    <div className="min-h-screen bg-background">
       <Header />
       <main>
         <HeroSection />
         <AboutSection />
-        <ServicesSection />
+        <div>
+          <ServicesSection />
+        </div>
         <OfficialsSection />
-        <Calendar />
+        <div>
+          <Calendar />
+        </div>
         <ContactCTA />
       </main>
       <Footer />
-
-      {/* Scroll to top button */}
       {showTopBtn && (
         <button
           onClick={scrollToTop}
@@ -63,12 +63,15 @@ const HomePage = () => {
         </button>
       )}
 
-      {/* Chatbot fixed button (optional) */}
-      <div
-        id="chatbot-widget"
-        className="fixed bottom-24 right-8 z-50"
-        style={{ width: 64, height: 64 }}
-      />
+      <div className="w-full lg:w-1/3 h-full min-h-[700px] fixed">
+        <iframe
+          src="https://www.chatbase.co/chatbot-iframe/9hnQ5FZ6d1FrnyW4Bnolj"
+          width="100%"
+          height="100%"
+          style={{ minHeight: 700, border: 0 }}
+          title="Chatbot"
+        />
+      </div>
     </div>
   );
 };
