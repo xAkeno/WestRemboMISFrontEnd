@@ -57,21 +57,12 @@ const HomePage = () => {
       {showTopBtn && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 bg-pink-600 text-white w-12 h-12 flex items-center justify-center rounded-full shadow-lg hover:bg-pink-700 transition-colors duration-200 z-50"
+          className="fixed bottom-20 right-4 bg-pink-600 text-white w-[56px] h-[56px] flex items-center justify-center rounded-full shadow-lg hover:bg-pink-700 transition-colors duration-200 z-50"
         >
           ↑
         </button>
       )}
 
-      <div className="w-full lg:w-1/3 h-full min-h-[700px] fixed">
-        <iframe
-          src="https://www.chatbase.co/chatbot-iframe/9hnQ5FZ6d1FrnyW4Bnolj"
-          width="100%"
-          height="100%"
-          style={{ minHeight: 700, border: 0 }}
-          title="Chatbot"
-        />
-      </div>
     </div>
   );
 };
