@@ -1,32 +1,56 @@
-import { useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { MapPin, Mail, Phone, Facebook, Clock, Send } from "lucide-react";
 import Header from "./Header";
 import axios from "axios";
-
+import { useToast } from "@/hooks/use-toast";
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
-const contactInfo = [
-  { icon: MapPin, title: "Location", content: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City" },
-  { icon: Mail, title: "Email", content: "leobes27@gmail.com" },
-  { icon: Phone, title: "Telephone", content: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733" },
-  { icon: Facebook, title: "Facebook", content: "https://www.facebook.com/KapLeoBes" },
-  { icon: Clock, title: "Office Hours", content: "Monday–Saturday  5:00 AM – 6:00 PM" },
-];
 
+interface ContactInfo {
+  id?: number;
+  address: string;
+  email: string;
+  telephone: string;
+  facebook: string;
+  office_days: string;
+  office_hours: string;
+}
+
+const defaultContact: ContactInfo = {
+  address: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City",
+  email: "leobes27@gmail.com",
+  telephone: "(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733",
+  facebook: "https://www.facebook.com/KapLeoBes",
+  office_days: "Monday–Saturday",
+  office_hours: "5:00 AM – 6:00 PM",
+};
+const API_BASE = "https://westrembomis.onrender.com/api";
 const ContactSection = () => {
+  const { toast } = useToast();
+
   const [formData, setFormData] = useState({
-    first_name: "", last_name: "", email: "",
-    phone: "", home_address: "", topic: "", message: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    home_address: "",
+    topic: "",
+    message: "",
   });
+
+  const [form, setForm] = useState<ContactInfo>(defaultContact);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-  console.log("Submitting form data:", formData);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -34,15 +58,18 @@ const ContactSection = () => {
     setError("");
 
     try {
-      await axios.post("https://westrembomis.onrender.com/api/contacts", formData)
-        .then(res => {
-            setSuccess("Your inquiry has been sent successfully!");
-        })
-        .catch(err => console.error(err));
+      await axios.post(`${API_BASE}/contacts`, formData);
+
+      setSuccess("Your inquiry has been sent successfully!");
 
       setFormData({
-        first_name: "", last_name: "", email: "",
-        phone: "", home_address: "", topic: "", message: "",
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        home_address: "",
+        topic: "",
+        message: "",
       });
     } catch (err: any) {
       console.error(err);
@@ -52,8 +79,58 @@ const ContactSection = () => {
     }
   };
 
-  // Shared underline input style
-  const inputBase = {
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const res = await axios.get(`${API_BASE}/contact`, {
+        withCredentials: true,
+      });
+
+      const data = res.data?.data ?? res.data;
+
+      if (Array.isArray(data) && data.length > 0) {
+        setForm(data[data.length - 1]);
+      } else if (data) {
+        setForm(data);
+      } else {
+        setForm(defaultContact);
+      }
+    } catch (err: any) {
+      console.error(err);
+
+      setForm(defaultContact);
+
+      toast({
+        title: "Error Loading Contact",
+        description:
+          err.response?.data?.message ??
+          err.message ??
+          "Unable to fetch contact info.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const contactInfo = [
+    { icon: MapPin, title: "Location", content: form.address },
+    { icon: Mail, title: "Email", content: form.email },
+    { icon: Phone, title: "Telephone", content: form.telephone },
+    { icon: Facebook, title: "Facebook", content: form.facebook },
+    {
+      icon: Clock,
+      title: "Office Hours",
+      content: `${form.office_days} ${form.office_hours}`,
+    },
+  ];
+
+  const inputBase: React.CSSProperties = {
     display: "block",
     width: "100%",
     background: "transparent",
@@ -65,9 +142,10 @@ const ContactSection = () => {
     color: "inherit",
     outline: "none",
     transition: "border-color 0.2s",
-  } as React.CSSProperties;
+  };
 
-  const labelCls = "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
+  const labelCls =
+    "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
 
   return (
     <section id="contact" className="min-h-screen bg-background">

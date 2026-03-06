@@ -58,6 +58,8 @@ import EmailVerification from "./pages/EmailVerification";
 const queryClient = new QueryClient();
 import { Navigate } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
+import ContactCms from "./pages/admin/ContactCms";
+import ServicesCms from "./pages/admin/ServicesCms";
 const App = () => {
 
   useEffect(() => {
@@ -137,6 +139,11 @@ const App = () => {
 
 
                 <Route path="/cashier" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Cashier /></ProtectedRoute>} /> {/*Residents ???*/}
+
+                <Route path="/contactCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ContactCms /></ProtectedRoute>} />
+                <Route path="/servicesCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicesCms /></ProtectedRoute>} />
+
+
                 <Route path="/settings/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>

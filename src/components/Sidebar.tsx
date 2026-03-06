@@ -15,7 +15,9 @@ import {
   CalendarCog,
   Database,
   LayoutPanelTop,
-  Activity
+  Activity,
+  LayoutList,
+  NotebookTabs
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
@@ -36,6 +38,8 @@ const allMenuItems = [
   { title: "Events Calendar", path: "/events-calendar", icon: CalendarCog, permission: "settings" },
   { title: "Document Settings", path: "/document-setting", icon: FileCheck, permission: "settings" },
   // { title: "Website Settings", path: "/websitesetting", icon: PanelsTopLeft, permission: "settings" }, 
+  { title: "Services Cms", path: "/servicesCms", icon: LayoutList, permission: "settings" },
+  { title: "Contact Cms", path: "/contactCms", icon: NotebookTabs, permission: "settings" },
   { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
   { title: "Backup Recovery", path: "/backup-recovery", icon: Database, permission: "settings" },
   { title: "Activity Log", path: "/activity-log", icon: Activity, permission: "settings" },

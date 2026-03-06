@@ -7,7 +7,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import Header from "@/components/forms/Header";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
+import { CircleAlert } from 'lucide-react';
 interface CalendarEvent {
   id: number;
   title: string;
@@ -192,6 +192,39 @@ const Calendar: React.FC = () => {
           <p className="text-muted-foreground text-sm mt-4">
             Stay up to date with upcoming barangay events, programs, and community activities.
           </p>
+          {/* Instruction Tooltip */}
+          <div className="relative inline-block group mt-3">
+            <div
+              className="flex items-center justify-center w-16 h-8 flex gap-1 rounded-full text-white text-xs font-bold cursor-pointer"
+              style={{ backgroundColor: "#d45ea3" }}
+            >
+              <CircleAlert /> 
+              
+               Tips
+            </div>
+
+            {/* Tooltip content */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+              style={{
+                backgroundColor: "#fff",
+                border: "1px solid #f9a8d4",
+                boxShadow: "0 6px 24px rgba(212,94,163,0.18)",
+                zIndex: 50
+              }}
+            >
+              <p className="text-xs font-semibold mb-1" style={{ color: "#d45ea3" }}>
+                How to use the calendar
+              </p>
+
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li>• Hover over an event to see a short preview.</li>
+                <li>• Click an event to open the full details.</li>
+                <li>• Use the buttons above to change view (Month / Week / Day).</li>
+                <li>• Use arrows to navigate to other dates.</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* FullCalendar card */}

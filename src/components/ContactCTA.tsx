@@ -1,7 +1,66 @@
 import { ArrowRight, MapPin, Phone, Mail } from "lucide-react";
+import { useCallback, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
+import { useToast } from "@/hooks/use-toast";
+interface ContactInfo {
+  id?: number;
+  address: string;
+  email: string;
+  telephone: string;
+  facebook: string;
+  office_days: string;
+  office_hours: string;
+}
 
 const ContactCTA = () => {
+  const API_BASE = 'https://westrembomis.onrender.com/api';
+
+  const defaultContact: ContactInfo = {
+    address: 'Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City',
+    email: 'leobes27@gmail.com',
+    telephone: '(02) 8836 9731 / (02) 8836 9732 / (02) 8836 9733',
+    facebook: 'https://www.facebook.com/KapLeoBes',
+    office_days: 'Monday–Saturday',
+    office_hours: '5:00 AM – 6:00 PM',
+  };
+
+  const [form, setForm] = useState<ContactInfo>(defaultContact);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/contact`, { withCredentials: true });
+      const data = res.data?.data ?? res.data;
+
+      if (Array.isArray(data) && data.length > 0) {
+        // pick the last item (latest)
+        const latest = data[data.length - 1];
+        setForm(latest);
+      } else if (data) {
+        setForm(data);
+      } else {
+        setForm(defaultContact);
+      }
+
+      console.log(form)
+    } catch (err: any) {
+      console.error(err);
+      setForm(defaultContact);
+      toast({
+        title: 'Error Loading Contact',
+        description: err.response?.data?.message ?? err.message ?? 'Unable to fetch contact info.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
   return (
     <section className="py-20 sm:py-28 bg-background relative overflow-hidden">
       {/* Subtle diagonal texture */}
@@ -43,8 +102,8 @@ const ContactCTA = () => {
             {/* Quick contact info */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               {[
-                { icon: Phone, text: "(02) 8836 9731" },
-                { icon: Mail, text: "leobes27@gmail.com" },
+                { icon: Phone, text: form.telephone },
+                { icon: Mail, text: form.email},
                 { icon: MapPin, text: "West Rembo, Taguig City" },
               ].map(({ icon: Icon, text }) => (
                 <div key={text} className="flex items-center gap-2.5">
@@ -125,7 +184,7 @@ const ContactCTA = () => {
               <div className="space-y-1.5 text-sm relative mb-6">
                 <p className="text-white/60 uppercase tracking-wider text-xs">Monday – Saturday</p>
                 <p className="text-white font-bold text-xl" style={{ fontFamily: "'Georgia', serif" }}>
-                  5:00 AM – 6:00 PM
+                  {form.office_hours}
                 </p>
               </div>
 
@@ -135,7 +194,7 @@ const ContactCTA = () => {
               >
                 <p className="text-white/40 text-xs uppercase tracking-wider">Address</p>
                 <p className="text-white/75 text-sm leading-relaxed">
-                  Plaza Drive A. Mabini St. (21st),<br />West Rembo, Taguig City
+                  {form.address}
                 </p>
               </div>
             </div>
