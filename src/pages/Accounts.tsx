@@ -33,8 +33,8 @@ import { Plus, Search, MoreVertical, Mail, Phone, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Account {
-  id: string;
-  name: string;
+  id: number;
+  name: string; // combined from first_name, middle_name, surname
   email: string;
   role: string;
   status: "active" | "inactive";
@@ -56,9 +56,27 @@ export default function Accounts() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get("https://westrembomis.onrender.com/api/getAllUser", { withCredentials: true });
-      // Assuming API response: { status: 'success', data: [ ...users ] }
-      setAccounts(response.data?.data || []);
+      const response = await axios.get(
+        "https://westrembomis.onrender.com/api/getAllUser",
+        { withCredentials: true }
+      );
+      const rawAccounts = response.data?.data || [];
+
+      // Normalize data to match Account interface
+      const normalizedAccounts: Account[] = rawAccounts.map((a: any) => ({
+        id: a.id,
+        name: [a.first_name, a.middle_name, a.surname]
+          .filter(Boolean) // skip null/undefined
+          .join(" "),
+        email: a.email ?? "N/A",
+        role: a.role ?? "STAFF",
+        status: a.status === "active" ? "active" : "inactive",
+        phone: a.contact_number ?? "-",
+        location: a.zone_purok ?? "-", // example, adjust if needed
+        lastActive: a.updated_at ?? "-",
+      }));
+
+      setAccounts(normalizedAccounts);
     } catch (err: any) {
       console.error("Failed to fetch accounts:", err);
       setError("Failed to fetch accounts. Please try again.");
@@ -66,22 +84,28 @@ export default function Accounts() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchAccounts();
   }, []);
 
-  const filteredAccounts = accounts.filter(
-    (account) =>
-      account.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      account.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      account.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAccounts = accounts.filter((account) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      (account.name?.toLowerCase().includes(query) ?? false) ||
+      (account.email?.toLowerCase().includes(query) ?? false) ||
+      (account.role?.toLowerCase().includes(query) ?? false)
+    );
+  });
 
-  const getInitials = (name: string) => {
+  // -----------------------------
+  // Safe initials
+  // -----------------------------
+  const getInitials = (name?: string) => {
+    if (!name) return "NA";
     return name
       .split(" ")
       .map((n) => n[0])
+      .filter(Boolean)
       .join("")
       .toUpperCase();
   };
@@ -228,11 +252,11 @@ export default function Accounts() {
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={account.status === "active" ? "default" : "secondary"}
+                            variant="default"
                             className={
                               account.status === "active"
-                                ? "bg-success text-success-foreground"
-                                : ""
+                                ? "bg-green-500 text-white" // green for active
+                                : "bg-red-400 textr-white "
                             }
                           >
                             {account.status}

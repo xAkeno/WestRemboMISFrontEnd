@@ -11,7 +11,7 @@ import axios from "axios";
 import { toast } from "sonner";
 
 interface Account {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
@@ -19,10 +19,9 @@ interface Account {
   phone: string;
   location: string;
   joinDate: string;
-  lastActive: string;
+  lastActive?: string;
   permissions: string[];
 }
-
 // Only these are the allowed permissions
 const ALL_PERMISSIONS = ["resident", "doc_req", "certificate", "cashier", "reports", "settings"];
 
@@ -36,12 +35,46 @@ export default function AccountDetail() {
   useEffect(() => {
     const fetchAccount = async () => {
       try {
-        const response = await axios.get(`http://127.0.0.1:8000/api/users/${id}`, {
-          withCredentials: true,
-          headers: { "Cache-Control": "no-cache" },
-        });
-        setAccount(response.data.data);
-        setPermissions(response.data.data.permissions || []);
+        const response = await axios.get(
+          `https://westrembomis.onrender.com/api/users/${id}`,
+          {
+            withCredentials: true,
+            headers: { "Cache-Control": "no-cache" },
+          }
+        );
+
+        const user = response.data.data;
+
+        // Parse permissions if JSON string
+        let perms: string[] = [];
+        if (Array.isArray(user.permissions)) {
+          perms = user.permissions;
+        } else if (typeof user.permissions === "string") {
+          try {
+            perms = JSON.parse(user.permissions);
+          } catch {
+            perms = [];
+          }
+        }
+
+        const normalizedAccount: Account = {
+          id: user.id,
+          name: [user.first_name, user.middle_name, user.surname]
+            .filter(Boolean)
+            .join(" "),
+          email: user.email ?? "N/A",
+          role: user.role ?? "STAFF",
+          status: user.status === "active" ? "active" : "inactive",
+          phone: user.contact_number ?? "-",
+          location: user.zone_purok ?? "-",
+          joinDate: user.created_at
+            ? new Date(user.created_at).toLocaleDateString()
+            : "-",
+          permissions: perms,
+        };
+
+        setAccount(normalizedAccount);
+        setPermissions(perms);
       } catch (error) {
         console.error(error);
       } finally {
@@ -52,11 +85,12 @@ export default function AccountDetail() {
     if (id) fetchAccount();
   }, [id]);
 
-  const getInitials = (name: string | undefined) => {
+  const getInitials = (name?: string) => {
     if (!name) return "NA";
     return name
       .split(" ")
       .map((n) => n[0])
+      .filter(Boolean)
       .join("")
       .toUpperCase();
   };
@@ -125,8 +159,11 @@ export default function AccountDetail() {
                 <p className="text-sm text-muted-foreground">{account.role}</p>
                 <div className="mt-4">
                   <Badge
-                    variant={account.status === "active" ? "default" : "secondary"}
-                    className={account.status === "active" ? "bg-success text-success-foreground" : ""}
+                    className={
+                      account.status === "active"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-400 text-white"
+                    }
                   >
                     {account.status}
                   </Badge>
