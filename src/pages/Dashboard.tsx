@@ -9,7 +9,7 @@ import { Layout } from "../components/Layout";
 import { PendingClearancesModal } from "@/components/PendingClearancesModal";
 import axios from "axios";
 import { set } from "date-fns";
-
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from "date-fns";
 const statuses = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
 
@@ -221,6 +221,27 @@ const Dashboard = () => {
   }, [timeFilter, statusFilter, fromDate, toDate, pendingTypeFilter, pendingDateFrom, pendingDateTo]);
 
   const [totalEncodedToday, setTotalEncodedToday] = useState(0);
+
+  useEffect(() => {
+    // Set default dates based on the current timeFilter
+    const today = new Date();
+    let defaultFrom = "";
+    let defaultTo = format(today, "yyyy-MM-dd"); // always default "to" is today
+
+    if (timeFilter === "week") {
+      defaultFrom = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd"); // Monday
+    } else if (timeFilter === "month") {
+      defaultFrom = format(startOfMonth(today), "yyyy-MM-dd");
+    } else {
+      defaultFrom = ""; // leave empty if 'year' or other
+    }
+
+    setFromDate(defaultFrom);
+    setToDate(defaultTo);
+
+    // optionally, fetch data immediately
+    fetchData();
+  }, [timeFilter]);
 
   const fetchActivities = async () => {
     try {
@@ -455,6 +476,7 @@ const Dashboard = () => {
                   </Button>
                 ))}
 
+                {/* Date Inputs with Submit Button */}
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
@@ -469,6 +491,7 @@ const Dashboard = () => {
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                   />
+
                 </div>
 
                 {statuses.map((status) => (
@@ -481,6 +504,13 @@ const Dashboard = () => {
                     {status}
                   </Button>
                 ))}
+
+                {/* Submit Button */}
+                <Button size="sm" variant="default" onClick={fetchData}>
+                  Submit
+                </Button>
+
+                
               </CardContent>
 
               {/* Chart Header */}
