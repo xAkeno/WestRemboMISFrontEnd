@@ -1,24 +1,24 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import AuthLayout from "@/components/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import logo from "@/assets/West_Rembo_Logo.png";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Error",
@@ -29,101 +29,92 @@ const Login = () => {
     }
 
     setIsLoading(true);
-    
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
+
+    try {
+      const response = await api.post("/api/login", { email, password }, { withCredentials: true });
+
+      if (response.status === 200) {
+        toast({
+          title: "Success!",
+          description: "You've been logged in successfully.",
+        });
+        navigate("/home");
+      }
+    } catch (error: any) {
+      let errorMessage = "Login failed. Please try again.";
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || errorMessage;
+      }
       toast({
-        title: "Success!",
-        description: "You've been logged in successfully.",
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
       });
-    }, 1500);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary">
-      <div className="w-full max-w-md space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Welcome Back
-          </h1>
-          <p className="text-muted-foreground">Sign in to your account to continue</p>
+    <AuthLayout>
+      <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-2xl max-w-4xl w-full grid md:grid-cols-2 overflow-hidden">
+        {/* Left - Branding */}
+        <div className="p-8 md:p-12 flex flex-col justify-center">
+          <div className="flex items-center gap-4 mb-6">
+            <img src={logo} alt="West Rembo Logo" className="w-20 h-20" />
+            <h1 className="text-3xl md:text-4xl font-extrabold text-foreground leading-tight">
+              West Rembo<br />announcements
+            </h1>
+          </div>
+          <p className="text-muted-foreground leading-relaxed">
+            Our community platform ensures every resident stays updated with the latest announcements, events, and government services—bringing transparency and unity closer to home.
+          </p>
         </div>
 
-        <Card className="border-border/50 shadow-[var(--shadow-elegant)] backdrop-blur-sm bg-card/80">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Login</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-              {/* <div className="flex items-center justify-between text-sm">
-                <Link to="#" className="text-primary hover:text-accent transition-colors font-medium">
-                  Forgot password?
+        {/* Right - Form */}
+        <div className="p-8 md:p-12 flex flex-col justify-center">
+          <h2 className="text-xl font-bold text-foreground mb-6">Sign in to West Rembo</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email" className="font-semibold text-foreground">Your email</Label>
+              <Input
+                id="email"
+                type="text"
+                placeholder="name@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 bg-card border-border"
+              />
+            </div>
+            <div>
+              <Label htmlFor="password" className="font-semibold text-foreground">Your password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 bg-card border-border"
+              />
+            </div>
+            <Button type="submit" disabled={isLoading} className="w-auto">
+              {isLoading ? "Logging in..." : "Login to your account"}
+            </Button>
+            <div className="flex items-center justify-between text-sm pt-2">
+              <span className="text-muted-foreground">
+                Not registered yet?{" "}
+                <Link to="/register" className="text-accent font-semibold hover:underline">
+                  Create account
                 </Link>
-              </div> */}
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all duration-200 shadow-[var(--shadow-soft)]"
-                disabled={isLoading}
-                onClick={() => navigate("/dashboard")}
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin">⏳</span> Signing in...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <LogIn size={18} /> Sign In
-                  </span>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:text-accent transition-colors font-medium">
-                Sign up
+              </span>
+              <Link to="/forgot-password" className="text-foreground font-semibold hover:underline">
+                Forget your password?
               </Link>
             </div>
-          </CardFooter>
-        </Card>
+          </form>
+        </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

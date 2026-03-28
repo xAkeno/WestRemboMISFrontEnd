@@ -18,49 +18,45 @@ export const BarangayClearancePreview = ({
   const viewerInstanceRef = useRef<any>(null);
 
   const fieldMapping: Record<string, string> = {
-    recordNo: "Record No",
-    clearanceNo: "Clearance No",
-    issuedDate: "Issued Date",
+    bcert_number: "Record No",
+    issued_date: "Issued Date",
     prefix: "Prefix",
-    firstname: "Firstname",
-    middlename: "Middle Name",
+    first_name: "Firstname",
+    middle_name: "Middle Name",
     surname: "Surname",
-    extension: "Extension",
+    ext_name: "Extension",
     age: "Age",
-    dateOfBirth: "Date of Birth",
-    placeOfBirth: "Place of Birth",
-    houseBlockLot: "House Block Lot No",
+    dob: "Date of Birth",
+    pob: "Place of Birth",
+    house_block_lot_no: "House Block Lot No",
     street: "Street",
     zone: "Zone",
     contactNo: "Contact No",
-    residencyPeriod: "Period of Residency",
-    registeredVoter: "Registered Voter",
-    houseOwner: "House Owner",
-    relationshipToOwner: "Relationship to Owner",
+    period_of_residency: "Period of Residency",
+    registered_voter: "Registered Voter",
+    house_owner: "House Owner",
+    relationship_to_owner: "Relationship to Owner",
     purpose: "Purpose",
-    purposeDetails: "Purpose Details",
-    ctcVrrNo: "CTCVRR No",
-    issuedAt: "Issued at",
-    issuedOn: "Issued on",
-    orNo: "OR No",
+    purpose_details: "Purpose Details",
+    ctc_vrr_no: "CTCVRR No",
+    issued_at: "Issued at",
+    issued_on: "Issued on",
+    or_no: "OR No",
     remarks: "Remarks",
   };
 
-  // Update PDF fields
   const updatePDFFields = () => {
     const instance = viewerInstanceRef.current;
     if (!instance) return;
 
     const { annotationManager, documentViewer } = instance.Core;
     const fieldManager = annotationManager.getFieldManager();
-
     const allFields = fieldManager.getFields();
 
     allFields.forEach((field: any) => {
       const formKey = Object.keys(fieldMapping).find(
         (key) => fieldMapping[key] === field.name
       );
-
       if (formKey && formData[formKey] !== undefined) {
         field.widgets.forEach((widget: any) => {
           widget.setValue(formData[formKey] || "");
@@ -71,7 +67,7 @@ export const BarangayClearancePreview = ({
     documentViewer.refreshAll();
   };
 
-  // Initialize WebViewer only once
+  // Initialize WebViewer once
   useEffect(() => {
     if (!viewerRef.current) return;
 
@@ -79,26 +75,31 @@ export const BarangayClearancePreview = ({
       {
         path: "/webviewer",
         initialDoc: templatePath,
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a", // <-- Add your valid license
       },
       viewerRef.current
     ).then((instance: any) => {
       viewerInstanceRef.current = instance;
-
       const { documentViewer } = instance.Core;
-      documentViewer.addEventListener("annotationsLoaded", () => {
+
+      // Wait for document to be fully loaded before updating fields
+      documentViewer.addEventListener("documentLoaded", () => {
         updatePDFFields();
       });
     });
   }, []);
 
-  // Only update fields when formData changes
+  // Update fields whenever formData changes
   useEffect(() => {
+    const instance = viewerInstanceRef.current;
+    if (!instance || !instance.Core.documentViewer.getDocument()) return;
+
     updatePDFFields();
   }, [formData]);
 
   return (
     <div>
-      <div className="w-full h-[600px]" ref={viewerRef}></div>
+      <div className="w-full h-[700px]" ref={viewerRef}></div>
     </div>
   );
 };

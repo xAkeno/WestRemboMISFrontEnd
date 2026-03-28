@@ -2,12 +2,11 @@ import WebViewer from "@pdftron/webviewer";
 import { useEffect, useRef } from "react";
 
 interface FormData {
-  recordNo: string;
-  clearanceNo: string;
+  bcert_number: string;
   issuedDate: string;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middlename: string;
   surname: string;
   extension: string;
   establishment: string;
@@ -18,8 +17,9 @@ interface FormData {
   zone: string;
   orNo: string;
   remarks: string;
-  applicantType: string;
-  address: string;
+  punongBarangay: string;
+  forThePunongBarangay: string;
+  barangayPosition: string
 }
 
 interface Props {
@@ -90,6 +90,7 @@ export const BuildingClearancePreview = ({
     WebViewer(
       {
         path: "/webviewer",
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a",
         initialDoc: templatePath,
       },
       viewerRef.current
@@ -110,7 +111,7 @@ export const BuildingClearancePreview = ({
 
   return (
     <div>
-      <div className="w-full h-[600px]" ref={viewerRef}></div>
+      <div className="w-full h-[700px]" ref={viewerRef}></div>
     </div>
   );
 };

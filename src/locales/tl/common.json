@@ -1,0 +1,52 @@
+{
+    "header": {
+        "home": "Home",
+        "about": "Tungkol",
+        "services": "Mga Serbisyo",
+        "calendar": "Kalendaryo",
+        "contact": "Kontak",
+        "profile": "Profile"
+    },
+    "footer": {
+        "logo": {
+            "title": "BARANGAY WEST REMBO",
+            "copyright": "© 2025 Barangay West Rembo. Lahat ng karapatan ay nakalaan."
+        },
+        "label": {
+            "title": "TUNGKOL",
+            "titleTwo": "MADALING ACCESS",
+            "titleThree": "SUMUNOD SA AMIN",
+            "titleFour": "TULONG"
+        },
+        "subLabel": {
+            "sub": "Kasaysayan",
+            "subTwo": "Heograpiya",
+            "subThree": "Misyon",
+            "subFour": "Bisyon",
+            "subFive": "Anunsyo",
+            "subSix": "Kalendaryo",
+            "subSeven": "Facebook",
+            "subEight": "Kontak"
+        }
+    },
+    "buttons": {
+        "applyNow": "Mag-apply Ngayon",
+        "submit": "Isumite",
+        "cancel": "Kanselahin",
+        "back": "Bumalik",
+        "next": "Susunod",
+        "save": "I-save",
+        "edit": "I-edit",
+        "delete": "Tanggalin",
+        "view": "Tingnan"
+    },
+    "status": {
+        "popular": "Sikat",
+        "loading": "Naglo-load...",
+        "success": "Matagumpay",
+        "error": "May Error",
+        "pending": "Nakabinbin",
+        "approved": "Aprubado",
+        "rejected": "Tinanggihan"
+    }
+}

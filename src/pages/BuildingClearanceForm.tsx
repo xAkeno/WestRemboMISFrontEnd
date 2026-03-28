@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import axios from "axios";
 import {
   Select,
   SelectContent,
@@ -22,14 +23,18 @@ import {
 import { toast } from "sonner";
 import { BuildingClearancePreview } from "@/components/BuildingClearancePreview";
 import { Layout } from "@/components/Layout";
+import { set } from "date-fns";
+import { BarangayBusinessFindModal } from "@/components/BarangayBusinessFindModal";
+import { BarangayBuildingFindModal } from "@/components/BarangayBuildingFindModal";
+import { useLocation } from "react-router-dom";
 
 interface BuildingClearanceFormData {
-  recordNo: string;
-  clearanceNo: string;
+  id: number,
+  bcert_number: string;
   issuedDate: string;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middlename: string;
   surname: string;
   extension: string;
   establishment: string;
@@ -40,18 +45,28 @@ interface BuildingClearanceFormData {
   zone: string;
   orNo: string;
   remarks: string;
-  applicantType: string;
-  address: string;
+  punongBarangay: string;
+  forThePunongBarangay: string;
+  barangayPosition: string
+}
+
+interface gg{
+  nextId:number,
+  nextRecord:string
 }
 
 export default function BuildingClearanceForm() {
+  const [isSaving,setIsSaving] = useState(false)
+  
+  const location = useLocation();
+  const ticket = location.state?.ticket;
   const [formData, setFormData] = useState<BuildingClearanceFormData>({
-    recordNo: "",
-    clearanceNo: "",
+    id: 0,
+    bcert_number: "",
     issuedDate: new Date().toISOString().split("T")[0],
     prefix: "Mr.",
     firstname: "",
-    middleName: "",
+    middlename: "",
     surname: "",
     extension: "",
     establishment: "",
@@ -62,8 +77,9 @@ export default function BuildingClearanceForm() {
     zone: "",
     orNo: "",
     remarks: "",
-    applicantType: "Individual",
-    address: "",
+    punongBarangay: "",
+    forThePunongBarangay: "",
+    barangayPosition:"",
   });
 
   const viewerInstanceRef = useRef<any>(null);
@@ -93,12 +109,12 @@ export default function BuildingClearanceForm() {
 
   const handleNewRecord = () => {
     setFormData({
-      recordNo: "",
-      clearanceNo: "",
+      id: 0,
+      bcert_number: "",
       issuedDate: new Date().toISOString().split("T")[0],
       prefix: "Mr.",
       firstname: "",
-      middleName: "",
+      middlename: "",
       surname: "",
       extension: "",
       establishment: "",
@@ -109,31 +125,178 @@ export default function BuildingClearanceForm() {
       zone: "",
       orNo: "",
       remarks: "",
-      applicantType: "Individual",
-      address: "",
+      punongBarangay: "",
+      forThePunongBarangay: "",
+      barangayPosition:"",
     });
     toast.info("New record started");
   };
-
+  const [modal,setModal] = useState(false);
+  const updateModal = (open: boolean) => {
+    setModal(open);
+  }
+  const updateSelect = (open: any) => {
+    toast.info("Record successfully selected");
+    setModal(false);
+    setFormData(open);
+    setRecordStatus("Update");
+  }
   const handleFindRecord = () => {
+    setModal(true);
     toast.info("Search functionality - Coming soon");
   };
 
   const handleRefresh = () => {
     toast.info("Form refreshed");
+    setRecordStatus("Save")
+  };
+  const [recordStatus, setRecordStatus] = useState("Save");
+
+  const handleSaveRecord = async () => {
+    setIsSaving(true);
+
+    try {
+      let response;
+      let savedRecordId = null;
+
+      if (recordStatus === "Save") {
+        response = await axios.post(
+          "http://127.0.0.1:8000/api/building-clearances",
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 201 || response.status === 200) {
+          toast.success("Successfully created building clearance record");
+          savedRecordId = response.data.data.service.id;
+        }
+
+      } else if (recordStatus === "Update") {
+
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected for update");
+          return;
+        }
+
+        console.log(formData.id + "========================")
+
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/building-clearances/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Successfully updated building clearance record");
+          savedRecordId = formData.id;
+        }
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (savedRecordId) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+
+        console.log("Ticket status updated for service:", savedRecordId);
+      }
+
+    } catch (error: any) {
+      const errMsg =
+        error.response?.data?.message ||
+        "Failed to save building clearance record";
+      toast.error(errMsg);
+      console.error(error);
+
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSaveRecord = () => {
-    toast.success("Record saved successfully!");
-  };
 
   const handlePrint = () => {
     window.print();
   };
 
+  const [latestId,setLatestId] = useState<gg>();
+
+  useEffect(() => {
+    const get = async () => {
+      try{
+        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyBuilding',{withCredentials:true})
+        var json = res.data.data
+        setLatestId(json);
+      }catch (error: any) {
+        const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
+        toast.error(errorMessage);
+        console.error(error);
+      } 
+    }
+    get();
+  },[])
+
+  const parseAddress = (fullAddress: string) => {
+    const parts = fullAddress.split(",");
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+  useEffect(() => {
+    if (ticket?.serviceable) {
+      const data = ticket.serviceable;
+      const { house_block_lot_no, street, zone } = parseAddress(data.address || "");
+
+      setFormData({
+        id: data.id || 0,
+        bcert_number: data.brgyBusinessNo || "",
+        issuedDate: data.issuedDate || new Date().toISOString().split("T")[0],
+        prefix: data.prefix || "Mr.",
+        firstname: data.first_name || "",
+        middlename: data.middle_name || "",
+        surname: data.last_name || "",
+        extension: data.ext || "",
+        establishment: data.establishment || "",
+        purpose: data.purpose || "",
+        purposeDetails: data.purpose_details || "",
+        houseBlockLot: house_block_lot_no,
+        street: street,
+        zone: zone,
+        orNo: data.or_no || "",
+        remarks: data.remarks || "",
+        punongBarangay: data.punongBarangay || "",
+        forThePunongBarangay: data.forThePunongBarangay || "",
+        barangayPosition: data.barangayPosition || "",
+      }); 
+    };
+  }, [ticket]);
+
   return (
     <Layout>
       <div className="grid lg:grid-cols-2 gap-6">
+        {
+          modal ? <BarangayBuildingFindModal updateModal={updateModal} updateSelect={updateSelect}/> : <></>
+        }
         {/* Left Side — Form */}
         <div>
           <Card className="p-6 space-y-6 shadow-lg">
@@ -151,22 +314,22 @@ export default function BuildingClearanceForm() {
                   <Label htmlFor="recordNo">Record No.</Label>
                   <Input
                     id="recordNo"
-                    value={formData.recordNo}
+                    value={latestId ? latestId.nextRecord : ""}
                     onChange={(e) =>
-                      handleInputChange("recordNo", e.target.value)
+                      handleInputChange("bcert_number", e.target.value)
                     }
                     placeholder="(Auto)"
+                    disabled
                   />
                 </div>
                 <div>
                   <Label htmlFor="clearanceNo">Clearance No.</Label>
                   <Input
                     id="clearanceNo"
-                    value={formData.clearanceNo}
-                    onChange={(e) =>
-                      handleInputChange("clearanceNo", e.target.value)
-                    }
+                    value={latestId ? latestId.nextId : ""}
+
                     placeholder="Enter clearance no."
+                    disabled
                   />
                 </div>
               </div>
@@ -219,12 +382,12 @@ export default function BuildingClearanceForm() {
 
               <div className="grid sm:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="middleName">Middle Name</Label>
+                  <Label htmlFor="middlename">Middle Name</Label>
                   <Input
-                    id="middleName"
-                    value={formData.middleName}
+                    id="middlename"
+                    value={formData.middlename}
                     onChange={(e) =>
-                      handleInputChange("middleName", e.target.value)
+                      handleInputChange("middlename", e.target.value)
                     }
                   />
                 </div>
@@ -350,6 +513,49 @@ export default function BuildingClearanceForm() {
                   />
                 </div>
               </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="punongBarangay">Punong Barangay</Label>
+                  <Select
+                    value={formData.punongBarangay}
+                    onValueChange={(v) => handleInputChange("punongBarangay", v)}
+                  >
+                    <SelectTrigger id="punongBarangay">
+                      <SelectValue placeholder="Select punongBarangay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">BES</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="forThePunongBarangay">For The Punong Barangay</Label>
+                  <Select
+                    value={formData.forThePunongBarangay}
+                    onValueChange={(v) => handleInputChange("forThePunongBarangay", v)}
+                  >
+                    <SelectTrigger id="forThePunongBarangay">
+                      <SelectValue placeholder="Select forThePunongBarangay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="barangayPosition">Barangay Position</Label>
+                  <Input
+                    id="barangayPosition"
+                    value={formData.barangayPosition}
+                    onChange={(e) =>
+                      handleInputChange("barangayPosition", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
             </div>
           </Card>
 
@@ -371,7 +577,7 @@ export default function BuildingClearanceForm() {
                 </Button>
                 <Button onClick={handleSaveRecord} className="gap-2">
                   <Save className="h-4 w-4" />
-                  Save
+                  {recordStatus} Record
                 </Button>
               </div>
             </CardContent>

@@ -7,6 +7,8 @@ import { Printer, FileText } from "lucide-react";
 import { BarangayClearancePreview } from './BarangayClearancePreview';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import {BarangayClearanceFindModal} from "./BarangayClearanceFindModal";
+import api from "@/lib/api";
 import {
   Save,
   Search,
@@ -16,64 +18,71 @@ import {
   PlusCircle,
   X,
 } from "lucide-react";
+import axios from "axios";
+import { useLocation } from "react-router-dom";
 
 
 interface FormData {
-  recordNo: string;
-  clearanceNo: string;
-  issuedDate: string;
+  id:number;
+  bcert_number: string;
+  issued_date: string;
   prefix: string;
-  firstname: string;
-  middlename: string;
+  first_name: string;
+  middle_name: string;
   surname: string;
-  extension: string;
-  houseBlockLot: string;
+  ext_name: string;
+  house_block_lot_no: string;
   street: string;
-  age: string;
   zone: string;
-  dateOfBirth: string;
-  placeOfBirth: string;
-  contactNo: string;
-  residencyPeriod: string;
-  registeredVoter: string;
-  houseOwner: string;
-  relationshipToOwner: string;
+  dob: string;
+  pob: string;
+  contact_no: string;
+  period_of_residency: string;
+  registered_voter: string;
+  house_owner: string;
+  relationship_to_owner: string;
   purpose: string;
-  purposeDetails: string;
-  ctcVrrNo: string;
-  issuedAt: string;
-  issuedOn: string;
-  orNo: string;
+  purpose_details: string;
+  ctc_vrr_no: string;
+  issued_at: string;
+  issued_on: string;
+  or_no: string;
   remarks: string;
 }
 
+interface gg{
+  nextId:number;
+  nextRecord:string;
+}
+
 export default function BarangayForm() {
+  const [isSaving, setIsSaving] = useState(false);
+  const [modal,setModal] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    recordNo: "",
-    clearanceNo: "",
-    issuedDate: new Date().toISOString().split('T')[0],
+    id: 0,
+    bcert_number: "",
+    issued_date: new Date().toISOString().split('T')[0],
     prefix: "",
-    firstname: "",
-    middlename: "",
+    first_name: "",
+    middle_name: "",
     surname: "",
-    extension: "",
-    houseBlockLot: "",
+    ext_name: "",
+    house_block_lot_no: "",
     street: "",
-    age: "",
     zone: "",
-    dateOfBirth: "",
-    placeOfBirth: "",
-    contactNo: "",
-    residencyPeriod: "",
-    registeredVoter: "",
-    houseOwner: "",
-    relationshipToOwner: "",
+    dob: "",
+    pob: "",
+    contact_no: "",
+    period_of_residency: "",
+    registered_voter: "",
+    house_owner: "",
+    relationship_to_owner: "",
     purpose: "",
-    purposeDetails: "",
-    ctcVrrNo: "",
-    issuedAt: "",
-    issuedOn: "",
-    orNo: "",
+    purpose_details: "",
+    ctc_vrr_no: "",
+    issued_at: "",
+    issued_on: "",
+    or_no: "",
     remarks: "",
   });
 
@@ -97,10 +106,7 @@ export default function BarangayForm() {
     annotManager.undo();
   };
 
-
-  
-
-  const fullName = `${formData.prefix ? formData.prefix + ' ' : ''}${formData.firstname} ${formData.middlename} ${formData.surname} ${formData.extension}`.trim();
+  const fullName = `${formData.prefix ? formData.prefix + ' ' : ''}${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim();
 
   const viewerInstanceRef = useRef<any>(null);
   
@@ -125,13 +131,98 @@ export default function BarangayForm() {
     annotManager.drawAnnotationsFromList();
   }, [formData]);
 
-  
+  const [latestId,setLatestId] = useState<gg>({
+    nextId:0,
+    nextRecord: ""
+  });
 
-  const handleSaveRecord = () => {
-    toast.success("Record saved successfully");
+  useEffect(() => {
+    const get = async () => {
+      try{
+        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyClearance',{withCredentials:true})
+        var json = res.data.data
+        setLatestId(json);
+      }catch (error: any) {
+        const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
+        toast.error(errorMessage);
+        console.error(error);
+      } 
+    }
+    get();
+  },[])
+
+  const [recordStatus,setRecordStatus] = useState("Save")
+
+  const handleSaveRecord = async () => {
+    setIsSaving(true);
+
+    try {
+      console.log("Submitting barangay clearance data:", formData);
+
+      let response;
+      let savedRecordId = null;
+
+      if (recordStatus === "Save") {
+ 
+
+        if (response.status === 201) {
+          toast.success("Barangay clearance record saved successfully");
+
+          // Get the service(id) returned from backend
+          savedRecordId = response.data.data.service.id;
+        }
+
+      } else if (recordStatus === "Update") {
+
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected to update");
+          return;
+        }
+
+        response = await api.put(
+          `/api/barangay-clearances/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Barangay clearance record updated successfully");
+
+          savedRecordId = formData.id;
+        }
+      }
+
+      // ----------------------------------------------
+      // 🔥 NEW: Update Ticket Based on the Service Saved
+      // ----------------------------------------------
+      if (savedRecordId) {
+        console.log("Updating ticket for service ID:", savedRecordId);
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+
+        toast("Updated the ticket to encoded status");
+      }
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to save barangay clearance record";
+      toast.error(errorMessage);
+      console.error(error);
+
+    } finally {
+      setIsSaving(false);
+    }
   };
 
+
   const handleFindRecord = () => {
+    setModal(true);
     toast.info("Search functionality - Coming soon");
   };
 
@@ -139,42 +230,116 @@ export default function BarangayForm() {
     toast.info("Data refreshed");
   };
 
+  const parseAddress = (fullAddress: string) => {
+    const parts = fullAddress.split(",");
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  useEffect(() => {
+    if (ticket?.serviceable) {
+
+      const data = ticket.serviceable;
+      const addressParts = parseAddress(data.address || "");
+      setFormData({
+        id: data.id || 0,
+        bcert_number: data.bcert_number || "",
+        issued_date: data.issued_date || new Date().toISOString().split("T")[0],
+        prefix: data.prefix || "",
+        first_name: data.first_name || "",
+        middle_name: data.middle_name || "",
+        surname: data.last_name || "",
+        ext_name: data.ext_name || "",
+        house_block_lot_no: addressParts.house_block_lot_no,
+        street: addressParts.street,
+        zone: addressParts.zone,
+        dob: data.date_of_birth || "",
+        pob: data.place_of_birth || "",
+        contact_no: data.contact_number || "",
+        period_of_residency: data.period_of_residency || "",
+        registered_voter: data.registered_voter || "",
+        house_owner: data.house_owner || "",
+        relationship_to_owner: data.relation_to_house_owner || "",
+        purpose: data.purpose || "",
+        purpose_details: data.purpose_details || "",
+        ctc_vrr_no: data.ctc_vrr_no || "",
+        issued_at: data.issued_at || "",
+        issued_on: data.issued_on || "",
+        or_no: data.or_no || "",
+        remarks: data.remarks || "",
+      });
+      console.log(ticket);
+    }
+  }, [ticket]);
+
 
   const handleNewRecord = () => {
     setFormData(
       {
-        recordNo: "",
-        clearanceNo: "",
-        issuedDate: new Date().toISOString().split('T')[0],
+        id:0,
+        bcert_number: "",
+        issued_date: new Date().toISOString().split('T')[0],
         prefix: "",
-        firstname: "",
-        middlename: "",
+        first_name: "",
+        middle_name: "",
         surname: "",
-        extension: "",
-        houseBlockLot: "",
+        ext_name: "",
+        house_block_lot_no: "",
         street: "",
-        age: "",
         zone: "",
-        dateOfBirth: "",
-        placeOfBirth: "",
-        contactNo: "",
-        residencyPeriod: "",
-        registeredVoter: "",
-        houseOwner: "",
-        relationshipToOwner: "",
+        dob: "",
+        pob: "",
+        contact_no: "",
+        period_of_residency: "",
+        registered_voter: "",
+        house_owner: "",
+        relationship_to_owner: "",
         purpose: "",
-        purposeDetails: "",
-        ctcVrrNo: "",
-        issuedAt: "",
-        issuedOn: "",
-        orNo: "",
+        purpose_details: "",
+        ctc_vrr_no: "",
+        issued_at: "",
+        issued_on: "",
+        or_no: "",
         remarks: "",
       }
     )
-
+    setRecordStatus("Save")
   };
+  const updateModal = (open: boolean) => {
+    setModal(open);
+  }
+  const updateSelect = (open: any) => {
+    toast.info("Record successfully selected");
+    setModal(false);
+    setFormData(open);
+    setRecordStatus("Update")
+  }
   return (
     <div className="grid lg:grid-cols-2 gap-6">
+      {
+        modal ? <BarangayClearanceFindModal updateModal={updateModal} updateSelect={updateSelect}/> : <></>
+      }
       {/* Form Section */}
       <div>
         <Card className="p-6 space-y-6">
@@ -185,22 +350,24 @@ export default function BarangayForm() {
 
         <div className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className="flex flex-col">
-              <Label htmlFor="recordNo">Record No.</Label>
+            <div className="flex flex-col justify-between">
+              <Label htmlFor="bcert_number">Record No.</Label>
                 <Input
-                  id="recordNo"
+                  id="bcert_number"
                   placeholder="Enter record number"
-                  value={formData.recordNo}
-                  onChange={(e) => handleInputChange("recordNo", e.target.value)}
+                  value={latestId.nextRecord}
+                  onChange={(e) => handleInputChange("bcert_number", e.target.value)}
+                  disabled
                 />
               </div>
               <div>
                 <Label htmlFor="clearanceNo">Clearance No.</Label>
                 <Input
-                  id="clearanceNo"
+                  id="id"
                   placeholder="Enter clearance number"
-                  value={formData.clearanceNo}
-                  onChange={(e) => handleInputChange("clearanceNo", e.target.value)}
+                  value={latestId.nextId}
+                  onChange={(e) => handleInputChange("id", e.target.value)}
+                  disabled
                 />
               </div>
             </div>
@@ -210,8 +377,8 @@ export default function BarangayForm() {
               <Input
                 id="issuedDate"
                 type="date"
-                value={formData.issuedDate}
-                onChange={(e) => handleInputChange("issuedDate", e.target.value)}
+                value={formData.issued_date}
+                onChange={(e) => handleInputChange("issued_date", e.target.value)}
               />
             </div>
 
@@ -235,8 +402,8 @@ export default function BarangayForm() {
                 <Input
                   id="firstname"
                   placeholder="Enter firstname"
-                  value={formData.firstname}
-                  onChange={(e) => handleInputChange("firstname", e.target.value)}
+                  value={formData.first_name}
+                  onChange={(e) => handleInputChange("first_name", e.target.value)}
                 />
               </div>
             </div>
@@ -247,8 +414,8 @@ export default function BarangayForm() {
                 <Input
                   id="middlename"
                   placeholder="Enter middle name"
-                  value={formData.middlename}
-                  onChange={(e) => handleInputChange("middlename", e.target.value)}
+                  value={formData.middle_name}
+                  onChange={(e) => handleInputChange("middle_name", e.target.value)}
                 />
               </div>
               <div>
@@ -268,11 +435,11 @@ export default function BarangayForm() {
                 <Input
                   id="extension"
                   placeholder="Jr., Sr., III"
-                  value={formData.extension}
-                  onChange={(e) => handleInputChange("extension", e.target.value)}
+                  value={formData.ext_name}
+                  onChange={(e) => handleInputChange("ext_name", e.target.value)}
                 />
               </div>
-              <div>
+              {/* <div>
                 <Label htmlFor="age">Age</Label>
                 <Input
                   id="age"
@@ -281,14 +448,14 @@ export default function BarangayForm() {
                   value={formData.age}
                   onChange={(e) => handleInputChange("age", e.target.value)}
                 />
-              </div>
+              </div> */}
               <div>
                 <Label htmlFor="dateOfBirth">Date of Birth</Label>
                 <Input
                   id="dateOfBirth"
                   type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  value={formData.dob}
+                  onChange={(e) => handleInputChange("dob", e.target.value)}
                 />
               </div>
             </div>
@@ -298,8 +465,8 @@ export default function BarangayForm() {
               <Input
                 id="placeOfBirth"
                 placeholder="Enter place of birth"
-                value={formData.placeOfBirth}
-                onChange={(e) => handleInputChange("placeOfBirth", e.target.value)}
+                value={formData.pob}
+                onChange={(e) => handleInputChange("pob", e.target.value)}
               />
             </div>
 
@@ -309,8 +476,8 @@ export default function BarangayForm() {
                 <Input
                   id="houseBlockLot"
                   placeholder="Enter house block lot"
-                  value={formData.houseBlockLot}
-                  onChange={(e) => handleInputChange("houseBlockLot", e.target.value)}
+                  value={formData.house_block_lot_no}
+                  onChange={(e) => handleInputChange("house_block_lot_no", e.target.value)}
                 />
               </div>
               <div>
@@ -340,8 +507,8 @@ export default function BarangayForm() {
                   id="contactNo"
                   type="tel"
                   placeholder="Enter contact number"
-                  value={formData.contactNo}
-                  onChange={(e) => handleInputChange("contactNo", e.target.value)}
+                  value={formData.contact_no}
+                  onChange={(e) => handleInputChange("contact_no", e.target.value)}
                 />
               </div>
             </div>
@@ -351,15 +518,15 @@ export default function BarangayForm() {
               <Input
                 id="residencyPeriod"
                 placeholder="e.g., 5 years"
-                value={formData.residencyPeriod}
-                onChange={(e) => handleInputChange("residencyPeriod", e.target.value)}
+                value={formData.period_of_residency}
+                onChange={(e) => handleInputChange("period_of_residency", e.target.value)}
               />
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="registeredVoter">Registered Voter?</Label>
-                <Select value={formData.registeredVoter} onValueChange={(value) => handleInputChange("registeredVoter", value)}>
+                <Select value={formData.registered_voter} onValueChange={(value) => handleInputChange("registered_voter", value)}>
                   <SelectTrigger id="registeredVoter">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -374,8 +541,8 @@ export default function BarangayForm() {
                 <Input
                   id="houseOwner"
                   placeholder="Enter house owner name"
-                  value={formData.houseOwner}
-                  onChange={(e) => handleInputChange("houseOwner", e.target.value)}
+                  value={formData.house_owner}
+                  onChange={(e) => handleInputChange("house_owner", e.target.value)}
                 />
               </div>
             </div>
@@ -385,8 +552,8 @@ export default function BarangayForm() {
               <Input
                 id="relationshipToOwner"
                 placeholder="e.g., Son, Daughter, Tenant"
-                value={formData.relationshipToOwner}
-                onChange={(e) => handleInputChange("relationshipToOwner", e.target.value)}
+                value={formData.relationship_to_owner}
+                onChange={(e) => handleInputChange("relationship_to_owner", e.target.value)}
               />
             </div>
 
@@ -411,8 +578,8 @@ export default function BarangayForm() {
               <Input
                 id="purposeDetails"
                 placeholder="Enter additional details"
-                value={formData.purposeDetails}
-                onChange={(e) => handleInputChange("purposeDetails", e.target.value)}
+                value={formData.purpose_details}
+                onChange={(e) => handleInputChange("purpose_details", e.target.value)}
               />
             </div>
 
@@ -422,8 +589,8 @@ export default function BarangayForm() {
                 <Input
                   id="ctcVrrNo"
                   placeholder="Enter number"
-                  value={formData.ctcVrrNo}
-                  onChange={(e) => handleInputChange("ctcVrrNo", e.target.value)}
+                  value={formData.ctc_vrr_no}
+                  onChange={(e) => handleInputChange("ctc_vrr_no", e.target.value)}
                 />
               </div>
               <div>
@@ -431,8 +598,8 @@ export default function BarangayForm() {
                 <Input
                   id="issuedAt"
                   placeholder="Location"
-                  value={formData.issuedAt}
-                  onChange={(e) => handleInputChange("issuedAt", e.target.value)}
+                  value={formData.issued_at}
+                  onChange={(e) => handleInputChange("issued_at", e.target.value)}
                 />
               </div>
               <div>
@@ -440,8 +607,8 @@ export default function BarangayForm() {
                 <Input
                   id="issuedOn"
                   type="date"
-                  value={formData.issuedOn}
-                  onChange={(e) => handleInputChange("issuedOn", e.target.value)}
+                  value={formData.issued_on}
+                  onChange={(e) => handleInputChange("issued_on", e.target.value)}
                 />
               </div>
             </div>
@@ -451,8 +618,8 @@ export default function BarangayForm() {
               <Input
                 id="orNo"
                 placeholder="Enter O.R. number"
-                value={formData.orNo}
-                onChange={(e) => handleInputChange("orNo", e.target.value)}
+                value={formData.or_no}
+                onChange={(e) => handleInputChange("or_no", e.target.value)}
               />
             </div>
 
@@ -486,6 +653,18 @@ export default function BarangayForm() {
                 <Search className="h-4 w-4" />
                 <span className="hidden sm:inline">Find</span>
               </Button>
+              <Button onClick={handleSaveRecord} disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span> Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    {recordStatus} Record
+                  </>
+                )}
+              </Button>
               <Button
                 onClick={handleRefresh}
                 variant="outline"
@@ -494,7 +673,7 @@ export default function BarangayForm() {
                 <RefreshCw className="h-4 w-4" />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
-
+                
             </div>
           </CardContent>
         </Card>

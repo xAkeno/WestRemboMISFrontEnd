@@ -1,0 +1,12 @@
+{
+    "about": {
+        "title": "About Us",
+        "description": "Learn more about our mission, vision, and the team behind the West Rembo MIS. We are dedicated to providing efficient and accessible services to our community.",
+        "mission": "Our Mission",
+        "missionText": "To enhance the quality of life for the residents of West Rembo by providing a comprehensive and user-friendly Management Information System (MIS) that streamlines access to essential services and information.",
+        "vision": "Our Vision",
+        "visionText": "To be a leading community-driven platform that empowers residents with easy access to information, promotes transparency, and fosters a sense of community in West Rembo.",
+        "team": "Our Team",
+        "teamText": "Our team is composed of dedicated professionals who are passionate about leveraging technology to improve the lives of our community members. We work tirelessly to ensure that our MIS is up-to-date, user-friendly, and responsive to the needs of our users."
+    }
+}

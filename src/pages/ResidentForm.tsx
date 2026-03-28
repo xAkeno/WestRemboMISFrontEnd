@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,17 +8,206 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { User, Save, RefreshCw, Printer, FileText, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {Layout} from "../components/Layout";
+import axios from "axios";
+
+// api instance configured in src/lib/api.ts
 
 const ResidentForm = () => {
   const navigate = useNavigate();
-  const [isPWD, setIsPWD] = useState(false);
+  const [pwd, setIsPWD] = useState(false);
+  const [prefix, setPrefix] = useState("mr");
+  const [sex, setSex] = useState("male");
+  const [marital_status, setMaritalStatus] = useState("");
+  const [resident_status, setResidentStatus] = useState("permanent");
+  const [voter_status, setVoterStatus] = useState("registered");
+  const [street, setStreet] = useState("papaya");
+  const [zone, setZone] = useState("sitio2");
+  const [complexion, setComplexion] = useState("");
+  const [blood_type, setBloodType] = useState("");
 
-  const handleSave = () => {
-    toast.success("Resident record saved successfully");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click(); // Trigger the hidden file input
   };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      const imageURL = URL.createObjectURL(file); // create temporary URL
+      setPhoto(imageURL); // update state to display image
+      setPhotoFile(file); // store the file for uploading
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+
+    try {
+      const residentData = {
+        resident_id: "RES0001",
+        prefix,
+        surname: (document.getElementById("lastName") as HTMLInputElement).value,
+        first_name: (document.getElementById("firstName") as HTMLInputElement).value,
+        middle_name: (document.getElementById("middleName") as HTMLInputElement).value,
+        ext_name: (document.getElementById("ext") as HTMLInputElement).value,
+        nick_name: (document.getElementById("nickname") as HTMLInputElement).value,
+        sex,
+        marital_status,
+        name_of_spouse: (document.getElementById("spouse") as HTMLInputElement).value,
+        resident_status,
+        date_of_birth: (document.getElementById("dateOfBirth") as HTMLInputElement).value,
+        place_of_birth: (document.getElementById("placeOfBirth") as HTMLInputElement).value,
+        height_cm: (document.getElementById("height") as HTMLInputElement).value,
+        weight_kg: (document.getElementById("weight") as HTMLInputElement).value,
+        religion: (document.getElementById("religion") as HTMLInputElement).value,
+        voter_status,
+        precinct_no: (document.getElementById("precinctNo") as HTMLInputElement).value,
+        house_block_lot_no: (document.getElementById("houseBlockLot") as HTMLInputElement).value,
+        street,
+        zone,
+        phone_number: (document.getElementById("phoneNumber") as HTMLInputElement).value,
+        email_address: (document.getElementById("emailAddress") as HTMLInputElement).value,
+        period_of_residency: (document.getElementById("residencyPeriod") as HTMLInputElement).value,
+        house_owner: (document.getElementById("houseOwner") as HTMLInputElement).value,
+        relationship_to_owner: (document.getElementById("relationshipToOwner") as HTMLInputElement).value,
+        complexion,
+        blood_type,
+        emp_status: (document.getElementById("empStatus") as HTMLInputElement).value,
+        occupation: (document.getElementById("occupation") as HTMLInputElement).value,
+        position: (document.getElementById("position") as HTMLInputElement).value,
+        notes: (document.getElementById("notes") as HTMLTextAreaElement).value,
+        pwd,
+      };
+
+      // Prepare FormData for file upload
+      const formData = new FormData();
+      Object.entries(residentData).forEach(([key, value]) => formData.append(key, String(value)));
+      if (photoFile) formData.append("photo", photoFile);
+
+      // Ensure token exists (api interceptor will attach it
+
+      console.log("Submitting resident data:", residentData);
+
+      const response = await api.post("/api/residents", formData,{withCredentials: true});
+      let savedRecordId = null;
+
+      if (response.status === 201) {
+        toast.success("Resident record saved successfully");
+        savedRecordId = response.data.data.id;
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (ticket) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+        toast("Updated the ticket to encoded status");
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to save resident record";
+      toast.error(errorMessage);
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const parseAddress = (fullAddress: string = "") => {
+    const parts = fullAddress.split(",");
+
+    let house_block_lot_no = "";
+    let street = "";
+    let zone = "";
+
+    if (parts.length === 2) {
+      zone = parts[1].trim();
+      const firstPart = parts[0].trim();
+
+      const match = firstPart.match(/^(Block\s+\d+\s+Lot\s+\d+)\s+(.+)$/i);
+      if (match) {
+        house_block_lot_no = match[1];
+        street = match[2];
+      } else {
+        street = firstPart;
+      }
+    } else {
+      street = fullAddress;
+    }
+
+    return { house_block_lot_no, street, zone };
+  };
+
+  useEffect(() => {
+    if (!ticket?.serviceable) return;
+
+    console.log("Populating Resident Registration form:", ticket);
+
+    const data = ticket.serviceable;
+
+    const set = (id: string, value: any) => {
+      const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el && value !== undefined && value !== null) el.value = value;
+    };
+
+    // Parse address → houseBlockLot + street + zone
+    const { house_block_lot_no, street, zone } = parseAddress(data.address);
+
+    // Personal Info
+    set("lastName", data.last_name);
+    set("firstName", data.first_name);
+    set("middleName", data.middle_name);
+    set("ext", data.ext || "");
+
+    set("dateOfBirth", data.date_of_birth);
+    set("placeOfBirth", data.place_of_birth);
+
+    // Residency / Address
+    set("houseBlockLot", house_block_lot_no);
+    set("street", street);
+    set("zone", zone);
+
+    set("residencyPeriod", data.period_of_residency);
+    set("houseOwner", data.house_owner);
+    set("relationshipToOwner", data.relation_to_house_owner);
+
+    // Contact
+    set("phoneNumber", data.contact_number);
+
+    // Purpose
+    set("purpose", data.purpose);
+
+    // Registered Voter (Yes / No)
+    set("registeredVoter", data.registered_voter === "Yes" ? "yes" : "no");
+
+    /** OPTIONAL Select fields you might have **/
+    if (data.prefix) setPrefix(data.prefix.toLowerCase());
+    if (data.sex) setSex(data.sex.toLowerCase());
+    if (data.marital_status) setMaritalStatus(data.marital_status.toLowerCase());
+    if (data.resident_status) setResidentStatus(data.resident_status.toLowerCase());
+    if (data.complexion) setComplexion(data.complexion.toLowerCase());
+    if (data.blood_type) setBloodType(data.blood_type.toLowerCase());
+    if (data.pwd !== undefined) setIsPWD(Boolean(data.pwd));
+
+  }, [ticket]);
+
+
+
+
+
 
   const handleRefresh = () => {
     toast.info("Form refreshed");
@@ -49,7 +239,7 @@ const ResidentForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="prefix">Prefix</Label>
-                    <Select defaultValue="mr">
+                    <Select value={prefix} onValueChange={setPrefix}>
                       <SelectTrigger id="prefix">
                         <SelectValue />
                       </SelectTrigger>
@@ -63,18 +253,18 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" defaultValue="ALBALADEJO" />
+                    <Input id="lastName"  />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" defaultValue="REBEL" />
+                    <Input id="firstName" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="middleName">Middle Name</Label>
-                    <Input id="middleName" defaultValue="I" />
+                    <Input id="middleName"  />
                   </div>
                 </div>
 
@@ -92,7 +282,7 @@ const ResidentForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="sex">Sex *</Label>
-                    <Select defaultValue="male">
+                    <Select value={sex} onValueChange={setSex}>
                       <SelectTrigger id="sex">
                         <SelectValue />
                       </SelectTrigger>
@@ -104,7 +294,7 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="maritalStatus">Marital Status</Label>
-                    <Select>
+                    <Select value={marital_status} onValueChange={setMaritalStatus}>
                       <SelectTrigger id="maritalStatus">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -125,7 +315,7 @@ const ResidentForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="residentStatus">Resident Status *</Label>
-                  <Select defaultValue="permanent">
+                  <Select value={resident_status} onValueChange={setResidentStatus}>
                     <SelectTrigger id="residentStatus">
                       <SelectValue />
                     </SelectTrigger>
@@ -169,7 +359,7 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="voterStatus">Voter Status</Label>
-                    <Select defaultValue="registered">
+                    <Select value={voter_status} onValueChange={setVoterStatus}>
                       <SelectTrigger id="voterStatus">
                         <SelectValue />
                       </SelectTrigger>
@@ -201,7 +391,7 @@ const ResidentForm = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="street">Street</Label>
-                    <Select defaultValue="papaya">
+                    <Select value={street} onValueChange={setStreet}>
                       <SelectTrigger id="street">
                         <SelectValue />
                       </SelectTrigger>
@@ -217,7 +407,7 @@ const ResidentForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="zone">Zone</Label>
-                    <Select defaultValue="sitio2">
+                    <Select value={zone} onValueChange={setZone}>
                       <SelectTrigger id="zone">
                         <SelectValue />
                       </SelectTrigger>
@@ -262,15 +452,25 @@ const ResidentForm = () => {
           <div className="space-y-6">
             <Card>
               <CardContent className="pt-6 space-y-4">
-                <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-                  <User className="h-24 w-24 text-muted-foreground" />
+                <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                  {photo ? (
+                    <img src={photo} alt="User Photo" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="h-24 w-24 text-muted-foreground" />
+                  )}
                 </div>
-                <Button className="w-full" variant="outline">
+
+                <Button className="w-full" variant="outline" onClick={handleUploadClick}>
                   Upload Photo
                 </Button>
-                <div className="text-center p-4 bg-primary rounded-lg">
-                  <p className="font-bold text-primary-foreground">REBEL I ALBALADEJO</p>
-                </div>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  hidden
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
                 <Button className="w-full" variant="outline">
                   <Printer className="mr-2 h-4 w-4" />
                   Print Preview
@@ -285,7 +485,7 @@ const ResidentForm = () => {
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="complexion">Complexion</Label>
-                  <Select>
+                  <Select value={complexion} onValueChange={setComplexion}>
                     <SelectTrigger id="complexion">
                       <SelectValue placeholder="Select complexion" />
                     </SelectTrigger>
@@ -299,7 +499,7 @@ const ResidentForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="bloodType">Blood Type</Label>
-                  <Select>
+                  <Select value={blood_type} onValueChange={setBloodType}>
                     <SelectTrigger id="bloodType">
                       <SelectValue placeholder="Select blood type" />
                     </SelectTrigger>
@@ -339,7 +539,7 @@ const ResidentForm = () => {
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="pwd" 
-                    checked={isPWD}
+                    checked={pwd}
                     onCheckedChange={(checked) => setIsPWD(checked as boolean)}
                   />
                   <Label htmlFor="pwd" className="cursor-pointer">
@@ -357,11 +557,19 @@ const ResidentForm = () => {
             <FileText className="mr-2 h-4 w-4" />
             New Record
           </Button>
-          <Button onClick={handleSave}>
-            <Save className="mr-2 h-4 w-4" />
-            Save Record
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <span className="animate-spin mr-2">⏳</span> Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Record
+              </>
+            )}
           </Button>
-          <Button onClick={handleRefresh} variant="outline">
+          <Button onClick={handleRefresh} variant="outline" disabled={isSaving}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>

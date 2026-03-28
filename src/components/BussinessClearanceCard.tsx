@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,9 +16,11 @@ import {
   PlusCircle,
   X,
 } from "lucide-react";
+import { BarangayBusinessFindModal } from "./BarangayBusinessFindModal";
+import axios from "axios";
 
 export interface ClearanceData {
-  recordNo: string;
+  id: number;
   brgyBusinessNo: string;
   issuedDate: string;
   prefix: string;
@@ -31,7 +33,6 @@ export interface ClearanceData {
   businessDetails: string;
   capital: string;
   orNo: string;
-  remarks: string;
   houseBlockLotNo: string;
   street: string;
   zone: string;
@@ -46,18 +47,22 @@ export interface ClearanceData {
 interface ClearanceFormProps {
   data: ClearanceData;
   onChange: (data: ClearanceData) => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  updateSaveStatus?: (val) => void;
+  recordStatus?: "Save" | "Update";
 }
 
-export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) => {
-  
+export const BussinessClearanceCard = ({ data, onChange, onSave, isSaving, updateSaveStatus, recordStatus }: ClearanceFormProps) => {
+  const [modal,setModal] = useState(false);
   const updateField = (field: keyof ClearanceData, value: string) => {
     const newData = { ...data, [field]: value };
-    console.log(newData);
     onChange(newData);
   };
 
   const handleFindRecord = () => {
     toast.info("Search functionality - Coming soon");
+    setModal(true);
   };
 
   const handleRefresh = () => {
@@ -65,7 +70,7 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
   };
   const handleNewRecord = () => {
     const newRecord: ClearanceData = {
-      recordNo: "",
+      id: 0,
       brgyBusinessNo: "",
       issuedDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       prefix: "",
@@ -78,7 +83,6 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
       businessDetails: "",
       capital: "",
       orNo: "",
-      remarks: "",
       houseBlockLotNo: "",
       street: "",
       zone: "",
@@ -90,11 +94,45 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
       inspectedNote: "",
     };
     onChange(newRecord);
-  toast.success("New record initialized");
-};
+    if (updateSaveStatus) updateSaveStatus("Save");
+    
+    toast.success("New record initialized");
+  };
+  const updateModal = (open: boolean) => {
+    setModal(open);
+  }
+  const updateSelect = (open: any) => {
+    toast.info("Record successfully selected");
+    setModal(false);
+    onChange(open);
+    if (updateSaveStatus) updateSaveStatus("Update");
+    // setFormData(open);
+  }
+
+  const [latestId, setLatestId] = useState<any>(null);
+
+  useEffect(() => {
+    const get = async () => {
+      try{
+        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyBusiness',{withCredentials:true})
+        var json = res.data.data
+        setLatestId(json);
+//        console.log(json);
+      }catch (error: any) {
+        const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
+        toast.error(errorMessage);
+        console.error(error);
+      } 
+    }
+    get();
+  },[])
+  
 
   return (
     <div className="flex flex-col gap-4">
+      {
+        modal ? <BarangayBusinessFindModal updateModal={updateModal} updateSelect={updateSelect}/> : <></>
+      }
       <Card className="p-6 space-y-6 bg-card border-border">
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-primary">Business Information</h2>
@@ -104,17 +142,19 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
               <Label htmlFor="recordNo">Record No.</Label>
               <Input
                 id="recordNo"
-                value={data.recordNo}
-                onChange={(e) => updateField("recordNo", e.target.value)}
+                value={latestId ? latestId.nextId : ""}
+                onChange={(e) => updateField("id", e.target.value)}
                 placeholder="New"
+                disabled
               />
             </div>
             <div>
               <Label htmlFor="brgyBusinessNo">Brgy Business No.</Label>
               <Input
                 id="brgyBusinessNo"
-                value={data.brgyBusinessNo}
+                value={latestId ? latestId.nextRecord : ""}
                 onChange={(e) => updateField("brgyBusinessNo", e.target.value)}
+                disabled
               />
             </div>
           </div>
@@ -235,14 +275,14 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
                 onChange={(e) => updateField("orNo", e.target.value)}
               />
             </div>
-            <div>
+            {/* <div>
               <Label htmlFor="remarks">Remarks</Label>
               <Input
                 id="remarks"
                 value={data.remarks}
                 onChange={(e) => updateField("remarks", e.target.value)}
               />
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -349,6 +389,24 @@ export const BussinessClearanceCard = ({ data, onChange }: ClearanceFormProps) =
             >
               <PlusCircle className="h-4 w-4" />
               <span className="hidden sm:inline">New</span>
+            </Button>
+            <Button
+              onClick={onSave}
+              variant="default"
+              className="w-full flex items-center gap-2"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span className="hidden sm:inline">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">{recordStatus === "Save" ? "Save Record" : "Update Record"}</span>
+                </>
+              )}
             </Button>
             <Button
               onClick={handleFindRecord}

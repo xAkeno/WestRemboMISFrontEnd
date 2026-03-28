@@ -2,7 +2,6 @@ import WebViewer from "@pdftron/webviewer";
 import { useEffect, useRef } from "react";
 
 interface FormData {
-  recordNo: string;
   brgyBusinessNo: string;
   issuedDate: string;
   prefix: string;
@@ -15,7 +14,6 @@ interface FormData {
   businessDetails: string;
   capital: string;
   orNo: string;
-  remarks: string;
   houseBlockLotNo: string;
   street: string;
   zone: string;
@@ -42,7 +40,6 @@ export const BusinessClearancePreview = ({
   const viewerInstanceRef = useRef<any>(null);
 
   const fieldMapping: Record<string, string> = {
-    recordNo: "Record No",
     brgyBusinessNo: "Brgy Business No",
     issuedDate: "Issued Date",
     prefix: "Prefix",
@@ -55,7 +52,6 @@ export const BusinessClearancePreview = ({
     businessDetails: "Business Details",
     capital: "Capital",
     orNo: "OR No",
-    remarks: "Remarks",
     houseBlockLotNo: "House Block Lot No",
     street: "Street",
     zone: "Zone",
@@ -100,6 +96,7 @@ export const BusinessClearancePreview = ({
       {
         path: "/webviewer",
         initialDoc: templatePath,
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a",
       },
       viewerRef.current
     ).then((instance: any) => {
@@ -119,7 +116,7 @@ export const BusinessClearancePreview = ({
 
   return (
     <div>
-      <div className="w-full h-[600px]" ref={viewerRef}></div>
+      <div className="w-full h-[700px]" ref={viewerRef}></div>
     </div>
   );
 };

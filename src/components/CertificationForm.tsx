@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -6,32 +6,38 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, set } from "date-fns";
 import { cn } from "@/lib/utils";
-
+import axios from "axios";
+import { toast } from "sonner";
+import { useParams, useLocation } from "react-router-dom";
 interface FormData {
-  transactionNo: string;
-  certificationNo: string;
-  issuedDate: Date | undefined;
+  bcert_number: string;
+  issued_date: Date | undefined;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middle_name: string;
   surname: string;
   extension: string;
-  houseBlockLot: string;
+  house_block_lot: string;
   street: string;
   zone: string;
   age: string;
-  dateOfBirth: Date | undefined;
-  placeOfBirth: string;
-  contactNo: string;
-  residencyPeriod: string;
-  registeredVoter: string;
-  houseOwner: string;
+  date_of_birth: Date | undefined;
+  place_of_birth: string;
+  contact_no: string;
+  residency_period: string;
+  registered_voter: string;
+  house_owner: string;
   relationship: string;
   purpose: string;
-  punongBarangay: string;
-  forPunongBrgy: string;
+  punong_barangay: string;
+  for_punong_brgy: string;
+}
+
+interface gg{
+  nextId:number;
+  nextRecord:string;
 }
 
 interface CertificationFormProps {
@@ -39,55 +45,83 @@ interface CertificationFormProps {
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
 }
 
+
 export const CertificationForm = ({ formData, setFormData }: CertificationFormProps) => {
   const updateField = (field: keyof FormData, value: string | Date | undefined) => {
-    console.log(`Updating field ${field} to value:`, value);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const [latestId,setLatestId] = useState<gg>({
+    nextId:0,
+    nextRecord: ""
+  });
+
+  useEffect(() => {
+    const get = async () => {
+      try{
+        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyCertificates',{withCredentials:true})
+        var json = res.data.data
+        setLatestId(json);
+         console.log(json);
+      }catch (error: any) {
+        const errorMessage = error.response?.data?.message || "Failed to save barangay clearance record";
+        toast.error(errorMessage);
+        console.error(error);
+      } 
+    }
+    get();
+  },[])
+
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  if(ticket){
+    setFormData(ticket.serviceable);
+    
+    console.log(ticket);
+  }
+
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="transactionNo">Transaction No.</Label>
+          <div className="space-y-2">
+          <Label htmlFor="id">Record No.</Label>
           <Input
-            id="transactionNo"
-            value={formData.transactionNo}
-            onChange={(e) => updateField("transactionNo", e.target.value)}
-            placeholder="10"
+            id="id"
+            value={latestId ? latestId.nextId : ""}
+            disabled
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="certificationNo">Certification No.</Label>
+          <Label htmlFor="surname">Cert No.</Label>
           <Input
-            id="certificationNo"
-            value={formData.certificationNo}
-            onChange={(e) => updateField("certificationNo", e.target.value)}
-            placeholder="BC-2025-01-0010"
+            id="surname"
+            value={latestId ? latestId.nextRecord : ""}
+            disabled
           />
         </div>
-
         <div className="space-y-2">
-          <Label htmlFor="issuedDate">Issued Date</Label>
+          <Label htmlFor="issued_date">Issued Date</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !formData.issuedDate && "text-muted-foreground"
+                  !formData.issued_date && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formData.issuedDate ? format(formData.issuedDate, "PPP") : <span>Pick a date</span>}
+                {formData.issued_date ? format(formData.issued_date, "PPP") : <span>Pick a date</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-popover z-50">
               <Calendar
                 mode="single"
-                selected={formData.issuedDate}
-                onSelect={(date) => updateField("issuedDate", date)}
+                selected={formData.issued_date}
+                onSelect={(date) => updateField("issued_date", date)}
                 initialFocus
               />
             </PopoverContent>
@@ -119,11 +153,11 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="middleName">Middle Name</Label>
+          <Label htmlFor="middle_name">Middle Name</Label>
           <Input
-            id="middleName"
-            value={formData.middleName}
-            onChange={(e) => updateField("middleName", e.target.value)}
+            id="middle_name"
+            value={formData.middle_name}
+            onChange={(e) => updateField("middle_name", e.target.value)}
             placeholder="LOUISE"
           />
         </div>
@@ -149,11 +183,11 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="houseBlockLot">House Block Lot No.</Label>
+          <Label htmlFor="house_block_lot">House Block Lot No.</Label>
           <Input
-            id="houseBlockLot"
-            value={formData.houseBlockLot}
-            onChange={(e) => updateField("houseBlockLot", e.target.value)}
+            id="house_block_lot"
+            value={formData.house_block_lot}
+            onChange={(e) => updateField("house_block_lot", e.target.value)}
             placeholder="43-C"
           />
         </div>
@@ -190,25 +224,25 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="dateOfBirth">Date of Birth</Label>
+          <Label htmlFor="date_of_birth">Date of Birth</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !formData.dateOfBirth && "text-muted-foreground"
+                  !formData.date_of_birth && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formData.dateOfBirth ? format(formData.dateOfBirth, "PPP") : <span>Pick a date</span>}
+                {formData.date_of_birth ? format(formData.date_of_birth, "PPP") : <span>Pick a date</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-popover z-50">
               <Calendar
                 mode="single"
-                selected={formData.dateOfBirth}
-                onSelect={(date) => updateField("dateOfBirth", date)}
+                selected={formData.date_of_birth}
+                onSelect={(date) => updateField("date_of_birth", date)}
                 initialFocus
               />
             </PopoverContent>
@@ -216,40 +250,40 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="placeOfBirth">Place of Birth</Label>
+          <Label htmlFor="place_of_birth">Place of Birth</Label>
           <Input
-            id="placeOfBirth"
-            value={formData.placeOfBirth}
-            onChange={(e) => updateField("placeOfBirth", e.target.value)}
+            id="place_of_birth"
+            value={formData.place_of_birth}
+            onChange={(e) => updateField("place_of_birth", e.target.value)}
             placeholder="City, Province"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="contactNo">Contact No.</Label>
+          <Label htmlFor="contact_no">Contact No.</Label>
           <Input
-            id="contactNo"
-            value={formData.contactNo}
-            onChange={(e) => updateField("contactNo", e.target.value)}
+            id="contact_no"
+            value={formData.contact_no}
+            onChange={(e) => updateField("contact_no", e.target.value)}
             placeholder="09XX-XXX-XXXX"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="residencyPeriod">Period of Residency</Label>
+          <Label htmlFor="residency_period">Period of Residency</Label>
           <Input
-            id="residencyPeriod"
-            value={formData.residencyPeriod}
-            onChange={(e) => updateField("residencyPeriod", e.target.value)}
+            id="residency_period"
+            value={formData.residency_period}
+            onChange={(e) => updateField("residency_period", e.target.value)}
             placeholder="Years/Months"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="registeredVoter">Registered Voter?</Label>
+          <Label htmlFor="registered_voter">Registered Voter?</Label>
           <Select
-            value={formData.registeredVoter}
-            onValueChange={(value) => updateField("registeredVoter", value)}
+            value={formData.registered_voter}
+            onValueChange={(value) => updateField("registered_voter", value)}
           >
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="Select option" />
@@ -262,11 +296,11 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="houseOwner">House Owner</Label>
+          <Label htmlFor="house_owner">House Owner</Label>
           <Input
-            id="houseOwner"
-            value={formData.houseOwner}
-            onChange={(e) => updateField("houseOwner", e.target.value)}
+            id="house_owner"
+            value={formData.house_owner}
+            onChange={(e) => updateField("house_owner", e.target.value)}
             placeholder="Name of house owner"
           />
         </div>
@@ -298,21 +332,21 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="punongBarangay">Punong Barangay</Label>
+          <Label htmlFor="punong_barangay">Punong Barangay</Label>
           <Input
-            id="punongBarangay"
-            value={formData.punongBarangay}
-            onChange={(e) => updateField("punongBarangay", e.target.value)}
+            id="punong_barangay"
+            value={formData.punong_barangay}
+            onChange={(e) => updateField("punong_barangay", e.target.value)}
             placeholder="Hon. LEO E. BES"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="forPunongBrgy">For the Punong Brgy.</Label>
+          <Label htmlFor="for_punong_brgy">For the Punong Brgy.</Label>
           <Input
-            id="forPunongBrgy"
-            value={formData.forPunongBrgy}
-            onChange={(e) => updateField("forPunongBrgy", e.target.value)}
+            id="for_punong_brgy"
+            value={formData.for_punong_brgy}
+            onChange={(e) => updateField("for_punong_brgy", e.target.value)}
             placeholder="Representative name"
           />
         </div>

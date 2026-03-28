@@ -1,0 +1,54 @@
+{
+    
+      "hero": {
+        "title": "Maligayang Pagdating sa West Rembo",
+        "description": "Manatiling may alam sa mga opisyal na anunsyo, mga darating na kaganapan, at mahahalagang update upang mapanatiling ligtas, konektado, at umuunlad ang komunidad ng West Rembo."
+      },
+      "calendarButton": {
+        "title": "Kalendaryo ng mga Aktibidad",
+        "learnMore": "Alamin pa"
+      },    
+      "cityInfo": {
+        "title": "WEST REMBO",
+        "subtitle": "CITY OF MAKATI"
+      },
+      "about": {
+        "titles": "Tungkol sa Website na Ito",
+        "descriptions": "Manatiling may alam sa mga opisyal na anunsyo, mga darating na kaganapan, at mahahalagang update para sa komunidad ng West Rembo. Ang website na ito ay nagsisilbing sentro ng impormasyon upang mapanatiling ligtas, konektado, at umuunlad ang mga residente."
+      },
+      "features": {
+      "communityStuff": {
+        "number": "01",
+        "title": "Mga Feature",
+        "description": "Tingnan ang mga pangunahing feature ng aming website na dinisenyo upang i-keep ka'y naka-update at nakakakonekta sa komunidad ng West Rembo."
+      },
+      "calendarEvent": {
+        "number": "02",
+        "title": "Kalendaryo ng mga Kaganapan",
+        "description": "Tingnan ang mga darating na kaganapan, mga pagsasama, at komunidad na aktibidad upang huwag kalimutan ang anumang nangyayari sa West Rembo."
+      },
+      "emergencyEvents": {
+        "number": "03",
+        "title": "Impormasyon at Mga Contact sa Emergency",
+        "description": "I-access ang mga emergency numbers, contact sa health center, at mga paalala sa seguridad upang maging handa ka sa anumang emergency situation sa West Rembo."
+      }
+    },
+      "services": {
+        "firstBox": {
+          "title": "Resident Registration",
+          "description": "Magparehistro bilang residente ng Barangay West Rembo upang ma-access ang mga serbisyo ng komunidad, mga programa, at mga benepisyo. Ang aming proseso ng pagpaparehistro ay simple at epektibo."
+        },
+        "secondBox": {
+          "title": "Barangay Clearance",
+          "description": "Mag-apply para sa barangay clearance para sa trabaho, paglalakbay, at iba pang opisyal na layunin. Mabilis na proseso na may online tracking na available."
+        },
+        "thirdBox": {
+          "title": "Business Clearance",
+          "description": "Kumuha ng mga business permit at clearance upang legal na mag-operate sa loob ng aming barangay. Sinusuportahan namin ang mga lokal na negosyante sa pamamagitan ng streamlined na proseso."
+        },
+        "topBox": {
+          "title": "Mga Serbisyo na Tinatayuan Namin",
+          "description": "I-access ang mga pangunahing serbisyo ng Barangay sa online. Nakikisigla kami sa paglilingkod sa aming komunidad gamit ang epektibong at mapagmahal na paraan."
+        }
+      }
+    }

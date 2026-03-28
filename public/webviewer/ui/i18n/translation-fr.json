@@ -6035,6 +6035,17 @@
           "detail": "Formule"
         }
       }
-    }
+    },
+      "apply": "Appliquer",
+      "type": "Type",
+      "button": "Bouton",
+      "accessibility": {
+      "title": "Paramètres d’accessibilité",
+      "fontSize": "Taille de la police",
+      "zoom": "Zoom de la page",
+      "language": "Langue",
+      "reset": "Réinitialiser par défaut"
+}
+
   }
 }

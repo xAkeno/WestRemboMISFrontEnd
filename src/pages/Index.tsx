@@ -1,4 +1,5 @@
 import { useState, useRef} from "react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CertificationForm } from "@/components/CertificationForm";
@@ -16,91 +17,174 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import WebViewer from "@pdftron/webviewer";
+import { BarangayCertificateFindModal } from "@/components/BarangayCertificateFindModal";
+import { useLocation } from "react-router-dom";
 
 interface FormData {
-  transactionNo: string;
-  certificationNo: string;
-  issuedDate: Date | undefined;
+  id: number,
+  bcert_number: string;
+  issued_date: Date | undefined;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middle_name: string;
   surname: string;
   extension: string;
-  houseBlockLot: string;
+  house_block_lot: string;
   street: string;
   zone: string;
   age: string;
-  dateOfBirth: Date | undefined;
-  placeOfBirth: string;
-  contactNo: string;
-  residencyPeriod: string;
-  registeredVoter: string;
-  houseOwner: string;
+  date_of_birth: Date | undefined;
+  place_of_birth: string;
+  contact_no: string;
+  residency_period: string;
+  registered_voter: string;
+  house_owner: string;
   relationship: string;
   purpose: string;
-  punongBarangay: string;
-  forPunongBrgy: string;
+  punong_barangay: string;
+  for_punong_brgy: string;
 }
 
+
 const Index = () => {
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    transactionNo: "10",
-    certificationNo: "BC-2025-01-0010",
-    issuedDate: new Date("2025-02-01"),
+    id: 0,
+    bcert_number: "BC-2025-01-0010",
+    issued_date: new Date("2025-02-01"),
     prefix: "MS.",
     firstname: "SAGRE",
-    middleName: "LOUISE",
+    middle_name: "LOUISE",
     surname: "MANZANO",
     extension: "",
-    houseBlockLot: "43-C",
+    house_block_lot: "43-C",
     street: "A. Mabini Street",
     zone: "Sitio 5",
     age: "0",
-    dateOfBirth: undefined,
-    placeOfBirth: "",
-    contactNo: "",
-    residencyPeriod: "",
-    registeredVoter: "",
-    houseOwner: "",
+    date_of_birth: undefined,
+    place_of_birth: "",
+    contact_no: "",
+    residency_period: "",
+    registered_voter: "",
+    house_owner: "",
     relationship: "",
     purpose: "LOCAL EMPLOYMENT",
-    punongBarangay: "Hon. LEO E. BES",
-    forPunongBrgy: "",
+    punong_barangay: "Hon. LEO E. BES",
+    for_punong_brgy: "",
   });
+
 
   const handleNewRecord = () => {
     setFormData({
-      transactionNo: "",
-      certificationNo: "",
-      issuedDate: undefined,
+      id: 0,
+      bcert_number: "",
+      issued_date: undefined,
       prefix: "",
       firstname: "",
-      middleName: "",
+      middle_name: "",
       surname: "",
       extension: "",
-      houseBlockLot: "",
+      house_block_lot: "",
       street: "",
       zone: "",
       age: "",
-      dateOfBirth: undefined,
-      placeOfBirth: "",
-      contactNo: "",
-      residencyPeriod: "",
-      registeredVoter: "",
-      houseOwner: "",
+      date_of_birth: undefined,
+      place_of_birth: "",
+      contact_no: "",
+      residency_period: "",
+      registered_voter: "",
+      house_owner: "",
       relationship: "",
       purpose: "",
-      punongBarangay: "",
-      forPunongBrgy: "",
+      punong_barangay: "",
+      for_punong_brgy: "",
     });
+
     toast.success("New record form cleared");
   };
 
-  const handleSaveRecord = () => {
-    toast.success("Record saved successfully");
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+
+  if(ticket){
+    setFormData(ticket.serviceable);
+    console.log(ticket);
+  }
+
+  const [recordStatus, setRecordStatus] = useState<"Save" | "Update">("Save");
+
+  const handleSaveRecord = async () => {
+    setIsSaving(true);
+
+    try {
+      console.log("Submitting barangay clearance data:", formData);
+
+      let response;
+      let savedRecordId = null;
+
+      if (recordStatus === "Save") {
+        // Create new record
+        response = await axios.post(
+          "http://127.0.0.1:8000/api/barangay-certificates",
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 201 || response.status === 200) {
+          toast.success("Barangay clearance record saved successfully");
+          console.log("Created record:", response.data);
+          savedRecordId = response.data.data.service.id;
+        }
+
+      } else if (recordStatus === "Update") {
+        // Update existing record
+        if (!formData.id || formData.id === 0) {
+          toast.error("No record selected to update");
+          return;
+        }
+
+        response = await axios.put(
+          `http://127.0.0.1:8000/api/barangay-certificates/${formData.id}`,
+          formData,
+          { withCredentials: true }
+        );
+
+        if (response.status === 200) {
+          toast.success("Barangay clearance record updated successfully");
+          console.log("Updated record:", response.data);
+          savedRecordId = formData.id;
+        }
+      }
+
+      // Update Ticket Based on the Service Saved
+      if (savedRecordId) {
+        await axios.post(
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          {
+            status: "ENCODED"
+          },
+          { withCredentials: true }
+        );
+        toast("Updated the ticket to encoded status");
+
+        console.log("Ticket status updated for service:", savedRecordId);
+      }
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to save barangay clearance record";
+      toast.error(errorMessage);
+      console.error(error);
+
+    } finally {
+      setIsSaving(false);
+    }
   };
 
+  const [modal, setModal] = useState(false);
+
   const handleFindRecord = () => {
+    setModal(true);
     toast.info("Search functionality - Coming soon");
   };
 
@@ -129,6 +213,16 @@ const Index = () => {
       viewerInstanceRef.current.loadDocument(file);
     }
   };
+  const updateModal = (open: boolean) => {
+    setModal(open);
+  }
+  const updateSelect = (open: any) => {
+    toast.info("Record successfully selected");
+    setModal(false);
+    console.log(open)
+    setFormData(open);
+    setRecordStatus("Update")
+  }
 
   return (
     <Layout>
@@ -144,6 +238,9 @@ const Index = () => {
             <p className="text-sm mt-2 opacity-90">Official Document Management Portal</p>
           </div>
         </header> */}
+        {
+          modal ? <BarangayCertificateFindModal updateModal={updateModal} updateSelect={updateSelect}/> :<></>
+        }
 
         <main className="container mx-auto px-4 py-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -174,9 +271,27 @@ const Index = () => {
                       <span className="hidden sm:inline">New</span>
                     </Button>
                     <Button
+                      onClick={handleSaveRecord}
+                      disabled={isSaving}
+                      className="w-full flex items-center gap-2"
+                    >
+                      {isSaving ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          <span className="hidden sm:inline">Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          <span className="hidden sm:inline">{recordStatus} Record</span>
+                        </>
+                      )}
+                    </Button>
+                    <Button
                       onClick={handleFindRecord}
                       variant="outline"
                       className="w-full flex items-center gap-2"
+                      disabled={isSaving}
                     >
                       <Search className="h-4 w-4" />
                       <span className="hidden sm:inline">Find</span>
@@ -185,6 +300,7 @@ const Index = () => {
                       onClick={handleRefresh}
                       variant="outline"
                       className="w-full flex items-center gap-2"
+                      disabled={isSaving}
                     >
                       <RefreshCw className="h-4 w-4" />
                       <span className="hidden sm:inline">Refresh</span>

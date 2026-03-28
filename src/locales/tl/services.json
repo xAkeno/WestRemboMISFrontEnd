@@ -1,0 +1,17 @@
+{
+    "home": {
+      "hero": {
+        "title": "Welcome to West Rembo",
+        "subtitle": "Official Barangay Announcements",
+        "description": "Updates to help keep you informed. Check back here regularly to keep up with community news."
+      },
+      "calendar": {
+        "title": "Calendar of Activity",
+        "viewMore": "View More"
+      },
+      "cityInfo": {
+        "title": "WEST REMBO",
+        "subtitle": "CITY OF MAKATI"
+      }
+    }
+}

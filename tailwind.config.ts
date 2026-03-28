@@ -2,7 +2,10 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "node_modules/flowbite/**/*.js",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -14,6 +17,7 @@ export default {
     },
     extend: {
       colors: {
+        
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -85,7 +89,16 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        accent: "hsl(var(--accent))",
+        primary: "hsl(var(--primary))",
+        secondary: "hsl(var(--secondary))",
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require('flowbite/plugin')
+  
+  ],
 } satisfies Config;

@@ -2,29 +2,29 @@ import WebViewer from "@pdftron/webviewer";
 import { useEffect, useRef } from "react";
 
 interface FormData {
-  transactionNo: string;
-  certificationNo: string;
-  issuedDate: Date | undefined;
+  bcert_number: string;
+  issued_date: Date | undefined;
   prefix: string;
   firstname: string;
-  middleName: string;
+  middle_name: string;
   surname: string;
   extension: string;
-  houseBlockLot: string;
+  house_block_lot: string;
   street: string;
   zone: string;
   age: string;
-  dateOfBirth: Date | undefined;
-  placeOfBirth: string;
-  contactNo: string;
-  residencyPeriod: string;
-  registeredVoter: string;
-  houseOwner: string;
+  date_of_birth: Date | undefined;
+  place_of_birth: string;
+  contact_no: string;
+  residency_period: string;
+  registered_voter: string;
+  house_owner: string;
   relationship: string;
   purpose: string;
-  punongBarangay: string;
-  forPunongBrgy: string;
+  punong_barangay: string;
+  for_punong_brgy: string;
 }
+
 
 interface CertificatePreviewProps {
   formData: FormData;
@@ -42,29 +42,29 @@ export const CertificatePreview = ({
 
   // 🧭 Field name mapping (matches PDF form field names)
   const fieldMapping: Record<string, string> = {
-    transactionNo: "Transaction No",
-    certificationNo: "Certification No",
-    issuedDate: "Issued Date",
+    bcert_number: "Certification No",
+    issued_date: "Issued Date",
     prefix: "Prefix",
     firstname: "Firstname",
-    middleName: "Middle Name",
+    middle_name: "Middle Name",
     surname: "Surname",
     extension: "Extension",
-    houseBlockLot: "House Block Lot No",
+    house_block_lot: "House Block Lot No",
     street: "Street",
     zone: "Zone",
     age: "Age",
-    dateOfBirth: "Date of Birth",
-    placeOfBirth: "Place of Birth",
-    contactNo: "Contact No",
-    residencyPeriod: "Period of Residency",
-    registeredVoter: "Registered Voter",
-    houseOwner: "House Owner",
+    date_of_birth: "Date of Birth",
+    place_of_birth: "Place of Birth",
+    contact_no: "Contact No",
+    residency_period: "Period of Residency",
+    registered_voter: "Registered Voter",
+    house_owner: "House Owner",
     relationship: "Relationship",
     purpose: "Purpose",
-    punongBarangay: "Punong Barangay",
-    forPunongBrgy: "For Punong Barangay",
+    punong_barangay: "Punong Barangay",
+    for_punong_brgy: "For Punong Barangay",
   };
+
 
   // ✏️ Update PDF fields with form data
   const updatePDFFields = () => {
@@ -103,6 +103,7 @@ export const CertificatePreview = ({
       {
         path: "/webviewer",
         initialDoc: templatePath,
+        licenseKey: "demo:1763914622659:60e900c30300000000e92a6b15fc125996c1e67a34dc24ca13fef56e4a",
       },
       viewerRef.current
     ).then((instance: any) => {
