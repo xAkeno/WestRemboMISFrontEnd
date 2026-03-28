@@ -77,7 +77,52 @@ export interface Certificate {
   created_by: string;
 }
 
-export type ClearanceType = 'barangay' | 'business' | 'building' | 'certificate';
+export interface Resident {
+  id: number;
+  resident_id: string;
+  prefix?: string;
+  first_name: string;
+  middle_name?: string;
+  surname: string;
+  ext_name?: string;
+  nick_name?: string;
+  sex: string;
+  date_of_birth: string;
+  place_of_birth: string;
+  marital_status: string;
+  name_of_spouse?: string;
+  religion?: string;
+  blood_type?: string;
+  complexion?: string;
+  pwd?: string;
+  height_cm?: number;
+  weight_kg?: number;
+  phone_number?: string;
+  email_address?: string;
+  house_block_lot_no?: string;
+  street?: string;
+  zone?: string;
+  resident_status?: string;
+  period_of_residency?: string;
+  house_owner?: string;
+  relationship_to_owner?: string;
+  voter_status?: string;
+  precinct_no?: string;
+  occupation?: string;
+  position?: string;
+  emp_status?: string;
+  notes?: string;
+  photo?: string;
+  status?: string;
+  requester_id?: number;
+  requester_type?: string;
+  created_by?: number;
+  updated_by?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type ClearanceType = 'barangay' | 'business' | 'building' | 'certificate' | 'resident';
 
 export interface ClearanceResponse<T> {
   data: T[];

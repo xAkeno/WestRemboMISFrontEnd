@@ -129,7 +129,7 @@ export default function MyRequest() {
                   ? "You haven't submitted any requests yet."
                   : `No ${filter} requests at the moment.`}
               </p>
-              <Link to="/new-request">
+              <Link to="/services">
                 <button
                   className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
                   style={{ backgroundColor: NAVY, borderRadius: 1 }}

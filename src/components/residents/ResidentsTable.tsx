@@ -9,10 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from '../ui/sonner';
 import { formatDobWithAge, mapResident } from './residentMapper';
-import { map } from 'zod';
 
 interface ResidentsTableProps {
   residents: Resident[];
@@ -30,7 +30,6 @@ const getInitials = (name: string) => {
   }
   return name.substring(0, 2).toUpperCase();
 };
-
 
 const getAvatarColor = (name: string) => {
   const colors = [
@@ -56,6 +55,8 @@ export const ResidentsTable = ({
   isLoading,
   filterValue
 }: ResidentsTableProps) => {
+  const navigate = useNavigate();
+  const [residents, setResidents] = useState<Resident[]>([]);
 
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <th 
@@ -69,25 +70,11 @@ export const ResidentsTable = ({
     </th>
   );
 
-  if (isLoading) {
-    return (
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
-
-
-  const [residents, setResidents] = useState<Resident[]>([]);
-
   const fetchResidents = async (url: string) => {
     try {
       const res = await axios.get(url, { withCredentials: true });
       const json = res.data.data.data;
       setResidents(json.map(mapResident));
-      console.log(json);
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || 'Failed to fetch residents';
@@ -101,12 +88,39 @@ export const ResidentsTable = ({
       filterValue === ''
         ? 'https://westrembomis.onrender.com/api/residents'
         : filterValue;
-
     fetchResidents(url);
-  }, [filterValue]); // 👈 runs ONLY when filterValue changes
+  }, [filterValue]);
 
+  const handleDelete = async (residentId: string) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this resident?");
+    if (!confirmDelete) return;
 
+    try {
+      await axios.delete(
+        `https://westrembomis.onrender.com/api/residents/${residentId}`,
+        { withCredentials: true }
+      );
+      toast.success("Resident deleted successfully.");
+      fetchResidents(
+        filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue
+      );
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to delete resident';
+      toast.error(errorMessage);
+      console.error(error);
+    }
+  };
 
+  if (isLoading) {
+    return (
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
@@ -134,7 +148,14 @@ export const ResidentsTable = ({
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-primary-foreground ${getAvatarColor(resident.fullName)}`}>
                       {getInitials(resident.fullName)}
                     </div>
-                    <a href="#" className="text-sm text-primary hover:underline font-medium">
+                    <a
+                      href="#"
+                      className="text-sm text-primary hover:underline font-medium"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/residents/${resident.residentId}/iid`);
+                      }}
+                    >
                       {resident.fullName}
                     </a>
                   </div>
@@ -165,9 +186,24 @@ export const ResidentsTable = ({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Details</DropdownMenuItem>
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/document-edit/6/${resident.residentId}`)}
+                        className="cursor-pointer"
+                      >
+                        View / Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/residents/6/${resident.residentId}`, { state: { autoPrint: true } })}
+                        className="cursor-pointer"
+                      >
+                        Print
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(resident.residentId)}
+                        className="text-destructive cursor-pointer"
+                      >
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>

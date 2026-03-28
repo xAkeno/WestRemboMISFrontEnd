@@ -118,6 +118,8 @@ const DOCUMENT_API_PATHS: Record<string, string> = {
   "2": "barangay-clearances",
   "3": "building-clearances",
   "4": "business-clearances",
+  "5": "cedulay",
+  "6": "residents"
 };
 
   // Example: define which fields should appear for each clearance/document type
@@ -237,6 +239,43 @@ export const CLEARANCE_FIELDS: Record<string, string[]> = {
     'Created By',
     'Barangay Clearance No',
   ],
+
+  'Resident': [
+    'Resident ID',
+    'Prefix',
+    'First Name',
+    'M.I.',
+    'Last Name',
+    'Ext Name',
+    'Nickname',
+    'Sex',
+    'Date of Birth',
+    'Place of Birth',
+    'Marital Status',
+    'Name of Spouse',
+    'Religion',
+    'Blood Type',
+    'Complexion',
+    'PWD',
+    'Height (cm)',
+    'Weight (kg)',
+    'Phone Number',
+    'Email Address',
+    'House Block Lot No',
+    'Street',
+    'Zone',
+    'Resident Status',
+    'Period of Residency',
+    'House Owner',
+    'Relationship to House Owner',
+    'Voter Status',
+    'Precinct No',
+    'Occupation',
+    'Position',
+    'Employment Status',
+    'Notes',
+    'Status',
+  ],
 };
 export const LABEL_TO_KEY: Record<string, string> = {
   // Name / Personal info
@@ -312,6 +351,11 @@ export const LABEL_TO_KEY: Record<string, string> = {
   'PWD': 'pwd',
   'Precinct No': 'precinct_no',
 
+  'Religion': 'religion',
+  'Voter Status': 'voter_status',
+  'Height (cm)': 'height_cm',
+  'Weight (kg)': 'weight_kg',
+
   // Common identifiers
   'ID': 'id',
   'Resident ID': 'resident_id',
@@ -386,6 +430,7 @@ const handleClearanceChange = (type: string) => {
         `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
+      console.log(`https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`);
       setDocumentUserData(response.data.data.data);
       console.log(response.data.data.data);
     } catch (error) {
@@ -635,126 +680,134 @@ const handleClearanceChange = (type: string) => {
   };
 
 
-  const fetchPDFTemplate = async (documentId: string) => {
-      setIsLoading(true);
+  // Replace the entire useEffect at the bottom and fetchPDFTemplate with this:
+
+const fetchPDFTemplate = async (documentId: string, existingData?: DocumentUserData) => {
+  setIsLoading(true);
+  try {
+    const id = parseInt(documentId, 10);
+
+    const metadataRes = await axios.get(
+      `https://westrembomis.onrender.com/api/documents/single/${id}`,
+      { withCredentials: true }
+    );
+
+    const metadata = metadataRes.data;
+    if (!metadata.file_url) throw new Error('Document URL missing');
+
+    const pdfRes = await axios.get(
+      "https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url,
+      { responseType: 'arraybuffer', withCredentials: true }
+    );
+
+    const pdfBlob = new Blob([pdfRes.data], { type: 'application/pdf' });
+    templateBytesRef.current = await pdfBlob.arrayBuffer();
+
+    const { info } = await loadPDFTemplate(templateBytesRef.current);
+    setTemplateInfo(info);
+    setCurrentPage(0);
+
+    let savedLayout: TextField[] = [];
+    if (metadata.layout) {
       try {
-        console.log('Fetching PDF metadata...');
-        const id = parseInt(documentId, 10);
-
-        // Fetch document metadata from your Laravel backend
-        const metadataRes = await axios.get(
-          `https://westrembomis.onrender.com/api/documents/single/${id}`,
-          { withCredentials: true }
-        );
-
-        const metadata = metadataRes.data;
-        if (!metadata.file_url) throw new Error('Document URL missing');
-
-        console.log("pdf" + "https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url);
-
-        // Fetch the actual PDF as ArrayBuffer
-        const pdfRes = await axios.get("https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url, {
-          responseType: 'arraybuffer',
-          withCredentials: true,
-        });
-
-        const arrayBuffer = pdfRes.data;
-
-        // Convert to Blob (important for editable PDF libraries)
-        const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-
-        // Save the Blob into the ref
-        templateBytesRef.current = await pdfBlob.arrayBuffer(); // pdf-lib still expects ArrayBuffer
-        console.log('PDF Blob ready for editing:', pdfBlob);
-
-        // Load template info (your utility function)
-        const { info } = await loadPDFTemplate(templateBytesRef.current);
-        setTemplateInfo(info);
-        setCurrentPage(0);
-
-        // Load saved layout if exists
-        let savedLayout: TextField[] = [];
-        if (metadata.layout) {
-          try {
-            savedLayout = Array.isArray(metadata.layout)
-              ? metadata.layout
-              : JSON.parse(metadata.layout);
-          } catch (err) {
-            console.error('Invalid layout format:', err);
-          }
-        }
-
-        // Merge layout with existing record or ticket
-        const mergedFields = savedLayout.map((field) => {
-          const key = LABEL_TO_KEY[field.label];
-          let value: any = '';
-
-          if (key) {
-            if (existingRecord) {
-              value = existingRecord[key];
-            } else if (ticket?.serviceable) {
-              const source = ticket.serviceable;
-              const keyMap: Record<string, string> = {
-                surname: 'last_name',
-                dob: 'date_of_birth',
-                pob: 'place_of_birth',
-                relationship_to_owner: 'relation_to_house_owner',
-              };
-              const finalKey = keyMap[key] ?? key;
-              value = source[finalKey];
-            }
-          }
-
-          // Format dates properly
-          if (typeof value === 'string' && (value.includes('T') || key?.toLowerCase().includes('date') || key?.toLowerCase().includes('birth'))) {
-            const date = new Date(value);
-            if (!isNaN(date.getTime())) {
-              value = date.toISOString().split('T')[0];
-            }
-          }
-
-          return { ...field, value: value ?? '' };
-        });
-
-        setFields(mergedFields);
-        setSelectedId(null);
-
-        // Render initial preview
-        await renderPreview([]);
-
-        toast.success('Template loaded successfully');
-      } catch (error) {
-        console.error('Failed to fetch PDF:', error);
-        if (axios.isAxiosError(error)) {
-          if (error.response?.status === 404) {
-            toast.error('Document not found');
-          } else if ([401, 403].includes(error.response?.status || 0)) {
-            toast.error('Not authorized to access this document');
-          } else {
-            toast.error(`Server error: ${error.response?.status || 'Unknown'}`);
-          }
-        } else {
-          toast.error('Failed to load PDF template from server');
-        }
-      } finally {
-        setIsLoading(false);
+        savedLayout = Array.isArray(metadata.layout)
+          ? metadata.layout
+          : JSON.parse(metadata.layout);
+      } catch (err) {
+        console.error('Invalid layout format:', err);
       }
-    };
+    }
 
-  useEffect(() => {
+    // ✅ Use freshly passed data, not stale state
+    const record = existingData ?? null;
+
+    const mergedFields = savedLayout.map((field) => {
+      const key = LABEL_TO_KEY[field.label];
+      let value: any = '';
+
+      if (key) {
+        if (record) {
+          value = record[key as keyof DocumentUserData];
+        } else if (ticket?.serviceable) {
+          const source = ticket.serviceable;
+          const keyMap: Record<string, string> = {
+            surname: 'last_name',
+            dob: 'date_of_birth',
+            pob: 'place_of_birth',
+            relationship_to_owner: 'relation_to_house_owner',
+          };
+          const finalKey = keyMap[key] ?? key;
+          value = source[finalKey];
+        }
+      }
+
+      if (
+        typeof value === 'string' &&
+        (value.includes('T') ||
+          key?.toLowerCase().includes('date') ||
+          key?.toLowerCase().includes('birth'))
+      ) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          value = date.toISOString().split('T')[0];
+        }
+      }
+
+      return { ...field, value: value ?? '' };
+    });
+
+    setFields(mergedFields);
+    setSelectedId(null);
+    await renderPreview([]);
+    toast.success('Template loaded successfully');
+
+  } catch (error) {
+    console.error('Failed to fetch PDF:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) toast.error('Document not found');
+      else if ([401, 403].includes(error.response?.status || 0)) toast.error('Not authorized');
+      else toast.error(`Server error: ${error.response?.status || 'Unknown'}`);
+    } else {
+      toast.error('Failed to load PDF template from server');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+// ✅ Single coordinated effect — fetch document FIRST, then template with the data
+useEffect(() => {
+  const init = async () => {
     fetchUser();
 
-    if (id) {
-      fetchPDFTemplate(id);
+    let existingData: DocumentUserData | undefined;
+
+    if (bcertNumber && bcertNumber !== "new") {
+      try {
+        const apiPath = getApiPath(id);
+        const response = await axios.get(
+          `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
+          { withCredentials: true }
+        );
+        const records: DocumentUserData[] = response.data.data.data;
+        setDocumentUserData(records);
+        existingData = records?.[0];
+      } catch (error) {
+        console.error('Failed to fetch document', error);
+        toast.error('Failed to fetch document');
+      }
+    } else {
+      setDocumentUserData([]);
     }
 
-    // Only fetch document if editing an existing certificate
-    if (bcertNumber && bcertNumber !== "new") {
-      fetchUserDocument();
-    } else {
-      setDocumentUserData([]); // empty array instead of undefined
+    if (id) {
+      // ✅ Pass freshly fetched data directly — no stale state
+      await fetchPDFTemplate(id, existingData);
     }
-  }, [id, bcertNumber]);
+  };
+
+  init();
+}, [id, bcertNumber]);
 
 
 

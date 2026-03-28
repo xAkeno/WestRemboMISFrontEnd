@@ -168,8 +168,7 @@ const Certificate = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {navigate(`/document-edit/${item.bcert_number}`)}}>View</DropdownMenuItem>
-                              <DropdownMenuItem>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {navigate(`/document-edit/5/${item.bcert_number}`)}}>View/Edit</DropdownMenuItem>
                               <DropdownMenuItem>Print</DropdownMenuItem>
                               <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
                             </DropdownMenuContent>

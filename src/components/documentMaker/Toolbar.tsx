@@ -30,6 +30,16 @@ interface ToolbarProps {
   'Barangay Clearance': ['First Name', 'Last Name', 'Age', 'Purpose', 'Issued On'],
   'Business Clearance': ['Business Name', 'Business Type', 'Capital', 'Owner Name'],
   'Building Clearance': ['Owner Name', 'Building Address', 'Inspected By', 'Date of Inspection'],
+  'Resident': [                        // ← add this
+    'Resident ID', 'Prefix', 'First Name', 'M.I.', 'Last Name', 'Ext Name',
+    'Nickname', 'Sex', 'Date of Birth', 'Place of Birth', 'Marital Status',
+    'Name of Spouse', 'Religion', 'Blood Type', 'Complexion', 'PWD',
+    'Height (cm)', 'Weight (kg)', 'Phone Number', 'Email Address',
+    'House Block Lot No', 'Street', 'Zone', 'Resident Status',
+    'Period of Residency', 'House Owner', 'Relationship to House Owner',
+    'Voter Status', 'Precinct No', 'Occupation', 'Position',
+    'Employment Status', 'Notes', 'Status',
+  ],
 };
 // Radix UI Select components
 import {
@@ -48,6 +58,7 @@ const GROUP_LABELS: Record<string, string> = {
   building: 'Building Information',
   certificate: 'Certificate Information',
   additional: 'Additional Information',
+  resident: 'Resident Information',
 };
 
 export function Toolbar({ onUpload, onAddField, onDownload, onSaveLayout, onLoadLayout, hasTemplate, isAdmin, onSubmit, isUpdate, onPrint, selectedClearanceType, onChangeClearanceType, fields, selectedId }: ToolbarProps) {
