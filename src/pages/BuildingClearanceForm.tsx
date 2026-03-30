@@ -161,7 +161,7 @@ export default function BuildingClearanceForm() {
 
       if (recordStatus === "Save") {
         response = await axios.post(
-          "https://westrembomis.onrender.com/api/building-clearances",
+          "http://127.0.0.1:8000/api/building-clearances",
           formData,
           { withCredentials: true }
         );
@@ -181,7 +181,7 @@ export default function BuildingClearanceForm() {
         console.log(formData.id + "========================")
 
         response = await axios.put(
-          `https://westrembomis.onrender.com/api/building-clearances/${formData.id}`,
+          `http://127.0.0.1:8000/api/building-clearances/${formData.id}`,
           formData,
           { withCredentials: true }
         );
@@ -195,7 +195,7 @@ export default function BuildingClearanceForm() {
       // Update Ticket Based on the Service Saved
       if (savedRecordId) {
         await axios.post(
-          `https://westrembomis.onrender.com/api/tickets/update-by-service/${ticket.ticket_number}`,
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
           {
             status: "ENCODED"
           },
@@ -227,7 +227,7 @@ export default function BuildingClearanceForm() {
   useEffect(() => {
     const get = async () => {
       try{
-        const res = await axios.get('https://westrembomis.onrender.com/api/latestRecordBrgyBuilding',{withCredentials:true})
+        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyBuilding',{withCredentials:true})
         var json = res.data.data
         setLatestId(json);
       }catch (error: any) {

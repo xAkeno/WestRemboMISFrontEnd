@@ -53,7 +53,7 @@ const Header = () => {
   // Fetch logged-in user
   useEffect(() => {
     axios
-      .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
+      .get("http://127.0.0.1:8000/api/details", { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
       .catch(() => {/* not authenticated — silently ignore */});
   }, []);
@@ -77,7 +77,7 @@ const Header = () => {
   const signout = async () => {
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/logout",
+        "http://127.0.0.1:8000/api/logout",
         { withCredentials: true }
       );
 
@@ -318,7 +318,7 @@ const MobileProfilePanel = ({
   const signout = async () => {
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/logout",
+        "http://127.0.0.1:8000/api/logout",
         {},
         { withCredentials: true }
       );
@@ -390,6 +390,7 @@ const MobileProfilePanel = ({
       {[
         { href: "/profile",    label: "Profile",     icon: <path stroke="currentColor" strokeWidth="2" d="M7 17v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3Zm8-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /> },
         { href: "/myrequest",  label: "My Requests", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
+        { href: "/mydocuments",  label: "My Documents", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
       ].map(({ href, label, icon }) => (
         <a
           key={href}

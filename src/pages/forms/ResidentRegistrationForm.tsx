@@ -35,7 +35,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -79,7 +79,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
       Object.entries(formData).forEach(([k, v]) => payload.append(k, String(v)));
       if (residentImage) payload.append("photo", residentImage);
 
-      const res = await axios.post("https://westrembomis.onrender.com/api/residents", payload, { withCredentials: true });
+      const res = await axios.post("http://127.0.0.1:8000/api/residents", payload, { withCredentials: true });
       if (res.status === 201 || res.status === 200) {
         toast({ title: "Request Submitted", description: "Your resident registration request has been submitted successfully." });
         onBack();
@@ -92,7 +92,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
         const user = res.data.data;
         console.log("Authenticated user details:", user);
 

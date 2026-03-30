@@ -44,7 +44,7 @@ const ProcessFrontDesk = () => {
     setIsSearching(true);
     try {
       const res = await axios.post(
-        "https://westrembomis.onrender.com/api/kiosk/search",
+        "http://127.0.0.1:8000/api/kiosk/search",
         searchData,
         { withCredentials: true }
       );
@@ -90,7 +90,7 @@ const ProcessFrontDesk = () => {
   const handleSubmit = async () => {
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/kiosk/update",
+        "http://127.0.0.1:8000/api/kiosk/update",
         editData,
         { withCredentials: true }
       );
@@ -112,7 +112,7 @@ const ProcessFrontDesk = () => {
   };
   const handleResubmit = async () => {
     try {
-      await axios.post("https://westrembomis.onrender.com/api/kiosk/submit", foundData, {
+      await axios.post("http://127.0.0.1:8000/api/kiosk/submit", foundData, {
         withCredentials: true,
       });
       toast({

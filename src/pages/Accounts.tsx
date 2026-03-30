@@ -57,7 +57,7 @@ export default function Accounts() {
     setError(null);
     try {
       const response = await axios.get(
-        "https://westrembomis.onrender.com/api/getAllUser",
+        "http://127.0.0.1:8000/api/getAllUser",
         { withCredentials: true }
       );
       const rawAccounts = response.data?.data || [];

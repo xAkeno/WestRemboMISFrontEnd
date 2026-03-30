@@ -111,7 +111,7 @@ const ResidentForm = () => {
       // Update Ticket Based on the Service Saved
       if (ticket) {
         await axios.post(
-          `https://westrembomis.onrender.com/api/tickets/update-by-service/${ticket.ticket_number}`,
+          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
           {
             status: "ENCODED"
           },

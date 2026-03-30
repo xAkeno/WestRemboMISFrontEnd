@@ -409,7 +409,7 @@ const handleClearanceChange = (type: string) => {
 
   const fetchStreets = async () => {
     try {
-      const response = await axios.get('https://westrembomis.onrender.com/api/streets', {
+      const response = await axios.get('http://127.0.0.1:8000/api/streets', {
         withCredentials: true,
       });
       setStreets(response.data); // assuming your API returns { data: [...] }
@@ -427,10 +427,10 @@ const handleClearanceChange = (type: string) => {
     try {
       const apiPath = getApiPath(id);
       const response = await axios.get(
-        `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
+        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
-      console.log(`https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`);
+      console.log(`http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`);
       setDocumentUserData(response.data.data.data);
       console.log(response.data.data.data);
     } catch (error) {
@@ -442,7 +442,7 @@ const handleClearanceChange = (type: string) => {
   const fetchUser = async () => {
     try {
       const response = await axios.get(
-        "https://westrembomis.onrender.com/api/me",
+        "http://127.0.0.1:8000/api/me",
         { withCredentials: true }
       );
 
@@ -520,7 +520,7 @@ const handleClearanceChange = (type: string) => {
       if (isUpdate) {
         // UPDATE
         response = await axios.put(
-          `https://westrembomis.onrender.com/api/${apiPath}/${existingRecord.id}`,
+          `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
           payload,
           { withCredentials: true }
         );
@@ -528,7 +528,7 @@ const handleClearanceChange = (type: string) => {
       } else {
         // CREATE
         response = await axios.post(
-          `https://westrembomis.onrender.com/api/${apiPath}`,
+          `http://127.0.0.1:8000/api/${apiPath}`,
           payload,
           { withCredentials: true }
         );
@@ -688,7 +688,7 @@ const fetchPDFTemplate = async (documentId: string, existingData?: DocumentUserD
     const id = parseInt(documentId, 10);
 
     const metadataRes = await axios.get(
-      `https://westrembomis.onrender.com/api/documents/single/${id}`,
+      `http://127.0.0.1:8000/api/documents/single/${id}`,
       { withCredentials: true }
     );
 
@@ -786,7 +786,7 @@ useEffect(() => {
       try {
         const apiPath = getApiPath(id);
         const response = await axios.get(
-          `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
+          `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
           { withCredentials: true }
         );
         const records: DocumentUserData[] = response.data.data.data;
@@ -923,7 +923,7 @@ useEffect(() => {
     console.log('Saving layout:', fields);
     const apiPath = getApiPath(id);
     console.log()
-    const save = axios.put(`https://westrembomis.onrender.com/api/documents/${id}/layout`, { layout: fields }, { withCredentials: true });
+    const save = axios.put(`http://127.0.0.1:8000/api/documents/${id}/layout`, { layout: fields }, { withCredentials: true });
     save.then((response) => {
       if(response.status === 200) {
         toast.success('Layout saved successfully');

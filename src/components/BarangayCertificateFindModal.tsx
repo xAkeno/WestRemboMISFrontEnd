@@ -16,7 +16,7 @@ export const BarangayCertificateFindModal = ({updateModal,updateSelect}:Props) =
         const fetchdata = async () => {
             try{
                 const res = await axios.get(
-                    "https://westrembomis.onrender.com/api/barangay-certificates",
+                    "http://127.0.0.1:8000/api/barangay-certificates",
                     {withCredentials:true}
                 )
                 var json = res.data.data

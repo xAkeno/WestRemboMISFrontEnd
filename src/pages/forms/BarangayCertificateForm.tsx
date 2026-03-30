@@ -32,7 +32,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -66,7 +66,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
     setIsSubmitting(true);
     try {
       const res = await axios.post(
-        "https://westrembomis.onrender.com/api/barangay-certificates",
+        "http://127.0.0.1:8000/api/barangay-certificates",
         { ...formData, age: formData.age ? Number(formData.age) : null },
         { withCredentials: true }
       );
@@ -88,7 +88,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
         const user = res.data.data;
         console.log("Authenticated user details:", user);
 

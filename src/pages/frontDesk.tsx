@@ -60,7 +60,7 @@ const FrontDesk = () => {
     if (!consentChecked) { toast.error(t("message.consentRequired")); return; }
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/kiosk/submit",
+        "http://127.0.0.1:8000/api/kiosk/submit",
         {
           service_type: getServiceType(activeTab),
           first_name: formData.first_name || "",

@@ -80,7 +80,7 @@ export const ResidentsPage = () => {
   };
   const navigate = useNavigate();
 
-  const [filterValue, setFilterValue] = useState('https://westrembomis.onrender.com/api/residents');
+  const [filterValue, setFilterValue] = useState('http://127.0.0.1:8000/api/residents');
 
   const handleFilterChange = (value: string) => {
     setFilterValue(value);

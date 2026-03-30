@@ -14,7 +14,7 @@ interface ContactInfo {
 }
 
 const ContactCTA = () => {
-  const API_BASE = 'https://westrembomis.onrender.com/api';
+  const API_BASE = 'http://127.0.0.1:8000/api';
 
   const defaultContact: ContactInfo = {
     address: 'Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City',

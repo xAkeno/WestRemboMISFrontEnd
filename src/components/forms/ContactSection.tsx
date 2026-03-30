@@ -25,7 +25,7 @@ const defaultContact: ContactInfo = {
   office_days: "Monday–Saturday",
   office_hours: "5:00 AM – 6:00 PM",
 };
-const API_BASE = "https://westrembomis.onrender.com/api";
+const API_BASE = "http://127.0.0.1:8000/api";
 const ContactSection = () => {
   const { toast } = useToast();
 

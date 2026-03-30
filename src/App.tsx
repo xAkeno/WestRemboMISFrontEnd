@@ -60,6 +60,7 @@ import { Navigate } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import ContactCms from "./pages/admin/ContactCms";
 import ServicesCms from "./pages/admin/ServicesCms";
+import DocumentUploadSection from "./components/DocumentUploadSection";
 const App = () => {
 
   useEffect(() => {
@@ -90,7 +91,7 @@ const App = () => {
                 <Route path="/contact" element={<ContactSection />} />
                 <Route path="/services/:serviceId" element={<ServicePage />} />
                 <Route path="/services" element={<ServicesRequest />} />
-
+                <Route path="/mydocuments" element={<DocumentUploadSection />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/email-verification" element={<EmailVerification />} />
 

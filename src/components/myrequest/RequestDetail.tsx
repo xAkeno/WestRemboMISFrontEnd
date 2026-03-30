@@ -10,9 +10,10 @@ import {
   User, MapPin, Phone, Building2, Briefcase,
   ClipboardList, ShieldCheck, Hash, BadgeInfo,
   CheckCircle, Clock, Banknote, Users, Hammer,
+  Info, FileX, BadgeCheck,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Header from "../forms/Header";
 
 const NAVY = "#0f2a5e";
@@ -26,7 +27,70 @@ const statusStyle: Record<string, { bg: string; text: string; border: string }> 
   incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
   rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
+  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
 };
+
+// ─── Reply types ───────────────────────────────────────────────────────────────
+interface DocReply {
+  id: number;
+  document_type: string;
+  document_id: number;
+  user_id: number;
+  message: string;
+  status: "info" | "warning" | "missing" | "approved";
+  created_at: string;
+  user?: { name: string };
+}
+
+// ─── Schedule type ─────────────────────────────────────────────────────────────
+interface ScheduleData {
+  id: number;
+  document_type: string;
+  document_number: string;
+  schedule_date: string;
+  schedule_time: string;
+  note?: string | null;
+  status?: string;
+}
+
+const REPLY_STATUS_CONFIG = {
+  info: {
+    label: "Info",
+    icon: Info,
+    bg: "#eff6ff",
+    border: "#bfdbfe",
+    color: "#1d4ed8",
+    badgeBg: "#dbeafe",
+    leftBorder: "#3b82f6",
+  },
+  warning: {
+    label: "Warning",
+    icon: AlertTriangle,
+    bg: "#fffbeb",
+    border: "#fde68a",
+    color: "#b45309",
+    badgeBg: "#fef3c7",
+    leftBorder: "#f59e0b",
+  },
+  missing: {
+    label: "Missing Document",
+    icon: FileX,
+    bg: "#fff1f2",
+    border: "#fecdd3",
+    color: "#be123c",
+    badgeBg: "#ffe4e6",
+    leftBorder: "#e11d48",
+  },
+  approved: {
+    label: "Approved",
+    icon: BadgeCheck,
+    bg: "#f0fdf4",
+    border: "#bbf7d0",
+    color: "#15803d",
+    badgeBg: "#dcfce7",
+    leftBorder: "#16a34a",
+  },
+} as const;
 
 // ─── Service requirements data ─────────────────────────────────────────────────
 const serviceData: Record<string, {
@@ -35,78 +99,78 @@ const serviceData: Record<string, {
   processingTime: string;
   fee: string;
 }> = {
-  // API key variants mapped below
   barangay_certificate: {
     icon: FileText,
-    requirements: [
-      "Valid government ID",
-      "Barangay residency certificate",
-      "Purpose of request",
-    ],
+    requirements: ["Valid government ID", "Proof of Residency", "Purpose of request"],
     processingTime: "Same day",
     fee: "₱50.00",
   },
   barangay_clearance: {
     icon: ShieldCheck,
-    requirements: [
-      "Valid government ID",
-      "Barangay residency certificate",
-      "Community Tax Certificate (Cedula)",
-      "2x2 ID photo",
-    ],
+    requirements: ["Valid government ID", "Proof of Residency", "Community Tax Certificate (Cedula)", "2x2 ID photo"],
     processingTime: "1-2 business days",
     fee: "₱100.00",
   },
   business_clearance: {
     icon: Building2,
-    requirements: [
-      "DTI/SEC Registration",
-      "Barangay clearance of business owner",
-      "Lease contract or land title",
-      "Valid government ID",
-    ],
+    requirements: ["DTI / SEC Registration", "Mayor's Business Permit", "BIR Certificate of Registration", "Valid government ID"],
     processingTime: "3-5 business days",
     fee: "₱500.00 - ₱2,000.00",
   },
   building_clearance: {
     icon: Hammer,
-    requirements: [
-      "Building permit application",
-      "Site development plan",
-      "Proof of land ownership",
-      "Barangay clearance",
-    ],
+    requirements: ["Transfer Certificate of Title (TCT)", "Tax Declaration", "Building Permit", "Barangay clearance"],
     processingTime: "5-7 business days",
     fee: "₱300.00 - ₱1,000.00",
   },
   resident_registration: {
     icon: Users,
-    requirements: [
-      "Valid government ID",
-      "Proof of residence (utility bill, lease contract)",
-      "2x2 ID photos (2 pieces)",
-      "Accomplished registration form",
-    ],
+    requirements: ["Valid government ID", "Proof of Residency", "2x2 ID photos (2 pieces)", "Accomplished registration form"],
     processingTime: "1-2 business days",
     fee: "Free",
   },
 };
 
+const REQUIRED_SLOTS_BY_DOC: Record<string, string[]> = {
+  barangay_certificate:  ["valid_id_front", "proof_of_residency"],
+  barangay_clearance:    ["valid_id_front", "proof_of_residency"],
+  business_clearance:    ["dti_sec_registration", "mayors_permit", "bir_certificate"],
+  building_clearance:    ["title_or_tct", "tax_declaration"],
+  resident_registration: ["valid_id_front", "proof_of_residency"],
+};
+
+const SLOT_LABELS: Record<string, string> = {
+  valid_id_front:        "Valid Government ID (Front)",
+  valid_id_back:         "Valid Government ID (Back)",
+  proof_of_residency:    "Proof of Residency",
+  dti_sec_registration:  "DTI / SEC Registration",
+  mayors_permit:         "Mayor's Business Permit",
+  bir_certificate:       "BIR Certificate of Registration",
+  title_or_tct:          "Transfer Certificate of Title (TCT)",
+  tax_declaration:       "Tax Declaration",
+  building_permit:       "Building Permit",
+  supporting_document:   "Supporting Document",
+};
+
 // ─── Requirements panel ────────────────────────────────────────────────────────
-function RequirementsPanel({ documentType }: { documentType: string }) {
-  // Normalize key: handle slug variants like "barangay-certificate" → "barangay_certificate"
+function RequirementsPanel({
+  documentType,
+  uploadedTypes,
+}: {
+  documentType: string;
+  uploadedTypes: Set<string>;
+}) {
   const key = documentType.replace(/-/g, "_");
   const service = serviceData[key];
   if (!service) return null;
 
   const Icon = service.icon;
+  const requiredSlots = REQUIRED_SLOTS_BY_DOC[key] ?? [];
+  const missingSlots = requiredSlots.filter((s) => !uploadedTypes.has(s));
+  const allUploaded = missingSlots.length === 0 && requiredSlots.length > 0;
 
   return (
-    <div
-      className="rounded-sm border overflow-hidden"
-      style={{ borderColor: "#dde3ed" }}
-    >
-      {/* Panel header */}
+    <div className="rounded-sm border overflow-hidden" style={{ borderColor: "#dde3ed" }}>
       <div
         className="flex items-center gap-2 px-4 py-2.5"
         style={{ backgroundColor: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}
@@ -118,40 +182,56 @@ function RequirementsPanel({ documentType }: { documentType: string }) {
       </div>
 
       <div className="px-4 py-4 grid sm:grid-cols-2 gap-4 bg-white">
-        {/* Requirements list */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: PINK }}>
             Documents Needed
           </p>
           <ul className="space-y-2">
-            {service.requirements.map((req, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: NAVY }} />
-                <span className="text-xs text-gray-600">{req}</span>
-              </li>
-            ))}
+            {service.requirements.map((req, i) => {
+              const slotKey = requiredSlots[i];
+              const uploaded = slotKey ? uploadedTypes.has(slotKey) : false;
+              const isRequired = !!slotKey;
+              return (
+                <li key={i} className="flex items-start gap-2">
+                  {isRequired ? (
+                    uploaded ? (
+                      <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: "#16a34a" }} />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: "#ca8a04" }} />
+                    )
+                  ) : (
+                    <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: NAVY }} />
+                  )}
+                  <span className="text-xs" style={{ color: uploaded ? "#16a34a" : isRequired ? "#92400e" : "#4b5563" }}>
+                    {req}
+                    {uploaded && (
+                      <span className="ml-1.5 text-[10px] font-bold" style={{ color: "#16a34a" }}>✓ Uploaded</span>
+                    )}
+                    {isRequired && !uploaded && (
+                      <span
+                        className="ml-1.5 text-[9px] font-black uppercase tracking-wider px-1 py-0.5"
+                        style={{ backgroundColor: "#fde68a", color: "#92400e", borderRadius: 2 }}
+                      >
+                        Missing
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
-        {/* Processing time + fee */}
-        <div
-          className="flex flex-col gap-4 sm:border-l sm:pl-4"
-          style={{ borderColor: "#dde3ed" }}
-        >
+        <div className="flex flex-col gap-4 sm:border-l sm:pl-4" style={{ borderColor: "#dde3ed" }}>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>
-              Processing Time
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>Processing Time</p>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
               <span className="text-xs font-semibold text-gray-700">{service.processingTime}</span>
             </div>
           </div>
-
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>
-              Fee
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>Fee</p>
             <div className="flex items-center gap-2">
               <Banknote className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
               <span className="text-xs font-semibold text-gray-700">{service.fee}</span>
@@ -159,19 +239,268 @@ function RequirementsPanel({ documentType }: { documentType: string }) {
           </div>
         </div>
       </div>
+
+      {missingSlots.length > 0 && (
+        <div
+          className="mx-4 mb-4 p-3"
+          style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
+        >
+          <div className="flex items-start gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#ca8a04" }} />
+            <p className="text-xs font-bold" style={{ color: "#92400e" }}>
+              You still need to upload the following to proceed:
+            </p>
+          </div>
+          <ul className="ml-6 space-y-1 mb-3">
+            {missingSlots.map((s) => (
+              <li key={s} className="text-xs flex items-center gap-1.5" style={{ color: "#92400e" }}>
+                <span style={{ color: "#ca8a04" }}>—</span>
+                {SLOT_LABELS[s] ?? s}
+              </li>
+            ))}
+          </ul>
+          <a
+            href="/mydocuments"
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white transition-colors"
+            style={{ backgroundColor: NAVY, borderRadius: 2, textDecoration: "none" }}
+          >
+            <Upload className="h-3 w-3" />
+            Upload Missing Documents
+          </a>
+        </div>
+      )}
+
+      {allUploaded && (
+        <div
+          className="mx-4 mb-4 p-3 flex items-center gap-2"
+          style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a", borderRadius: 2 }}
+        >
+          <FileCheck className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
+          <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
+            All required documents have been uploaded. Your request can proceed.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Replies feed (read-only, user-facing) ─────────────────────────────────────
+function RepliesFeed({ documentType, documentId }: { documentType: string; documentId: string | number }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [replies, setReplies] = useState<DocReply[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReplies = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/documents/${documentType}/${documentId}/replies`,
+          { credentials: "include", headers: { Accept: "application/json" } }
+        );
+        if (!res.ok) throw new Error("Failed to fetch replies");
+        const json = await res.json();
+        setReplies(json.data ?? []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReplies();
+  }, [documentType, documentId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [replies]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: NAVY }} />
+      </div>
+    );
+  }
+
+  if (replies.length === 0) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-8 rounded-sm"
+        style={{ backgroundColor: "#f8faff", border: "1px dashed #c8d4ed" }}
+      >
+        <MessageSquare className="h-6 w-6 mb-2" style={{ color: "#9ca3af" }} />
+        <p className="text-xs text-gray-400">No remarks from the barangay office yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {replies.map((reply) => {
+        const cfg = REPLY_STATUS_CONFIG[reply.status];
+        const Icon = cfg.icon;
+        const date = new Date(reply.created_at).toLocaleString(undefined, {
+          month: "short", day: "numeric", year: "numeric",
+          hour: "numeric", minute: "2-digit",
+        });
+        return (
+          <div
+            key={reply.id}
+            className="rounded-sm px-4 py-3"
+            style={{
+              backgroundColor: cfg.bg,
+              border: `1px solid ${cfg.border}`,
+              borderLeftWidth: 3,
+              borderLeftColor: cfg.leftBorder,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: cfg.color }} />
+                <span
+                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5"
+                  style={{ backgroundColor: cfg.badgeBg, color: cfg.color, borderRadius: 2 }}
+                >
+                  {cfg.label}
+                </span>
+                <span className="text-[10px] font-semibold" style={{ color: cfg.color }}>
+                  {reply.user?.name ?? "Barangay Office"}
+                </span>
+              </div>
+              <span className="text-[9px] text-gray-400 flex-shrink-0">{date}</span>
+            </div>
+            <p className="text-sm leading-relaxed" style={{ color: NAVY }}>{reply.message}</p>
+            {reply.status === "missing" && (
+              <div className="mt-3">
+                <a
+                  href="/mydocuments"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white transition-colors"
+                  style={{ backgroundColor: NAVY, borderRadius: 2, textDecoration: "none" }}
+                >
+                  <Upload className="h-3 w-3" />
+                  Upload Required Document
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div ref={bottomRef} />
+    </div>
+  );
+}
+
+// ─── Schedule card ─────────────────────────────────────────────────────────────
+function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
+  const dateStr = schedule.schedule_date;
+  const timeStr = schedule.schedule_time;
+
+  // Build a friendly display: "April 15, 2025 · 9:00 – 10:00 AM"
+  const friendlyDate = (() => {
+    try {
+      return new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, {
+        month: "long", day: "numeric", year: "numeric",
+      });
+    } catch { return dateStr; }
+  })();
+
+  const friendlyTime = (() => {
+    try {
+      const [hStr, mStr] = timeStr.split(":");
+      const startH = parseInt(hStr, 10);
+      const endH   = startH + 1;
+      const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
+      const period = endH >= 12 ? "PM" : "AM";
+      return `${fmt(startH)} – ${fmt(endH)} ${period}`;
+    } catch { return timeStr; }
+  })();
+
+  return (
+    <div
+      className="rounded-sm overflow-hidden"
+      style={{ border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb", backgroundColor: "#eff6ff" }}
+    >
+      {/* Header strip */}
+      <div
+        className="flex items-center gap-2 px-4 py-2"
+        style={{ backgroundColor: "#dbeafe", borderBottom: "1px solid #bfdbfe" }}
+      >
+        <Calendar className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#1d4ed8" }} />
+        <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#1d4ed8" }}>
+          Scheduled Pickup
+        </span>
+        {schedule.status && (
+          <span
+            className="ml-auto text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5"
+            style={{ backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 2, border: "1px solid #bfdbfe" }}
+          >
+            {schedule.status}
+          </span>
+        )}
+      </div>
+
+      <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Date block */}
+        <div className="flex items-center gap-3 flex-1">
+          <div
+            className="flex flex-col items-center justify-center flex-shrink-0 px-3 py-2"
+            style={{ backgroundColor: "#2563eb", borderRadius: 2, minWidth: 56 }}
+          >
+            <span className="text-[9px] font-black uppercase tracking-wider text-white opacity-80">
+              {new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, { month: "short" })}
+            </span>
+            <span className="text-xl font-black text-white leading-none">
+              {new Date(dateStr + "T12:00:00").getDate()}
+            </span>
+            <span className="text-[9px] font-bold text-white opacity-80">
+              {new Date(dateStr + "T12:00:00").getFullYear()}
+            </span>
+          </div>
+
+          <div>
+            <p className="text-sm font-bold" style={{ color: NAVY }}>{friendlyDate}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Clock className="h-3.5 w-3.5" style={{ color: "#2563eb" }} />
+              <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{friendlyTime}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Note */}
+        {schedule.note && (
+          <div
+            className="flex items-start gap-2 px-3 py-2 rounded-sm sm:max-w-xs"
+            style={{ backgroundColor: "#dbeafe", borderRadius: 2 }}
+          >
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#1d4ed8" }} />
+            <p className="text-xs" style={{ color: "#1e40af" }}>{schedule.note}</p>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="px-4 py-2 flex items-center gap-1.5"
+        style={{ borderTop: "1px solid #bfdbfe", backgroundColor: "#dbeafe" }}
+      >
+        <BadgeCheck className="h-3.5 w-3.5" style={{ color: "#1d4ed8" }} />
+        <p className="text-[10px] font-semibold" style={{ color: "#1e40af" }}>
+          Please visit the barangay hall at the scheduled time and bring your original documents.
+        </p>
+      </div>
     </div>
   );
 }
 
 // ─── Shared primitives ─────────────────────────────────────────────────────────
 const DetailLabel = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: PINK }}>
-    {children}
-  </p>
+  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: PINK }}>{children}</p>
 );
 
 const DetailValue = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-sm font-medium text-foreground">{children || <span className="text-gray-400 italic font-normal text-xs">—</span>}</p>
+  <p className="text-sm font-medium text-foreground">
+    {children || <span className="text-gray-400 italic font-normal text-xs">—</span>}
+  </p>
 );
 
 const DetailGrid = ({ children }: { children: React.ReactNode }) => (
@@ -180,9 +509,9 @@ const DetailGrid = ({ children }: { children: React.ReactNode }) => (
 
 const DetailField = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
   const display =
-    value === true ? "Yes" :
-    value === false ? "No" :
-    value != null ? String(value) : "";
+    value === true  ? "Yes" :
+    value === false ? "No"  :
+    value != null   ? String(value) : "";
   return (
     <div>
       <DetailLabel>{label}</DetailLabel>
@@ -191,11 +520,7 @@ const DetailField = ({ label, value }: { label: string; value?: string | number 
   );
 };
 
-const Section = ({ icon: Icon, title, children }: {
-  icon: React.ElementType;
-  title: string;
-  children: React.ReactNode;
-}) => (
+const Section = ({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) => (
   <div>
     <div className="flex items-center gap-2 mb-4">
       <div className="w-6 h-6 flex items-center justify-center flex-shrink-0"
@@ -210,34 +535,31 @@ const Section = ({ icon: Icon, title, children }: {
 );
 
 // ─── Document-type-specific sections ──────────────────────────────────────────
-
 const CertificateFields = ({ r }: { r: any }) => (
   <>
     <Section icon={User} title="Requester Details">
       <DetailGrid>
-        <DetailField label="Full Name"           value={r.requester_name} />
-        <DetailField label="Age"                 value={r.age} />
-        <DetailField label="Date of Birth"       value={r.date_of_birth} />
-        <DetailField label="Place of Birth"      value={r.place_of_birth} />
-        <DetailField label="Contact No."         value={r.contact_no} />
+        <DetailField label="Full Name"             value={r.requester_name} />
+        <DetailField label="Age"                   value={r.age} />
+        <DetailField label="Date of Birth"         value={r.date_of_birth} />
+        <DetailField label="Place of Birth"        value={r.place_of_birth} />
+        <DetailField label="Contact No."           value={r.contact_no} />
       </DetailGrid>
     </Section>
-
     <Section icon={MapPin} title="Address">
       <DetailGrid>
-        <DetailField label="Address"             value={r.address} />
-        <DetailField label="House Owner"         value={r.house_owner} />
+        <DetailField label="Address"               value={r.address} />
+        <DetailField label="House Owner"           value={r.house_owner} />
         <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
       </DetailGrid>
     </Section>
-
     <Section icon={ClipboardList} title="Certificate Details">
       <DetailGrid>
-        <DetailField label="Certificate No."     value={r.bcert_number} />
-        <DetailField label="Purpose"             value={r.purpose} />
-        <DetailField label="Purpose Details"     value={r.purpose_details} />
-        <DetailField label="Period of Residency" value={r.period_of_residency} />
-        <DetailField label="Registered Voter"    value={r.registered_voter} />
+        <DetailField label="Certificate No."       value={r.bcert_number} />
+        <DetailField label="Purpose"               value={r.purpose} />
+        <DetailField label="Purpose Details"       value={r.purpose_details} />
+        <DetailField label="Period of Residency"   value={r.period_of_residency} />
+        <DetailField label="Registered Voter"      value={r.registered_voter} />
       </DetailGrid>
     </Section>
   </>
@@ -247,37 +569,34 @@ const ClearanceFields = ({ r }: { r: any }) => (
   <>
     <Section icon={User} title="Requester Details">
       <DetailGrid>
-        <DetailField label="Full Name"           value={r.requester_name} />
-        <DetailField label="Date of Birth"       value={r.dob} />
-        <DetailField label="Place of Birth"      value={r.pob} />
-        <DetailField label="Contact No."         value={r.contact_no} />
+        <DetailField label="Full Name"             value={r.requester_name} />
+        <DetailField label="Date of Birth"         value={r.dob} />
+        <DetailField label="Place of Birth"        value={r.pob} />
+        <DetailField label="Contact No."           value={r.contact_no} />
       </DetailGrid>
     </Section>
-
     <Section icon={MapPin} title="Address">
       <DetailGrid>
-        <DetailField label="Address"             value={r.address} />
-        <DetailField label="House Owner"         value={r.house_owner} />
+        <DetailField label="Address"               value={r.address} />
+        <DetailField label="House Owner"           value={r.house_owner} />
         <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
       </DetailGrid>
     </Section>
-
     <Section icon={ClipboardList} title="Clearance Details">
       <DetailGrid>
-        <DetailField label="Clearance No."       value={r.bcert_number} />
-        <DetailField label="Purpose"             value={r.purpose} />
-        <DetailField label="Purpose Details"     value={r.purpose_details} />
-        <DetailField label="Period of Residency" value={r.period_of_residency} />
-        <DetailField label="Registered Voter"    value={r.registered_voter} />
+        <DetailField label="Clearance No."         value={r.bcert_number} />
+        <DetailField label="Purpose"               value={r.purpose} />
+        <DetailField label="Purpose Details"       value={r.purpose_details} />
+        <DetailField label="Period of Residency"   value={r.period_of_residency} />
+        <DetailField label="Registered Voter"      value={r.registered_voter} />
       </DetailGrid>
     </Section>
-
     <Section icon={Hash} title="Official Reference">
       <DetailGrid>
-        <DetailField label="CTC / VRR No."       value={r.ctc_vrr_no} />
-        <DetailField label="Issued At"           value={r.issued_at} />
-        <DetailField label="Issued On"           value={r.issued_on} />
-        <DetailField label="O.R. Number"         value={r.or_no} />
+        <DetailField label="CTC / VRR No."         value={r.ctc_vrr_no} />
+        <DetailField label="Issued At"             value={r.issued_at} />
+        <DetailField label="Issued On"             value={r.issued_on} />
+        <DetailField label="O.R. Number"           value={r.or_no} />
       </DetailGrid>
     </Section>
   </>
@@ -286,32 +605,25 @@ const ClearanceFields = ({ r }: { r: any }) => (
 const BuildingFields = ({ r }: { r: any }) => (
   <>
     <Section icon={User} title="Applicant Details">
-      <DetailGrid>
-        <DetailField label="Full Name"           value={r.requester_name} />
-      </DetailGrid>
+      <DetailGrid><DetailField label="Full Name" value={r.requester_name} /></DetailGrid>
     </Section>
-
     <Section icon={Building2} title="Building Details">
       <DetailGrid>
-        <DetailField label="Establishment"       value={r.raw?.establishment} />
-        <DetailField label="Purpose"             value={r.purpose} />
-        <DetailField label="Purpose Details"     value={r.purpose_details} />
+        <DetailField label="Establishment"   value={r.raw?.establishment} />
+        <DetailField label="Purpose"         value={r.purpose} />
+        <DetailField label="Purpose Details" value={r.purpose_details} />
       </DetailGrid>
     </Section>
-
     <Section icon={MapPin} title="Project Location">
-      <DetailGrid>
-        <DetailField label="Address"             value={r.address} />
-      </DetailGrid>
+      <DetailGrid><DetailField label="Address" value={r.address} /></DetailGrid>
     </Section>
-
     <Section icon={ShieldCheck} title="Clearance Info">
       <DetailGrid>
         <DetailField label="Clearance No."       value={r.bcert_number} />
         <DetailField label="O.R. Number"         value={r.raw?.orNo} />
         <DetailField label="Punong Barangay"     value={r.raw?.punongBarangay} />
         <DetailField label="Barangay Position"   value={r.raw?.barangayPosition} />
-        {r.updated_by && <DetailField label="Updated By"   value={r.updated_by} />}
+        {r.updated_by && <DetailField label="Updated By" value={r.updated_by} />}
       </DetailGrid>
     </Section>
   </>
@@ -320,34 +632,26 @@ const BuildingFields = ({ r }: { r: any }) => (
 const BusinessFields = ({ r }: { r: any }) => (
   <>
     <Section icon={User} title="Owner Details">
-      <DetailGrid>
-        <DetailField label="Full Name"           value={r.requester_name} />
-      </DetailGrid>
+      <DetailGrid><DetailField label="Full Name" value={r.requester_name} /></DetailGrid>
     </Section>
-
     <Section icon={Briefcase} title="Business Information">
       <DetailGrid>
-        <DetailField label="Business Name"       value={r.raw?.businessName ?? r.purpose} />
-        <DetailField label="Business Type"       value={r.raw?.businessType} />
-        <DetailField label="Business Details"    value={r.purpose_details} />
-        <DetailField label="Capital (PHP)"       value={r.capital != null ? `₱${r.capital}` : ""} />
+        <DetailField label="Business Name"    value={r.raw?.businessName ?? r.purpose} />
+        <DetailField label="Business Type"    value={r.raw?.businessType} />
+        <DetailField label="Business Details" value={r.purpose_details} />
+        <DetailField label="Capital (PHP)"    value={r.capital != null ? `₱${r.capital}` : ""} />
       </DetailGrid>
     </Section>
-
     <Section icon={MapPin} title="Business Address">
-      <DetailGrid>
-        <DetailField label="Address"             value={r.address} />
-      </DetailGrid>
+      <DetailGrid><DetailField label="Address" value={r.address} /></DetailGrid>
     </Section>
-
     <Section icon={ClipboardList} title="Clearance Details">
       <DetailGrid>
         <DetailField label="Barangay Business No." value={r.bcert_number} />
-        <DetailField label="O.R. Number"         value={r.raw?.orNo} />
-        {r.updated_by && <DetailField label="Updated By"   value={r.updated_by} />}
+        <DetailField label="O.R. Number"           value={r.raw?.orNo} />
+        {r.updated_by && <DetailField label="Updated By" value={r.updated_by} />}
       </DetailGrid>
     </Section>
-
     <Section icon={BadgeInfo} title="Inspection Details">
       <DetailGrid>
         <DetailField label="Inspected By"        value={r.inspected_by} />
@@ -362,25 +666,51 @@ const BusinessFields = ({ r }: { r: any }) => (
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function RequestDetail() {
   const navigate = useNavigate();
-  const [uploading, setUploading] = useState(false);
-
   const { id, type } = useParams<{ id: string; type: string }>();
 
+  // ── Fetch request ────────────────────────────────────────────────────────────
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
     queryFn: () => fetchRequestById(type!, id!),
     enabled: !!id && !!type,
   });
 
-  console.log("Request data:", request);
+  // ── Fetch uploaded documents ─────────────────────────────────────────────────
+  const { data: uploadedTypes = new Set<string>() } = useQuery({
+    queryKey: ["mydocuments"],
+    queryFn: async (): Promise<Set<string>> => {
+      const res = await fetch("http://127.0.0.1:8000/api/mydocuments", {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) return new Set();
+      const json = await res.json();
+      const uploaded = new Set<string>();
+      const docs: Record<string, any[]> = json?.data?.documents ?? {};
+      Object.values(docs).forEach((arr) =>
+        arr.forEach((d) => { if (d?.type) uploaded.add(d.type); })
+      );
+      return uploaded;
+    },
+  });
 
-  const handleUpload = () => {
-    setUploading(true);
-    setTimeout(() => {
-      setUploading(false);
-      toast({ title: "File Uploaded", description: "Your document has been uploaded successfully." });
-    }, 1500);
-  };
+  // ── Fetch schedule by bcert_number ───────────────────────────────────────────
+  // GET /api/schedules/{bcert_number}
+  // Only runs after request is loaded and has a bcert_number
+  const { data: schedule } = useQuery({
+    queryKey: ["schedule", request?.bcert_number],
+    queryFn: async (): Promise<ScheduleData | null> => {
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/schedules/${request!.bcert_number}`,
+        { credentials: "include", headers: { Accept: "application/json" } }
+      );
+      console.log("Schedule fetch response:", res);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json?.data ?? null;
+    },
+    enabled: !!request?.bcert_number,
+  });
 
   if (isLoading) {
     return (
@@ -403,8 +733,8 @@ export default function RequestDetail() {
             className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
             style={{ backgroundColor: NAVY, borderRadius: 1 }}
             onClick={() => navigate("/myrequest")}
-            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
-            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
           >
             Back to Requests
           </button>
@@ -414,12 +744,8 @@ export default function RequestDetail() {
   }
 
   const normalizedStatus = request.raw.status?.toLowerCase();
-  const badge = statusStyle[normalizedStatus] ?? {
-    bg: "#f3f4f6",
-    text: "#374151",
-    border: "#d1d5db",
-  };
-  console.log(request)
+  const badge = statusStyle[normalizedStatus] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" };
+  const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
 
   return (
     <div className="min-h-screen bg-background">
@@ -432,8 +758,8 @@ export default function RequestDetail() {
           className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-6 transition-colors duration-200 group"
           style={{ color: "#6b7280" }}
           onClick={() => navigate("/myrequest")}
-          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = NAVY}
-          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "#6b7280"}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = NAVY)}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#6b7280")}
         >
           <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" />
           Back to Requests
@@ -476,27 +802,39 @@ export default function RequestDetail() {
                 </p>
               </div>
 
-              {/* Status badge */}
-              <span
-                className="self-start text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 border flex-shrink-0"
-                style={{
-                  backgroundColor: badge.bg,
-                  color: badge.text,
-                  borderColor: badge.border,
-                  borderRadius: 2,
-                }}
-              >
-                {normalizedStatus}
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span
+                  className="self-start text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 border flex-shrink-0"
+                  style={{ backgroundColor: badge.bg, color: badge.text, borderColor: badge.border, borderRadius: 2 }}
+                >
+                  {normalizedStatus}
+                </span>
+                {/* Schedule pill in header */}
+                {schedule && (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 flex-shrink-0"
+                    style={{
+                      backgroundColor: "#dbeafe",
+                      color: "#1d4ed8",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Calendar className="h-3 w-3" />
+                    Pickup scheduled
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* ── Card body ── */}
           <div className="p-6 space-y-7">
 
-            {/* ── Requirements panel (type-aware) ── */}
-            <RequirementsPanel documentType={request.document_type} />
-            {/* ── Submission meta ── */}
+            {/* Requirements panel */}
+            <RequirementsPanel documentType={request.document_type} uploadedTypes={uploadedTypes} />
+
+            {/* Submission meta */}
             <div
               className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pb-5"
               style={{ borderBottom: "1px solid #e5e7eb" }}
@@ -513,29 +851,16 @@ export default function RequestDetail() {
               )}
             </div>
 
-            {/* ── Document-type-specific fields ── */}
+            {/* Document-type-specific fields */}
             {request.document_type === "barangay_certificate" && <CertificateFields r={request} />}
             {request.document_type === "barangay_clearance"   && <ClearanceFields   r={request} />}
             {request.document_type === "building_clearance"   && <BuildingFields    r={request} />}
             {request.document_type === "business_clearance"   && <BusinessFields    r={request} />}
 
-            {/* ── Scheduled pickup ── */}
-            {request.scheduled_date && (
-              <div
-                className="flex items-center gap-3 p-4"
-                style={{ backgroundColor: "#f0fdf4", borderRadius: 2, border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a" }}
-              >
-                <Calendar className="h-5 w-5 flex-shrink-0" style={{ color: "#16a34a" }} />
-                <div>
-                  <p className="font-semibold text-sm" style={{ color: "#15803d" }}>Scheduled Pickup</p>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(request.scheduled_date), "MMMM d, yyyy 'at' h:mm a")}
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* ── Schedule card (replaces the old simple scheduled_date block) ── */}
+            {schedule && <ScheduleCard schedule={schedule} />}
 
-            {/* ── Missing items ── */}
+            {/* Missing items */}
             {request.missing_items && request.missing_items.length > 0 && (
               <div
                 className="p-4"
@@ -556,7 +881,12 @@ export default function RequestDetail() {
               </div>
             )}
 
-            {/* ── Remarks ── */}
+            {/* Remarks & Replies */}
+            <Section icon={MessageSquare} title="Remarks from Barangay Office">
+              <RepliesFeed documentType={docTypeSlug} documentId={request.id} />
+            </Section>
+
+            {/* Legacy single remarks field */}
             {request.remarks && (
               <div
                 className="p-4"
@@ -564,7 +894,7 @@ export default function RequestDetail() {
               >
                 <div className="flex items-center gap-2 mb-1">
                   <MessageSquare className="h-5 w-5 flex-shrink-0" style={{ color: "#e11d48" }} />
-                  <p className="font-semibold text-sm" style={{ color: "#9f1239" }}>Remarks</p>
+                  <p className="font-semibold text-sm" style={{ color: "#9f1239" }}>Additional Remarks</p>
                 </div>
                 <p className="text-sm text-muted-foreground ml-7">{request.remarks}</p>
               </div>

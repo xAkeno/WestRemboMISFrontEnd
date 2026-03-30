@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 interface Service {
   id: number;

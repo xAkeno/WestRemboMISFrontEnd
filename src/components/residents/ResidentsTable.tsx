@@ -86,7 +86,7 @@ export const ResidentsTable = ({
   useEffect(() => {
     const url =
       filterValue === ''
-        ? 'https://westrembomis.onrender.com/api/residents'
+        ? 'http://127.0.0.1:8000/api/residents'
         : filterValue;
     fetchResidents(url);
   }, [filterValue]);
@@ -97,12 +97,12 @@ export const ResidentsTable = ({
 
     try {
       await axios.delete(
-        `https://westrembomis.onrender.com/api/residents/${residentId}`,
+        `http://127.0.0.1:8000/api/residents/${residentId}`,
         { withCredentials: true }
       );
       toast.success("Resident deleted successfully.");
       fetchResidents(
-        filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue
+        filterValue === '' ? 'http://127.0.0.1:8000/api/residents' : filterValue
       );
     } catch (error: any) {
       const errorMessage =

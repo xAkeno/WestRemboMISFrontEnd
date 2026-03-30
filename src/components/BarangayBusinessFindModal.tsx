@@ -16,7 +16,7 @@ export const BarangayBusinessFindModal = ({updateModal,updateSelect}:Props) => {
         const fetchdata = async () => {
             try{
                 const res = await axios.get(
-                    "https://westrembomis.onrender.com/api/business-clearances",
+                    "http://127.0.0.1:8000/api/business-clearances",
                     {withCredentials:true}
                 )
                 var json = res.data.data

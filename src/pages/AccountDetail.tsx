@@ -36,7 +36,7 @@ export default function AccountDetail() {
     const fetchAccount = async () => {
       try {
         const response = await axios.get(
-          `https://westrembomis.onrender.com/api/users/${id}`,
+          `http://127.0.0.1:8000/api/users/${id}`,
           {
             withCredentials: true,
             headers: { "Cache-Control": "no-cache" },
@@ -109,7 +109,7 @@ export default function AccountDetail() {
 
     try {
       const ers = await axios.put(
-        `https://westrembomis.onrender.com/api/users/${account.id}/permissions`,
+        `http://127.0.0.1:8000/api/users/${account.id}/permissions`,
         { permissions: updatedPermissions },
         { withCredentials: true }
       );

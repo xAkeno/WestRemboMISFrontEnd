@@ -94,7 +94,7 @@ const ProfileManagement = () => {
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
+      const response = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
       if (response.status === 200) {
         const user = response.data.data;
         setProfileImage(user.url_photo || "");
@@ -145,7 +145,7 @@ const ProfileManagement = () => {
     const fd = new FormData();
     fd.append("profileImage", file);
     try {
-      const response = await axios.post("https://westrembomis.onrender.com/api/uploadProfileImage", fd, {
+      const response = await axios.post("http://127.0.0.1:8000/api/uploadProfileImage", fd, {
         withCredentials: true, headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData((prev) => ({ ...prev, profileImage: response.data.url_photo }));
@@ -163,7 +163,7 @@ const ProfileManagement = () => {
     }
     try {
       setIsSaving(true);
-      await axios.put("https://westrembomis.onrender.com/api/updateProfile", formData, { withCredentials: true });
+      await axios.put("http://127.0.0.1:8000/api/updateProfile", formData, { withCredentials: true });
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");

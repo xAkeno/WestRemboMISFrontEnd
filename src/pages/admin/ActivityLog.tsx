@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Activity, Search, Filter, RefreshCw, LogIn, UserCog, FilePlus, FileEdit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {Layout} from '@/components/Layout';
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 interface ActivityLogEntry {
   id: number;
