@@ -9,6 +9,7 @@ import {
   FileText, Upload, Loader2, MessageSquare,
   User, MapPin, Phone, Building2, Briefcase,
   ClipboardList, ShieldCheck, Hash, BadgeInfo,
+  CheckCircle, Clock, Banknote, Users, Hammer,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -27,6 +28,140 @@ const statusStyle: Record<string, { bg: string; text: string; border: string }> 
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
 };
 
+// ─── Service requirements data ─────────────────────────────────────────────────
+const serviceData: Record<string, {
+  icon: React.ElementType;
+  requirements: string[];
+  processingTime: string;
+  fee: string;
+}> = {
+  // API key variants mapped below
+  barangay_certificate: {
+    icon: FileText,
+    requirements: [
+      "Valid government ID",
+      "Barangay residency certificate",
+      "Purpose of request",
+    ],
+    processingTime: "Same day",
+    fee: "₱50.00",
+  },
+  barangay_clearance: {
+    icon: ShieldCheck,
+    requirements: [
+      "Valid government ID",
+      "Barangay residency certificate",
+      "Community Tax Certificate (Cedula)",
+      "2x2 ID photo",
+    ],
+    processingTime: "1-2 business days",
+    fee: "₱100.00",
+  },
+  business_clearance: {
+    icon: Building2,
+    requirements: [
+      "DTI/SEC Registration",
+      "Barangay clearance of business owner",
+      "Lease contract or land title",
+      "Valid government ID",
+    ],
+    processingTime: "3-5 business days",
+    fee: "₱500.00 - ₱2,000.00",
+  },
+  building_clearance: {
+    icon: Hammer,
+    requirements: [
+      "Building permit application",
+      "Site development plan",
+      "Proof of land ownership",
+      "Barangay clearance",
+    ],
+    processingTime: "5-7 business days",
+    fee: "₱300.00 - ₱1,000.00",
+  },
+  resident_registration: {
+    icon: Users,
+    requirements: [
+      "Valid government ID",
+      "Proof of residence (utility bill, lease contract)",
+      "2x2 ID photos (2 pieces)",
+      "Accomplished registration form",
+    ],
+    processingTime: "1-2 business days",
+    fee: "Free",
+  },
+};
+
+// ─── Requirements panel ────────────────────────────────────────────────────────
+function RequirementsPanel({ documentType }: { documentType: string }) {
+  // Normalize key: handle slug variants like "barangay-certificate" → "barangay_certificate"
+  const key = documentType.replace(/-/g, "_");
+  const service = serviceData[key];
+  if (!service) return null;
+
+  const Icon = service.icon;
+
+  return (
+    <div
+      className="rounded-sm border overflow-hidden"
+      style={{ borderColor: "#dde3ed" }}
+    >
+      {/* Panel header */}
+      <div
+        className="flex items-center gap-2 px-4 py-2.5"
+        style={{ backgroundColor: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}
+      >
+        <Icon className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: NAVY }}>
+          Requirements for this Request
+        </span>
+      </div>
+
+      <div className="px-4 py-4 grid sm:grid-cols-2 gap-4 bg-white">
+        {/* Requirements list */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: PINK }}>
+            Documents Needed
+          </p>
+          <ul className="space-y-2">
+            {service.requirements.map((req, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: NAVY }} />
+                <span className="text-xs text-gray-600">{req}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Processing time + fee */}
+        <div
+          className="flex flex-col gap-4 sm:border-l sm:pl-4"
+          style={{ borderColor: "#dde3ed" }}
+        >
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>
+              Processing Time
+            </p>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
+              <span className="text-xs font-semibold text-gray-700">{service.processingTime}</span>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>
+              Fee
+            </p>
+            <div className="flex items-center gap-2">
+              <Banknote className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
+              <span className="text-xs font-semibold text-gray-700">{service.fee}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Shared primitives ─────────────────────────────────────────────────────────
 const DetailLabel = ({ children }: { children: React.ReactNode }) => (
@@ -56,14 +191,12 @@ const DetailField = ({ label, value }: { label: string; value?: string | number 
   );
 };
 
-/** A named section within the card body */
 const Section = ({ icon: Icon, title, children }: {
   icon: React.ElementType;
   title: string;
   children: React.ReactNode;
 }) => (
   <div>
-    {/* Section header */}
     <div className="flex items-center gap-2 mb-4">
       <div className="w-6 h-6 flex items-center justify-center flex-shrink-0"
         style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}>
@@ -178,7 +311,7 @@ const BuildingFields = ({ r }: { r: any }) => (
         <DetailField label="O.R. Number"         value={r.raw?.orNo} />
         <DetailField label="Punong Barangay"     value={r.raw?.punongBarangay} />
         <DetailField label="Barangay Position"   value={r.raw?.barangayPosition} />
-        {r.updated_by && <DetailField label="Updated By"     value={r.updated_by} />}
+        {r.updated_by && <DetailField label="Updated By"   value={r.updated_by} />}
       </DetailGrid>
     </Section>
   </>
@@ -239,7 +372,7 @@ export default function RequestDetail() {
     enabled: !!id && !!type,
   });
 
-  console.log("Request data:", request); // Debug log to check the structure of request
+  console.log("Request data:", request);
 
   const handleUpload = () => {
     setUploading(true);
@@ -248,8 +381,6 @@ export default function RequestDetail() {
       toast({ title: "File Uploaded", description: "Your document has been uploaded successfully." });
     }, 1500);
   };
-
-
 
   if (isLoading) {
     return (
@@ -282,15 +413,13 @@ export default function RequestDetail() {
     );
   }
 
-  // const status = STATUS_CONFIG[request.status];
-  // const badge = statusStyle[request.status] ?? { bg: "#f0f4ff", text: NAVY, border: "#c8d5f0" };
-
   const normalizedStatus = request.raw.status?.toLowerCase();
   const badge = statusStyle[normalizedStatus] ?? {
     bg: "#f3f4f6",
     text: "#374151",
     border: "#d1d5db",
   };
+  console.log(request)
 
   return (
     <div className="min-h-screen bg-background">
@@ -322,7 +451,6 @@ export default function RequestDetail() {
           >
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
-                {/* Eyebrow */}
                 <div className="inline-flex items-center gap-2 mb-1.5">
                   <div style={{ width: 16, height: 1, backgroundColor: PINK }} />
                   <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: PINK }}>
@@ -366,9 +494,13 @@ export default function RequestDetail() {
           {/* ── Card body ── */}
           <div className="p-6 space-y-7">
 
+            {/* ── Requirements panel (type-aware) ── */}
+            <RequirementsPanel documentType={request.document_type} />
             {/* ── Submission meta ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pb-5"
-              style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pb-5"
+              style={{ borderBottom: "1px solid #e5e7eb" }}
+            >
               <div>
                 <DetailLabel>Date Submitted</DetailLabel>
                 <DetailValue>{format(new Date(request.created_at), "MMMM d, yyyy")}</DetailValue>
@@ -437,48 +569,6 @@ export default function RequestDetail() {
                 <p className="text-sm text-muted-foreground ml-7">{request.remarks}</p>
               </div>
             )}
-
-            {/* ── Uploaded files (commented out in original, preserved) ── */}
-            {/* {request.uploaded_files && request.uploaded_files.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: NAVY }}>
-                  <FileCheck className="h-4 w-4" />
-                  Uploaded Documents
-                </p>
-                <div className="space-y-2">
-                  {request.uploaded_files.map((file: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm p-3"
-                      style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}>
-                      <FileText className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
-                      <span className="text-foreground">{file}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )} */}
-
-            {/* ── Upload section (commented out in original, preserved) ── */}
-            {/* {(request.status === "incomplete" || request.status === "pending") && (
-              <div className="pt-5" style={{ borderTop: "1px solid #e5e7eb" }}>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: PINK }}>
-                  Upload Additional Documents
-                </p>
-                <div className="flex gap-3">
-                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" className="flex-1 text-sm border-border" style={{ borderRadius: 1 }} />
-                  <button
-                    onClick={handleUpload}
-                    disabled={uploading}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-60 shrink-0"
-                    style={{ backgroundColor: NAVY, borderRadius: 1 }}
-                    onMouseEnter={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
-                    onMouseLeave={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
-                  >
-                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    Upload
-                  </button>
-                </div>
-              </div>
-            )} */}
 
           </div>
         </div>
