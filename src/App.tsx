@@ -60,6 +60,7 @@ import { Navigate } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import ContactCms from "./pages/admin/ContactCms";
 import ServicesCms from "./pages/admin/ServicesCms";
+import ServicePricing from "./pages/ServicePricing";
 import DocumentUploadSection from "./components/DocumentUploadSection";
 const App = () => {
 
@@ -103,6 +104,7 @@ const App = () => {
                 <Route path="/clearancehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ClearanceForm/></ProtectedRoute>} /> {/*Clearance home */}
 
                 <Route path="/myrequest" element={<MyRequest />} />
+                <Route path="/pricing" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicePricing /></ProtectedRoute>} />
                 <Route path="/request/:type/:id" element={<RequestDetail />} />
                 
                 <Route path="/clearancehome/bussinessclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BusinessClearance /></ProtectedRoute>} /> 

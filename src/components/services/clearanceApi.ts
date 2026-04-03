@@ -32,7 +32,7 @@ export interface FetchClearanceParams {
 export const fetchBarangayClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BarangayClearance>> => {
   try {
     const response = await api.get('/barangay-clearances', { params,withCredentials: true });
-
+    console.log('API response:', response.data);
     return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
@@ -44,6 +44,7 @@ export const fetchBarangayClearances = async (params: FetchClearanceParams = {})
 export const fetchBusinessClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BusinessClearance>> => {
   try {
     const response = await api.get('/business-clearances', { params,withCredentials: true });
+    console.log('API response:', response.data);
     return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);
@@ -55,6 +56,7 @@ export const fetchBusinessClearances = async (params: FetchClearanceParams = {})
 export const fetchBuildingClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BuildingClearance>> => {
   try {
     const response = await api.get('/building-clearances', { params,withCredentials: true });
+    console.log('API response:', response.data);
     return response.data.data;
   } catch (error) {
     console.log('API not available, using mock data:', error);

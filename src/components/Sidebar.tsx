@@ -24,7 +24,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { title } from "process";
+// import { title } from "process";
 
 const allMenuItems = [
   { title: "Dashboard", path: "/dashboard", icon: Users, permission: null }, // accessible to all
@@ -38,7 +38,8 @@ const allMenuItems = [
   { title: "Events Calendar", path: "/events-calendar", icon: CalendarCog, permission: "settings" },
   { title: "Document Settings", path: "/document-setting", icon: FileCheck, permission: "settings" },
   // { title: "Website Settings", path: "/websitesetting", icon: PanelsTopLeft, permission: "settings" }, 
-  { title: "Services Cms", path: "/servicesCms", icon: LayoutList, permission: "settings" },
+  { title: "Pricing", path: "/pricing", icon: LayoutList, permission: "settings" },
+  // { title: "Services Cms", path: "/servicesCms", icon: LayoutList, permission: "settings" },
   { title: "Contact Cms", path: "/contactCms", icon: NotebookTabs, permission: "settings" },
   { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
   { title: "Backup Recovery", path: "/backup-recovery", icon: Database, permission: "settings" },
