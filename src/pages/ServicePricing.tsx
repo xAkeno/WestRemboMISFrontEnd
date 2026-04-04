@@ -13,7 +13,7 @@ const SERVICE_TYPES = [
 
 interface ServicePrice {
     type: string;
-    label: string;
+    label: string;  
     amount: number;
 }
 

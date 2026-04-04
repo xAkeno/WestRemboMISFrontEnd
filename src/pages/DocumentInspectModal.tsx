@@ -24,19 +24,19 @@ const REQUIRED_DOCS: Record<string, string[]> = {
   "resident": [
     "Valid government ID",
     "Proof of residence",
-    "2x2 ID photo",
-    "Accomplished registration form",
+    // "2x2 ID photo",
+    // "Accomplished registration form",
   ],
   "barangay_certificate": [
     "Valid government ID",
-    "Barangay residency certificate",
-    "Purpose of request",
+    // "Barangay residency certificate",
+    // "Purpose of request",
   ],
   "barangay_clearance": [
     "Valid government ID",
-    "Barangay residency certificate",
-    "Community Tax Certificate (Cedula)",
-    "2x2 ID photo",
+    // "Barangay residency certificate",
+    // "Community Tax Certificate (Cedula)",
+    // "2x2 ID photo",
   ],
   "business_clearance": [
     "DTI/SEC Registration",
@@ -328,6 +328,7 @@ export default function DocumentInspectModal({
   record,
   onClose,
   onScheduled,
+  
 }: DocumentInspectModalProps) {
   const { toast } = useToast();
   const isReschedule = mode === "reschedule";
@@ -367,9 +368,16 @@ export default function DocumentInspectModal({
     const run = async () => {
       setLoadingDocs(true);
       try {
-        const params: Record<string, any> = {};
-        if (record.user_id) params.user_id = record.user_id;
+        console.log("Fetching documents for user_id:", record.user_id);
+        if (!record.user_id) {
+          console.warn("DocumentInspectModal: no user_id on record, skipping fetch.");
+          setDocs([]);
+          setLoadingDocs(false);
+          return;
+        }
+        const params: Record<string, any> = { user_id: record.user_id };
         const { data } = await api.get("/api/mydocuments", { params });
+        console.log("Fetched documents for user_id:", record.user_id);
         const flatDocs: UploadedDoc[] = [];
         const documents = data.data?.documents || {};
         Object.values(documents).forEach((categoryDocs: any) => {

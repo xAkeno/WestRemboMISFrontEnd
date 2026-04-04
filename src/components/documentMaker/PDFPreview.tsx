@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { TextField, PDFTemplateInfo } from '@/types/certificate';
 import { DraggableTextField } from './DraggableTextField';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { QRCodeFieldData } from './QRCodeField';
+import { QRCodeField } from './QRCodeField';
 
 interface PDFPreviewProps {
   blobUrl: string | null;
@@ -15,6 +15,11 @@ interface PDFPreviewProps {
   onDragField: (id: string, x: number, y: number) => void;
   onDeleteField: (id: string) => void;
   onDeselect: () => void;
+  // QR props
+  qrField: QRCodeFieldData | null;
+  onQRChange: (updates: Partial<QRCodeFieldData>) => void;
+  onQRRemove: () => void;
+  bcertNumber?: string | null;
 }
 
 export function PDFPreview({
@@ -28,28 +33,30 @@ export function PDFPreview({
   onDragField,
   onDeleteField,
   onDeselect,
+  qrField,
+  onQRChange,
+  onQRRemove,
+  bcertNumber,
 }: PDFPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [qrSelected, setQrSelected] = useState(false);
 
   const pageInfo = templateInfo?.pages[currentPage];
 
-  // ✅ UPDATED: Hidden fields will NOT render in preview
   const pageFields = fields.filter(
     (f) => f.page === currentPage && !f.hidden
   );
 
   const updateScale = useCallback(() => {
     if (!containerRef.current || !pageInfo) return;
-
     const containerWidth = containerRef.current.clientWidth - 32;
     const containerHeight = containerRef.current.clientHeight - 32;
-
     const s = Math.min(
       containerWidth / pageInfo.width,
       containerHeight / pageInfo.height
     );
-
     setScale(s);
   }, [pageInfo]);
 
@@ -69,21 +76,31 @@ export function PDFPreview({
     );
   }
 
+  const showQR =
+    qrField?.visible &&
+    qrField.page === currentPage &&
+    !!bcertNumber &&
+    bcertNumber !== 'new';
+
   return (
     <div
       className="flex flex-1 flex-col bg-muted/30 overflow-auto"
       ref={containerRef}
+      onClick={() => {
+        onDeselect();
+        setQrSelected(false);
+      }}
     >
-      {/* PDF + overlay */}
       <div className="flex flex-1 items-center justify-center p-4 overflow-hidden">
+        {/* The scaled canvas wrapper — QR is positioned relative to this */}
         <div
+          ref={canvasWrapRef}
           className="relative shadow-lg origin-top-left"
           style={{
             width: pageInfo.width,
             height: pageInfo.height,
             transform: `scale(${scale})`,
           }}
-          onClick={onDeselect}
         >
           <iframe
             src={`${blobUrl}#page=${currentPage + 1}&toolbar=0`}
@@ -91,11 +108,8 @@ export function PDFPreview({
             title="PDF Preview"
           />
 
-          {/* Draggable overlay */}
-          <div
-            className="absolute inset-0"
-            style={{ pointerEvents: 'none' }}
-          >
+          {/* Text field overlay */}
+          <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
             <div style={{ pointerEvents: 'auto' }}>
               {pageFields.map((f) => (
                 <DraggableTextField
@@ -110,6 +124,19 @@ export function PDFPreview({
               ))}
             </div>
           </div>
+
+          {/* QR Code drag overlay */}
+          {showQR && (
+            <QRCodeField
+              bcertNumber={bcertNumber}
+              field={qrField!}
+              onChange={onQRChange}
+              onRemove={onQRRemove}
+              containerRef={canvasWrapRef}
+              isSelected={qrSelected}
+              onSelect={() => setQrSelected(true)}
+            />
+          )}
         </div>
       </div>
     </div>

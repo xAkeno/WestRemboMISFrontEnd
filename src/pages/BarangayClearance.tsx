@@ -1024,7 +1024,8 @@ const BarangayClearance = () => {
             surname:        inspectRecord.surname,
             document_type:  'barangay_clearance',
             scheduled_date: (inspectRecord as any).scheduled_date ?? null,
-            user_id:        (inspectRecord as any).user_id,
+            user_id:        (inspectRecord as any).user_id 
+                            ?? (inspectRecord as any).created_by,  // ← fallback to created_by
           }}
           onClose={() => setInspectRecord(null)}
           onScheduled={() => handleScheduled(inspectRecord.bcert_number)}

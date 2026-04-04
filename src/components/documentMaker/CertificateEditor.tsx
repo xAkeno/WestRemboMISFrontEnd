@@ -18,7 +18,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-
+import { QRCodeField, QRCodeFieldData, QRToolbarButton } from './QRCodeField';
 // Types
 export interface DocumentUserData {
   id?: number;
@@ -242,6 +242,9 @@ export function CertificateEditor() {
   const ticket = location.state?.ticket;
   const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
   const [selectedStreet, setSelectedStreet] = useState<number | null>(null);
+  const pdfPreviewContainerRef = useRef<HTMLDivElement>(null);
+  const [qrField, setQrField] = useState<QRCodeFieldData | null>(null);
+  const [qrSelected, setQrSelected] = useState(false);
 
   const handleClearanceChange = (type: string) => {
     setSelectedClearanceType(type);
@@ -255,6 +258,14 @@ export function CertificateEditor() {
     }));
     setFields(newFields);
     setSelectedId(null);
+  };
+
+  const handleToggleQR = () => {
+    if (qrField?.visible) {
+      setQrField(null);
+    } else {
+      setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
+    }
   };
 
   const getApiPath = (documentId: string | number) => {
@@ -317,6 +328,7 @@ export function CertificateEditor() {
     });
     return payload;
   };
+  
 
   const existingRecord =
     documentUserData && documentUserData.length > 0 ? documentUserData[0] : null;
@@ -418,15 +430,24 @@ export function CertificateEditor() {
       return;
     }
     try {
-      const bytes = await generatePDF(templateBytesRef.current, fields);
+      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+  
+      const bytes = await generatePDF(
+        templateBytesRef.current,
+        fields,
+        qrField,           // ← pass QR state
+        resolvedBcert      // ← pass bcert string
+      );
+  
       const safeBytes = new Uint8Array(bytes);
       const blob = new Blob([safeBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      const url  = URL.createObjectURL(blob);
+  
       const iframe = document.createElement("iframe");
       iframe.style.position = "fixed";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "none";
+      iframe.style.width    = "0";
+      iframe.style.height   = "0";
+      iframe.style.border   = "none";
       iframe.src = url;
       document.body.appendChild(iframe);
       iframe.onload = () => {
@@ -440,6 +461,7 @@ export function CertificateEditor() {
       toast.error("Failed to print PDF");
     }
   };
+
 
   useEffect(() => {
     if (!documentUserData || documentUserData.length === 0) return;
@@ -505,10 +527,14 @@ export function CertificateEditor() {
       const metadata = metadataRes.data;
       if (!metadata.file_url) throw new Error('Document URL missing');
 
-      const pdfRes = await axios.get(
-        "https://bold-sunset-533d.clarkkentraguhos.workers.dev" + metadata.file_url,
-        { responseType: 'arraybuffer', withCredentials: true }
-      );
+      const fileUrl = metadata.file_url.startsWith("http")
+        ? metadata.file_url
+        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${metadata.file_url}`;
+
+      const pdfRes = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        withCredentials: true
+      });
 
       const pdfBlob = new Blob([pdfRes.data], { type: 'application/pdf' });
       templateBytesRef.current = await pdfBlob.arrayBuffer();
@@ -613,16 +639,22 @@ export function CertificateEditor() {
   const renderPreview = useCallback(async (currentFields: TextField[]) => {
     if (!templateBytesRef.current) return;
     try {
-      const bytes = await generatePDF(templateBytesRef.current, currentFields);
+      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+      const bytes = await generatePDF(
+        templateBytesRef.current,
+        currentFields,
+        qrField,
+        resolvedBcert
+      );
       const url = pdfBytesToBlobUrl(bytes);
       setBlobUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return url;
       });
     } catch (err) {
-      console.error('PDF render error:', err);
+      console.error("PDF render error:", err);
     }
-  }, []);
+  }, [qrField, bcertNumber, existingRecord]);
 
   useEffect(() => {
     if (!ticket) return;
@@ -687,19 +719,27 @@ export function CertificateEditor() {
   const handleDownload = useCallback(async () => {
     if (!templateBytesRef.current) return;
     try {
-      const bytes = await generatePDF(templateBytesRef.current, fields);
-      const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'certificate.pdf';
+      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+  
+      const bytes = await generatePDF(
+        templateBytesRef.current,
+        fields,
+        qrField,           // ← pass QR state
+        resolvedBcert      // ← pass bcert string
+      );
+  
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = "certificate.pdf";
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('PDF downloaded');
+      toast.success("PDF downloaded");
     } catch {
-      toast.error('Failed to generate PDF');
+      toast.error("Failed to generate PDF");
     }
-  }, [fields]);
+  }, [fields, qrField, bcertNumber, existingRecord]);
 
   const handleSaveLayout = useCallback(() => {
     const save = axios.put(
@@ -735,6 +775,8 @@ export function CertificateEditor() {
     reader.readAsText(file);
     e.target.value = '';
   }, []);
+
+  
 
   const autoPrint = location.state?.autoPrint;
 
@@ -791,6 +833,9 @@ export function CertificateEditor() {
             isAdmin={isAdmin}
             documentData={documentUserData}
             streets={streets}
+            bcertNumber={bcertNumber ?? existingRecord?.bcert_number}   // ← NEW
+            qrEnabled={!!qrField?.visible}                              // ← NEW
+            onToggleQR={handleToggleQR}                                 // ← NEW
           />
 
           <PDFPreview
@@ -804,6 +849,10 @@ export function CertificateEditor() {
             onDragField={handleDrag}
             onDeleteField={handleDeleteField}
             onDeselect={() => setSelectedId(null)}
+            qrField={qrField}                                                            // ← NEW
+            onQRChange={(updates) => setQrField((prev) => prev ? { ...prev, ...updates } : null)} // ← NEW
+            onQRRemove={() => setQrField(null)}                                           // ← NEW
+            bcertNumber={bcertNumber ?? existingRecord?.bcert_number}                    // ← NEW
           />
         </div>
       </div>

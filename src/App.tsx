@@ -62,6 +62,7 @@ import ContactCms from "./pages/admin/ContactCms";
 import ServicesCms from "./pages/admin/ServicesCms";
 import ServicePricing from "./pages/ServicePricing";
 import DocumentUploadSection from "./components/DocumentUploadSection";
+import QRScanner from "./pages/QRScanner";
 const App = () => {
 
   useEffect(() => {
@@ -95,7 +96,7 @@ const App = () => {
                 <Route path="/mydocuments" element={<DocumentUploadSection />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/email-verification" element={<EmailVerification />} />
-
+                <Route path="/verify" element={<QRScanner />} />
                 <Route path="/document-edit/:id/:bcertNumber" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
                 <Route path="/document-edit/:id" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
                 <Route path="/certificatehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certificate /></ProtectedRoute>} /> 
@@ -147,7 +148,7 @@ const App = () => {
                 <Route path="/servicesCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicesCms /></ProtectedRoute>} />
 
 
-                <Route path="/settings/AccountManage" element={<Accounts/>}/>
+                <Route path="/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>
                 <Route path="/queue" element={<QueueSystem/>}/>

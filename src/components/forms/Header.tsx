@@ -11,6 +11,7 @@ const navLinks = [
   { label: "Home",     href: "/home",     protected: false },
   { label: "About",    href: "/aboutus",  protected: false },
   { label: "Services", href: "/services", protected: false  },
+  { label: "QR Verification",  href: "/verify",  protected: false },
   { label: "Calendar", href: "/calendar", protected: false  },
   { label: "Contact",  href: "/contact",  protected: false },
 ];
