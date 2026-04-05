@@ -1,13 +1,13 @@
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Calendar, AlertTriangle, ChevronRight, FileCheck } from "lucide-react";
+import { Calendar, AlertTriangle, ChevronRight, FileCheck, Download, Loader2 } from "lucide-react";
 import type { DocumentRequest } from "@/types/types";
 import { DOCUMENT_LABELS, STATUS_CONFIG } from "@/types/types";
+import { useDownloadReleasedDoc } from "./useDownloadReleasedDoc";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
-// Status color map — semantic colors per status
 const statusStyle: Record<string, { bg: string; text: string; border: string }> = {
   approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
   pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
@@ -16,18 +16,18 @@ const statusStyle: Record<string, { bg: string; text: string; border: string }> 
   rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
 };
+
 interface Props {
   request: DocumentRequest;
 }
 
 export default function RequestCard({ request }: Props) {
+  const { download, isLoading } = useDownloadReleasedDoc();
+
   const normalizedStatus = request.raw.status?.toLowerCase();
-  const badge = statusStyle[normalizedStatus] ?? {
-    bg: "#f3f4f6",
-    text: "#374151",
-    border: "#d1d5db",
-  };
-  
+  const isReleased = normalizedStatus === "released";
+  const badge = statusStyle[normalizedStatus] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" };
+  const downloading = isLoading(request.document_type, request.id);
 
   return (
     <Link to={`/request/${request.document_type}/${request.id}`} state={{ request }} className="block group">
@@ -52,8 +52,6 @@ export default function RequestCard({ request }: Props) {
           {/* Top row — title + status + chevron */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-
-              {/* Document type + status badge */}
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h3
                   className="font-bold text-sm sm:text-base truncate text-foreground"
@@ -63,31 +61,69 @@ export default function RequestCard({ request }: Props) {
                 </h3>
                 <span
                   className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 border shrink-0"
-                  style={{
-                    backgroundColor: badge.bg,
-                    color: badge.text,
-                    borderColor: badge.border,
-                    borderRadius: 1,
-                  }}
+                  style={{ backgroundColor: badge.bg, color: badge.text, borderColor: badge.border, borderRadius: 1 }}
                 >
                   {normalizedStatus}
                 </span>
               </div>
 
-              {/* Ref ID */}
               <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: PINK }}>
                 {request.bcert_number}
               </p>
-
-
             </div>
 
-            {/* Chevron */}
             <ChevronRight
               className="h-5 w-5 flex-shrink-0 mt-0.5 transition-all duration-200 group-hover:translate-x-0.5"
               style={{ color: "#9ca3af" }}
             />
           </div>
+
+          {/* Released download banner */}
+          {isReleased && (
+            <div
+              className="mt-3 flex items-center justify-between gap-3 p-3"
+              style={{
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #86efac",
+                borderLeftWidth: 3,
+                borderLeftColor: "#16a34a",
+                borderRadius: 2,
+              }}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <FileCheck className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#15803d" }}>
+                    Document Ready
+                  </p>
+                  <p className="text-xs truncate" style={{ color: "#166534" }}>
+                    Your document has been officially released.
+                  </p>
+                </div>
+              </div>
+
+              {/* Download button — stops Link propagation */}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  download(request.document_type, request.id);
+                }}
+                disabled={downloading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white shrink-0 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: "#16a34a", borderRadius: 2 }}
+                onMouseEnter={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#15803d")}
+                onMouseLeave={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#16a34a")}
+              >
+                {downloading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {downloading ? "Loading..." : "Download"}
+              </button>
+            </div>
+          )}
 
           {/* Missing items alert */}
           {request.missing_items && request.missing_items.length > 0 && (
@@ -113,17 +149,8 @@ export default function RequestCard({ request }: Props) {
             </div>
           )}
 
-          {/* Footer row — schedule + files + date */}
+          {/* Footer row */}
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            {/* {request.scheduled_date && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5 flex-shrink-0" style={{ color: NAVY }} />
-                <span>
-                  Pickup: {format(new Date(request.scheduled_date), "MMM d, yyyy 'at' h:mm a")}
-                </span>
-              </div>
-            )} */}
-              {/* Purpose */}
             <p className="text-sm text-muted-foreground truncate">{request.purpose}</p>
 
             {request.uploaded_files && request.uploaded_files.length > 0 && (
@@ -137,10 +164,9 @@ export default function RequestCard({ request }: Props) {
               Submitted {format(new Date(request.created_at), "MMM d, yyyy")}
             </p>
           </div>
-
         </div>
 
-        {/* Bottom pink accent line — grows in on hover */}
+        {/* Bottom pink accent line */}
         <div
           className="h-px transition-all duration-300 group-hover:opacity-100 opacity-0"
           style={{ backgroundColor: PINK }}

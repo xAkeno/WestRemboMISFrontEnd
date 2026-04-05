@@ -10,11 +10,12 @@ import {
   User, MapPin, Phone, Building2, Briefcase,
   ClipboardList, ShieldCheck, Hash, BadgeInfo,
   CheckCircle, Clock, Banknote, Users, Hammer,
-  Info, FileX, BadgeCheck,
+  Info, FileX, BadgeCheck, Download, FileDown,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect, useRef } from "react";
 import Header from "../forms/Header";
+import { useDownloadReleasedDoc } from "./useDownloadReleasedDoc";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -152,6 +153,101 @@ const SLOT_LABELS: Record<string, string> = {
   supporting_document:   "Supporting Document",
 };
 
+// ─── Released Document Download Banner ────────────────────────────────────────
+function ReleasedDownloadBanner({
+  documentType,
+  recordId,
+  releasedAt,
+}: {
+  documentType: string;
+  recordId: number | string;
+  releasedAt?: string | null;
+}) {
+  const { download, isLoading } = useDownloadReleasedDoc();
+  const downloading = isLoading(documentType, recordId);
+
+  const releasedDate = releasedAt
+    ? new Date(releasedAt).toLocaleDateString(undefined, {
+        month: "long", day: "numeric", year: "numeric",
+      })
+    : null;
+
+  return (
+    <div
+      className="rounded-sm overflow-hidden"
+      style={{ border: "1px solid #86efac", borderLeftWidth: 3, borderLeftColor: "#16a34a" }}
+    >
+      {/* Header strip */}
+      <div
+        className="flex items-center gap-2 px-4 py-2.5"
+        style={{ backgroundColor: "#dcfce7", borderBottom: "1px solid #86efac" }}
+      >
+        <FileDown className="h-4 w-4 shrink-0" style={{ color: "#15803d" }} />
+        <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#15803d" }}>
+          Official Document — Ready to Download
+        </span>
+        {releasedDate && (
+          <span className="ml-auto text-[10px] font-semibold" style={{ color: "#166534" }}>
+            Released {releasedDate}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div
+        className="px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        style={{ backgroundColor: "#f0fdf4" }}
+      >
+        <div className="flex items-start gap-3">
+          {/* Icon block */}
+          <div
+            className="flex items-center justify-center w-12 h-12 shrink-0"
+            style={{ backgroundColor: "#dcfce7", borderRadius: 2, border: "1px solid #86efac" }}
+          >
+            <FileCheck className="h-6 w-6" style={{ color: "#16a34a" }} />
+          </div>
+          <div>
+            <p className="text-sm font-bold" style={{ color: "#15803d" }}>
+              Your document is officially released
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "#166534" }}>
+              Click the button to download your signed PDF. The link is valid for 15 minutes.
+              You can generate a new link anytime by visiting this page.
+            </p>
+          </div>
+        </div>
+
+        {/* Download button */}
+        <button
+          onClick={() => download(documentType, recordId)}
+          disabled={downloading}
+          className="flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white shrink-0 disabled:opacity-60 transition-colors w-full sm:w-auto"
+          style={{ backgroundColor: "#16a34a", borderRadius: 2 }}
+          onMouseEnter={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#15803d")}
+          onMouseLeave={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#16a34a")}
+        >
+          {downloading ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />Generating link...</>
+          ) : (
+            <><Download className="h-4 w-4" />Download Document</>
+          )}
+        </button>
+      </div>
+
+      {/* Footer note */}
+      <div
+        className="px-4 py-2 flex items-center gap-1.5"
+        style={{ borderTop: "1px solid #86efac", backgroundColor: "#dcfce7" }}
+      >
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "#16a34a" }} />
+        <p className="text-[10px]" style={{ color: "#166534" }}>
+          This is an official document issued by the Barangay. Present this when required by government agencies or employers.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Requirements panel ────────────────────────────────────────────────────────
 function RequirementsPanel({
   documentType,
@@ -285,7 +381,7 @@ function RequirementsPanel({
   );
 }
 
-// ─── Replies feed (read-only, user-facing) ─────────────────────────────────────
+// ─── Replies feed ──────────────────────────────────────────────────────────────
 function RepliesFeed({ documentType, documentId }: { documentType: string; documentId: string | number }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [replies, setReplies] = useState<DocReply[]>([]);
@@ -311,9 +407,7 @@ function RepliesFeed({ documentType, documentId }: { documentType: string; docum
     fetchReplies();
   }, [documentType, documentId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [replies]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [replies]);
 
   if (loading) {
     return (
@@ -375,7 +469,7 @@ function RepliesFeed({ documentType, documentId }: { documentType: string; docum
               <div className="mt-3">
                 <a
                   href="/mydocuments"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white"
                   style={{ backgroundColor: NAVY, borderRadius: 2, textDecoration: "none" }}
                 >
                   <Upload className="h-3 w-3" />
@@ -396,7 +490,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
   const dateStr = schedule.schedule_date;
   const timeStr = schedule.schedule_time;
 
-  // Build a friendly display: "April 15, 2025 · 9:00 – 10:00 AM"
   const friendlyDate = (() => {
     try {
       return new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, {
@@ -421,7 +514,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
       className="rounded-sm overflow-hidden"
       style={{ border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb", backgroundColor: "#eff6ff" }}
     >
-      {/* Header strip */}
       <div
         className="flex items-center gap-2 px-4 py-2"
         style={{ backgroundColor: "#dbeafe", borderBottom: "1px solid #bfdbfe" }}
@@ -441,7 +533,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
       </div>
 
       <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-        {/* Date block */}
         <div className="flex items-center gap-3 flex-1">
           <div
             className="flex flex-col items-center justify-center flex-shrink-0 px-3 py-2"
@@ -457,7 +548,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
               {new Date(dateStr + "T12:00:00").getFullYear()}
             </span>
           </div>
-
           <div>
             <p className="text-sm font-bold" style={{ color: NAVY }}>{friendlyDate}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -466,8 +556,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
             </div>
           </div>
         </div>
-
-        {/* Note */}
         {schedule.note && (
           <div
             className="flex items-start gap-2 px-3 py-2 rounded-sm sm:max-w-xs"
@@ -668,14 +756,12 @@ export default function RequestDetail() {
   const navigate = useNavigate();
   const { id, type } = useParams<{ id: string; type: string }>();
 
-  // ── Fetch request ────────────────────────────────────────────────────────────
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
     queryFn: () => fetchRequestById(type!, id!),
     enabled: !!id && !!type,
   });
 
-  // ── Fetch uploaded documents ─────────────────────────────────────────────────
   const { data: uploadedTypes = new Set<string>() } = useQuery({
     queryKey: ["mydocuments"],
     queryFn: async (): Promise<Set<string>> => {
@@ -694,9 +780,6 @@ export default function RequestDetail() {
     },
   });
 
-  // ── Fetch schedule by bcert_number ───────────────────────────────────────────
-  // GET /api/schedules/{bcert_number}
-  // Only runs after request is loaded and has a bcert_number
   const { data: schedule } = useQuery({
     queryKey: ["schedule", request?.bcert_number],
     queryFn: async (): Promise<ScheduleData | null> => {
@@ -704,7 +787,6 @@ export default function RequestDetail() {
         `http://127.0.0.1:8000/api/schedules/${request!.bcert_number}`,
         { credentials: "include", headers: { Accept: "application/json" } }
       );
-      console.log("Schedule fetch response:", res);
       if (!res.ok) return null;
       const json = await res.json();
       return json?.data ?? null;
@@ -730,11 +812,9 @@ export default function RequestDetail() {
           </div>
           <p className="text-muted-foreground text-sm mb-4">Request not found.</p>
           <button
-            className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200"
+            className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white"
             style={{ backgroundColor: NAVY, borderRadius: 1 }}
             onClick={() => navigate("/myrequest")}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
           >
             Back to Requests
           </button>
@@ -744,6 +824,7 @@ export default function RequestDetail() {
   }
 
   const normalizedStatus = request.raw.status?.toLowerCase();
+  const isReleased = normalizedStatus === "released";
   const badge = statusStyle[normalizedStatus] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" };
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
 
@@ -768,18 +849,18 @@ export default function RequestDetail() {
         {/* ── Main card ── */}
         <div
           className="bg-card border border-border overflow-hidden"
-          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
+          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: isReleased ? "#16a34a" : PINK }}
         >
           {/* Card header */}
           <div
             className="px-6 py-5"
-            style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
+            style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: isReleased ? "#f0fdf4" : "#f8faff" }}
           >
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
                 <div className="inline-flex items-center gap-2 mb-1.5">
-                  <div style={{ width: 16, height: 1, backgroundColor: PINK }} />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: PINK }}>
+                  <div style={{ width: 16, height: 1, backgroundColor: isReleased ? "#16a34a" : PINK }} />
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: isReleased ? "#16a34a" : PINK }}>
                     Service Request
                   </p>
                 </div>
@@ -809,16 +890,10 @@ export default function RequestDetail() {
                 >
                   {normalizedStatus}
                 </span>
-                {/* Schedule pill in header */}
                 {schedule && (
                   <span
                     className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 flex-shrink-0"
-                    style={{
-                      backgroundColor: "#dbeafe",
-                      color: "#1d4ed8",
-                      border: "1px solid #bfdbfe",
-                      borderRadius: 2,
-                    }}
+                    style={{ backgroundColor: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 2 }}
                   >
                     <Calendar className="h-3 w-3" />
                     Pickup scheduled
@@ -831,8 +906,19 @@ export default function RequestDetail() {
           {/* ── Card body ── */}
           <div className="p-6 space-y-7">
 
-            {/* Requirements panel */}
-            <RequirementsPanel documentType={request.document_type} uploadedTypes={uploadedTypes} />
+            {/* ── Released download banner — shown FIRST when released ── */}
+            {isReleased && (
+              <ReleasedDownloadBanner
+                documentType={request.document_type}
+                recordId={request.id}
+                releasedAt={request.raw?.released_at}
+              />
+            )}
+
+            {/* Requirements panel — hide when already released */}
+            {!isReleased && (
+              <RequirementsPanel documentType={request.document_type} uploadedTypes={uploadedTypes} />
+            )}
 
             {/* Submission meta */}
             <div
@@ -849,6 +935,12 @@ export default function RequestDetail() {
                   <DetailValue>{format(new Date(request.updated_at), "MMMM d, yyyy")}</DetailValue>
                 </div>
               )}
+              {request.raw?.released_at && (
+                <div>
+                  <DetailLabel>Released On</DetailLabel>
+                  <DetailValue>{format(new Date(request.raw.released_at), "MMMM d, yyyy")}</DetailValue>
+                </div>
+              )}
             </div>
 
             {/* Document-type-specific fields */}
@@ -857,7 +949,7 @@ export default function RequestDetail() {
             {request.document_type === "building_clearance"   && <BuildingFields    r={request} />}
             {request.document_type === "business_clearance"   && <BusinessFields    r={request} />}
 
-            {/* ── Schedule card (replaces the old simple scheduled_date block) ── */}
+            {/* Schedule card */}
             {schedule && <ScheduleCard schedule={schedule} />}
 
             {/* Missing items */}
@@ -881,12 +973,12 @@ export default function RequestDetail() {
               </div>
             )}
 
-            {/* Remarks & Replies */}
+            {/* Replies */}
             <Section icon={MessageSquare} title="Remarks from Barangay Office">
               <RepliesFeed documentType={docTypeSlug} documentId={request.id} />
             </Section>
 
-            {/* Legacy single remarks field */}
+            {/* Legacy remarks */}
             {request.remarks && (
               <div
                 className="p-4"

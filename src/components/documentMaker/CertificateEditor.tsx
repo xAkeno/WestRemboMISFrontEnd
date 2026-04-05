@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import type { TextField, PDFTemplateInfo } from '@/types/certificate';
 import { DEFAULT_FIELD } from '@/types/certificate';
@@ -9,17 +9,11 @@ import { EditorSidebar } from './Sidebar';
 import { PDFPreview } from './PDFPreview';
 import { toast } from 'sonner';
 import { Layout } from '../Layout';
-import { useLocation } from 'react-router-dom';
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import { QRCodeField, QRCodeFieldData, QRToolbarButton } from './QRCodeField';
-// Types
+import { QRCodeField, type QRCodeFieldData } from './QRCodeField';
+import { useReleaseDocument } from '@/pages/useReleaseDocument';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface DocumentUserData {
   id?: number;
   bcert_number?: string;
@@ -91,9 +85,13 @@ export interface DocumentUserData {
   complexion?: string;
   pwd?: string;
   precinct_no?: string;
+  released_document_path?: string;
+  released_at?: string;
   created_at?: string;
   updated_at?: string;
 }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DOCUMENT_API_PATHS: Record<string, string> = {
   "1": "barangay-certificates",
@@ -101,7 +99,7 @@ const DOCUMENT_API_PATHS: Record<string, string> = {
   "3": "building-clearances",
   "4": "business-clearances",
   "5": "cedulay",
-  "6": "residents"
+  "6": "residents",
 };
 
 export const CLEARANCE_FIELDS: Record<string, string[]> = {
@@ -118,14 +116,14 @@ export const CLEARANCE_FIELDS: Record<string, string[]> = {
     'Purpose', 'Issued At', 'Remarks', 'Status', 'Created By',
     'Barangay Clearance No', 'Period of Residency', 'House Owner',
     'Relationship to House Owner', 'Purpose Details', 'CTC/VRR No',
-    'Issued On', 'OR No', 'Date'
+    'Issued On', 'OR No', 'Date',
   ],
   'Business Clearance': [
     'Brgy Business No', 'Issued Date', 'Prefix', 'Ext Name', 'First Name',
     'M.I.', 'Last Name', 'Business Name', 'Business Type', 'Business Details',
     'Capital', 'House Block Lot No', 'Street', 'Zone', 'OR No',
     'Inspected By', 'Inspection Remarks', 'Inspected Remarks', 'Date Inspected',
-    'Inspected Note', 'Issued Date', 'Status', 'Created By', 'Brgy Business No', 'Seperator'
+    'Inspected Note', 'Issued Date', 'Status', 'Created By', 'Brgy Business No', 'Seperator',
   ],
   'Building Clearance': [
     'Barangay Clearance No', 'First Name', 'M.I.', 'Last Name', 'Ext Name',
@@ -220,11 +218,18 @@ export const LABEL_TO_KEY: Record<string, string> = {
   'Requester ID': 'requester_id',
   'Requester Type': 'requester_type',
   'Created At': 'created_at',
-  'Updated At': 'updated_at'
+  'Updated At': 'updated_at',
 };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
+  const location = useLocation();
+  const ticket = location.state?.ticket;
+  const autoPrint = location.state?.autoPrint;
+
+  // ── UI state ────────────────────────────────────────────────────────────────
   const [selectedClearanceType, setSelectedClearanceType] = useState<string | null>(null);
   const [fields, setFields] = useState<TextField[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -232,24 +237,309 @@ export function CertificateEditor() {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [isMarkingToPay, setIsMarkingToPay] = useState(false); // ← new
+  const [isMarkingToPay, setIsMarkingToPay] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [documentUserData, setDocumentUserData] = useState<DocumentUserData[] | undefined>(undefined);
+  const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
+  const [qrField, setQrField] = useState<QRCodeFieldData | null>(null);
+
+  // ── Refs ────────────────────────────────────────────────────────────────────
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [documentUserData, setDocumentUserData] = useState<DocumentUserData[] | undefined>(undefined);
-  const isEditMode = !!bcertNumber;
-  const location = useLocation();
-  const ticket = location.state?.ticket;
-  const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
-  const [selectedStreet, setSelectedStreet] = useState<number | null>(null);
   const pdfPreviewContainerRef = useRef<HTMLDivElement>(null);
-  const [qrField, setQrField] = useState<QRCodeFieldData | null>(null);
-  const [qrSelected, setQrSelected] = useState(false);
+
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  // NOTE: existingRecord is derived BEFORE useReleaseDocument so the hook
+  // always receives the correct recordId on first render.
+  const existingRecord = documentUserData && documentUserData.length > 0
+    ? documentUserData[0]
+    : null;
+
+  const isUpdate = !!existingRecord && !!bcertNumber && bcertNumber !== "new";
+
+  const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+
+  // ── Release hook ─────────────────────────────────────────────────────────────
+  const {
+    releaseDocument,
+    downloadReleased,
+    isReleasing,
+    isDownloading,
+    hasReleasedDocument,
+  } = useReleaseDocument({
+    documentId:          id,
+    recordId:            existingRecord?.id,
+    templateBytes:       templateBytesRef.current,
+    fields,
+    qrField,
+    bcertNumber:         resolvedBcert,
+    // Seed from DB so the "Download Released" button shows on page load
+    initialReleasedPath: existingRecord?.released_document_path ?? null,
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  const getApiPath = (documentId: string | number) =>
+    DOCUMENT_API_PATHS[String(documentId)] || "barangay-clearances";
+
+  const buildPayloadFromFields = () => {
+    const payload: Record<string, any> = {};
+    fields.forEach((field) => {
+      const key = LABEL_TO_KEY[field.label];
+      if (!key) return;
+      let value = field.value;
+      if (typeof value === "string" && value.includes("T")) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) value = date.toISOString().split("T")[0];
+      }
+      payload[key] = value ?? "";
+    });
+    return payload;
+  };
+
+  const normaliseDate = (value: any): any => {
+    if (typeof value === "string" && value.includes("T")) {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
+    return value;
+  };
+
+  const getTicketValue = (key: string, ticket: any) => {
+    if (!ticket?.serviceable) return null;
+    const source = ticket.serviceable;
+    const keyMap: Record<string, string> = {
+      surname:              "last_name",
+      dob:                  "date_of_birth",
+      pob:                  "place_of_birth",
+      relationship_to_owner: "relation_to_house_owner",
+    };
+    return source[keyMap[key] ?? key] ?? null;
+  };
+
+  // ── Data fetching ────────────────────────────────────────────────────────────
+
+  const fetchStreets = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/api/streets', { withCredentials: true });
+      setStreets(res.data);
+    } catch {
+      toast.error('Failed to load streets');
+    }
+  };
+
+  const fetchUser = async () => {
+    try {
+      const res = await axios.get("http://127.0.0.1:8000/api/me", { withCredentials: true });
+      setIsAdmin(res.data.data?.role === "ADMIN");
+    } catch {
+      console.error("Failed to fetch user");
+    }
+  };
+
+  const fetchUserDocument = async () => {
+    try {
+      const apiPath = getApiPath(id!);
+      const res = await axios.get(
+        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+        { withCredentials: true }
+      );
+      setDocumentUserData(res.data.data.data);
+    } catch {
+      toast.error('Failed to fetch document');
+    }
+  };
+
+  // ── PDF template ─────────────────────────────────────────────────────────────
+
+  const renderPreview = useCallback(async (currentFields: TextField[]) => {
+    if (!templateBytesRef.current) return;
+    try {
+      const bytes = await generatePDF(
+        templateBytesRef.current,
+        currentFields,
+        qrField,
+        resolvedBcert
+      );
+      const url = pdfBytesToBlobUrl(bytes);
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } catch (err) {
+      console.error("PDF render error:", err);
+    }
+  }, [qrField, resolvedBcert]);
+
+  const debouncedRender = useCallback((currentFields: TextField[]) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => renderPreview(currentFields), 150);
+  }, [renderPreview]);
+
+  const fetchPDFTemplate = async (documentId: string, existingData?: DocumentUserData) => {
+    setIsLoading(true);
+    try {
+      const numId = parseInt(documentId, 10);
+      const metadataRes = await axios.get(
+        `http://127.0.0.1:8000/api/documents/single/${numId}`,
+        { withCredentials: true }
+      );
+      const metadata = metadataRes.data;
+      if (!metadata.file_url) throw new Error('Document URL missing');
+
+      const fileUrl = metadata.file_url.startsWith("http")
+        ? metadata.file_url
+        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${metadata.file_url}`;
+
+      const pdfRes = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        withCredentials: true,
+      });
+
+      const pdfBlob = new Blob([pdfRes.data], { type: 'application/pdf' });
+      templateBytesRef.current = await pdfBlob.arrayBuffer();
+
+      const { info } = await loadPDFTemplate(templateBytesRef.current);
+      setTemplateInfo(info);
+      setCurrentPage(0);
+
+      // Parse saved layout
+      let savedLayout: TextField[] = [];
+      if (metadata.layout) {
+        try {
+          savedLayout = Array.isArray(metadata.layout)
+            ? metadata.layout
+            : JSON.parse(metadata.layout);
+        } catch {
+          console.error('Invalid layout format');
+        }
+      }
+
+      // Merge layout with record data
+      const record = existingData ?? null;
+      const mergedFields = savedLayout.map((field) => {
+        const key = LABEL_TO_KEY[field.label];
+        let value: any = '';
+        if (key) {
+          if (record) {
+            value = (record as any)[key];
+          } else if (ticket?.serviceable) {
+            const source = ticket.serviceable;
+            const keyMap: Record<string, string> = {
+              surname:              'last_name',
+              dob:                  'date_of_birth',
+              pob:                  'place_of_birth',
+              relationship_to_owner: 'relation_to_house_owner',
+            };
+            value = source[keyMap[key] ?? key];
+          }
+        }
+        value = normaliseDate(value);
+        return { ...field, value: value ?? '' };
+      });
+
+      setFields(mergedFields);
+      setSelectedId(null);
+      await renderPreview([]);
+      toast.success('Template loaded successfully');
+    } catch (error) {
+      console.error('Failed to fetch PDF:', error);
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) toast.error('Document not found');
+        else if ([401, 403].includes(error.response?.status ?? 0)) toast.error('Not authorized');
+        else toast.error(`Server error: ${error.response?.status ?? 'Unknown'}`);
+      } else {
+        toast.error('Failed to load PDF template from server');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Effects ──────────────────────────────────────────────────────────────────
+
+  useEffect(() => { fetchStreets(); }, []);
+
+  // Primary init: fetch user, document record, then template
+  useEffect(() => {
+    const init = async () => {
+      fetchUser();
+      let existingData: DocumentUserData | undefined;
+
+      if (bcertNumber && bcertNumber !== "new") {
+        try {
+          const apiPath = getApiPath(id!);
+          const res = await axios.get(
+            `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+            { withCredentials: true }
+          );
+          const records: DocumentUserData[] = res.data.data.data;
+          setDocumentUserData(records);
+          existingData = records?.[0];
+        } catch {
+          toast.error('Failed to fetch document');
+        }
+      } else {
+        setDocumentUserData([]);
+      }
+
+      if (id) await fetchPDFTemplate(id, existingData);
+    };
+
+    init();
+  }, [id, bcertNumber]);
+
+  // Sync fetched record → fields
+  useEffect(() => {
+    if (!documentUserData || documentUserData.length === 0) return;
+    if (!bcertNumber || bcertNumber === "new") return;
+    const record = documentUserData[0];
+    setFields((prev) =>
+      prev.map((field) => {
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return field;
+        const newValue = normaliseDate((record as any)[key]);
+        return { ...field, value: newValue ?? field.value };
+      })
+    );
+  }, [documentUserData, bcertNumber]);
+
+  // Sync ticket data → fields
+  useEffect(() => {
+    if (!ticket || !fields.length) return;
+    setFields((prev) =>
+      prev.map((field) => {
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return field;
+        const newValue = normaliseDate(getTicketValue(key, ticket));
+        return { ...field, value: newValue ?? field.value };
+      })
+    );
+  }, [ticket, fields.length]);
+
+  // Auto-print on navigation state flag
+  useEffect(() => {
+    if (!autoPrint || !templateInfo || !templateBytesRef.current || !fields.length) return;
+    if (!fields.some((f) => f.value !== null && f.value !== '')) return;
+    const timer = setTimeout(() => { handlePrint(); }, 500);
+    return () => clearTimeout(timer);
+  }, [autoPrint, templateInfo, fields]);
+
+  // Re-render preview when bcertNumber changes
+  useEffect(() => {
+    if (!bcertNumber || bcertNumber === "new") {
+      setDocumentUserData([]);
+      setFields((prev) => prev.map((f) => ({ ...f, value: '' })));
+    } else {
+      fetchUserDocument();
+    }
+  }, [bcertNumber]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleClearanceChange = (type: string) => {
     setSelectedClearanceType(type);
-    const defaultFields = CLEARANCE_FIELDS[type] ?? [];
-    const newFields: TextField[] = defaultFields.map((label) => ({
+    const newFields: TextField[] = (CLEARANCE_FIELDS[type] ?? []).map((label) => ({
       ...DEFAULT_FIELD,
       id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       label,
@@ -268,418 +558,6 @@ export function CertificateEditor() {
     }
   };
 
-  const getApiPath = (documentId: string | number) => {
-    return DOCUMENT_API_PATHS[String(documentId)] || "barangay-clearances";
-  };
-
-  const fetchStreets = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/streets', {
-        withCredentials: true,
-      });
-      setStreets(response.data);
-    } catch (err) {
-      console.error('Failed to fetch streets', err);
-      toast.error('Failed to load streets');
-    }
-  };
-
-  useEffect(() => {
-    fetchStreets();
-  }, []);
-
-  const fetchUserDocument = async () => {
-    try {
-      const apiPath = getApiPath(id);
-      const response = await axios.get(
-        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
-        { withCredentials: true }
-      );
-      setDocumentUserData(response.data.data.data);
-    } catch (error) {
-      console.error('Failed to fetch document', error);
-      toast.error('Failed to fetch document');
-    }
-  };
-
-  const fetchUser = async () => {
-    try {
-      const response = await axios.get("http://127.0.0.1:8000/api/me", { withCredentials: true });
-      const user = response.data.data;
-      setIsAdmin(user.role === "ADMIN");
-    } catch (error) {
-      console.error("Failed to fetch user", error);
-    }
-  };
-
-  const buildPayloadFromFields = () => {
-    const payload: Record<string, any> = {};
-    fields.forEach((field) => {
-      const key = LABEL_TO_KEY[field.label];
-      if (!key) return;
-      let value = field.value;
-      if (typeof value === "string" && value.includes("T")) {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          value = date.toISOString().split("T")[0];
-        }
-      }
-      payload[key] = value ?? "";
-    });
-    return payload;
-  };
-  
-
-  const existingRecord =
-    documentUserData && documentUserData.length > 0 ? documentUserData[0] : null;
-
-  const isUpdate = !!existingRecord && bcertNumber && bcertNumber !== "new";
-
-  useEffect(() => {
-    if (!bcertNumber || bcertNumber === "new") {
-      setDocumentUserData([]);
-      setFields((prev) => prev.map((f) => ({ ...f, value: '' })));
-    } else {
-      fetchUserDocument();
-    }
-  }, [bcertNumber]);
-
-  const handleSubmitCertificate = async () => {
-    try {
-      const payload = { ...buildPayloadFromFields(), requester_type: "WALK_IN" };
-      const apiPath = getApiPath(id);
-      let response;
-
-      if (isUpdate) {
-        response = await axios.put(
-          `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
-          payload,
-          { withCredentials: true }
-        );
-        toast.success(`${apiPath.replace("-", " ")} updated successfully`);
-      } else {
-        response = await axios.post(
-          `http://127.0.0.1:8000/api/${apiPath}`,
-          payload,
-          { withCredentials: true }
-        );
-        toast.success(`${apiPath.replace("-", " ")} saved successfully`);
-      }
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        if (status === 422) {
-          const validationErrors = error.response?.data?.errors;
-          if (validationErrors) {
-            Object.values(validationErrors).forEach((messages: any) => {
-              if (messages.length > 0) toast.error(messages[0]);
-            });
-          }
-        } else if (status === 401) {
-          toast.error("You are not authenticated.");
-        } else if (status === 403) {
-          toast.error("You are not allowed to perform this action.");
-        } else {
-          toast.error("Something went wrong.");
-        }
-      } else {
-        toast.error("Network error.");
-      }
-    }
-  };
-
-  // ─── Mark as To Pay ───────────────────────────────────────────────────────
-  const handleMarkToPay = async () => {
-    if (!existingRecord?.id) {
-      toast.error("No record found to update.");
-      return;
-    }
-
-    const apiPath = getApiPath(id);
-    setIsMarkingToPay(true);
-
-    try {
-      const res = await axios.put(
-        `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
-        { status: "TO_PAY" },
-        { withCredentials: true }
-      );
-
-      console.log("Mark as To Pay response:", res.data); // Debug log
-
-      if (res.status === 200) {
-        toast.success("Status set to To Pay successfully.");
-
-        // Update local state so UI reflects change immediately
-        setDocumentUserData((prev) =>
-          prev?.map((rec, i) => (i === 0 ? { ...rec, status: "TO_PAY" } : rec))
-        );
-      }
-    } catch (err: any) {
-      console.error("Error marking as To Pay:", err);
-      toast.error(err?.response?.data?.message ?? "Failed to update status.");
-    } finally {
-      setIsMarkingToPay(false);
-    }
-  };
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const handlePrint = async () => {
-    if (!templateBytesRef.current) {
-      toast.error("Template not loaded");
-      return;
-    }
-    try {
-      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
-  
-      const bytes = await generatePDF(
-        templateBytesRef.current,
-        fields,
-        qrField,           // ← pass QR state
-        resolvedBcert      // ← pass bcert string
-      );
-  
-      const safeBytes = new Uint8Array(bytes);
-      const blob = new Blob([safeBytes], { type: "application/pdf" });
-      const url  = URL.createObjectURL(blob);
-  
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "fixed";
-      iframe.style.width    = "0";
-      iframe.style.height   = "0";
-      iframe.style.border   = "none";
-      iframe.src = url;
-      document.body.appendChild(iframe);
-      iframe.onload = () => {
-        setTimeout(() => {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        }, 300);
-      };
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to print PDF");
-    }
-  };
-
-
-  useEffect(() => {
-    if (!documentUserData || documentUserData.length === 0) return;
-    if (!bcertNumber || bcertNumber === "new") return;
-
-    const record = documentUserData[0];
-    setFields((prevFields) =>
-      prevFields.map((field) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return field;
-        let newValue = record[key];
-        if (typeof newValue === "string" && newValue.includes("T")) {
-          const date = new Date(newValue);
-          if (!isNaN(date.getTime())) {
-            newValue = date.toISOString().split("T")[0];
-          }
-        }
-        return { ...field, value: newValue ?? field.value };
-      })
-    );
-  }, [documentUserData, bcertNumber]);
-
-  useEffect(() => {
-    if (!ticket) return;
-    if (!fields || fields.length === 0) return;
-    setFields((prevFields) =>
-      prevFields.map((field) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return field;
-        let newValue = ticket[key];
-        if (typeof newValue === "string" && newValue.includes("T")) {
-          const date = new Date(newValue);
-          if (!isNaN(date.getTime())) {
-            newValue = date.toISOString().split("T")[0];
-          }
-        }
-        return { ...field, value: newValue ?? field.value };
-      })
-    );
-  }, [ticket]);
-
-  const getTicketValue = (key: string, ticket: any) => {
-    if (!ticket?.serviceable) return null;
-    const source = ticket.serviceable;
-    const keyMap: Record<string, string> = {
-      surname: "last_name",
-      dob: "date_of_birth",
-      pob: "place_of_birth",
-      relationship_to_owner: "relation_to_house_owner",
-    };
-    const finalKey = keyMap[key] ?? key;
-    return source[finalKey] ?? null;
-  };
-
-  const fetchPDFTemplate = async (documentId: string, existingData?: DocumentUserData) => {
-    setIsLoading(true);
-    try {
-      const id = parseInt(documentId, 10);
-      const metadataRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/${id}`,
-        { withCredentials: true }
-      );
-      const metadata = metadataRes.data;
-      if (!metadata.file_url) throw new Error('Document URL missing');
-
-      const fileUrl = metadata.file_url.startsWith("http")
-        ? metadata.file_url
-        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${metadata.file_url}`;
-
-      const pdfRes = await axios.get(fileUrl, {
-        responseType: 'arraybuffer',
-        withCredentials: true
-      });
-
-      const pdfBlob = new Blob([pdfRes.data], { type: 'application/pdf' });
-      templateBytesRef.current = await pdfBlob.arrayBuffer();
-
-      const { info } = await loadPDFTemplate(templateBytesRef.current);
-      setTemplateInfo(info);
-      setCurrentPage(0);
-
-      let savedLayout: TextField[] = [];
-      if (metadata.layout) {
-        try {
-          savedLayout = Array.isArray(metadata.layout)
-            ? metadata.layout
-            : JSON.parse(metadata.layout);
-        } catch (err) {
-          console.error('Invalid layout format:', err);
-        }
-      }
-
-      const record = existingData ?? null;
-      const mergedFields = savedLayout.map((field) => {
-        const key = LABEL_TO_KEY[field.label];
-        let value: any = '';
-        if (key) {
-          if (record) {
-            value = record[key as keyof DocumentUserData];
-          } else if (ticket?.serviceable) {
-            const source = ticket.serviceable;
-            const keyMap: Record<string, string> = {
-              surname: 'last_name',
-              dob: 'date_of_birth',
-              pob: 'place_of_birth',
-              relationship_to_owner: 'relation_to_house_owner',
-            };
-            const finalKey = keyMap[key] ?? key;
-            value = source[finalKey];
-          }
-        }
-        if (
-          typeof value === 'string' &&
-          (value.includes('T') ||
-            key?.toLowerCase().includes('date') ||
-            key?.toLowerCase().includes('birth'))
-        ) {
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) {
-            value = date.toISOString().split('T')[0];
-          }
-        }
-        return { ...field, value: value ?? '' };
-      });
-
-      setFields(mergedFields);
-      setSelectedId(null);
-      await renderPreview([]);
-      toast.success('Template loaded successfully');
-    } catch (error) {
-      console.error('Failed to fetch PDF:', error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) toast.error('Document not found');
-        else if ([401, 403].includes(error.response?.status || 0)) toast.error('Not authorized');
-        else toast.error(`Server error: ${error.response?.status || 'Unknown'}`);
-      } else {
-        toast.error('Failed to load PDF template from server');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const init = async () => {
-      fetchUser();
-      let existingData: DocumentUserData | undefined;
-
-      if (bcertNumber && bcertNumber !== "new") {
-        try {
-          const apiPath = getApiPath(id);
-          const response = await axios.get(
-            `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
-            { withCredentials: true }
-          );
-          const records: DocumentUserData[] = response.data.data.data;
-          setDocumentUserData(records);
-          existingData = records?.[0];
-        } catch (error) {
-          console.error('Failed to fetch document', error);
-          toast.error('Failed to fetch document');
-        }
-      } else {
-        setDocumentUserData([]);
-      }
-
-      if (id) {
-        await fetchPDFTemplate(id, existingData);
-      }
-    };
-
-    init();
-  }, [id, bcertNumber]);
-
-  const renderPreview = useCallback(async (currentFields: TextField[]) => {
-    if (!templateBytesRef.current) return;
-    try {
-      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
-      const bytes = await generatePDF(
-        templateBytesRef.current,
-        currentFields,
-        qrField,
-        resolvedBcert
-      );
-      const url = pdfBytesToBlobUrl(bytes);
-      setBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-    } catch (err) {
-      console.error("PDF render error:", err);
-    }
-  }, [qrField, bcertNumber, existingRecord]);
-
-  useEffect(() => {
-    if (!ticket) return;
-    if (!fields.length) return;
-    setFields((prevFields) =>
-      prevFields.map((field) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return field;
-        let newValue = getTicketValue(key, ticket);
-        if (typeof newValue === "string" && newValue.includes("T")) {
-          const date = new Date(newValue);
-          if (!isNaN(date.getTime())) {
-            newValue = date.toISOString().split("T")[0];
-          }
-        }
-        return { ...field, value: newValue ?? "" };
-      })
-    );
-  }, [ticket, fields.length]);
-
-  const debouncedRender = useCallback((currentFields: TextField[]) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => renderPreview(currentFields), 150);
-  }, [renderPreview]);
-
   const handleUpload = useCallback(async (file: File) => {
     try {
       const buffer = await file.arrayBuffer();
@@ -697,66 +575,75 @@ export function CertificateEditor() {
   }, [renderPreview]);
 
   const handleAddField = useCallback((label: string) => {
-    const id = `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const newField: TextField = { ...DEFAULT_FIELD, id, label, value: '', page: currentPage };
+    const fieldId = `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newField: TextField = { ...DEFAULT_FIELD, id: fieldId, label, value: '', page: currentPage };
     setFields((prev) => [...prev, newField]);
-    setSelectedId(id);
+    setSelectedId(fieldId);
   }, [currentPage]);
 
-  const handleFieldChange = useCallback((id: string, updates: Partial<TextField>) => {
-    setFields((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+  const handleFieldChange = useCallback((fieldId: string, updates: Partial<TextField>) => {
+    setFields((prev) => prev.map((f) => (f.id === fieldId ? { ...f, ...updates } : f)));
   }, []);
 
-  const handleDeleteField = useCallback((id: string) => {
-    setFields((prev) => prev.filter((f) => f.id !== id));
-    setSelectedId((prev) => (prev === id ? null : prev));
+  const handleDeleteField = useCallback((fieldId: string) => {
+    setFields((prev) => prev.filter((f) => f.id !== fieldId));
+    setSelectedId((prev) => (prev === fieldId ? null : prev));
   }, []);
 
-  const handleDrag = useCallback((id: string, x: number, y: number) => {
-    setFields((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
+  const handleDrag = useCallback((fieldId: string, x: number, y: number) => {
+    setFields((prev) => prev.map((f) => (f.id === fieldId ? { ...f, x, y } : f)));
   }, []);
+
+  const handlePrint = async () => {
+    if (!templateBytesRef.current) {
+      toast.error("Template not loaded");
+      return;
+    }
+    try {
+      const bytes = await generatePDF(templateBytesRef.current, fields, qrField, resolvedBcert);
+      const blob  = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url   = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;width:0;height:0;border:none";
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }, 300);
+      };
+    } catch {
+      toast.error("Failed to print PDF");
+    }
+  };
 
   const handleDownload = useCallback(async () => {
     if (!templateBytesRef.current) return;
     try {
-      const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
-  
-      const bytes = await generatePDF(
-        templateBytesRef.current,
-        fields,
-        qrField,           // ← pass QR state
-        resolvedBcert      // ← pass bcert string
-      );
-  
-      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = "certificate.pdf";
+      const bytes = await generatePDF(templateBytesRef.current, fields, qrField, resolvedBcert);
+      const blob  = new Blob([bytes], { type: "application/pdf" });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement("a");
+      a.href      = url;
+      a.download  = "certificate.pdf";
       a.click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded");
     } catch {
       toast.error("Failed to generate PDF");
     }
-  }, [fields, qrField, bcertNumber, existingRecord]);
+  }, [fields, qrField, resolvedBcert]);
 
   const handleSaveLayout = useCallback(() => {
-    const save = axios.put(
-      `http://127.0.0.1:8000/api/documents/${id}/layout`,
-      { layout: fields },
-      { withCredentials: true }
-    );
-    save.then((response) => {
-      if (response.status === 200) {
-        toast.success('Layout saved successfully');
-      } else {
-        toast.error('Failed to save layout');
-      }
-    }).catch(() => {
-      toast.error('Failed to save layout');
-    });
-  }, [fields]);
+    axios
+      .put(`http://127.0.0.1:8000/api/documents/${id}/layout`, { layout: fields }, { withCredentials: true })
+      .then((res) => {
+        if (res.status === 200) toast.success('Layout saved successfully');
+        else toast.error('Failed to save layout');
+      })
+      .catch(() => toast.error('Failed to save layout'));
+  }, [fields, id]);
 
   const handleLoadLayout = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -776,20 +663,69 @@ export function CertificateEditor() {
     e.target.value = '';
   }, []);
 
-  
+  const handleSubmitCertificate = async () => {
+    try {
+      const payload  = { ...buildPayloadFromFields(), requester_type: "WALK_IN" };
+      const apiPath  = getApiPath(id!);
 
-  const autoPrint = location.state?.autoPrint;
+      if (isUpdate) {
+        await axios.put(
+          `http://127.0.0.1:8000/api/${apiPath}/${existingRecord!.id}`,
+          payload,
+          { withCredentials: true }
+        );
+        toast.success(`${apiPath.replace(/-/g, " ")} updated successfully`);
+      } else {
+        await axios.post(
+          `http://127.0.0.1:8000/api/${apiPath}`,
+          payload,
+          { withCredentials: true }
+        );
+        toast.success(`${apiPath.replace(/-/g, " ")} saved successfully`);
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 422) {
+          const errs = error.response?.data?.errors;
+          if (errs) Object.values(errs).forEach((m: any) => m[0] && toast.error(m[0]));
+        } else if (status === 401) {
+          toast.error("You are not authenticated.");
+        } else if (status === 403) {
+          toast.error("You are not allowed to perform this action.");
+        } else {
+          toast.error("Something went wrong.");
+        }
+      } else {
+        toast.error("Network error.");
+      }
+    }
+  };
 
-  useEffect(() => {
-    if (!autoPrint) return;
-    if (!templateInfo) return;
-    if (!templateBytesRef.current) return;
-    if (!fields || fields.length === 0) return;
-    const hasData = fields.some(field => field.value !== null && field.value !== '');
-    if (!hasData) return;
-    const timer = setTimeout(() => { handlePrint(); }, 500);
-    return () => clearTimeout(timer);
-  }, [autoPrint, templateInfo, fields]);
+  const handleMarkToPay = async () => {
+    if (!existingRecord?.id) { toast.error("No record found to update."); return; }
+    const apiPath = getApiPath(id!);
+    setIsMarkingToPay(true);
+    try {
+      const res = await axios.put(
+        `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
+        { status: "TO_PAY" },
+        { withCredentials: true }
+      );
+      if (res.status === 200) {
+        toast.success("Status set to To Pay successfully.");
+        setDocumentUserData((prev) =>
+          prev?.map((rec, i) => (i === 0 ? { ...rec, status: "TO_PAY" } : rec))
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to update status.");
+    } finally {
+      setIsMarkingToPay(false);
+    }
+  };
+
+  // ── Loading screen ───────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -800,6 +736,8 @@ export function CertificateEditor() {
       </Layout>
     );
   }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <Layout>
@@ -819,8 +757,14 @@ export function CertificateEditor() {
           onSubmit={handleSubmitCertificate}
           onMarkToPay={handleMarkToPay}
           isMarkingToPay={isMarkingToPay}
-          isUpdate={!!isUpdate}
+          isUpdate={isUpdate}
           onPrint={handlePrint}
+          // ── Release ──────────────────────────────────────────────────────
+          onRelease={releaseDocument}
+          onDownloadReleased={downloadReleased}
+          isReleasing={isReleasing}
+          isDownloading={isDownloading}
+          hasReleasedDocument={hasReleasedDocument || !!existingRecord?.released_document_path}
         />
 
         <div className="flex flex-1 min-h-0">
@@ -833,9 +777,9 @@ export function CertificateEditor() {
             isAdmin={isAdmin}
             documentData={documentUserData}
             streets={streets}
-            bcertNumber={bcertNumber ?? existingRecord?.bcert_number}   // ← NEW
-            qrEnabled={!!qrField?.visible}                              // ← NEW
-            onToggleQR={handleToggleQR}                                 // ← NEW
+            bcertNumber={resolvedBcert}
+            qrEnabled={!!qrField?.visible}
+            onToggleQR={handleToggleQR}
           />
 
           <PDFPreview
@@ -849,10 +793,12 @@ export function CertificateEditor() {
             onDragField={handleDrag}
             onDeleteField={handleDeleteField}
             onDeselect={() => setSelectedId(null)}
-            qrField={qrField}                                                            // ← NEW
-            onQRChange={(updates) => setQrField((prev) => prev ? { ...prev, ...updates } : null)} // ← NEW
-            onQRRemove={() => setQrField(null)}                                           // ← NEW
-            bcertNumber={bcertNumber ?? existingRecord?.bcert_number}                    // ← NEW
+            qrField={qrField}
+            onQRChange={(updates) =>
+              setQrField((prev) => (prev ? { ...prev, ...updates } : null))
+            }
+            onQRRemove={() => setQrField(null)}
+            bcertNumber={resolvedBcert}
           />
         </div>
       </div>
