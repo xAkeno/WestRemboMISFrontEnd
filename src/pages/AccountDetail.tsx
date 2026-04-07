@@ -192,7 +192,7 @@ export default function AccountDetail() {
     try {
       await axios.put(`http://127.0.0.1:8000/api/users/${account.id}/approve`,
         { is_approved: true, status: "active" }, { withCredentials: true });
-      setAccount(prev => prev ? { ...prev, is_approved: true, status: "active" } : prev);
+      setAccount(prev => prev ? { ...prev, is_approved: true, status: "active" } : prev); 
       shadToast({ title: "Account Approved", description: "The user can now log in." });
     } catch (err: any) {
       shadToast({ title: "Error", description: err?.response?.data?.message ?? "Failed.", variant: "destructive" });

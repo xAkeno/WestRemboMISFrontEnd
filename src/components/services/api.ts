@@ -238,6 +238,51 @@ interface RawCertificate {
   updated_by: number;
 }
 
+interface RawResident {
+  id: number;
+  resident_id: string | null;
+  prefix: string | null;
+  first_name: string;
+  middle_name: string | null;
+  surname: string;
+  ext_name: string | null;
+  nick_name: string | null;
+  sex: string | null;
+  date_of_birth: string | null;
+  place_of_birth: string | null;
+  blood_type: string | null;
+  complexion: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  religion: string | null;
+  marital_status: string | null;
+  name_of_spouse: string | null;
+  pwd: string | null;
+  house_block_lot_no: string | null;
+  street: string | null;
+  zone: string | null;
+  house_owner: string | null;
+  relationship_to_owner: string | null;
+  period_of_residency: string | null;
+  resident_status: string | null;
+  phone_number: string | null;
+  email_address: string | null;
+  occupation: string | null;
+  emp_status: string | null;
+  position: string | null;
+  voter_status: string | null;
+  precinct_no: string | null;
+  photo: string | null;
+  notes: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  created_by: number;
+  updated_by: number;
+  requester_id: number | null;
+  requester_type: string | null;
+}
+
 interface RawClearance {
   id: number;
   bcert_number: string | null;
@@ -279,6 +324,7 @@ interface MyAllRequestsResponse {
     certificate: RawCertificate[];
     clearance: RawClearance[];
     building: RawBuilding[];
+    resident: RawResident[];
   };
 }
 
@@ -407,6 +453,26 @@ function fromBusiness(r: RawBusiness): DocumentRequest {
   };
 }
 
+function fromResident(r: RawResident): DocumentRequest {
+  return {
+    id: r.id,
+    bcert_number: r.resident_id,
+    document_type: "resident_registration",
+    status: mapStatus(r.status),
+    purpose: "Resident Registration",
+    purpose_details: r.notes ?? undefined,
+    requester_name: normaliseName(r.prefix, r.first_name, r.middle_name, r.surname, r.ext_name),
+    address: [r.house_block_lot_no, r.street, r.zone].filter(Boolean).join(", "),
+    scheduled_date: undefined,
+    remarks: undefined,
+    uploaded_files: undefined,
+    missing_items: undefined,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    raw: r,
+  };
+}
+
 // ─── Core fetch (one network call) ────────────────────────────────────────────
 
 // const apiClient = axios.get(API_BASE_URL + "/my-all-requests", { withCredentials: true });
@@ -421,13 +487,14 @@ async function fetchAllRaw(): Promise<DocumentRequest[]> {
     throw new Error("Failed to fetch requests");
   }
 
-  const { business, certificate, clearance, building } = data.data;
+  const { business, certificate, clearance, building, resident } = data.data;
 
   return [
     ...business.map(fromBusiness),
     ...certificate.map(fromCertificate),
     ...clearance.map(fromClearance),
     ...building.map(fromBuilding),
+    ...(resident ?? []).map(fromResident),   // ← add this
   ].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );

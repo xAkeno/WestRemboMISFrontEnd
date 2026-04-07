@@ -15,7 +15,7 @@ export interface TextField {
   page: number;
   hidden?: boolean;
   // NEW optional fields
-  fieldType?: 'TEXT' | 'ADDRESS' | 'DATE' | 'ZONE';
+  fieldType?: 'TEXT' | 'ADDRESS' | 'DATE' | 'ZONE' | 'QR';
 
   // For ADDRESS
   addressFields?: {

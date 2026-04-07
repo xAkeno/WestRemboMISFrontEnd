@@ -12,6 +12,8 @@ export interface Resident {
   age: number;
   sex: 'Male' | 'Female' | 'Other';
   activityStatus: ActivityStatus;
+  created_by: number;
+  user_id: number;
 }
 
 export interface ResidentsResponse {
@@ -24,5 +26,5 @@ export interface ResidentsResponse {
 
 export type FilterTab = 'All' | 'Verified' | 'Voters' | 'Active';
 
-export type SortField = 'fullName' | 'residentId' | 'verificationStatus' | 'voterStatus' | 'dateOfBirth' | 'sex' | 'activityStatus';
+export type SortField = 'fullName' | 'residentId' | 'verificationStatus' | 'voterStatus' | 'dateOfBirth' | 'sex' | 'activityStatus' | 'created_by';
 export type SortDirection = 'asc' | 'desc';

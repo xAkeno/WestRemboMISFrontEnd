@@ -23,7 +23,7 @@ const api = axios.create({
 const REQUIRED_DOCS: Record<string, string[]> = {
   "resident": [
     "Valid government ID",
-    "Proof of residence",
+    "Proof of Residency",
     // "2x2 ID photo",
     // "Accomplished registration form",
   ],
@@ -39,16 +39,16 @@ const REQUIRED_DOCS: Record<string, string[]> = {
     // "2x2 ID photo",
   ],
   "business_clearance": [
-    "DTI/SEC Registration",
-    "Barangay clearance of business owner",
-    "Lease contract or land title",
-    "Valid government ID",
+    // "DTI/SEC Registration",
+    // "Barangay clearance of business owner",
+    // "Lease contract or land title",
+    // "Valid government ID",
   ],
   "building_clearance": [
-    "Building permit application",
-    "Site development plan",
-    "Proof of land ownership",
-    "Barangay clearance",
+    // "Building permit application",
+    // "Site development plan",
+    // "Proof of land ownership",
+    // "Barangay clearance",
   ],
 };
 
@@ -368,7 +368,7 @@ export default function DocumentInspectModal({
     const run = async () => {
       setLoadingDocs(true);
       try {
-        console.log("Fetching documents for user_id:", record.user_id);
+        console.log("Fetching documents for user_id:", record);
         if (!record.user_id) {
           console.warn("DocumentInspectModal: no user_id on record, skipping fetch.");
           setDocs([]);
@@ -377,7 +377,7 @@ export default function DocumentInspectModal({
         }
         const params: Record<string, any> = { user_id: record.user_id };
         const { data } = await api.get("/api/mydocuments", { params });
-        console.log("Fetched documents for user_id:", record.user_id);
+        console.log("Fetched documents for user_id:", data);
         const flatDocs: UploadedDoc[] = [];
         const documents = data.data?.documents || {};
         Object.values(documents).forEach((categoryDocs: any) => {

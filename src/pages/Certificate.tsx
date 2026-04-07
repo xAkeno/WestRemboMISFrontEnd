@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, MoreHorizontal, ArrowUpDown, FolderSearch,
-  CalendarCheck, CalendarX, Calendar, RefreshCw,
-  X, Filter, ChevronDown, SlidersHorizontal, RotateCcw,
+  CalendarCheck, CalendarX, Calendar, RefreshCw, Bell, X, Clock,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
-import { fetchCertificates, FetchClearanceParams } from '@/components/services/clearanceApi';
+import { fetchCertificates, FetchClearanceParams, deleteBarangayClearance } from '@/components/services/clearanceApi';
 import { Certificate as CertificateType } from '@/types/clearance';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -18,9 +18,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Layout } from "@/components/Layout";
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import DocumentInspectModal from './DocumentInspectModal';
+import axios from 'axios';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
@@ -31,6 +31,14 @@ interface ScheduleData {
   schedule_time: string;
   note?: string | null;
   status?: string;
+}
+
+interface NewRequestNotification {
+  id: number;
+  bcert_number: string;
+  full_name: string;
+  created_at: string;
+  seen: boolean;
 }
 
 interface FilterState {
@@ -56,6 +64,38 @@ const PURPOSE_OPTIONS = [
   'Bank Transaction',
   'Other',
 ];
+
+// ─── URL param key map ─────────────────────────────────────────────────────────
+const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
+  status:          'status',
+  filter_date:     'date',
+  from:            'from',
+  to:              'to',
+  purpose:         'purpose',
+  schedule_filter: 'schedule',
+};
+
+function filtersFromParams(params: URLSearchParams): FilterState {
+  return {
+    status:          params.get('status')   ?? '',
+    filter_date:     params.get('date')     ?? '',
+    from:            params.get('from')     ?? '',
+    to:              params.get('to')       ?? '',
+    purpose:         params.get('purpose')  ?? '',
+    schedule_filter: params.get('schedule') ?? '',
+  };
+}
+
+function buildParams(filters: FilterState, search: string, page: number): URLSearchParams {
+  const p = new URLSearchParams();
+  if (search)   p.set('search', search);
+  if (page > 1) p.set('page', String(page));
+  (Object.keys(FILTER_PARAM_KEYS) as (keyof FilterState)[]).forEach(key => {
+    const val = filters[key];
+    if (val) p.set(FILTER_PARAM_KEYS[key], val);
+  });
+  return p;
+}
 
 // ─── API instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
@@ -83,13 +123,27 @@ function formatDateShort(dateStr: string) {
   } catch { return dateStr; }
 }
 
+function formatCreatedAt(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  try {
+    const d    = new Date(raw);
+    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${date} · ${time}`;
+  } catch { return raw; }
+}
+
+function isNewRequest(createdAt: string | null | undefined): boolean {
+  if (!createdAt) return false;
+  try { return Date.now() - new Date(createdAt).getTime() < 24 * 60 * 60 * 1000; }
+  catch { return false; }
+}
+
 function countActiveFilters(f: FilterState): number {
   return [
-    f.status,
-    f.filter_date,
+    f.status, f.filter_date,
     f.filter_date === 'custom' && f.from ? 'from' : '',
-    f.purpose,
-    f.schedule_filter,
+    f.purpose, f.schedule_filter,
   ].filter(Boolean).length;
 }
 
@@ -117,22 +171,8 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
-// ─── Schedule Cell ─────────────────────────────────────────────────────────────
-function ScheduleCell({ bcertNumber }: { bcertNumber: string }) {
-  const [schedule, setSchedule] = useState<ScheduleData | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (!bcertNumber) { setSchedule(null); return; }
-    let cancelled = false;
-    api.get(`/api/schedules/${bcertNumber}`)
-      .then(({ data }) => { if (!cancelled) setSchedule(data?.data ?? null); })
-      .catch(() => { if (!cancelled) setSchedule(null); });
-    return () => { cancelled = true; };
-  }, [bcertNumber]);
-
-  if (schedule === undefined)
-    return <div className="h-5 w-28 rounded animate-pulse bg-muted" />;
-
+// ─── Schedule Cell — reads from nested item.schedule (no extra API call) ───────
+function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
   if (!schedule) {
     return (
       <span className="not-scheduled-badge">
@@ -141,7 +181,6 @@ function ScheduleCell({ bcertNumber }: { bcertNumber: string }) {
       </span>
     );
   }
-
   const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
   return (
     <div className="flex flex-col gap-0.5">
@@ -160,6 +199,77 @@ function ScheduleCell({ bcertNumber }: { bcertNumber: string }) {
         {formatTimeRange(schedule.schedule_time)}
       </span>
     </div>
+  );
+}
+
+// ─── Notification Panel ────────────────────────────────────────────────────────
+function NotificationPanel({
+  notifications, onDismiss, onDismissAll, onSchedule,
+}: {
+  notifications: NewRequestNotification[];
+  onDismiss: (id: number) => void;
+  onDismissAll: () => void;
+  onSchedule: (n: NewRequestNotification) => void;
+}) {
+  const unseenCount = notifications.filter(n => !n.seen).length;
+  return (
+    <div className="notification-panel">
+      <div className="notification-panel-header">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-blue-600" />
+          <span className="font-semibold text-sm text-foreground">New Requests</span>
+          {unseenCount > 0 && <span className="notification-count-badge">{unseenCount}</span>}
+        </div>
+        {notifications.length > 0 && (
+          <button onClick={onDismissAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Dismiss all
+          </button>
+        )}
+      </div>
+      {notifications.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No new requests</div>
+      ) : (
+        <div className="notification-list">
+          {notifications.map(n => (
+            <div key={n.id} className={`notification-item ${!n.seen ? 'notification-item--unseen' : ''}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {!n.seen && <span className="notification-new-dot" />}
+                  <span className="text-sm font-medium text-foreground truncate">{n.full_name}</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <span className="font-mono">{n.bcert_number}</span>
+                  <span>·</span>
+                  <Clock className="h-2.5 w-2.5" />
+                  <span>{formatCreatedAt(n.created_at)}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="not-scheduled-badge" style={{ fontSize: 9 }}>
+                    <CalendarX className="h-2.5 w-2.5" />
+                    Not yet scheduled
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
+                <button onClick={() => onDismiss(n.id)} className="text-muted-foreground hover:text-foreground transition-colors" title="Dismiss">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => onSchedule(n)} className="notification-schedule-btn">Schedule</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationBell({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="notification-bell-btn" title="New certificate requests">
+      <Bell className="h-5 w-5" />
+      {count > 0 && <span className="notification-bell-badge">{count > 9 ? '9+' : count}</span>}
+    </button>
   );
 }
 
@@ -192,32 +302,27 @@ function FilterBar({
         </button>
 
         {filters.status && (
-          <span className="filter-pill">
-            Status: <strong>{filters.status}</strong>
+          <span className="filter-pill">Status: <strong>{filters.status}</strong>
             <button onClick={() => onChange({ status: '' })}><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.schedule_filter && (
-          <span className="filter-pill">
-            Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
+          <span className="filter-pill">Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
             <button onClick={() => onChange({ schedule_filter: '' })}><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date && filters.filter_date !== 'custom' && (
-          <span className="filter-pill">
-            Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
+          <span className="filter-pill">Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
             <button onClick={() => onChange({ filter_date: '', from: '', to: '' })}><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date === 'custom' && (filters.from || filters.to) && (
-          <span className="filter-pill">
-            Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
+          <span className="filter-pill">Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
             <button onClick={() => onChange({ filter_date: '', from: '', to: '' })}><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.purpose && (
-          <span className="filter-pill">
-            Purpose: <strong>{filters.purpose}</strong>
+          <span className="filter-pill">Purpose: <strong>{filters.purpose}</strong>
             <button onClick={() => onChange({ purpose: '' })}><X className="h-3 w-3" /></button>
           </span>
         )}
@@ -231,16 +336,12 @@ function FilterBar({
       {open && (
         <div className="filter-panel">
           <div className="filter-panel-grid">
-
             <div className="filter-group">
               <label className="filter-label">Status</label>
               <div className="filter-chip-row">
                 {(['', 'PENDING', 'INCOMPLETE', 'REJECTED', 'RELEASED', 'ENCODED'] as const).map(v => (
-                  <button
-                    key={v}
-                    className={`filter-chip ${filters.status === v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ status: v })}
-                  >
+                  <button key={v} className={`filter-chip ${filters.status === v ? 'filter-chip--on' : ''}`}
+                    onClick={() => onChange({ status: v })}>
                     {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
@@ -251,15 +352,12 @@ function FilterBar({
               <label className="filter-label">Schedule</label>
               <div className="filter-chip-row">
                 {[
-                  { v: '',              label: 'All' },
+                  { v: '', label: 'All' },
                   { v: 'scheduled',     label: 'Scheduled',        icon: <CalendarCheck className="h-3 w-3" /> },
                   { v: 'not_scheduled', label: 'Not yet scheduled', icon: <CalendarX className="h-3 w-3" /> },
                 ].map(opt => (
-                  <button
-                    key={opt.v}
-                    className={`filter-chip ${filters.schedule_filter === opt.v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ schedule_filter: opt.v })}
-                  >
+                  <button key={opt.v} className={`filter-chip ${filters.schedule_filter === opt.v ? 'filter-chip--on' : ''}`}
+                    onClick={() => onChange({ schedule_filter: opt.v })}>
                     {opt.icon ?? null}{opt.label}
                   </button>
                 ))}
@@ -270,17 +368,12 @@ function FilterBar({
               <label className="filter-label">Created At</label>
               <div className="filter-chip-row">
                 {[
-                  { v: '',           label: 'Any time' },
-                  { v: 'this_week',  label: 'This week' },
-                  { v: 'this_month', label: 'This month' },
-                  { v: 'this_year',  label: 'This year' },
-                  { v: 'custom',     label: 'Custom range' },
+                  { v: '', label: 'Any time' }, { v: 'this_week', label: 'This week' },
+                  { v: 'this_month', label: 'This month' }, { v: 'this_year', label: 'This year' },
+                  { v: 'custom', label: 'Custom range' },
                 ].map(opt => (
-                  <button
-                    key={opt.v}
-                    className={`filter-chip ${filters.filter_date === opt.v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}
-                  >
+                  <button key={opt.v} className={`filter-chip ${filters.filter_date === opt.v ? 'filter-chip--on' : ''}`}
+                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}>
                     {opt.label}
                   </button>
                 ))}
@@ -304,15 +397,13 @@ function FilterBar({
                 {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
-
           </div>
+
           <div className="filter-panel-footer">
             <button className="filter-reset-btn" onClick={onReset}>
               <RotateCcw className="h-3.5 w-3.5" /> Reset filters
             </button>
-            <button className="filter-apply-btn" onClick={() => setOpen(false)}>
-              Apply &amp; close
-            </button>
+            <button className="filter-apply-btn" onClick={() => setOpen(false)}>Apply &amp; close</button>
           </div>
         </div>
       )}
@@ -322,22 +413,77 @@ function FilterBar({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 const Certificate = () => {
-  const { toast }  = useToast();
-  const navigate   = useNavigate();
+  const { toast }         = useToast();
+  const navigate          = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Initialise state from URL params on first render ──────────────────────
+  const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
+  const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
+  const [filters, setFiltersRaw]         = useState<FilterState>(() => filtersFromParams(searchParams));
 
   const [data, setData]               = useState<CertificateType[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [total, setTotal]             = useState(0);
   const [totalPages, setTotalPages]   = useState(1);
-  const [searchValue, setSearchValue] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField]     = useState('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [filters, setFilters]         = useState<FilterState>(EMPTY_FILTERS);
 
   const [inspectRecord, setInspectRecord] = useState<CertificateType | null>(null);
   const [inspectMode, setInspectMode]     = useState<'inspect' | 'reschedule'>('inspect');
-  const [scheduledKeys, setScheduledKeys] = useState<Record<string, number>>({});
+
+  const [notifications, setNotifications] = useState<NewRequestNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef    = useRef<HTMLDivElement>(null);
+  const knownIdsRef = useRef<Set<number>>(new Set());
+
+  // ── URL sync helpers ───────────────────────────────────────────────────────
+  const syncToUrl = useCallback((
+    nextSearch: string,
+    nextPage: number,
+    nextFilters: FilterState,
+  ) => {
+    const p = buildParams(nextFilters, nextSearch, nextPage);
+    setSearchParams(p, { replace: true });
+  }, [setSearchParams]);
+
+  const setSearchValue = (val: string) => {
+    setSearchValueRaw(val);
+    setCurrentPageRaw(1);
+    syncToUrl(val, 1, filters);
+  };
+
+  const setCurrentPage = (page: number) => {
+    setCurrentPageRaw(page);
+    syncToUrl(searchValue, page, filters);
+  };
+
+  const setFilters = (next: FilterState | ((prev: FilterState) => FilterState)) => {
+    setFiltersRaw(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setCurrentPageRaw(1);
+      syncToUrl(searchValue, 1, resolved);
+      return resolved;
+    });
+  };
+
+  // ── Keep state in sync on back/fwd navigation ──────────────────────────────
+  useEffect(() => {
+    setSearchValueRaw(searchParams.get('search') ?? '');
+    setCurrentPageRaw(Number(searchParams.get('page') ?? '1'));
+    setFiltersRaw(filtersFromParams(searchParams));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  // ── Close notification panel on outside click ──────────────────────────────
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node))
+        setShowNotifications(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -354,12 +500,33 @@ const Certificate = () => {
         ...(filters.filter_date === 'custom' && filters.from        ? { from:        filters.from }        : {}),
         ...(filters.filter_date === 'custom' && filters.to          ? { to:          filters.to }          : {}),
         ...(filters.purpose                                         ? { purpose:     filters.purpose }     : {}),
+        ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
       };
 
       const response = await fetchCertificates(params);
-      setData(response.data);
+      const rows = response.data as any[];
+      setData(rows);
       setTotal(response.total);
       setTotalPages(response.totalPages);
+
+      // ── Detect new requests (< 24h) for notification bell ────────────────
+      const newItems = rows.filter(
+        item => isNewRequest(item.created_at) && !knownIdsRef.current.has(item.id)
+      );
+      if (newItems.length > 0) {
+        const fresh: NewRequestNotification[] = newItems.map(item => ({
+          id: item.id,
+          bcert_number: item.bcert_number,
+          full_name: `${item.firstname} ${item.middle_name ?? ''} ${item.surname}`.trim(),
+          created_at: item.created_at,
+          seen: false,
+        }));
+        newItems.forEach(item => knownIdsRef.current.add(item.id));
+        setNotifications(prev => {
+          const existingIds = new Set(prev.map(n => n.id));
+          return [...fresh.filter(n => !existingIds.has(n.id)), ...prev];
+        });
+      }
     } catch {
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
     } finally {
@@ -368,7 +535,20 @@ const Certificate = () => {
   }, [currentPage, searchValue, sortField, sortDirection, filters, toast]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { setCurrentPage(1); }, [searchValue, filters]);
+
+  // Poll every 30 s
+  useEffect(() => {
+    const id = setInterval(loadData, 30_000);
+    return () => clearInterval(id);
+  }, [loadData]);
+
+  // Mark all as seen when panel opens
+  useEffect(() => {
+    if (showNotifications)
+      setNotifications(prev => prev.map(n => ({ ...n, seen: true })));
+  }, [showNotifications]);
+
+  const unseenCount = notifications.filter(n => !n.seen).length;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleSort = (field: string) => {
@@ -384,7 +564,6 @@ const Certificate = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this certificate?')) return;
     try {
-      const { deleteBarangayClearance } = await import('@/components/services/clearanceApi');
       await deleteBarangayClearance(id);
       toast({ title: 'Deleted', description: 'Certificate deleted successfully.' });
       loadData();
@@ -393,11 +572,7 @@ const Certificate = () => {
     }
   };
 
-  const handleScheduled = (bcertNumber?: string) => {
-    loadData();
-    if (bcertNumber)
-      setScheduledKeys(prev => ({ ...prev, [bcertNumber]: (prev[bcertNumber] ?? 0) + 1 }));
-  };
+  const handleScheduled = () => { loadData(); };
 
   const openInspect = (item: CertificateType) => {
     setInspectMode('inspect');
@@ -409,9 +584,14 @@ const Certificate = () => {
     setInspectRecord(item);
   };
 
+  const handleScheduleFromNotification = (n: NewRequestNotification) => {
+    const record = data.find(d => d.id === n.id);
+    if (record) { openInspect(record); setShowNotifications(false); }
+    else navigate(`/document-edit/5/${n.bcert_number}`);
+  };
+
   const activeFilterCount = countActiveFilters(filters);
 
-  // ── Sort Header ────────────────────────────────────────────────────────────
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th
       className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none"
@@ -439,6 +619,60 @@ const Certificate = () => {
           font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
           padding:2px 7px;border-radius:3px;width:fit-content;
         }
+        .new-request-row{background:linear-gradient(90deg,#eff6ff 0%,transparent 100%);}
+        .new-request-row:hover{background:linear-gradient(90deg,#dbeafe 0%,#f8fafc 100%) !important;}
+        .new-dot{
+          display:inline-block;width:6px;height:6px;background:#3b82f6;
+          border-radius:50%;flex-shrink:0;
+          animation:pulse-dot 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
+        .notification-bell-btn{
+          position:relative;display:flex;align-items:center;justify-content:center;
+          width:38px;height:38px;border-radius:8px;
+          border:1px solid hsl(var(--border));background:hsl(var(--card));
+          color:hsl(var(--foreground));cursor:pointer;transition:background .15s;
+        }
+        .notification-bell-btn:hover{background:hsl(var(--muted));}
+        .notification-bell-badge{
+          position:absolute;top:-5px;right:-5px;
+          background:#ef4444;color:#fff;font-size:9px;font-weight:700;
+          min-width:16px;height:16px;border-radius:99px;
+          display:flex;align-items:center;justify-content:center;
+          padding:0 3px;border:1.5px solid hsl(var(--background));
+        }
+        .notification-panel{
+          position:absolute;top:calc(100% + 8px);right:0;width:360px;
+          background:hsl(var(--card));border:1px solid hsl(var(--border));
+          border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06);
+          z-index:50;overflow:hidden;
+        }
+        .notification-panel-header{
+          display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;border-bottom:1px solid hsl(var(--border));
+          background:hsl(var(--muted)/.4);
+        }
+        .notification-count-badge{
+          background:#3b82f6;color:#fff;font-size:10px;font-weight:700;
+          min-width:18px;height:18px;border-radius:99px;
+          display:inline-flex;align-items:center;justify-content:center;padding:0 4px;
+        }
+        .notification-list{max-height:380px;overflow-y:auto;}
+        .notification-item{
+          display:flex;align-items:flex-start;gap:8px;padding:12px 16px;
+          border-bottom:1px solid hsl(var(--border)/.5);transition:background .1s;
+        }
+        .notification-item:last-child{border-bottom:none;}
+        .notification-item:hover{background:hsl(var(--muted)/.4);}
+        .notification-item--unseen{background:#eff6ff;}
+        .notification-item--unseen:hover{background:#dbeafe;}
+        .notification-new-dot{display:inline-block;width:6px;height:6px;background:#3b82f6;border-radius:50%;flex-shrink:0;margin-top:2px;}
+        .notification-schedule-btn{
+          font-size:10px;font-weight:600;color:#2563eb;
+          background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;
+          padding:2px 8px;cursor:pointer;transition:background .1s;white-space:nowrap;
+        }
+        .notification-schedule-btn:hover{background:#dbeafe;}
         .filter-bar-wrapper{display:flex;flex-direction:column;gap:8px;position:relative;}
         .filter-toggle-btn{
           display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;
@@ -527,17 +761,29 @@ const Certificate = () => {
 
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto">
-
-          {/* ── Header ── */}
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Certificate</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage certificate records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('/document-edit/1')}>
-              <Plus className="h-4 w-4" />
-              New Certificate
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* ── Notification Bell ── */}
+              <div className="relative" ref={notifRef}>
+                <NotificationBell count={unseenCount} onClick={() => setShowNotifications(v => !v)} />
+                {showNotifications && (
+                  <NotificationPanel
+                    notifications={notifications}
+                    onDismiss={id => setNotifications(prev => prev.filter(n => n.id !== id))}
+                    onDismissAll={() => setNotifications([])}
+                    onSchedule={handleScheduleFromNotification}
+                  />
+                )}
+              </div>
+              <Button className="gap-2" onClick={() => navigate('/document-edit/1')}>
+                <Plus className="h-4 w-4" />
+                New Certificate
+              </Button>
+            </div>
           </div>
 
           {/* ── Search + Filter row ── */}
@@ -557,9 +803,12 @@ const Certificate = () => {
             />
           </div>
 
-          {activeFilterCount > 0 && !isLoading && (
+          {/* Active filter summary line */}
+          {(activeFilterCount > 0 || searchValue) && !isLoading && (
             <p className="text-xs text-muted-foreground mb-3 mt-1">
-              Showing <strong className="text-foreground">{total}</strong> result{total !== 1 ? 's' : ''} with {activeFilterCount} active filter{activeFilterCount !== 1 ? 's' : ''}
+              Showing <strong className="text-foreground">{total}</strong> result{total !== 1 ? 's' : ''}
+              {activeFilterCount > 0 && <> with <strong className="text-foreground">{activeFilterCount}</strong> active filter{activeFilterCount !== 1 ? 's' : ''}</>}
+              {searchValue && <> for <strong className="text-foreground">"{searchValue}"</strong></>}
             </p>
           )}
 
@@ -573,8 +822,9 @@ const Certificate = () => {
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
-                {activeFilterCount > 0 && (
-                  <button className="text-xs text-blue-600 hover:underline" onClick={() => setFilters(EMPTY_FILTERS)}>
+                {(activeFilterCount > 0 || searchValue) && (
+                  <button className="text-xs text-blue-600 hover:underline"
+                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
                     Clear all filters
                   </button>
                 )}
@@ -584,6 +834,7 @@ const Certificate = () => {
                 <table className="w-full">
                   <thead className="border-b border-border bg-muted/30">
                     <tr>
+                      <th className="w-5 py-3 pl-3" />
                       <SortHeader field="bcert_number">BCert No.</SortHeader>
                       <SortHeader field="surname">Full Name</SortHeader>
                       <SortHeader field="issued_date">Issue Date</SortHeader>
@@ -598,120 +849,109 @@ const Certificate = () => {
                       </th>
                       <SortHeader field="created_at">Date Created</SortHeader>
                       <SortHeader field="created_by">Created By</SortHeader>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Action
-                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {data.map(item => (
-                      <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                    {data.map(item => {
+                      const isNew = isNewRequest((item as any).created_at);
+                      return (
+                        <tr key={item.id}
+                          className={isNew ? 'new-request-row transition-colors' : 'hover:bg-muted/30 transition-colors'}>
 
-                        {/* BCert No. */}
-                        <td className="py-3 px-4 text-sm font-mono text-primary">
-                          {item.bcert_number}
-                        </td>
+                          {/* New-request dot column */}
+                          <td className="pl-3 pr-0 py-3">
+                            {isNew && <span className="new-dot" title="New request (< 24h)" />}
+                          </td>
 
-                        {/* Full Name — fixed: was rendering bcert_number in first column */}
-                        <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">
-                          {`${item.firstname} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`.trim()}
-                        </td>
+                          <td className="py-3 px-4 text-sm font-mono text-primary">
+                            {item.bcert_number}
+                          </td>
 
-                        {/* Issue Date */}
-                        <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
-                          {item.issued_date
-                            ? new Date(item.issued_date).toLocaleDateString()
-                            : '—'}
-                        </td>
+                          <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">
+                            {`${item.firstname} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`.trim()}
+                          </td>
 
-                        {/* Age */}
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {item.age ?? '—'}
-                        </td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
+                            {item.issued_date ? new Date(item.issued_date).toLocaleDateString() : '—'}
+                          </td>
 
-                        {/* Purpose */}
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {item.purpose ?? '—'}
-                        </td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                            {item.age ?? '—'}
+                          </td>
 
-                        {/* Status */}
-                        <td className="py-3 px-4">
-                          <StatusBadge status={item.status} />
-                        </td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                            {item.purpose ?? '—'}
+                          </td>
 
-                        {/* Schedule */}
-                        <td className="py-3 px-4">
-                          {item.bcert_number ? (
-                            <ScheduleCell
-                              key={`${item.bcert_number}-${scheduledKeys[item.bcert_number] ?? 0}`}
-                              bcertNumber={item.bcert_number}
-                            />
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} />
+                          </td>
 
-                        {/* Date Created — fixed: was duplicating issued_date */}
-                        <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
-                          {item.created_at
-                            ? new Date(item.created_at).toLocaleDateString()
-                            : '—'}
-                        </td>
+                          {/* Schedule — reads from nested item.schedule, no extra API call */}
+                          <td className="py-3 px-4">
+                            <ScheduleCell schedule={(item as any).schedule ?? null} />
+                          </td>
 
-                        {/* Created By */}
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {item.created_by ?? '—'}
-                        </td>
+                          {/* Date Created — formatted with time + "New" label */}
+                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{formatCreatedAt((item as any).created_at)}</span>
+                              {isNew && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#3b82f6' }}>New</span>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* Actions */}
-                        <td className="py-3 px-4">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => navigate(`/document-edit/5/${item.bcert_number}`)}
-                              >
-                                View / Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => navigate(`/document-edit/5/${item.bcert_number}`, { state: { autoPrint: true } })}
-                              >
-                                Print
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="cursor-pointer flex items-center gap-2 font-medium"
-                                style={{ color: '#0f2a5e' }}
-                                onClick={() => openInspect(item)}
-                              >
-                                <FolderSearch className="h-3.5 w-3.5" />
-                                Inspect Docs &amp; Schedule
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="cursor-pointer flex items-center gap-2"
-                                onClick={() => openReschedule(item)}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                                Reschedule
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive cursor-pointer"
-                                onClick={() => handleDelete(Number(item.id))}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                            {item.created_by ?? '—'}
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem className="cursor-pointer"
+                                  onClick={() => navigate(`/document-edit/5/${item.bcert_number}`)}>
+                                  View / Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="cursor-pointer"
+                                  onClick={() => navigate(`/document-edit/5/${item.bcert_number}`, { state: { autoPrint: true } })}>
+                                  Print
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="cursor-pointer flex items-center gap-2 font-medium"
+                                  style={{ color: '#0f2a5e' }}
+                                  onClick={() => openInspect(item)}
+                                >
+                                  <FolderSearch className="h-3.5 w-3.5" />
+                                  Inspect Docs &amp; Schedule
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="cursor-pointer flex items-center gap-2"
+                                  onClick={() => openReschedule(item)}
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                  Reschedule
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive cursor-pointer"
+                                  onClick={() => handleDelete(Number(item.id))}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -727,7 +967,6 @@ const Certificate = () => {
         </div>
       </div>
 
-      {/* ── Inspect / Reschedule Modal ── */}
       {inspectRecord && (
         <DocumentInspectModal
           mode={inspectMode}
@@ -738,10 +977,11 @@ const Certificate = () => {
             surname:        inspectRecord.surname,
             document_type:  'barangay_certificate',
             scheduled_date: (inspectRecord as any).scheduled_date ?? null,
-            user_id:        (inspectRecord as any).user_id,
+            user_id:        (inspectRecord as any).user_id
+                            ?? (inspectRecord as any).created_by,
           }}
           onClose={() => setInspectRecord(null)}
-          onScheduled={() => handleScheduled(inspectRecord.bcert_number)}
+          onScheduled={handleScheduled}
         />
       )}
     </Layout>

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/West_Rembo_Logo.png";
-
+// ✅ IMPORT SUPABASE CLIENT
+import { supabase } from "@/utils/supabase";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +39,51 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+  const handleSupabaseLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!email || !password) {
+    toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    // 1. Login via Supabase
+    console.log("Attempting Supabase login with:", { email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error; 
+
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
+
+    // 2. Send Supabase token to Laravel
+    await api.post(
+      "/api/login",
+      {
+        token: data.session.access_token,
+      },
+      { withCredentials: true }
+    );
+
+    toast({ title: "Success!", description: "You've been logged in successfully." });
+    navigate("/home");
+
+  } catch (error: any) {
+    let errorMessage = "Login failed. Please try again.";
+
+    if (error.message) errorMessage = error.message;
+
+    toast({ title: "Error", description: errorMessage, variant: "destructive" });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <AuthLayout>
@@ -156,7 +202,7 @@ const Login = () => {
             <div style={{ width: 40, height: 2, backgroundColor: "#c2467d", marginTop: 10 }} />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSupabaseLogin} className="space-y-5">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#374151" }}>
                 Email Address

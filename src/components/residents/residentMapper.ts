@@ -59,5 +59,7 @@ export const mapResident = (r: any): Resident => {
     age,
     sex: r.sex,
     activityStatus,
+    created_by: r.created_by,
+    user_id: r.user_id,
   };
 };
