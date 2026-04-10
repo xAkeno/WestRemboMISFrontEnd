@@ -14,7 +14,7 @@ const PINK = "#c2467d";
 // ─── Axios instance with cookie auth ──────────────────────────────────────────
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
-  withCredentials: true,           // send cookies on every request
+  withCredentials: true,
   headers: {
     Accept: "application/json",
   },
@@ -25,8 +25,8 @@ type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 interface UploadedFile {
   id: string;
-  dbId?: number;       // ID returned by the backend after a successful upload
-  file: File;
+  dbId?: number;
+  file: File | null;
   preview: string | null;
   status: UploadStatus;
   progress: number;
@@ -179,7 +179,7 @@ const DEFAULT_CATEGORIES: DocumentCategory[] = [
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function fileIcon(file: File | null) {
-  if (!file) return File; // fallback icon for files with no local File object
+  if (!file) return File;
   if (file.type.startsWith("image/")) return FileImage;
   if (file.type === "application/pdf") return FileText;
   return File;
@@ -208,6 +208,7 @@ function SlotDropzone({
   onRemove: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -256,13 +257,17 @@ function SlotDropzone({
               : "#f0f6ff",
         }}
       >
+        {/* Header row */}
         <div
           className="flex items-center justify-between px-3 py-2"
           style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
         >
           <div className="flex items-center gap-1.5">
             {slot.required && (
-              <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm" style={{ backgroundColor: PINK, color: "#fff" }}>
+              <span
+                className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm"
+                style={{ backgroundColor: PINK, color: "#fff" }}
+              >
                 Required
               </span>
             )}
@@ -270,18 +275,57 @@ function SlotDropzone({
               {slot.label}
             </span>
           </div>
-          <button
-            onClick={onRemove}
-            className="p-1 rounded-sm transition-colors"
-            style={{ color: "#9ca3af" }}
-            title="Remove file"
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#e11d48")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#9ca3af")}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+
+          <div className="flex items-center gap-1">
+            {/* Change / Replace button — only visible when successfully uploaded */}
+            {uploaded.status === "success" && (
+              <>
+                <button
+                  onClick={() => replaceInputRef.current?.click()}
+                  className="flex items-center gap-1 px-2 py-1 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-all duration-150"
+                  style={{
+                    color: NAVY,
+                    backgroundColor: "#e8eef8",
+                    border: "1px solid #c8d4ed",
+                  }}
+                  title="Replace with a different file"
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = "#d4e0f5";
+                    (e.currentTarget as HTMLElement).style.borderColor = NAVY;
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = "#e8eef8";
+                    (e.currentTarget as HTMLElement).style.borderColor = "#c8d4ed";
+                  }}
+                >
+                  <ImagePlus className="h-3 w-3" />
+                  Change
+                </button>
+                <input
+                  ref={replaceInputRef}
+                  type="file"
+                  accept={slot.accept}
+                  className="hidden"
+                  onChange={handleChange}
+                />
+              </>
+            )}
+
+            {/* Remove button */}
+            <button
+              onClick={onRemove}
+              className="p-1 rounded-sm transition-colors"
+              style={{ color: "#9ca3af" }}
+              title="Remove file"
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#e11d48")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#9ca3af")}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
+        {/* File preview row */}
         <div className="flex items-center gap-3 px-3 py-3">
           <div
             className="flex-shrink-0 flex items-center justify-center overflow-hidden"
@@ -299,7 +343,7 @@ function SlotDropzone({
               {uploaded.file?.name ?? uploaded.filename ?? "File"}
             </p>
             <p className="text-[10px] text-gray-500">
-              {uploaded.file ? formatBytes(uploaded.file.size) : ""}
+              {uploaded.file ? formatBytes(uploaded.file.size) : "Previously uploaded"}
             </p>
             {uploaded.status === "uploading" && (
               <div className="mt-1.5 h-1 rounded-full bg-gray-200 overflow-hidden">
@@ -312,9 +356,15 @@ function SlotDropzone({
           </div>
 
           <div className="flex-shrink-0">
-            {uploaded.status === "uploading" && <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />}
-            {uploaded.status === "success" && <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />}
-            {uploaded.status === "error" && <AlertCircle className="h-4 w-4" style={{ color: "#e11d48" }} />}
+            {uploaded.status === "uploading" && (
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />
+            )}
+            {uploaded.status === "success" && (
+              <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />
+            )}
+            {uploaded.status === "error" && (
+              <AlertCircle className="h-4 w-4" style={{ color: "#e11d48" }} />
+            )}
           </div>
         </div>
 
@@ -339,6 +389,7 @@ function SlotDropzone({
     );
   }
 
+  // ── Empty dropzone ──
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5">
@@ -462,12 +513,12 @@ export default function DocumentUploadSection({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(true);
+
   // ── Fetch existing documents on mount ──────────────────────────────────────
   useEffect(() => {
     const fetchExistingDocuments = async () => {
       try {
         const { data } = await api.get("/api/mydocuments");
-        console.log("Existing documents:", data);
         const loadedFiles: Record<string, UploadedFile> = {};
         const docs = data.data?.documents || {};
 
@@ -476,7 +527,7 @@ export default function DocumentUploadSection({
             loadedFiles[doc.type] = {
               id: `existing-${doc.id}`,
               dbId: doc.id,
-              file: null,                     // <-- just use null
+              file: null,
               preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
               status: "success",
               progress: 100,
@@ -497,68 +548,81 @@ export default function DocumentUploadSection({
     fetchExistingDocuments();
   }, []);
 
+  // ── Upload (also handles replace — deletes old record first if one exists) ──
+  const handleUpload = useCallback(
+    async (slotKey: string, file: File) => {
+      // If there's already an uploaded file for this slot, delete it from the
+      // backend before uploading the new one so we don't accumulate orphans.
+      const existing = files[slotKey];
+      if (existing?.dbId && existing.status === "success") {
+        try {
+          await api.delete(`/api/documents/${existing.dbId}`);
+        } catch {
+          // best-effort; proceed with new upload anyway
+        }
+      }
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
-  const handleUpload = useCallback(async (slotKey: string, file: File) => {
-    // Generate local image preview
-    let preview: string | null = null;
-    if (isImage(file)) {
-      preview = await new Promise<string>((res) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-    }
-
-    setFiles((prev) => ({
-      ...prev,
-      [slotKey]: {
-        id: `${slotKey}-${Date.now()}`,
-        file,
-        preview,
-        status: "uploading",
-        progress: 0,
-      },
-    }));
-
-    const formData = new FormData();
-    formData.append("type", slotKey); // "type" matches the DB column
-    formData.append("file", file);
-
-    try {
-      const { data } = await api.post("/api/mydocuments/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (e) => {
-          const pct = Math.round((e.loaded * 100) / (e.total ?? 1));
-          setFiles((prev) => ({
-            ...prev,
-            [slotKey]: { ...prev[slotKey], progress: pct },
-          }));
-        },
-      });
+      // Generate local image preview
+      let preview: string | null = null;
+      if (isImage(file)) {
+        preview = await new Promise<string>((res) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      }
 
       setFiles((prev) => ({
         ...prev,
         [slotKey]: {
-          ...prev[slotKey],
-          dbId: data.data.id,
-          preview: preview ?? data.data.url, // fallback to signed S3 URL for PDFs
-          status: "success",
-          progress: 100,
+          id: `${slotKey}-${Date.now()}`,
+          file,
+          preview,
+          status: "uploading",
+          progress: 0,
         },
       }));
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.errors?.file?.[0] ??
-        err?.response?.data?.message ??
-        "Upload failed. Please try again.";
 
-      setFiles((prev) => ({
-        ...prev,
-        [slotKey]: { ...prev[slotKey], status: "error", error: message },
-      }));
-    }
-  }, []);
+      const formData = new FormData();
+      formData.append("type", slotKey);
+      formData.append("file", file);
+
+      try {
+        const { data } = await api.post("/api/mydocuments/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          onUploadProgress: (e) => {
+            const pct = Math.round((e.loaded * 100) / (e.total ?? 1));
+            setFiles((prev) => ({
+              ...prev,
+              [slotKey]: { ...prev[slotKey], progress: pct },
+            }));
+          },
+        });
+
+        setFiles((prev) => ({
+          ...prev,
+          [slotKey]: {
+            ...prev[slotKey],
+            dbId: data.data.id,
+            preview: preview ?? data.data.url,
+            status: "success",
+            progress: 100,
+          },
+        }));
+      } catch (err: any) {
+        const message =
+          err?.response?.data?.errors?.file?.[0] ??
+          err?.response?.data?.message ??
+          "Upload failed. Please try again.";
+
+        setFiles((prev) => ({
+          ...prev,
+          [slotKey]: { ...prev[slotKey], status: "error", error: message },
+        }));
+      }
+    },
+    [files]
+  );
 
   // ── Remove ─────────────────────────────────────────────────────────────────
   const handleRemove = useCallback(
@@ -566,12 +630,11 @@ export default function DocumentUploadSection({
       const entry = files[slotKey];
       if (!entry) return;
 
-      // If uploaded successfully, also delete from backend + S3
       if (entry.dbId && entry.status === "success") {
         try {
           await api.delete(`/api/documents/${entry.dbId}`);
         } catch {
-          // best-effort; remove from UI regardless
+          // best-effort
         }
       }
 
@@ -703,22 +766,6 @@ export default function DocumentUploadSection({
               ? "✓ All required documents uploaded. You may submit your request."
               : `${allRequired.length - allRequiredDone.length} required document(s) still missing across all categories.`}
           </p>
-          {/* <button
-            disabled={!allComplete || submitting || submitSuccess}
-            onClick={handleSubmit}
-            className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-            style={{ backgroundColor: NAVY, borderRadius: 1 }}
-            onMouseEnter={(e) => {
-              if (!e.currentTarget.disabled)
-                (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c";
-            }}
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)
-            }
-          >
-            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {submitting ? "Submitting..." : submitSuccess ? "✓ Submitted" : "Submit Documents"}
-          </button> */}
         </div>
       </div>
       <Footer />
