@@ -336,6 +336,7 @@ function mapStatus(raw: string): DocumentRequest["status"] {
   if (s === "rejected")   return "rejected";
   if (s === "incomplete") return "incomplete";
   if (s === "processing") return "processing";
+  if (s === "scheduled")  return "scheduled";
   return "pending";
 }
 

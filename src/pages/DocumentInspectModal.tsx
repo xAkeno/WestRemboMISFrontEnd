@@ -39,16 +39,15 @@ const REQUIRED_DOCS: Record<string, string[]> = {
     // "2x2 ID photo",
   ],
   "business_clearance": [
-    // "DTI/SEC Registration",
-    // "Barangay clearance of business owner",
-    // "Lease contract or land title",
-    // "Valid government ID",
+    "DTI / SEC Registration",
+    "Mayor's Business Permit",
+    "BIR Certificate of Registration",
+    "Valid government ID",
   ],
   "building_clearance": [
-    // "Building permit application",
-    // "Site development plan",
-    // "Proof of land ownership",
-    // "Barangay clearance",
+    "Transfer Certificate of Title (TCT)",
+    "Tax Declaration",
+    "Barangay clearance",
   ],
 };
 

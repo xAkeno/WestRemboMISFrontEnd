@@ -26,10 +26,12 @@ const statusStyle: Record<string, { bg: string; text: string; border: string }> 
   approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
   pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
   processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
   incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
   rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
   scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
+  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
 };
 
 // ─── Reply types ───────────────────────────────────────────────────────────────
@@ -155,16 +157,17 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 // ─── Process steps definition ──────────────────────────────────────────────────
-// Maps document statuses → which step index is "current"
-// Steps: 0=Submitted, 1=Processing, 2=Scheduled, 3=Approved, 4=Released
+// Steps: 0=Encoded, 1=Scheduled, 2=To Pay, 3=Released
 // rejected/incomplete are error states shown on the current step
 
 const STATUS_TO_STEP: Record<string, number> = {
   pending:    0,
-  incomplete: 0, // error at submitted step
-  processing: 1,
-  approved:   2,
-  scheduled:  2,
+  incomplete: 0,
+  processing: 0,
+  encoded:    0,
+  approved:   1,
+  scheduled:  1,
+  to_pay:     2,
   released:   3,
 };
 
@@ -172,27 +175,27 @@ interface ProcessStep {
   label: string;
   sublabel: string;
   icon: React.ElementType;
-  statuses: string[]; // statuses that map to this step being active/done
+  statuses: string[];
 }
 
 const PROCESS_STEPS: ProcessStep[] = [
   {
-    label: "Submitted",
+    label: "Encoded",
     sublabel: "Request received by barangay",
     icon: FileText,
-    statuses: ["pending", "incomplete"],
+    statuses: ["pending", "incomplete", "processing", "encoded"],
   },
   {
-    label: "Processing",
-    sublabel: "Documents under review",
-    icon: Loader2,
-    statuses: ["processing"],
-  },
-  {
-    label: "Scheduled / Approved",
+    label: "Scheduled",
     sublabel: "Pickup date assigned",
     icon: Calendar,
     statuses: ["approved", "scheduled"],
+  },
+  {
+    label: "To Pay",
+    sublabel: "Payment required",
+    icon: Banknote,
+    statuses: ["to_pay"],
   },
   {
     label: "Released",
@@ -250,7 +253,6 @@ function ProcessTracker({
             style={{
               height: 2,
               zIndex: 0,
-              // Calculate left/right insets so line spans icon centers
               left: "calc(14px + 0.5rem)",
               right: "calc(14px + 0.5rem)",
               backgroundColor: "#e5e7eb",
@@ -262,7 +264,6 @@ function ProcessTracker({
             const isCurrent = !isRejected && i === currentStep;
             const isFuture = isRejected || i > currentStep;
 
-            // Color logic
             let iconBg = "#f3f4f6";
             let iconColor = "#9ca3af";
             let borderColor = "#e5e7eb";
@@ -378,6 +379,19 @@ function ProcessTracker({
               All steps complete — your document is ready to download above.
             </p>
           </div>
+        ) : normalizedStatus === "to_pay" ? (
+          <div
+            className="mt-5 flex items-start gap-2 p-3"
+            style={{ backgroundColor: "#fefce8", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
+          >
+            <Banknote className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#ca8a04" }} />
+            <div>
+              <p className="text-xs font-bold" style={{ color: "#92400e" }}>Payment Required</p>
+              <p className="text-xs mt-0.5" style={{ color: "#c2410c" }}>
+                Please proceed to the barangay hall to settle the payment for your document.
+              </p>
+            </div>
+          </div>
         ) : normalizedStatus === "scheduled" || normalizedStatus === "approved" ? (
           <div
             className="mt-5 flex items-start gap-2 p-3"
@@ -395,24 +409,15 @@ function ProcessTracker({
               </p>
             </div>
           </div>
-        ) : normalizedStatus === "processing" ? (
-          <div
-            className="mt-5 flex items-center gap-2 p-3"
-            style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb", borderRadius: 2 }}
-          >
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: "#1d4ed8" }} />
-            <p className="text-xs font-semibold" style={{ color: "#1e40af" }}>
-              Your documents are currently being reviewed by the barangay office.
-            </p>
-          </div>
         ) : (
+          // default — encoded / pending / processing
           <div
             className="mt-5 flex items-center gap-2 p-3"
             style={{ backgroundColor: "#fefce8", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
           >
             <Clock className="h-4 w-4 shrink-0" style={{ color: "#ca8a04" }} />
             <p className="text-xs font-semibold" style={{ color: "#92400e" }}>
-              Your request has been submitted and is awaiting review by the barangay office.
+              Your request has been submitted and is being encoded by the barangay office.
             </p>
           </div>
         )}
@@ -1152,7 +1157,6 @@ function RequirementsCompleteModal({
 
           {/* Action buttons */}
           <div className="flex flex-col gap-2.5">
-            {/* View Progress button */}
             <button
               onClick={() => { onDismiss(); onViewProgress(); }}
               className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-white"
@@ -1161,8 +1165,6 @@ function RequirementsCompleteModal({
               <ListChecks className="h-4 w-4" />
               View Full Progress
             </button>
-
-            {/* Dismiss button */}
             <button
               onClick={onDismiss}
               className="w-full py-2.5 text-xs font-semibold"
@@ -1240,6 +1242,9 @@ export default function RequestDetail() {
 
   useEffect(() => {
     if (hasShownModal.current || !request) return;
+    // Never show the modal if the document is already released
+    const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
+    if (normalizedStatus === "released") return;
     const key = (request.document_type ?? "").replace(/-/g, "_");
     const requiredSlots = REQUIRED_SLOTS_BY_DOC[key] ?? [];
     if (requiredSlots.length === 0) return;
@@ -1250,7 +1255,6 @@ export default function RequestDetail() {
     }
   }, [uploadedTypes, request]);
 
-  // Scroll the process tracker into view
   const scrollToTracker = () => {
     trackerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -1293,7 +1297,8 @@ export default function RequestDetail() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {showCompleteModal && (
+      {/* Modal — hidden when document is already released */}
+      {showCompleteModal && !isReleased && (
         <RequirementsCompleteModal
           documentType={request.document_type}
           uploadedTypes={uploadedTypes}
@@ -1360,7 +1365,9 @@ export default function RequestDetail() {
                 >
                   {normalizedStatus}
                 </span>
-                {schedule && (
+
+                {/* Pickup scheduled badge — hidden when released */}
+                {schedule && !isReleased && (
                   <span
                     className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 flex-shrink-0"
                     style={{ backgroundColor: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 2 }}
@@ -1393,7 +1400,7 @@ export default function RequestDetail() {
           {/* ── Card body ── */}
           <div className="p-6 space-y-7">
 
-            {/* ── Released download banner — shown FIRST when released ── */}
+            {/* Released download banner — shown first when released */}
             {isReleased && (
               <ReleasedDownloadBanner
                 documentType={request.document_type}
@@ -1402,14 +1409,14 @@ export default function RequestDetail() {
               />
             )}
 
-            {/* ── Process Tracker — always visible ── */}
+            {/* Process Tracker — always visible */}
             <ProcessTracker
               status={normalizedStatus}
               schedule={schedule}
               trackerRef={trackerRef}
             />
 
-            {/* Requirements panel — hide when already released */}
+            {/* Requirements panel — hide when released */}
             {!isReleased && (
               <RequirementsPanel documentType={request.document_type} uploadedTypes={uploadedTypes} />
             )}
@@ -1438,13 +1445,14 @@ export default function RequestDetail() {
             </div>
 
             {/* Document-type-specific fields */}
-            {request.document_type === "barangay_certificate" && <CertificateFields r={request} />}
-            {request.document_type === "barangay_clearance"   && <ClearanceFields   r={request} />}
-            {request.document_type === "building_clearance"   && <BuildingFields    r={request} />}
-            {request.document_type === "business_clearance"   && <BusinessFields    r={request} />}
-            {request.document_type === "resident_registration" && <ResidentFields   r={request.raw ?? request} />}
-            {/* Schedule card */}
-            {schedule && <ScheduleCard schedule={schedule} />}
+            {request.document_type === "barangay_certificate"  && <CertificateFields r={request} />}
+            {request.document_type === "barangay_clearance"    && <ClearanceFields   r={request} />}
+            {request.document_type === "building_clearance"    && <BuildingFields    r={request} />}
+            {request.document_type === "business_clearance"    && <BusinessFields    r={request} />}
+            {request.document_type === "resident_registration" && <ResidentFields    r={request.raw ?? request} />}
+
+            {/* Schedule card — hidden when released */}
+            {schedule && !isReleased && <ScheduleCard schedule={schedule} />}
 
             {/* Missing items */}
             {request.missing_items && request.missing_items.length > 0 && (

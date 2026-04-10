@@ -50,9 +50,9 @@ export default function ActivityLog() {
       if (search) params.search = search;
       if (typeFilter !== 'all') params.type = typeFilter;
 
-      const res = await axios.get(`${API_BASE}/activity-logs`, { params });
+      const res = await axios.get(`${API_BASE}/activity-logs`, { params, withCredentials: true });
       const data = res.data;
-
+      console.log("Fetched activity logs:", data);
       if (data.data) {
         setLogs(data.data);
         setTotalPages(data.last_page || 1);

@@ -15,8 +15,11 @@ const FILTERS: { label: string; value: RequestStatus | "all" }[] = [
   { label: "All",        value: "all" },
   { label: "Pending",    value: "pending" },
   { label: "Released",   value: "released" },
+  { label: "Scheduled",   value: "scheduled" },
+  { label: "Rescheduled", value: "rescheduled" },
   { label: "Incomplete", value: "incomplete" },
   { label: "Rejected",   value: "rejected" },
+
 ];
 
 export default function MyRequest() {
@@ -26,6 +29,9 @@ export default function MyRequest() {
     queryKey: ["requests"],
     queryFn: fetchRequests,
   });
+  console.log("Fetched requests data:", requests);
+
+  // console.log("Fetched requests data:", requests);
 
   const filtered = filter === "all" ? requests : requests.filter((r) => r.status === filter);
 
@@ -34,7 +40,7 @@ export default function MyRequest() {
       <Header />
 
       <main className="flex-1 flex justify-center pt-32 pb-16 px-4">
-        <div className="w-full max-w-4xl">
+        <div className="w-full max-w-5xl">
 
           {/* Page Header */}
           <div className="text-center mb-10">

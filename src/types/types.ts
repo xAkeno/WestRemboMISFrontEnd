@@ -5,7 +5,7 @@ export type DocumentType =
   | "barangay_certificate"
   | "resident_registration";  
 
-export type RequestStatus = "pending" | "released" | "rejected" | "incomplete" | "processing";
+export type RequestStatus = "pending" | "released" | "rejected" | "incomplete" | "processing" | "scheduled" | "rescheduled";
 
 export interface DocumentRequest {
   id: number;
@@ -83,5 +83,6 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string
   released:   { label: "Released",  color: "bg-success/15 text-success" },
   rejected:   { label: "Rejected",  color: "bg-destructive/15 text-destructive" },
   incomplete: { label: "Incomplete", color: "bg-info/15 text-info" },
+  scheduled:  { label: "Scheduled",  color: "bg-primary/15 text-primary" },
   processing: { label: "Processing", color: "bg-blue-500/15 text-blue-600" },  // ← was missing
 };
