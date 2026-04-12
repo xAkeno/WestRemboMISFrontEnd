@@ -136,7 +136,7 @@ export function DocumentGrid() {
                 {doc.file_url ? (
                   <>
                     <iframe
-                      src={`https://bold-sunset-533d.clarkkentraguhos.workers.dev${doc.file_url}`}
+                      src={`${doc.file_url}`}
                       title={doc.name}
                       className="w-full h-full pointer-events-none"
                     />

@@ -449,7 +449,7 @@ export const ResidentsTable = ({
       `}</style>
 
       {/* ── Notification bell (rendered outside the table, floating top-right) ── */}
-      <div className="flex justify-end mb-3">
+      {/* <div className="flex justify-end mb-3">
         <div className="relative" ref={notifRef}>
           <NotificationBell count={unseenCount} onClick={() => setShowNotifications(v => !v)} />
           {showNotifications && (
@@ -461,7 +461,7 @@ export const ResidentsTable = ({
             />
           )}
         </div>
-      </div>
+      </div> */}
 
       <div className="bg-card rounded-lg border border-border overflow-hidden">
         <div className="overflow-x-auto">
