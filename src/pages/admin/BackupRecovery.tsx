@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database } from 'lucide-react';
+import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -16,7 +16,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'https://westrembomis.onrender.com/api/backup';
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 type DbType = 'postgresql' | 'mysql' | 'sqlite';
 
@@ -41,11 +41,13 @@ const BackupRecovery = () => {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-
-  // Backup dialog
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
-  const [selectedDbType, setSelectedDbType] = useState<DbType>('postgresql');
+  const [selectedDbType, setSelectedDbType] = useState<DbType>('mysql');
+  const [restoreFromFilename, setRestoreFromFilename] = useState<string | null>(null);
+  const [isRestoringFromFile, setIsRestoringFromFile] = useState(false);
 
   /* =======================
      LOAD BACKUPS
@@ -53,7 +55,7 @@ const BackupRecovery = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(API_BASE, { withCredentials: true });
+      const res = await axios.get(`${API_BASE}/backup`, { withCredentials: true });
       const backupsData = Array.isArray(res.data.backups) ? res.data.backups : [];
 
       const formattedBackups = backupsData.map((b: any, index: number) => ({
@@ -62,8 +64,8 @@ const BackupRecovery = () => {
         size: `${b.size_kb} KB`,
         created_at: b.last_modified,
         download_url: b.download_url,
-        db_type: b.db_type ?? 'postgresql',
-        status: 'completed',
+        db_type: (b.db_type ?? 'mysql') as DbType,
+        status: 'completed' as const,
       }));
 
       setBackups(formattedBackups);
@@ -78,9 +80,7 @@ const BackupRecovery = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   /* =======================
      CREATE DATABASE BACKUP
@@ -91,7 +91,7 @@ const BackupRecovery = () => {
 
     const tempBackup: Backup = {
       id: Date.now(),
-      filename: `backup_${selectedDbType}_${new Date().toISOString().split('T')[0]}.sql`,
+      filename: `backup_${new Date().toISOString().replace(/[-T:.Z]/g, '_').slice(0, 19)}.sql`,
       size: 'Calculating...',
       created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
       status: 'in_progress',
@@ -102,36 +102,30 @@ const BackupRecovery = () => {
 
     try {
       const res = await axios.post(
-        `${API_BASE}/database`,
-        { db_type: selectedDbType },
+        `${API_BASE}/backup/database`,
+        {},
         { withCredentials: true }
       );
 
-      const newBackup: Backup = {
-        id: tempBackup.id,
-        filename: res.data.file,
-        size: 'N/A',
-        created_at: tempBackup.created_at,
-        status: 'completed',
-        download_url: res.data.s3_path,
-        db_type: selectedDbType,
-      };
-
-      setBackups(prev => prev.map(b => (b.id === tempBackup.id ? newBackup : b)));
+      setBackups(prev => prev.map(b =>
+        b.id === tempBackup.id
+          ? { ...b, filename: res.data.file, status: 'completed' as const, size: 'N/A' }
+          : b
+      ));
 
       toast({
         title: 'Backup Complete',
-        description: `${dbTypeConfig[selectedDbType].label} backup saved to S3 successfully`,
+        description: 'Full SQL dump saved successfully',
       });
 
       loadData();
-    } catch {
+    } catch (err: any) {
       setBackups(prev =>
-        prev.map(b => b.id === tempBackup.id ? { ...b, status: 'failed' } : b)
+        prev.map(b => b.id === tempBackup.id ? { ...b, status: 'failed' as const } : b)
       );
       toast({
         title: 'Backup failed',
-        description: 'Admin permission required or backup error',
+        description: err?.response?.data?.message ?? 'Admin permission required or backup error',
         variant: 'destructive',
       });
     } finally {
@@ -140,51 +134,97 @@ const BackupRecovery = () => {
   };
 
   /* =======================
-     DOWNLOAD BACKUP
+     RESTORE — UPLOAD SQL FILE
   ======================= */
-  const downloadBackup = async (backup: Backup) => {
+  const handleRestoreUpload = async () => {
+    if (!restoreFile) return;
+    setIsRestoring(true);
+
+    const formData = new FormData();
+    formData.append('file', restoreFile);
+
     try {
-      const res = await axios.get(backup.download_url!, {
-        responseType: 'blob',
+      await axios.post(`${API_BASE}/backup/restore-upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true,
       });
 
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = backup.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
+      toast({ title: 'Restore Complete', description: 'Database imported successfully' });
+      setRestoreDialogOpen(false);
+      setRestoreFile(null);
+      loadData();
+    } catch (err: any) {
       toast({
-        title: 'Download error',
-        description: 'Unauthorized or file missing',
+        title: 'Restore failed',
+        description: err?.response?.data?.message ?? 'Import error or permission denied',
         variant: 'destructive',
       });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
   /* =======================
-     DELETE BACKUP
+     RESTORE — FROM EXISTING BACKUP FILE
   ======================= */
-  const handleDelete = async () => {
-    if (deleteId === null) return;
-    const backup = backups.find(b => b.id === deleteId);
-    if (!backup) return;
+  const handleRestoreFromFile = async () => {
+    if (!restoreFromFilename) return;
+    setIsRestoringFromFile(true);
 
     try {
-      await axios.delete(`${API_BASE}/${encodeURIComponent(backup.filename)}`, {
+      await axios.post(
+        `${API_BASE}/backup/restore/${encodeURIComponent(restoreFromFilename)}`,
+        {},
+        { withCredentials: true }
+      );
+
+      toast({ title: 'Restore Complete', description: `Restored from ${restoreFromFilename}` });
+      loadData();
+    } catch (err: any) {
+      toast({
+        title: 'Restore failed',
+        description: err?.response?.data?.message ?? 'Restore error or permission denied',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRestoringFromFile(false);
+      setRestoreFromFilename(null);
+    }
+  };
+
+  /* =======================
+     DOWNLOAD BACKUP
+     Downloads the raw .sql file — no zip confusion
+  ======================= */
+  const downloadBackup = async (backup: Backup) => {
+    try {
+      if (!backup.filename) return;
+
+      const url = `${API_BASE}/backup/${encodeURIComponent(backup.filename)}/download`;
+
+      const res = await axios.get(url, {
+        responseType: 'blob',
         withCredentials: true,
       });
 
-      setBackups(prev => prev.filter(b => b.id !== deleteId));
-      toast({ title: 'Deleted', description: 'Backup removed successfully' });
-    } catch {
-      toast({ title: 'Delete failed', description: 'Admin permission required', variant: 'destructive' });
-    } finally {
-      setDeleteId(null);
+      const blob = new Blob([res.data], { type: 'application/sql' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = backup.filename; // keep the original filename exactly
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: 'Download error',
+        description: 'File not found or access denied',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -204,7 +244,7 @@ const BackupRecovery = () => {
             </Button>
           </div>
 
-          {/* Quick Action */}
+          {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <button
               onClick={() => setBackupDialogOpen(true)}
@@ -213,7 +253,7 @@ const BackupRecovery = () => {
             >
               <FileArchive className="h-8 w-8 text-primary mb-3" />
               <h3 className="text-sm font-medium">Database Backup</h3>
-              <p className="text-xs text-muted-foreground mt-1">SQL dump of all tables, saved to S3</p>
+              <p className="text-xs text-muted-foreground mt-1">Full SQL dump saved to local storage</p>
               <div className="mt-3">
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
                   <Play className="h-3 w-3" />
@@ -221,9 +261,18 @@ const BackupRecovery = () => {
                 </span>
               </div>
             </button>
+
+            <button
+              onClick={() => setRestoreDialogOpen(true)}
+              className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors"
+            >
+              <Database className="h-8 w-8 text-primary mb-3" />
+              <h3 className="text-sm font-medium">Import Database</h3>
+              <p className="text-xs text-muted-foreground mt-1">Upload a .sql file to restore database</p>
+            </button>
           </div>
 
-          {/* Backup History */}
+          {/* Backup History Table */}
           <div className="bg-card rounded-lg border border-border overflow-hidden">
             <div className="px-4 py-3 border-b border-border">
               <h2 className="text-sm font-medium text-foreground">Backup History</h2>
@@ -243,13 +292,13 @@ const BackupRecovery = () => {
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Actions</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider w-36">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {backups.length ? (
                       backups.map(backup => {
-                        const dbType = backup.db_type ?? 'postgresql';
+                        const dbType = backup.db_type ?? 'mysql';
                         const tc = dbTypeConfig[dbType];
                         return (
                           <tr key={backup.id} className="hover:bg-muted/30 transition-colors">
@@ -281,15 +330,26 @@ const BackupRecovery = () => {
                               <div className="flex items-center gap-1">
                                 <Button
                                   variant="ghost" size="icon" className="h-8 w-8"
+                                  title="Download"
                                   onClick={() => downloadBackup(backup)}
-                                  disabled={backup.status !== 'completed' || !backup.download_url}
+                                  disabled={backup.status !== 'completed'}
                                 >
                                   <Download className="h-4 w-4" />
                                 </Button>
+
+                                <Button
+                                  variant="ghost" size="icon" className="h-8 w-8 text-amber-600"
+                                  title="Restore this backup"
+                                  onClick={() => setRestoreFromFilename(backup.filename)}
+                                  disabled={backup.status !== 'completed'}
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </Button>
+
                                 <Button
                                   variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                                  onClick={() => setDeleteId(backup.id)}
-                                  disabled={backup.status === 'in_progress'}
+                                  title="Delete (no route defined)"
+                                  disabled
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -311,57 +371,44 @@ const BackupRecovery = () => {
             )}
           </div>
 
-          {/* Backup Type Dialog */}
+          {/* Backup Dialog */}
           <Dialog open={backupDialogOpen} onOpenChange={open => { if (!isRunning) setBackupDialogOpen(open); }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create Database Backup</DialogTitle>
                 <DialogDescription>
-                  Select which database engine to back up. The dump will be saved directly to S3.
+                  Runs <code>mysqldump</code> and saves a full <code>.sql</code> file to local storage.
                 </DialogDescription>
               </DialogHeader>
-
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label>Database Type</Label>
                   <Select value={selectedDbType} onValueChange={(v: DbType) => setSelectedDbType(v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="postgresql">
-                        <span className="flex items-center gap-2">
-                          <Database className="h-4 w-4 text-blue-600" /> PostgreSQL
-                        </span>
+                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-blue-600" /> PostgreSQL</span>
                       </SelectItem>
                       <SelectItem value="mysql">
-                        <span className="flex items-center gap-2">
-                          <Database className="h-4 w-4 text-orange-600" /> MySQL
-                        </span>
+                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-orange-600" /> MySQL</span>
                       </SelectItem>
                       <SelectItem value="sqlite">
-                        <span className="flex items-center gap-2">
-                          <Database className="h-4 w-4 text-emerald-600" /> SQLite
-                        </span>
+                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-emerald-600" /> SQLite</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className={`rounded-md border p-3 text-sm ${dbTypeConfig[selectedDbType].className}`}>
                   <p className="font-medium mb-1">{dbTypeConfig[selectedDbType].label} selected</p>
                   <p className="text-xs opacity-80">
                     {selectedDbType === 'postgresql' && 'Uses pg_dump to export a plain SQL file.'}
-                    {selectedDbType === 'mysql'      && 'Uses mysqldump to export a plain SQL file.'}
+                    {selectedDbType === 'mysql'      && 'Uses mysqldump --quick --single-transaction (no locks).'}
                     {selectedDbType === 'sqlite'     && 'Copies the .sqlite database file directly.'}
                   </p>
                 </div>
               </div>
-
               <DialogFooter>
-                <Button variant="outline" onClick={() => setBackupDialogOpen(false)} disabled={isRunning}>
-                  Cancel
-                </Button>
+                <Button variant="outline" onClick={() => setBackupDialogOpen(false)} disabled={isRunning}>Cancel</Button>
                 <Button onClick={triggerBackup} disabled={isRunning}>
                   <Play className="h-4 w-4 mr-2" />
                   {isRunning ? 'Running...' : 'Start Backup'}
@@ -370,22 +417,62 @@ const BackupRecovery = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Delete Confirmation */}
-          <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+          {/* Upload Restore Dialog */}
+          <Dialog open={restoreDialogOpen} onOpenChange={open => { if (!isRestoring) { setRestoreDialogOpen(open); if (!open) setRestoreFile(null); } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Database</DialogTitle>
+                <DialogDescription>
+                  Upload a <code>.sql</code> file to restore the database. This will overwrite existing data.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="restore-file">SQL File</Label>
+                  <input
+                    id="restore-file"
+                    type="file"
+                    accept=".sql"
+                    onChange={e => setRestoreFile(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                  />
+                </div>
+                {restoreFile && (
+                  <p className="text-xs text-muted-foreground">
+                    Selected: <span className="font-medium text-foreground">{restoreFile.name}</span>
+                    {' '}({(restoreFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }} disabled={isRestoring}>
+                  Cancel
+                </Button>
+                <Button onClick={handleRestoreUpload} disabled={!restoreFile || isRestoring}>
+                  {isRestoring ? 'Restoring...' : 'Import'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Restore-from-file confirmation dialog */}
+          <AlertDialog open={!!restoreFromFilename} onOpenChange={() => { if (!isRestoringFromFile) setRestoreFromFilename(null); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Backup</AlertDialogTitle>
+                <AlertDialogTitle>Restore from Backup</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure? This backup file will be permanently deleted from S3.
+                  This will restore the database from <span className="font-medium text-foreground">{restoreFromFilename}</span>.
+                  All current data will be overwritten. Are you sure?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={isRestoringFromFile}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleRestoreFromFile}
+                  disabled={isRestoringFromFile}
+                  className="bg-amber-600 text-white hover:bg-amber-700"
                 >
-                  Delete
+                  {isRestoringFromFile ? 'Restoring...' : 'Yes, Restore'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
