@@ -262,11 +262,15 @@ export function CertificateEditor() {
   // ── Derived ─────────────────────────────────────────────────────────────────
   // NOTE: existingRecord is derived BEFORE useReleaseDocument so the hook
   // always receives the correct recordId on first render.
-  const existingRecord = documentUserData && documentUserData.length > 0
+  const existingRecord =
+  documentUserData && documentUserData.length > 0
     ? documentUserData[0]
-    : null;
+    : ticket?.serviceable
+      ? ticket.serviceable
+      : null;
 
-  const isUpdate = !!existingRecord && !!bcertNumber && bcertNumber !== "new";
+  const isUpdate = !!existingRecord?.bcert_number;
+
 
   const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
 
@@ -296,24 +300,38 @@ export function CertificateEditor() {
     DOCUMENT_API_PATHS[String(documentId)] || "barangay-clearances";
 
   const buildPayloadFromFields = () => {
-    const payload: Record<string, any> = {};
-    fields.forEach((field) => {
-      const key = LABEL_TO_KEY[field.label];
-      if (!key) return;
-      let value = field.value;
-      if (typeof value === "string" && value.includes("T")) {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) value = date.toISOString().split("T")[0];
+  const payload: Record<string, any> = {};
+
+  fields.forEach((field) => {
+    const key = LABEL_TO_KEY[field.label];
+    if (!key) return;
+
+    let value = field.value;
+
+    if (typeof value === "string" && value.includes("T")) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) value = date.toISOString().split("T")[0];
+    }
+
+    // ✅ FIX HERE
+    if (key === "bcert_number") {
+      if (!value || value.trim() === "") {
+        return; // ❗ DO NOT INCLUDE FIELD AT ALL
       }
-      // ← Default status to ENCODED when empty/missing
-      if (key === "status") {
-        payload[key] = value || "ENCODED";
-      } else {
-        payload[key] = value ?? "";
-      }
-    });
-    return payload;
-  };
+      payload[key] = value;
+      return;
+    }
+
+    // default status
+    if (key === "status") {
+      payload[key] = value || "ENCODED";
+    } else {
+      payload[key] = value ?? "";
+    }
+  });
+
+  return payload;
+};
 
   const normaliseDate = (value: any): any => {
     if (typeof value === "string" && value.includes("T")) {
@@ -715,30 +733,75 @@ export function CertificateEditor() {
 
   const handleSubmitCertificate = async () => {
     try {
-      const payload  = { ...buildPayloadFromFields(), requester_type: "WALK_IN" };
-      const apiPath  = getApiPath(id!);
+      const payload = {
+        ...buildPayloadFromFields(),
+        requester_type: "WALK_IN",
+      };
 
-      if (isUpdate) {
+      console.log("Payload for submission:", payload);
+
+      const apiPath = getApiPath(id!);
+
+      // 🔥 Extract the unique key
+      // const bcertNumber = payload.bcert_number;
+
+      // if (!bcertNumber) {
+      //   toast.error("Barangay Clearance No is required.");
+      //   return;
+      // }
+
+      // =====================================================
+      // ✅ STEP 1: CHECK IF RECORD EXISTS USING BCERT NUMBER
+      // =====================================================
+      let existingId: number | null = null;
+
+      try {
+        const checkRes = await axios.get(
+          `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+          { withCredentials: true }
+        );
+
+        const records = checkRes.data.data.data;
+
+        if (records && records.length > 0) {
+          existingId = records[0].id;
+        }
+      } catch (err) {
+        console.error("Check existing failed", err);
+      }
+
+      // =====================================================
+      // ✅ STEP 2: UPDATE OR CREATE
+      // =====================================================
+      if (existingId) {
+        // 🔥 UPDATE (NO DUPLICATE)
         await axios.put(
-          `http://127.0.0.1:8000/api/${apiPath}/${existingRecord!.id}`,
+          `http://127.0.0.1:8000/api/${apiPath}/${existingId}`,
           payload,
           { withCredentials: true }
         );
-        toast.success(`${apiPath.replace(/-/g, " ")} updated successfully`);
+
+        toast.success("Record updated (no duplicate created)");
       } else {
+        // 🔥 CREATE
         await axios.post(
           `http://127.0.0.1:8000/api/${apiPath}`,
           payload,
           { withCredentials: true }
         );
-        toast.success(`${apiPath.replace(/-/g, " ")} saved successfully`);
+
+        toast.success("Record saved successfully");
       }
+
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
+
         if (status === 422) {
           const errs = error.response?.data?.errors;
-          if (errs) Object.values(errs).forEach((m: any) => m[0] && toast.error(m[0]));
+          if (errs) {
+            Object.values(errs).forEach((m: any) => m[0] && toast.error(m[0]));
+          }
         } else if (status === 401) {
           toast.error("You are not authenticated.");
         } else if (status === 403) {
