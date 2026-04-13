@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database, RotateCcw } from 'lucide-react';
+import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database, RotateCcw, Calendar, Settings } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -14,11 +14,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Layout } from '@/components/Layout';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
 type DbType = 'postgresql' | 'mysql' | 'sqlite';
+type Frequency = 'hourly' | 'daily' | 'weekly';
 
 interface Backup {
   id: number;
@@ -29,6 +31,16 @@ interface Backup {
   download_url?: string;
   db_type?: DbType;
 }
+
+interface ScheduleSettings {
+  enabled: boolean;
+  frequency: Frequency;
+  time: string;
+  day_of_week: number | null;
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const dbTypeConfig: Record<DbType, { label: string; className: string }> = {
   postgresql: { label: 'PostgreSQL', className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
@@ -48,6 +60,41 @@ const BackupRecovery = () => {
   const [selectedDbType, setSelectedDbType] = useState<DbType>('mysql');
   const [restoreFromFilename, setRestoreFromFilename] = useState<string | null>(null);
   const [isRestoringFromFile, setIsRestoringFromFile] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const [schedule, setSchedule] = useState<ScheduleSettings>({
+    enabled: false,
+    frequency: 'daily',
+    time: '02:00',
+    day_of_week: 1,
+  });
+
+  /* =======================
+     COMPUTE NEXT RUN TEXT
+  ======================= */
+  const getNextRunText = (s: ScheduleSettings): string => {
+    if (!s.enabled) return 'Disabled';
+
+    const [h, m] = s.time.split(':').map(Number);
+    const now = new Date();
+    const next = new Date();
+
+    if (s.frequency === 'hourly') {
+      const n = new Date(now.getTime() + 60 * 60 * 1000);
+      return `in ~1 hour (${n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+    }
+
+    next.setHours(h, m, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+
+    if (s.frequency === 'weekly' && s.day_of_week !== null) {
+      while (next.getDay() !== s.day_of_week) next.setDate(next.getDate() + 1);
+      return `${DAYS[s.day_of_week]}, ${next.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    return `${next.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
 
   /* =======================
      LOAD BACKUPS
@@ -56,23 +103,23 @@ const BackupRecovery = () => {
     setIsLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/backup`, { withCredentials: true });
+
       const backupsData = Array.isArray(res.data.backups) ? res.data.backups : [];
 
-      const formattedBackups = backupsData.map((b: any, index: number) => ({
+      const formatted = backupsData.map((b: any, index: number) => ({
         id: index,
         filename: b.name,
         size: `${b.size_kb} KB`,
         created_at: b.last_modified,
-        download_url: b.download_url,
-        db_type: (b.db_type ?? 'mysql') as DbType,
-        status: 'completed' as const,
+        status: 'completed',
+        db_type: 'mysql',
       }));
 
-      setBackups(formattedBackups);
-    } catch {
+      setBackups(formatted);
+    } catch (e) {
       toast({
-        title: 'Access denied',
-        description: 'Only admins can view backups',
+        title: 'Error',
+        description: 'Cannot load backups',
         variant: 'destructive',
       });
     } finally {
@@ -81,6 +128,35 @@ const BackupRecovery = () => {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  /* =======================
+     SAVE SCHEDULE
+  ======================= */
+  const saveSchedule = async () => {
+    setIsSavingSchedule(true);
+    try {
+      await axios.post(
+        `${API_BASE}/backup/settings`,
+        {
+          enabled: schedule.enabled ? 1 : 0,
+          frequency: schedule.frequency,
+          time: schedule.time,
+          day_of_week: schedule.frequency === 'weekly' ? schedule.day_of_week : null,
+        },
+        { withCredentials: true }
+      );
+      toast({ title: 'Schedule saved', description: 'Auto backup schedule updated successfully' });
+      setScheduleDialogOpen(false);
+    } catch (err: any) {
+      toast({
+        title: 'Failed to save schedule',
+        description: err?.response?.data?.message ?? 'Could not save schedule settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
 
   /* =======================
      CREATE DATABASE BACKUP
@@ -113,11 +189,7 @@ const BackupRecovery = () => {
           : b
       ));
 
-      toast({
-        title: 'Backup Complete',
-        description: 'Full SQL dump saved successfully',
-      });
-
+      toast({ title: 'Backup Complete', description: 'Full SQL dump saved successfully' });
       loadData();
     } catch (err: any) {
       setBackups(prev =>
@@ -194,7 +266,6 @@ const BackupRecovery = () => {
 
   /* =======================
      DOWNLOAD BACKUP
-     Downloads the raw .sql file — no zip confusion
   ======================= */
   const downloadBackup = async (backup: Backup) => {
     try {
@@ -212,7 +283,7 @@ const BackupRecovery = () => {
 
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = backup.filename; // keep the original filename exactly
+      a.download = backup.filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -246,6 +317,8 @@ const BackupRecovery = () => {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+            {/* Manual Backup */}
             <button
               onClick={() => setBackupDialogOpen(true)}
               disabled={isRunning}
@@ -262,6 +335,7 @@ const BackupRecovery = () => {
               </div>
             </button>
 
+            {/* Import / Restore Upload */}
             <button
               onClick={() => setRestoreDialogOpen(true)}
               className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors"
@@ -270,6 +344,27 @@ const BackupRecovery = () => {
               <h3 className="text-sm font-medium">Import Database</h3>
               <p className="text-xs text-muted-foreground mt-1">Upload a .sql file to restore database</p>
             </button>
+
+            {/* Auto Schedule */}
+            <button
+              onClick={() => setScheduleDialogOpen(true)}
+              className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors"
+            >
+              <Calendar className="h-8 w-8 text-primary mb-3" />
+              <h3 className="text-sm font-medium">Auto Schedule</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {schedule.enabled
+                  ? `${schedule.frequency.charAt(0).toUpperCase() + schedule.frequency.slice(1)} · ${schedule.frequency !== 'hourly' ? schedule.time : 'Every hour'}`
+                  : 'Scheduled backups are off'}
+              </p>
+              <div className="mt-3">
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${schedule.enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                  <Settings className="h-3 w-3" />
+                  Configure
+                </span>
+              </div>
+            </button>
+
           </div>
 
           {/* Backup History Table */}
@@ -371,7 +466,112 @@ const BackupRecovery = () => {
             )}
           </div>
 
-          {/* Backup Dialog */}
+          {/* ================================
+              SCHEDULE DIALOG
+          ================================ */}
+          <Dialog open={scheduleDialogOpen} onOpenChange={open => { if (!isSavingSchedule) setScheduleDialogOpen(open); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Auto Backup Schedule</DialogTitle>
+                <DialogDescription>
+                  Set when automatic backups should run.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-5 py-2">
+
+                {/* Enable toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Enable auto backup</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Run backups automatically on a schedule</p>
+                  </div>
+                  <Switch
+                    checked={schedule.enabled}
+                    onCheckedChange={val => setSchedule(s => ({ ...s, enabled: val }))}
+                  />
+                </div>
+
+                <div className={`space-y-4 transition-opacity ${schedule.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+
+                  {/* Frequency */}
+                  <div className="space-y-1.5">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={schedule.frequency}
+                      onValueChange={(v: Frequency) => setSchedule(s => ({ ...s, frequency: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hourly">Every hour</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Time — hidden for hourly */}
+                  {schedule.frequency !== 'hourly' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sched-time">Time</Label>
+                      <input
+                        id="sched-time"
+                        type="time"
+                        value={schedule.time}
+                        onChange={e => setSchedule(s => ({ ...s, time: e.target.value }))}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </div>
+                  )}
+
+                  {/* Day of week — only for weekly */}
+                  {schedule.frequency === 'weekly' && (
+                    <div className="space-y-2">
+                      <Label>Day of week</Label>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {DAYS_SHORT.map((day, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSchedule(s => ({ ...s, day_of_week: i }))}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                              schedule.day_of_week === i
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-muted-foreground border-border hover:bg-muted/50'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Next run preview */}
+                  <div className="rounded-md bg-muted/40 border border-border px-4 py-3 text-sm">
+                    <p className="text-xs text-muted-foreground mb-0.5">Next scheduled run</p>
+                    <p className="font-medium text-foreground">{getNextRunText(schedule)}</p>
+                  </div>
+
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setScheduleDialogOpen(false)} disabled={isSavingSchedule}>
+                  Cancel
+                </Button>
+                <Button onClick={saveSchedule} disabled={isSavingSchedule}>
+                  {isSavingSchedule ? 'Saving...' : 'Save Schedule'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ================================
+              BACKUP DIALOG
+          ================================ */}
           <Dialog open={backupDialogOpen} onOpenChange={open => { if (!isRunning) setBackupDialogOpen(open); }}>
             <DialogContent>
               <DialogHeader>
@@ -417,7 +617,9 @@ const BackupRecovery = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Upload Restore Dialog */}
+          {/* ================================
+              UPLOAD RESTORE DIALOG
+          ================================ */}
           <Dialog open={restoreDialogOpen} onOpenChange={open => { if (!isRestoring) { setRestoreDialogOpen(open); if (!open) setRestoreFile(null); } }}>
             <DialogContent>
               <DialogHeader>
@@ -455,13 +657,16 @@ const BackupRecovery = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Restore-from-file confirmation dialog */}
+          {/* ================================
+              RESTORE FROM FILE CONFIRM DIALOG
+          ================================ */}
           <AlertDialog open={!!restoreFromFilename} onOpenChange={() => { if (!isRestoringFromFile) setRestoreFromFilename(null); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Restore from Backup</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will restore the database from <span className="font-medium text-foreground">{restoreFromFilename}</span>.
+                  This will restore the database from{' '}
+                  <span className="font-medium text-foreground">{restoreFromFilename}</span>.
                   All current data will be overwritten. Are you sure?
                 </AlertDialogDescription>
               </AlertDialogHeader>
