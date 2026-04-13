@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import api from "@/lib/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
@@ -22,7 +21,6 @@ type Lang = "en" | "tl" | "ceb";
 
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   en: {
-    // Accessibility bar
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -32,19 +30,13 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "English",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-
-    // Page header
     "header.title":           "Document Request Kiosk",
     "header.subtitle":        "Complete the form below to request your barangay document",
-
-    // Steps
     "step.document":          "Document",
     "step.personal":          "Personal",
     "step.address":           "Address",
     "step.details":           "Details",
     "step.review":            "Review",
-
-    // Doc types
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "General purpose clearance",
     "doc.building.label":     "Building Clearance",
@@ -53,8 +45,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "For business registration",
     "doc.resident.label":     "Resident Certificate",
     "doc.resident.sub":       "Proof of residency",
-
-    // Step eyebrows & titles
     "step1.eyebrow":          "Step 1 of 5",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
@@ -70,8 +60,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Step 5 of 5",
     "step5.title":            "Review your information",
     "step5.subtitle":         "Please verify all details before submitting",
-
-    // Fields
     "field.firstName":        "First name",
     "field.middleName":       "Middle name",
     "field.lastName":         "Last name",
@@ -87,8 +75,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.relation":         "Relation to owner",
     "field.contact":          "Contact number",
     "field.purpose":          "Purpose of request",
-
-    // Placeholders
     "ph.firstName":           "e.g. Juan",
     "ph.middleName":          "Optional",
     "ph.lastName":            "e.g. Dela Cruz",
@@ -100,13 +86,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ph.residency":           "e.g. 5 years",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "e.g. Employment, Loan",
-
-    // Select options
     "opt.select":             "Select…",
     "opt.yes":                "Yes",
     "opt.no":                 "No",
-
-    // Review sections
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
@@ -122,13 +104,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
-
-    // Consent
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
-
-    // Buttons
     "btn.backHome":           "← Back to home",
     "btn.continue":           "Continue",
     "btn.review":             "Review",
@@ -137,18 +115,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Submit request",
     "btn.newRequest":         "Start new request",
     "btn.cancel":             "Cancel",
-
-    // Validation
     "err.selectDoc":          "Please select a document type.",
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
-
-    // Success
     "success.title":          "Request submitted!",
     "success.sub":            "Your document request has been received. Please wait for processing.",
-
-    // Address preview label
     "addr.preview":           "Full address:",
   },
 
@@ -162,16 +134,13 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "Ingles",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-
     "header.title":           "Kiosk ng Kahilingan ng Dokumento",
     "header.subtitle":        "Kumpletuhin ang form sa ibaba upang humiling ng dokumento mula sa barangay",
-
     "step.document":          "Dokumento",
     "step.personal":          "Personal",
     "step.address":           "Tirahan",
     "step.details":           "Detalye",
     "step.review":            "Suriin",
-
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Pangkalahatang layunin na clearance",
     "doc.building.label":     "Clearance sa Gusali",
@@ -180,7 +149,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa pagpaparehistro ng negosyo",
     "doc.resident.label":     "Sertipiko ng Residente",
     "doc.resident.sub":       "Patunay ng paninirahan",
-
     "step1.eyebrow":          "Hakbang 1 ng 5",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
@@ -196,7 +164,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Hakbang 5 ng 5",
     "step5.title":            "Suriin ang iyong impormasyon",
     "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
-
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan",
     "field.lastName":         "Apelyido",
@@ -212,7 +179,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.relation":         "Relasyon sa may-ari",
     "field.contact":          "Numero sa pakikipag-ugnayan",
     "field.purpose":          "Layunin ng kahilingan",
-
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
     "ph.lastName":            "hal. Dela Cruz",
@@ -224,11 +190,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ph.residency":           "hal. 5 taon",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "hal. Trabaho, Pautang",
-
     "opt.select":             "Piliin…",
     "opt.yes":                "Oo",
     "opt.no":                 "Hindi",
-
     "review.personal":        "Personal na impormasyon",
     "review.address":         "Tirahan at paninirahan",
     "review.contact":         "Pakikipag-ugnayan at layunin",
@@ -244,11 +208,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa may-ari",
     "review.contact":         "Numero sa pakikipag-ugnayan",
     "review.purpose":         "Layunin",
-
     "consent.heading":        "Abiso sa Privacy ng Data",
     "consent.text":           "Ang iyong personal na impormasyon ay kokolektahin at ipoproseso lamang para sa layunin ng kahilingang ito ng dokumento ng barangay, alinsunod sa Batas sa Privacy ng Data ng 2012 (RA 10173). Hindi ito ibabahagi sa mga hindi awtorisadong third party.",
     "consent.checkbox":       "Nauunawaan ko at pumapayag ako sa pagkolekta at pagproseso ng aking personal na impormasyon para sa kahilingang ito.",
-
     "btn.backHome":           "← Bumalik sa home",
     "btn.continue":           "Magpatuloy",
     "btn.review":             "Suriin",
@@ -257,15 +219,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Isumite ang kahilingan",
     "btn.newRequest":         "Magsimula ng bagong kahilingan",
     "btn.cancel":             "Kanselahin",
-
     "err.selectDoc":          "Mangyaring pumili ng uri ng dokumento.",
     "err.fillRequired":       "Mangyaring punan ang lahat ng kinakailangang field.",
     "err.fillAddress":        "Mangyaring punan ang lahat ng kinakailangang field kasama ang kalye at zone.",
     "err.consent":            "Mangyaring tanggapin ang pahintulot sa privacy ng data upang magpatuloy.",
-
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
-
     "addr.preview":           "Buong tirahan:",
   },
 
@@ -279,16 +238,13 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "Ingles",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-
     "header.title":           "Kiosk sa Pagsugo og Dokumento",
     "header.subtitle":        "Pun-a ang porma sa ubos aron makakuha og dokumento gikan sa barangay",
-
     "step.document":          "Dokumento",
     "step.personal":          "Personal",
     "step.address":           "Adres",
     "step.details":           "Detalye",
     "step.review":            "Susihon",
-
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Kinatibuk-ang katuyoan nga clearance",
     "doc.building.label":     "Clearance sa Pagtukod",
@@ -297,7 +253,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa rehistrasyon sa negosyo",
     "doc.resident.label":     "Sertipiko sa Residente",
     "doc.resident.sub":       "Patunay sa pagpuyo",
-
     "step1.eyebrow":          "Lakang 1 sa 5",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
@@ -313,7 +268,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Lakang 5 sa 5",
     "step5.title":            "Susihon ang imong impormasyon",
     "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
-
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan",
     "field.lastName":         "Apelyido",
@@ -329,7 +283,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.relation":         "Relasyon sa tag-iya",
     "field.contact":          "Numero sa kontak",
     "field.purpose":          "Katuyoan sa hangyo",
-
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
     "ph.lastName":            "hal. Dela Cruz",
@@ -341,11 +294,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ph.residency":           "hal. 5 ka tuig",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "hal. Trabaho, Pautang",
-
     "opt.select":             "Pilia…",
     "opt.yes":                "Oo",
     "opt.no":                 "Dili",
-
     "review.personal":        "Personal nga impormasyon",
     "review.address":         "Adres ug pagpuyo",
     "review.contact":         "Kontak ug katuyoan",
@@ -361,11 +312,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa tag-iya",
     "review.contact":         "Numero sa kontak",
     "review.purpose":         "Katuyoan",
-
     "consent.heading":        "Abiso sa Privacy sa Data",
     "consent.text":           "Ang imong personal nga impormasyon makolekta ug maproseso lamang alang sa katuyoan niini nga hangyo sa dokumento sa barangay, subay sa Data Privacy Act of 2012 (RA 10173). Dili kini ibahin sa mga wala'y awtorisasyon nga ikatulo nga partido.",
     "consent.checkbox":       "Nasabtan nako ug nagkauyon ako sa pagkolekta ug pagproseso sa akong personal nga impormasyon alang niini nga hangyo.",
-
     "btn.backHome":           "← Balik sa home",
     "btn.continue":           "Padayon",
     "btn.review":             "Susihon",
@@ -374,15 +323,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Isumite ang hangyo",
     "btn.newRequest":         "Magsugod og bag-ong hangyo",
     "btn.cancel":             "Ikansela",
-
     "err.selectDoc":          "Palihug pilia ang matang sa dokumento.",
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
-
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
-
     "addr.preview":           "Tibuok adres:",
   },
 };
@@ -391,18 +337,17 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 type FontSize = "sm" | "md" | "lg" | "xl";
 
 const FONT_SCALE: Record<FontSize, { scale: number; label: string; ariaLabel: string }> = {
-  sm: { scale: 0.875, label: "A",  ariaLabel: "Small text"       },
-  md: { scale: 1,     label: "A",  ariaLabel: "Normal text"      },
-  lg: { scale: 1.15,  label: "A",  ariaLabel: "Large text"       },
-  xl: { scale: 1.3,   label: "A",  ariaLabel: "Extra large text" },
+  sm: { scale: 0.875, label: "A", ariaLabel: "Small text"       },
+  md: { scale: 1,     label: "A", ariaLabel: "Normal text"      },
+  lg: { scale: 1.15,  label: "A", ariaLabel: "Large text"       },
+  xl: { scale: 1.3,   label: "A", ariaLabel: "Extra large text" },
 };
 
-// ─── Persist helpers ───────────────────────────────────────────────────────────
 const LS_LANG = "fd_lang";
 const LS_FONT = "fd_font";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Accessibility bar  (self-contained, no FrontDesk coupling)
+// ACCESSIBILITY BAR
 // ═══════════════════════════════════════════════════════════════════════════════
 interface AccessibilityBarProps {
   lang: Lang;
@@ -416,7 +361,6 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
-  // Close lang dropdown on outside click
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false);
@@ -440,17 +384,11 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
       role="toolbar"
       aria-label="Accessibility controls"
     >
-      {/* Left: logo / label */}
-      <span
-        className="text-[11px] font-bold uppercase tracking-widest hidden sm:block"
-        style={{ color: "#ffffff88" }}
-      >
+      <span className="text-[11px] font-bold uppercase tracking-widest hidden sm:block" style={{ color: "#ffffff88" }}>
         Barangay West Rembo
       </span>
 
       <div className="flex items-center gap-5 ml-auto">
-
-        {/* ── Font size controls ── */}
         <div className="flex items-center gap-2" role="group" aria-label={tr("a11y.fontSize")}>
           <Type className="h-3.5 w-3.5" style={{ color: "#ffffffaa" }} aria-hidden="true" />
           <div className="flex items-center gap-1">
@@ -477,10 +415,8 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
           </div>
         </div>
 
-        {/* ── Divider ── */}
         <div style={{ width: 1, height: 20, background: "#ffffff22" }} />
 
-        {/* ── Language picker ── */}
         <div ref={langRef} className="relative" role="group" aria-label={tr("a11y.language")}>
           <button
             onClick={() => setLangOpen((o) => !o)}
@@ -531,7 +467,7 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Pure UI helpers  (defined at module scope — never remount on FrontDesk re-render)
+// PURE UI HELPERS  (module-level — stable identity, no focus-loss on re-render)
 // ═══════════════════════════════════════════════════════════════════════════════
 const labelCls = "block font-bold uppercase tracking-[0.14em] mb-1";
 
@@ -673,8 +609,13 @@ const Card = ({ eyebrow, title, subtitle, children }: {
 );
 
 // ─── Action bar ────────────────────────────────────────────────────────────────
-const Actions = ({ onBack, onNext, nextLabel = "Continue", extraLeft }: {
-  onBack?: () => void; onNext?: () => void; nextLabel?: string; extraLeft?: React.ReactNode;
+// FIX: Accept backLabel so translated "← Back" is used instead of the old hardcoded string
+const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back", extraLeft }: {
+  onBack?: () => void;
+  onNext?: () => void;
+  nextLabel?: string;
+  backLabel?: string;
+  extraLeft?: React.ReactNode;
 }) => (
   <div className="mt-8 pt-5 flex flex-wrap justify-between items-center gap-3" style={{ borderTop: "1px solid #e5e7eb" }}>
     <div className="flex gap-2">{extraLeft}</div>
@@ -685,7 +626,7 @@ const Actions = ({ onBack, onNext, nextLabel = "Continue", extraLeft }: {
           className="px-5 py-2.5 font-bold uppercase tracking-wider text-foreground border border-border transition-all duration-200 hover:border-gray-400"
           style={{ borderRadius: 1, fontSize: "0.75em" }}
         >
-          ← Back
+          {backLabel}
         </button>
       )}
       {onNext && (
@@ -705,7 +646,7 @@ const Actions = ({ onBack, onNext, nextLabel = "Continue", extraLeft }: {
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Step components  (all at module level → stable identity → no focus-loss bug)
+// STEP COMPONENTS  (all at module level → stable identity → no focus-loss bug)
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepDocumentProps {
   docType: DocumentType | "";
@@ -723,11 +664,23 @@ const DOC_TYPE_KEYS = [
   { type: "business-clearance" as DocumentType, bg: "#fef4e8", icon: (cls: string) => <Briefcase className={cls} /> },
   { type: "resident"           as DocumentType, bg: "#fce8f0", icon: (cls: string) => <Users     className={cls} /> },
 ];
+
 const DOC_TR_KEYS: Record<DocumentType, { label: string; sub: string }> = {
   "clearance":          { label: "doc.clearance.label", sub: "doc.clearance.sub" },
   "building-clearance": { label: "doc.building.label",  sub: "doc.building.sub"  },
   "business-clearance": { label: "doc.business.label",  sub: "doc.business.sub"  },
   "resident":           { label: "doc.resident.label",  sub: "doc.resident.sub"  },
+};
+
+// FIX: Map frontend DocumentType to the exact service_type strings the backend expects
+const getServiceType = (tab: DocumentType): string => {
+  switch (tab) {
+    case "clearance":          return "Barangay Clearance";
+    case "building-clearance": return "Building Clearance";
+    case "business-clearance": return "Business Clearance";
+    case "resident":           return "Resident Registration";
+    default:                   return "Barangay Clearance";
+  }
 };
 
 const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => (
@@ -818,7 +771,7 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
       </div>
     </div>
     {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} />
+    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
   </Card>
 );
 
@@ -831,11 +784,7 @@ interface StepAddressProps extends CommonStepProps {
 interface StreetRecord { id: number; name: string; sitio?: string; formerly?: string | null; }
 
 const StepAddress = ({ formData, set, setExtra, streets, error, onBack, onNext, tr, inputCls }: StepAddressProps) => {
-  // Replace this block inside StepAddress:
-
   const streetNames = Array.from(new Set(streets.map((s) => s.name))).sort();
-
-  const selectedStreet = formData._street ?? "";
 
   const zoneOptions = Array.from(
     new Set(
@@ -918,7 +867,7 @@ const StepAddress = ({ formData, set, setExtra, streets, error, onBack, onNext, 
         </Field>
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} />
+      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
     </Card>
   );
 };
@@ -927,8 +876,9 @@ const StepAddress = ({ formData, set, setExtra, streets, error, onBack, onNext, 
 const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => (
   <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+      {/* FIX: field stored as contact_number to match backend */}
       <Field label={`${tr("field.contact")} *`}>
-        <MaskedInput value={formData.contact || ""} onValueChange={(v) => set("contact", v)}
+        <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => set("contact_number" as keyof BarangayDocument, v)}
           placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
       </Field>
       <Field label={`${tr("field.purpose")} *`}>
@@ -937,7 +887,7 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls }: Com
       </Field>
     </div>
     {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.review")} />
+    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
   </Card>
 );
 
@@ -991,7 +941,8 @@ const StepReview = ({
       </ReviewSection>
 
       <ReviewSection title={tr("review.contact")}>
-        <ReviewRow label={tr("review.contact")} value={formData.contact} />
+        {/* FIX: use contact_number field consistent with backend */}
+        <ReviewRow label={tr("review.contact")} value={formData.contact_number} />
         <ReviewRow label={tr("review.purpose")} value={formData.purpose} />
       </ReviewSection>
 
@@ -1014,6 +965,7 @@ const StepReview = ({
         onBack={onBack}
         onNext={onSubmit}
         nextLabel={tr("btn.submit")}
+        backLabel={tr("btn.back")}
         extraLeft={
           <button
             onClick={onEdit}
@@ -1058,6 +1010,52 @@ const SuccessScreen = ({ onReset, tr }: { onReset: () => void; tr: (k: string) =
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// STEP BAR  — defined at module level so it never remounts on FrontDesk re-render
+// ═══════════════════════════════════════════════════════════════════════════════
+interface StepBarProps {
+  currentStep: number;
+  steps: string[];
+}
+
+const StepBar = ({ currentStep, steps }: StepBarProps) => (
+  <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
+    {steps.map((label, i) => {
+      const done = i < currentStep, active = i === currentStep;
+      return (
+        <div key={i} className="flex items-center flex-1">
+          <div className="flex flex-col items-center flex-1">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all duration-200 z-10"
+              style={{
+                fontSize:   "0.7em",
+                background: done ? PINK : active ? NAVY : "transparent",
+                border:     `2px solid ${done ? PINK : active ? NAVY : "#d1d5db"}`,
+                color:      done || active ? "#fff" : "#9ca3af",
+              }}
+              aria-current={active ? "step" : undefined}
+            >
+              {done ? <Check className="h-3 w-3" /> : i + 1}
+            </div>
+            <span
+              className="mt-1.5 font-bold uppercase tracking-wider hidden sm:block"
+              style={{ color: done ? PINK : active ? NAVY : "#9ca3af", fontSize: "0.62em" }}
+            >
+              {label}
+            </span>
+          </div>
+          {i < steps.length - 1 && (
+            <div
+              className="h-0.5 flex-1 -mx-2 relative top-[-9px] sm:top-[-18px]"
+              style={{ background: i < currentStep ? PINK : "#e5e7eb" }}
+            />
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const FrontDesk = () => {
@@ -1070,18 +1068,17 @@ const FrontDesk = () => {
   // Stable translation function — re-created only when lang changes
   const tr = useCallback((k: string) => TRANSLATIONS[lang][k] ?? k, [lang]);
 
-  // inputCls is font-size-agnostic (uses em units via inherited font-size)
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // ── Steps (translated dynamically) ────────────────────────────────────────
-  const STEPS_TR = [
+  // FIX: useMemo so STEPS_TR is stable and not recreated every render
+  const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
     tr("step.address"),
     tr("step.details"),
     tr("step.review"),
-  ];
+  ], [tr]);
 
   // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
@@ -1103,7 +1100,7 @@ const FrontDesk = () => {
     load();
   }, []);
 
-  // ── Stable setters (useCallback → stable identity → no step remounting) ───
+  // ── Stable setters ─────────────────────────────────────────────────────────
   const set = useCallback((field: keyof BarangayDocument, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
@@ -1112,27 +1109,20 @@ const FrontDesk = () => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const getServiceType = (tab: DocumentType): string => {
-    switch (tab) {
-      case "clearance":          return "Barangay Clearance";
-      case "building-clearance": return "Building Clearance";
-      case "business-clearance": return "Business Clearance";
-      case "resident":           return "Resident Registration";
-      default:                   return "Barangay Clearance";
-    }
-  };
-
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goNext = useCallback(() => {
     setErrors("");
-    if (currentStep === 0 && !docType)                        { setErrors(tr("err.selectDoc"));    return; }
+    if (currentStep === 0 && !docType) {
+      setErrors(tr("err.selectDoc")); return;
+    }
     if (currentStep === 1 && (!formData.first_name || !formData.last_name || !formData.date_of_birth || !formData.place_of_birth)) {
       setErrors(tr("err.fillRequired")); return;
     }
     if (currentStep === 2 && (!formData._street || !formData._zone || !formData.period_of_residency || !formData.registered_voter || !formData.house_owner || !formData.relation_to_house_owner)) {
       setErrors(tr("err.fillAddress")); return;
     }
-    if (currentStep === 3 && (!formData.contact || !formData.purpose)) {
+    // FIX: validate contact_number (not contact)
+    if (currentStep === 3 && (!formData.contact_number || !formData.purpose)) {
       setErrors(tr("err.fillRequired")); return;
     }
     setCurrentStep((s) => s + 1);
@@ -1144,10 +1134,12 @@ const FrontDesk = () => {
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
     try {
-      const response =  await axios.post(
-        "http://127.0.0.1:8000/api/kiosk/submit",
+      // FIX: use the shared `api` instance (respects baseURL from your lib/api config)
+      // FIX: send contact_number as contact_number — matches KioskSubmitRequest validation
+      const response = await api.post(
+        "api/kiosk/submit",
         {
-          service_type:            getServiceType(docType as DocumentType),
+          service_type:             getServiceType(docType as DocumentType),
           first_name:              formData.first_name              || "",
           middle_name:             formData.middle_name             || "",
           last_name:               formData.last_name               || "",
@@ -1159,9 +1151,10 @@ const FrontDesk = () => {
           registered_voter:        formData.registered_voter        || "",
           house_owner:             formData.house_owner             || "",
           relation_to_house_owner: formData.relation_to_house_owner || "",
-          contact_number:          formData.contact                 || "",
+          contact_number:          formData.contact_number          || "",   // FIX: was formData.contact
           purpose:                 formData.purpose                 || "",
           priority:                "Normal",
+          type:                    "walk_in",
         },
         { withCredentials: true }
       );
@@ -1178,48 +1171,8 @@ const FrontDesk = () => {
     setConsentChecked(false); setErrors(""); setSubmitted(false);
   }, []);
 
-  // ── Step bar ───────────────────────────────────────────────────────────────
-  const StepBar = () => (
-    <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
-      {STEPS_TR.map((label, i) => {
-        const done = i < currentStep, active = i === currentStep;
-        return (
-          <div key={i} className="flex items-center flex-1">
-            <div className="flex flex-col items-center flex-1">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all duration-200 z-10"
-                style={{
-                  fontSize:   "0.7em",
-                  background: done ? PINK : active ? NAVY : "transparent",
-                  border:     `2px solid ${done ? PINK : active ? NAVY : "#d1d5db"}`,
-                  color:      done || active ? "#fff" : "#9ca3af",
-                }}
-                aria-current={active ? "step" : undefined}
-              >
-                {done ? <Check className="h-3 w-3" /> : i + 1}
-              </div>
-              <span
-                className="mt-1.5 font-bold uppercase tracking-wider hidden sm:block"
-                style={{ color: done ? PINK : active ? NAVY : "#9ca3af", fontSize: "0.62em" }}
-              >
-                {label}
-              </span>
-            </div>
-            {i < STEPS_TR.length - 1 && (
-              <div
-                className="h-0.5 flex-1 -mx-2 relative top-[-9px] sm:top-[-18px]"
-                style={{ background: i < currentStep ? PINK : "#e5e7eb" }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    // Font size applied here via CSS font-size — all em-based sizes cascade correctly
     <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
       <AccessibilityBar lang={lang} setLang={setLang} fontSize={fontSize} setFontSize={setFontSize} />
 
@@ -1241,7 +1194,8 @@ const FrontDesk = () => {
             <p className="text-muted-foreground" style={{ fontSize: "0.88em" }}>{tr("header.subtitle")}</p>
           </div>
 
-          {!submitted && <StepBar />}
+          {/* FIX: StepBar is now module-level; pass props instead of defining it inside FrontDesk */}
+          {!submitted && <StepBar currentStep={currentStep} steps={STEPS_TR} />}
 
           {submitted ? (
             <SuccessScreen onReset={handleReset} tr={tr} />

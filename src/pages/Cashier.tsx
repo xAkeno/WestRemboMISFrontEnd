@@ -345,6 +345,7 @@ const Cashier = () => {
                                                         <option value="INCOMPLETE">Incomplete</option>
                                                         <option value="REJECTED">Rejected</option>
                                                         <option value="RELEASED">Released</option>
+                                                        <option value="PAID">Paid</option>
                                                     </select>
 
                                                     {/* Action 2 — OR Number */}

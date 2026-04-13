@@ -63,6 +63,8 @@ import ServicesCms from "./pages/admin/ServicesCms";
 import ServicePricing from "./pages/ServicePricing";
 import DocumentUploadSection from "./components/DocumentUploadSection";
 import QRScanner from "./pages/QRScanner";
+import { QueueControl } from "./components/queue/QueueControl";
+import QueueDisplay from "./components/queue/QueueDisplay";
 const App = () => {
 
   useEffect(() => {
@@ -151,7 +153,8 @@ const App = () => {
                 <Route path="/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>
-                <Route path="/queue" element={<QueueSystem/>}/>
+                <Route path="/queue" element={<QueueDisplay/>}/>
+                <Route path="/queue-control" element={<QueueControl />} />
                 {/* <Route path="/searchKiosk" element={<SearchResident/>}/> */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

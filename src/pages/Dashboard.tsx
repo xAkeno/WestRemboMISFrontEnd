@@ -29,6 +29,15 @@ interface Notification {
   type: "info" | "warning" | "success";
 }
 
+export const toTitleCase = (value: string) => {
+  if (!value) return "";
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const serviceColors: Record<string, string> = {
   "Barangay Clearance":    "#f59e0b",
   "Business Clearance":    "#22c55e",
@@ -44,12 +53,11 @@ const serviceChartColors: Record<string, string> = {
   Resident:    serviceColors["Resident Registration"],
   Certificate: serviceColors["Barangay Certificate"],
 };
-
 const pathMap: Record<string, string> = {
-  "Barangay Clearance":    "/document-edit/2",
-  "Business Clearance":    "/document-edit/3",
-  "Building Clearance":    "/document-edit/4",
-  "Barangay Certificate":  "/document-edit/1",
+  "Barangay Clearance": "/document-edit/2",
+  "Business Clearance": "/document-edit/3",
+  "Building Clearance": "/document-edit/4",
+  "Barangay Certificate": "/document-edit/1",
   "Resident Registration": "/document-edit/3",
 };
 
@@ -137,7 +145,7 @@ const Dashboard = () => {
         date:        item.created_at ? new Date(item.created_at).toLocaleDateString() : null,
       })));
 
-      console.log("Latest Activities:", data.latest_activities);
+      // console.log("Latest Activities:", data.latest_activities);
 
       // ── Total Encoded Today ────────────────────────────────────
       setTotalEncodedToday(data.total_released_today ?? 0);
@@ -171,8 +179,26 @@ const Dashboard = () => {
     return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
   });
 
+  console.log("Sorted Tickets:", sortedTickets);
+
+  const toTitleCase = (str: string) => {
+    return str
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
   const handleProcessNow = (ticket: any) => {
-    const path = pathMap[ticket.service_type] ?? "/tickets";
+    const key = toTitleCase(ticket.service_type);
+
+    const path = pathMap[key] ?? "/tickets";
+
+    console.log("DEBUG ROUTE:", {
+      raw: ticket.service_type,
+      normalized: key,
+      resolved: path,
+    });
+
     navigate(path, { state: { ticket } });
   };
 

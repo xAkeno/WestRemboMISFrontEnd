@@ -16,6 +16,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useState } from 'react';
 
 interface ToolbarProps {
   onUpload: (file: File) => void;
@@ -40,6 +41,8 @@ interface ToolbarProps {
   isReleasing?: boolean;
   isDownloading?: boolean;
   hasReleasedDocument?: boolean;
+  onChangeStatus: (status: string) => void;
+  isChangingStatus?: boolean;
 }
 
 const CLEARANCE_FIELDS: Record<string, string[]> = {
@@ -75,7 +78,6 @@ const Spinner = () => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
   </svg>
 );
-
 export function Toolbar({
   onUpload,
   onAddField,
@@ -98,8 +100,13 @@ export function Toolbar({
   isReleasing = false,
   isDownloading = false,
   hasReleasedDocument = false,
+  onChangeStatus,
+  isChangingStatus = false,
 }: ToolbarProps) {
+  const [statusValue, setStatusValue] = useState("");
   return (
+
+    
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 flex-wrap">
 
       {/* Upload template */}
@@ -181,6 +188,35 @@ export function Toolbar({
         <SaveAll className="mr-2 h-4 w-4" />
         {isUpdate ? "Update Data" : "Save Data"}
       </Button>
+
+      {isUpdate && (
+        <div className="flex items-center gap-2">
+          <Select value={statusValue} onValueChange={setStatusValue}>
+            <SelectTrigger className="h-9 w-40 text-xs">
+              <SelectValue placeholder="Change Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="REJECTED">Rejected</SelectItem>
+              <SelectItem value="INCOMPLETE">Incomplete</SelectItem>
+              <SelectItem value="APPROVED">Approved</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!statusValue || isChangingStatus}
+            onClick={() => onChangeStatus(statusValue)}
+            className="border-red-400 text-red-600 hover:bg-red-50"
+          >
+            {isChangingStatus ? (
+              <><Spinner />Updating...</>
+            ) : (
+              "Apply"
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Mark as To Pay */}
       {isUpdate && (

@@ -43,7 +43,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
   ));
 
   const [formData, setFormData] = useState({
-    requester_type: "Online",
+    requester_type: "ONLINE",
     prefix: "",
     surname: "",
     first_name: "",

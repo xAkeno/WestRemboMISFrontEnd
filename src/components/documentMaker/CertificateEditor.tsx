@@ -221,6 +221,15 @@ export const LABEL_TO_KEY: Record<string, string> = {
   'Updated At': 'updated_at',
 };
 
+export const toTitleCase = (value: string) => {
+  if (!value) return "";
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CertificateEditor() {
@@ -242,6 +251,8 @@ export function CertificateEditor() {
   const [documentUserData, setDocumentUserData] = useState<DocumentUserData[] | undefined>(undefined);
   const [streets, setStreets] = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
   const [qrField, setQrField] = useState<QRCodeFieldData | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
@@ -258,6 +269,8 @@ export function CertificateEditor() {
   const isUpdate = !!existingRecord && !!bcertNumber && bcertNumber !== "new";
 
   const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+
+  
 
   // ── Release hook ─────────────────────────────────────────────────────────────
   const {
@@ -292,7 +305,12 @@ export function CertificateEditor() {
         const date = new Date(value);
         if (!isNaN(date.getTime())) value = date.toISOString().split("T")[0];
       }
-      payload[key] = value ?? "";
+      // ← Default status to ENCODED when empty/missing
+      if (key === "status") {
+        payload[key] = value || "ENCODED";
+      } else {
+        payload[key] = value ?? "";
+      }
     });
     return payload;
   };
@@ -618,6 +636,38 @@ export function CertificateEditor() {
     }
   };
 
+  const handleChangeStatus = async (status: string) => {
+    if (!existingRecord?.id) {
+      toast.error("No record found.");
+      return;
+    }
+
+    const apiPath = getApiPath(id!);
+    setIsChangingStatus(true);
+
+    try {
+      const res = await axios.put(
+        `http://127.0.0.1:8000/api/${apiPath}/${existingRecord.id}`,
+        { status },
+        { withCredentials: true }
+      );
+
+      if (res.status === 200) {
+        toast.success(`Status updated to ${status}`);
+        setDocumentUserData((prev) =>
+          prev?.map((rec, i) =>
+            i === 0 ? { ...rec, status } : rec
+          )
+        );
+        setSelectedStatus("");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to update status.");
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
   const handleDownload = useCallback(async () => {
     if (!templateBytesRef.current) return;
     try {
@@ -750,6 +800,8 @@ export function CertificateEditor() {
           onUpload={handleUpload}
           onAddField={handleAddField}
           onDownload={handleDownload}
+          onChangeStatus={handleChangeStatus}
+          isChangingStatus={isChangingStatus}
           onSaveLayout={handleSaveLayout}
           onLoadLayout={handleLoadLayout}
           hasTemplate={!!templateInfo}
@@ -765,6 +817,7 @@ export function CertificateEditor() {
           isReleasing={isReleasing}
           isDownloading={isDownloading}
           hasReleasedDocument={hasReleasedDocument || !!existingRecord?.released_document_path}
+          
         />
 
         <div className="flex flex-1 min-h-0">
