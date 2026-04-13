@@ -62,7 +62,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Please verify all details before submitting",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name",
-    "field.lastName":         "Last name",
+    "field.Surname":         "Last name",
     "field.dob":              "Date of birth",
     "field.pob":              "Place of birth",
     "field.houseUnit":        "House no. / Unit / Building",
@@ -77,7 +77,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.purpose":          "Purpose of request",
     "ph.firstName":           "e.g. Juan",
     "ph.middleName":          "Optional",
-    "ph.lastName":            "e.g. Dela Cruz",
+    "ph.Surname":            "e.g. Dela Cruz",
     "ph.pob":                 "City/Municipality, Province",
     "ph.houseUnit":           "e.g. 123 or Unit 4B",
     "ph.street":              "Select or type street…",
@@ -94,7 +94,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.contact":         "Contact & purpose",
     "review.firstName":       "First name",
     "review.middleName":      "Middle name",
-    "review.lastName":        "Last name",
+    "review.Surname":        "Last name",
     "review.dob":             "Date of birth",
     "review.pob":             "Place of birth",
     "review.fullAddress":     "Full address",
@@ -166,7 +166,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan",
-    "field.lastName":         "Apelyido",
+    "field.Surname":         "Apelyido",
     "field.dob":              "Petsa ng kapanganakan",
     "field.pob":              "Lugar ng kapanganakan",
     "field.houseUnit":        "Blg. ng bahay / Unit / Gusali",
@@ -181,7 +181,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.purpose":          "Layunin ng kahilingan",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
-    "ph.lastName":            "hal. Dela Cruz",
+    "ph.Surname":            "hal. Dela Cruz",
     "ph.pob":                 "Lungsod/Munisipalidad, Lalawigan",
     "ph.houseUnit":           "hal. 123 o Unit 4B",
     "ph.street":              "Piliin o i-type ang kalye…",
@@ -198,7 +198,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.contact":         "Pakikipag-ugnayan at layunin",
     "review.firstName":       "Unang pangalan",
     "review.middleName":      "Gitnang pangalan",
-    "review.lastName":        "Apelyido",
+    "review.Surname":        "Apelyido",
     "review.dob":             "Petsa ng kapanganakan",
     "review.pob":             "Lugar ng kapanganakan",
     "review.fullAddress":     "Buong tirahan",
@@ -270,7 +270,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan",
-    "field.lastName":         "Apelyido",
+    "field.Surname":         "Apelyido",
     "field.dob":              "Petsa sa pagkatawo",
     "field.pob":              "Lugar sa pagkatawo",
     "field.houseUnit":        "Blg. sa balay / Unit / Bilding",
@@ -285,7 +285,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.purpose":          "Katuyoan sa hangyo",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
-    "ph.lastName":            "hal. Dela Cruz",
+    "ph.Surname":            "hal. Dela Cruz",
     "ph.pob":                 "Siyudad/Munisipyo, Probinsya",
     "ph.houseUnit":           "hal. 123 o Unit 4B",
     "ph.street":              "Pilia o i-type ang karsada…",
@@ -302,7 +302,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.contact":         "Kontak ug katuyoan",
     "review.firstName":       "Una nga ngalan",
     "review.middleName":      "Tungatunga nga ngalan",
-    "review.lastName":        "Apelyido",
+    "review.Surname":        "Apelyido",
     "review.dob":             "Petsa sa pagkatawo",
     "review.pob":             "Lugar sa pagkatawo",
     "review.fullAddress":     "Tibuok adres",
@@ -755,9 +755,9 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
         <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => set("middle_name", v)}
           placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
       </Field>
-      <Field label={`${tr("field.lastName")} *`}>
-        <MaskedInput value={formData.last_name || ""} onValueChange={(v) => set("last_name", v)}
-          placeholder={tr("ph.lastName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+      <Field label={`${tr("field.Surname")} *`}>
+        <MaskedInput value={formData.surname || ""} onValueChange={(v) => set("surname", v)}
+          placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
       </Field>
       <Field label={`${tr("field.dob")} *`}>
         <MaskedInput type="date" value={formData.date_of_birth || ""} onValueChange={(v) => set("date_of_birth", v)}
@@ -923,7 +923,7 @@ const StepReview = ({
       <ReviewSection title={tr("review.personal")}>
         <ReviewRow label={tr("review.firstName")}  value={formData.first_name} />
         <ReviewRow label={tr("review.middleName")} value={formData.middle_name || "N/A"} />
-        <ReviewRow label={tr("review.lastName")}   value={formData.last_name} />
+        <ReviewRow label={tr("review.Surname")}   value={formData.surname} />
         <ReviewRow label={tr("review.dob")}        value={formData.date_of_birth} />
         <div className="col-span-2">
           <ReviewRow label={tr("review.pob")} value={formData.place_of_birth} />
@@ -1115,7 +1115,7 @@ const FrontDesk = () => {
     if (currentStep === 0 && !docType) {
       setErrors(tr("err.selectDoc")); return;
     }
-    if (currentStep === 1 && (!formData.first_name || !formData.last_name || !formData.date_of_birth || !formData.place_of_birth)) {
+    if (currentStep === 1 && (!formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth)) {
       setErrors(tr("err.fillRequired")); return;
     }
     if (currentStep === 2 && (!formData._street || !formData._zone || !formData.period_of_residency || !formData.registered_voter || !formData.house_owner || !formData.relation_to_house_owner)) {
@@ -1142,7 +1142,7 @@ const FrontDesk = () => {
           service_type:             getServiceType(docType as DocumentType),
           first_name:              formData.first_name              || "",
           middle_name:             formData.middle_name             || "",
-          last_name:               formData.last_name               || "",
+          surname:               formData.surname               || "",
           authorized_person:       formData.authorized_person       || null,
           address:                 formData.address                 || "",
           date_of_birth:           formData.date_of_birth           || "",

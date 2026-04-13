@@ -4,7 +4,7 @@ export interface BarangayDocument {
   document_type?: DocumentType;
   first_name: string;
   middle_name: string;
-  last_name: string;
+  surname: string;
   authorized_person: string;
   address: string;
   date_of_birth: string;

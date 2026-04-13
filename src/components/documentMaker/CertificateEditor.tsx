@@ -345,7 +345,7 @@ export function CertificateEditor() {
     if (!ticket?.serviceable) return null;
     const source = ticket.serviceable;
     const keyMap: Record<string, string> = {
-      surname:              "last_name",
+      surname:              "surname",
       dob:                  "date_of_birth",
       pob:                  "place_of_birth",
       relationship_to_owner: "relation_to_house_owner",
@@ -462,7 +462,7 @@ export function CertificateEditor() {
           } else if (ticket?.serviceable) {
             const source = ticket.serviceable;
             const keyMap: Record<string, string> = {
-              surname:              'last_name',
+              surname:              'surname',
               dob:                  'date_of_birth',
               pob:                  'place_of_birth',
               relationship_to_owner: 'relation_to_house_owner',
