@@ -570,13 +570,13 @@ export const ResidentsTable = ({
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="cursor-pointer"
-                            onClick={() => navigate(`/document-edit/6/${resident.residentId}`)}
+                            onClick={() => navigate(`/document-edit/5/${resident.residentId}`)}
                           >
                             View / Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="cursor-pointer"
-                            onClick={() => navigate(`/document-edit/6/${resident.residentId}`, { state: { autoPrint: true } })}
+                            onClick={() => navigate(`/document-edit/5/${resident.residentId}`, { state: { autoPrint: true } })}
                           >
                             Print
                           </DropdownMenuItem>

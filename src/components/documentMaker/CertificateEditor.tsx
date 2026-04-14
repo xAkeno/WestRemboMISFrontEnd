@@ -99,9 +99,9 @@ const DOCUMENT_API_PATHS: Record<string, string> = {
   "2": "barangay-clearances",
   "3": "building-clearances",
   "4": "business-clearances",
-  "5": "cedulay",
-  "6": "residents",
-};
+  "6": "cedulay",
+  "5": "residents",
+};  
 
 // ─── Document unique key map ──────────────────────────────────────────────────
 
@@ -415,6 +415,7 @@ export function CertificateEditor() {
         `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
+      console.log(res)
       const records = (res.data.data.data as any[]).map(normalizeRecord);
       setDocumentUserData(records);
     } catch {
@@ -538,6 +539,7 @@ export function CertificateEditor() {
       fetchUser();
       let existingData: DocumentUserData | undefined;
 
+      console.log(bcertNumber)
       if (bcertNumber && bcertNumber !== "new") {
         try {
           const apiPath = getApiPath(id!);
@@ -937,7 +939,7 @@ export function CertificateEditor() {
             qrEnabled={!!qrField?.visible}
             onToggleQR={handleToggleQR}
           />
-
+          
           <PDFPreview
             blobUrl={blobUrl}
             templateInfo={templateInfo}

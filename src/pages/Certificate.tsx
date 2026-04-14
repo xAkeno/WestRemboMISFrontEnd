@@ -916,11 +916,11 @@ const Certificate = () => {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem className="cursor-pointer"
-                                  onClick={() => navigate(`/document-edit/5/${item.bcert_number}`)}>
+                                  onClick={() => navigate(`/document-edit/1/${item.bcert_number}`)}>
                                   View / Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="cursor-pointer"
-                                  onClick={() => navigate(`/document-edit/5/${item.bcert_number}`, { state: { autoPrint: true } })}>
+                                  onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true } })}>
                                   Print
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
