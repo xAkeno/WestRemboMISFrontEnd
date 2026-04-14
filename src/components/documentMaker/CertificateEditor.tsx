@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Layout } from '../Layout';
 import { QRCodeField, type QRCodeFieldData } from './QRCodeField';
 import { useReleaseDocument } from '@/pages/useReleaseDocument';
+import { bC } from 'node_modules/@fullcalendar/core/internal-common';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,26 @@ const DOCUMENT_API_PATHS: Record<string, string> = {
   "4": "business-clearances",
   "5": "cedulay",
   "6": "residents",
+};
+
+// ─── Document unique key map ──────────────────────────────────────────────────
+
+const DOCUMENT_ID_KEY: Record<string, keyof DocumentUserData> = {
+  "1": "bcert_number",    // Barangay Certificate
+  "2": "bcert_number",    // Barangay Clearance
+  "3": "bcert_number",    // Building Clearance
+  "4": "brgyBusinessNo",  // Business Clearance ← camelCase to match DocumentUserData
+  "5": "bcert_number",    // Cedula
+  "6": "resident_id",     // Resident
+};
+
+const DOCUMENT_STATUS_API: Record<string, string> = {
+  "1": "update-status",          // barangay-certificates
+  "2": "update-status-clearance", // barangay-clearances
+  "3": "update-status-building",  // building-clearances
+  "4": "update-status-business",  // business-clearances
+  "5": "update-status",
+  "6": "update-status-resident",  // residents
 };
 
 export const CLEARANCE_FIELDS: Record<string, string[]> = {
@@ -269,10 +290,16 @@ export function CertificateEditor() {
       ? ticket.serviceable
       : null;
 
-  const isUpdate = !!existingRecord?.bcert_number;
+  const documentIdKey = DOCUMENT_ID_KEY[String(id)] ?? "bcert_number";
+
+  console.log(documentIdKey)
+  const isUpdate = !!existingRecord?.[documentIdKey];
 
 
-  const resolvedBcert = bcertNumber ?? existingRecord?.bcert_number ?? null;
+  const resolvedBcert =
+    bcertNumber ??
+    (existingRecord?.[documentIdKey] as string | null) ??
+    null;
 
   
 
@@ -292,6 +319,13 @@ export function CertificateEditor() {
     bcertNumber:         resolvedBcert,
     // Seed from DB so the "Download Released" button shows on page load
     initialReleasedPath: existingRecord?.released_document_path ?? null,
+  });
+
+  const normalizeRecord = (r: any): DocumentUserData => ({
+    ...r,
+    // Normalize snake_case API fields → camelCase DocumentUserData keys
+    brgyBusinessNo: r.brgyBusinessNo ?? r.brgy_business_no ?? undefined,
+    resident_id:    r.resident_id    ?? undefined,
   });
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -376,11 +410,13 @@ export function CertificateEditor() {
   const fetchUserDocument = async () => {
     try {
       const apiPath = getApiPath(id!);
+      console.log(bcertNumber)
       const res = await axios.get(
         `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
-      setDocumentUserData(res.data.data.data);
+      const records = (res.data.data.data as any[]).map(normalizeRecord);
+      setDocumentUserData(records);
     } catch {
       toast.error('Failed to fetch document');
     }
@@ -509,7 +545,7 @@ export function CertificateEditor() {
             `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
             { withCredentials: true }
           );
-          const records: DocumentUserData[] = res.data.data.data;
+          const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
           setDocumentUserData(records);
           existingData = records?.[0];
         } catch {
@@ -670,6 +706,8 @@ export function CertificateEditor() {
         { withCredentials: true }
       );
 
+      console.log("Status update response:", res);
+
       if (res.status === 200) {
         toast.success(`Status updated to ${status}`);
         setDocumentUserData((prev) =>
@@ -825,6 +863,8 @@ export function CertificateEditor() {
         { status: "TO_PAY" },
         { withCredentials: true }
       );
+
+      console.log("Mark to Pay response:", res);
       if (res.status === 200) {
         toast.success("Status set to To Pay successfully.");
         setDocumentUserData((prev) =>

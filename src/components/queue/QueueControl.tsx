@@ -471,6 +471,15 @@ export function QueueControl() {
       return;
     }
 
+    // ✅ NEW: If the ticket is already being processed, stop/clear the timer
+    if (isProcessing(calledTicket)) {
+      if (graceRef.current) clearInterval(graceRef.current);
+      setGraceTicketId(null);
+      setGraceSeconds(GRACE_SECONDS);
+      autoActFired.current = false;
+      return;
+    }
+
     if (calledTicket.id === graceTicketId) return;
 
     if (graceRef.current) clearInterval(graceRef.current);
@@ -483,7 +492,7 @@ export function QueueControl() {
     }, 1000);
 
     return () => { if (graceRef.current) clearInterval(graceRef.current); };
-  }, [calledTicket?.id]);
+  }, [calledTicket?.id, calledTicket?.status]); // ✅ Also watch status changes
 
   // ── Auto-call next when nothing is being served and queue has pending ─────
   const autoCallFired = useRef<boolean>(false);

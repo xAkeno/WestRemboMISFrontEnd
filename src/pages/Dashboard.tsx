@@ -129,7 +129,7 @@ const Dashboard = () => {
         : type === "Business Clearance"   ? "bg-[hsl(var(--secondary))]"
         : type === "Building Clearance"   ? "bg-[hsl(var(--primary))]"
         : type === "Barangay Certificate" ? "bg-[hsl(var(--success))]"
-        : "bg-[hsl(var(--accent))]",
+        : "bg-[hsl(var(--accent))]",  
       })));
 
       // ── Notifications ──────────────────────────────────────────

@@ -47,7 +47,6 @@ const REQUIRED_DOCS: Record<string, string[]> = {
   "building_clearance": [
     "Transfer Certificate of Title (TCT)",
     "Tax Declaration",
-    "Barangay clearance",
   ],
 };
 
