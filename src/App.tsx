@@ -65,8 +65,11 @@ import DocumentUploadSection from "./components/DocumentUploadSection";
 import QRScanner from "./pages/QRScanner";
 import { QueueControl } from "./components/queue/QueueControl";
 import QueueDisplay from "./components/queue/QueueDisplay";
-const App = () => {
-
+import { useMaintenance } from "@/hooks/useMaintenance";
+import { MaintenanceModal } from "@/components/MaintenanceModal";
+const App = () => { 
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const { showMaintenance, message } = useMaintenance(user);
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
 
@@ -84,6 +87,10 @@ const App = () => {
         <Sonner />
           <LanguageProvider>
             <BrowserRouter>
+            {showMaintenance && (
+              <MaintenanceModal message={message} />
+            )}
+
               <Routes>
                 <Route path="/login" element={<Login />} /> {/*Login*/}
                 <Route path="/calendar" element={<Calendar />} />
@@ -130,6 +137,7 @@ const App = () => {
                 <Route path="/events-calendar" element={<EventsCalendar />} /> {/*Events Calendar*/}
                 <Route path="/websitesetting" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><WebsiteSettings /></ProtectedRoute>} /> {/*Website Settings*/}
                 <Route path="/activity-log" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ActivityLog /></ProtectedRoute>} /> {/*Activity Log*/}
+                <Route path="/settings" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><WebsiteSettings /></ProtectedRoute>} /> {/*Settings*/}
                 <Route path="/document-setting" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><DocumentGrid /></ProtectedRoute>} /> {/*Document Grid*/}
                 {/* <Route path="/document-table" element={<DocumentTable />} /> */}
 
@@ -141,7 +149,7 @@ const App = () => {
                 <Route path="/reports" element={<Reports />} /> {/*Report*/}
                 <Route path="/b" element={<Residents />} /> {/*Residents ???*/}
                 <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Dashboard /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><SettingsPage /></ProtectedRoute>} /> {/*Setting ?? */}
+                {/* <Route path="/settings" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><SettingsPage /></ProtectedRoute>} /> Setting ?? */}
 
 
                 <Route path="/cashier" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Cashier /></ProtectedRoute>} /> {/*Residents ???*/}
