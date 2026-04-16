@@ -45,8 +45,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
 
   const [formData, setFormData] = useState({
     requester_type: "Online",
-    prefix: "", firstname: "", middle_name: "", surname: "", extension: "",
-    age: "", date_of_birth: "", place_of_birth: "",
+    prefix: "", first_name: "", middle_name: "", surname: "", extension: "",
+    age: "", dob: "", pob: "",
     contact_no: "", email: "",
     house_block_lot_no: "", street: "", zone: "",
     house_owner: "", relationship_to_owner: "",
@@ -96,13 +96,13 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           ...prev,
           // Personal Info
           prefix: user.prefix ?? "",
-          firstname: user.first_name ?? "",
+          first_name: user.first_name ?? "",
           middle_name: user.middle_name ?? "",
           surname: user.surname ?? "",
           extension: user.extension_name ?? "",
-          date_of_birth: user.date_of_birth ?? "",
-          place_of_birth: user.place_of_birth ?? "",
-          age: user.date_of_birth ? new Date().getFullYear() - new Date(user.date_of_birth).getFullYear() + "" : "",
+          dob: user.dob ?? "",
+          pob: user.pob ?? "",
+          age: user.dob ? new Date().getFullYear() - new Date(user.dob).getFullYear() + "" : "",
 
           // Contact Info
           contact_no: user.contact_number ?? "",
@@ -149,8 +149,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
               <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
             </div>
             <div>
-              <FieldLabel htmlFor="firstname" required>First Name</FieldLabel>
-              <FieldInput id="firstname" value={formData.firstname} onChange={(e) => upd("firstname", e.target.value)} />
+              <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
+              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} />
             </div>
             <div>
               <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
@@ -168,12 +168,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
               <FieldInput id="age" type="number" value={formData.age} onChange={(e) => upd("age", e.target.value)} />
             </div>
             <div>
-              <FieldLabel htmlFor="date_of_birth" required>Date of Birth</FieldLabel>
-              <FieldInput id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => upd("date_of_birth", e.target.value)} />
+              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
             </div>
             <div>
-              <FieldLabel htmlFor="place_of_birth" required>Place of Birth</FieldLabel>
-              <FieldInput id="place_of_birth" value={formData.place_of_birth} onChange={(e) => upd("place_of_birth", e.target.value)} />
+              <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
+              <FieldInput id="pob" value={formData.pob} onChange={(e) => upd("pob", e.target.value)} />
             </div>
           </div>
         </div>
@@ -322,10 +322,10 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
         <div className="space-y-5">
           <ReviewHeader current={5} total={5} />
           <ReviewCard title="Personal Information">
-            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.firstname} ${formData.middle_name} ${formData.surname} ${formData.extension}`.trim()} />
+            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.extension}`.trim()} />
             <ReviewRow label="Age" value={formData.age} />
-            <ReviewRow label="Date of Birth" value={formData.date_of_birth} />
-            <ReviewRow label="Place of Birth" value={formData.place_of_birth} />
+            <ReviewRow label="Date of Birth" value={formData.dob} />
+            <ReviewRow label="Place of Birth" value={formData.pob} />
           </ReviewCard>
           <ReviewCard title="Contact Information">
             <ReviewRow label="Contact No." value={formData.contact_no} />

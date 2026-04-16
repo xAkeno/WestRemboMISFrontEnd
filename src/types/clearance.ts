@@ -62,7 +62,7 @@ export interface Certificate {
   bcert_number: string;
   issued_date: string;
   surname: string;
-  firstname: string;
+  first_name: string;
   middle_name: string;
   extension?: string;
   block_no: string;

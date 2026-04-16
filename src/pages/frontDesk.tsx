@@ -37,6 +37,45 @@ const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barang
 // ═══════════════════════════════════════════════════════════════════════════════
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   en: {
+    // ── New fields ──────────────────────────────────────────
+    "field.nickname":         "Nickname",
+    "field.pwd":              "PWD",
+    "field.email":            "Email address",
+    "field.precinctNo":       "Precinct no.",
+    "field.residentStatus":   "Resident status",
+    "field.occupation":       "Occupation",
+    "field.position":         "Position",
+    "field.employmentStatus": "Employment status",
+    "field.notes":            "Notes",
+
+    "ph.nickname":            "Optional",
+    "ph.pwd":                 "e.g. Visual, Hearing, Physical",
+    "ph.email":               "e.g. juan@email.com",
+    "ph.precinctNo":          "e.g. 1234A",
+    "ph.residentStatus":      "e.g. Permanent, Transient",
+    "ph.occupation":          "e.g. Teacher, Driver",
+    "ph.position":            "e.g. Supervisor",
+    "ph.employmentStatus":    "e.g. Employed, Self-employed",
+    "ph.notes":               "Additional notes…",
+
+    "review.nickname":        "Nickname",
+    "review.pwd":             "PWD",
+    "review.email":           "Email address",
+    "review.precinctNo":      "Precinct no.",
+    "review.residentStatus":  "Resident status",
+    "review.occupation":      "Occupation",
+    "review.position":        "Position",
+    "review.employmentStatus":"Employment status",
+    "review.notes":           "Notes",
+    "ph.agePlaceholder":      "Auto-calculated from date of birth",
+    "ph.complexion":          "Select or type complexion…",
+    "opt.veryFair":           "Very Fair",
+    "opt.fair":               "Fair",
+    "opt.morena":             "Morena",
+    "opt.brown":              "Brown",
+    "opt.dark":               "Dark",
+    "opt.veryDark":           "Very Dark",
+    "err.minAge":             "Applicant must be at least 1 year old.",
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -176,9 +215,64 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Request submitted!",
     "success.sub":            "Your document request has been received. Please wait for processing.",
     "addr.preview":           "Full address:",
+
+    "field.spouse":           "Name of spouse",
+    "field.bloodType":        "Blood type",
+    "field.height":           "Height (cm)",
+    "field.weight":           "Weight (kg)",
+    "field.complexion":       "Complexion",
+    "field.religion":         "Religion",
+    "ph.spouse":              "e.g. Maria Dela Cruz",
+    "ph.bloodType":           "e.g. O+",
+    "ph.height":              "e.g. 165",
+    "ph.weight":              "e.g. 60",
+    "ph.complexion":          "e.g. Fair, Morena, Dark",
+    "ph.religion":            "e.g. Roman Catholic",
+    "review.spouse":          "Name of spouse",
+    "review.bloodType":       "Blood type",
+    "review.height":          "Height (cm)",
+    "review.weight":          "Weight (kg)",
+    "review.complexion":      "Complexion",
+    "review.religion":        "Religion",
   },
 
   tl: {
+    "field.nickname":         "Palayaw",
+    "field.pwd":              "PWD",
+    "field.email":            "Email address",
+    "field.precinctNo":       "Blg. ng presinto",
+    "field.residentStatus":   "Katayuan bilang residente",
+    "field.occupation":       "Trabaho",
+    "field.position":         "Posisyon",
+    "field.employmentStatus": "Katayuan sa trabaho",
+    "field.notes":            "Mga tala",
+    "ph.nickname":            "Opsyonal",
+    "ph.pwd":                 "hal. Visual, Pandinig, Pisikal",
+    "ph.email":               "hal. juan@email.com",
+    "ph.precinctNo":          "hal. 1234A",
+    "ph.residentStatus":      "hal. Permanente, Pansamantala",
+    "ph.occupation":          "hal. Guro, Driver",
+    "ph.position":            "hal. Superbisor",
+    "ph.employmentStatus":    "hal. Employed, Self-employed",
+    "ph.notes":               "Karagdagang tala…",
+    "review.nickname":        "Palayaw",
+    "review.pwd":             "PWD",
+    "review.email":           "Email address",
+    "review.precinctNo":      "Blg. ng presinto",
+    "review.residentStatus":  "Katayuan bilang residente",
+    "review.occupation":      "Trabaho",
+    "review.position":        "Posisyon",
+    "review.employmentStatus":"Katayuan sa trabaho",
+    "review.notes":           "Mga tala",
+    "ph.agePlaceholder":      "Awtomatikong kinukwenta mula sa petsa ng kapanganakan",
+    "ph.complexion":          "Pumili o mag-type ng kutis…",
+    "opt.veryFair":           "Napakaputi",
+    "opt.fair":               "Maputi",
+    "opt.morena":             "Morena",
+    "opt.brown":              "Kayumanggi",
+    "opt.dark":               "Maitim",
+    "opt.veryDark":           "Napakaitim",
+    "err.minAge":             "Ang aplikante ay dapat na hindi bababa sa 1 taong gulang.",
     "a11y.language":          "Wika",
     "a11y.fontSize":          "Laki ng teksto",
     "a11y.small":             "A",
@@ -308,9 +402,65 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "addr.preview":           "Buong tirahan:",
+
+    "field.spouse":           "Pangalan ng asawa",
+    "field.bloodType":        "Uri ng dugo",
+    "field.height":           "Taas (cm)",
+    "field.weight":           "Timbang (kg)",
+    "field.complexion":       "Kutis",
+    "field.religion":         "Relihiyon",
+    "ph.spouse":              "hal. Maria Dela Cruz",
+    "ph.bloodType":           "hal. O+",
+    "ph.height":              "hal. 165",
+    "ph.weight":              "hal. 60",
+    "ph.complexion":          "hal. Maputi, Morena, Maitim",
+    "ph.religion":            "hal. Romano Katoliko",
+    "review.spouse":          "Pangalan ng asawa",
+    "review.bloodType":       "Uri ng dugo",
+    "review.height":          "Taas (cm)",
+    "review.weight":          "Timbang (kg)",
+    "review.complexion":      "Kutis",
+    "review.religion":        "Relihiyon",
   },
 
   ceb: {
+
+    "field.nickname":         "Ngalan sa balay",
+    "field.pwd":              "PWD",
+    "field.email":            "Email address",
+    "field.precinctNo":       "Blg. sa presinto",
+    "field.residentStatus":   "Kahimtang isip residente",
+    "field.occupation":       "Trabaho",
+    "field.position":         "Posisyon",
+    "field.employmentStatus": "Kahimtang sa trabaho",
+    "field.notes":            "Mga nota",
+    "ph.nickname":            "Opsyonal",
+    "ph.pwd":                 "hal. Visual, Pandungog, Pisikal",
+    "ph.email":               "hal. juan@email.com",
+    "ph.precinctNo":          "hal. 1234A",
+    "ph.residentStatus":      "hal. Permanente, Transiente",
+    "ph.occupation":          "hal. Magtutudlo, Drayber",
+    "ph.position":            "hal. Superbisor",
+    "ph.employmentStatus":    "hal. Employed, Self-employed",
+    "ph.notes":               "Dugang nga nota…",
+    "review.nickname":        "Ngalan sa balay",
+    "review.pwd":             "PWD",
+    "review.email":           "Email address",
+    "review.precinctNo":      "Blg. sa presinto",
+    "review.residentStatus":  "Kahimtang isip residente",
+    "review.occupation":      "Trabaho",
+    "review.position":        "Posisyon",
+    "review.employmentStatus":"Kahimtang sa trabaho",
+    "review.notes":           "Mga nota",
+    "ph.agePlaceholder":      "Awtomatikong kalkulado gikan sa petsa sa pagkatawo",
+    "ph.complexion":          "Pilia o i-type ang kolor sa panit…",
+    "opt.veryFair":           "Puti Kaayo",
+    "opt.fair":               "Maputi",
+    "opt.morena":             "Morena",
+    "opt.brown":              "Brownish",
+    "opt.dark":               "Ngitngit",
+    "opt.veryDark":           "Ngitngit Kaayo",
+    "err.minAge":             "Ang aplikante kinahanglan nga may edad nga labing menos 1 ka tuig.",
     "a11y.language":          "Pinulongan",
     "a11y.fontSize":          "Gidak-on sa teksto",
     "a11y.small":             "A",
@@ -440,6 +590,25 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "addr.preview":           "Tibuok adres:",
+
+    "field.spouse":           "Ngalan sa asawa",
+    "field.bloodType":        "Matang sa dugo",
+    "field.height":           "Gihabugon (cm)",
+    "field.weight":           "Gibug-aton (kg)",
+    "field.complexion":       "Kolor sa panit",
+    "field.religion":         "Relihiyon",
+    "ph.spouse":              "hal. Maria Dela Cruz",
+    "ph.bloodType":           "hal. O+",
+    "ph.height":              "hal. 165",
+    "ph.weight":              "hal. 60",
+    "ph.complexion":          "hal. Maputi, Morena, Ngitngit",
+    "ph.religion":            "hal. Romano Katoliko",
+    "review.spouse":          "Ngalan sa asawa",
+    "review.bloodType":       "Matang sa dugo",
+    "review.height":          "Gihabugon (cm)",
+    "review.weight":          "Gibug-aton (kg)",
+    "review.complexion":      "Kolor sa panit",
+    "review.religion":        "Relihiyon",
   },
 };
 
@@ -690,7 +859,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
       {open && filtered.length > 0 && (
         <ul
           role="listbox"
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto "
           style={{ borderRadius: 4, fontSize: "inherit" }}
         >
           {filtered.map((opt) => (
@@ -861,7 +1030,6 @@ interface CommonStepProps {
 }
 
 const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
-  // Resident Registration requires extra demographic fields
   const isResident = docType === "resident-registration";
 
   return (
@@ -869,80 +1037,61 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         {/* Prefix */}
         <Field label={tr("field.prefix")}>
-          <MaskedInput
-            value={formData.prefix || ""}
-            onValueChange={(v) => set("prefix", v)}
-            placeholder={tr("ph.prefix")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.prefix || ""} onValueChange={(v) => set("prefix", v)}
+            placeholder={tr("ph.prefix")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Ext Name */}
         <Field label={tr("field.extName")}>
-          <MaskedInput
-            value={formData.ext_name || ""}
-            onValueChange={(v) => set("ext_name", v)}
-            placeholder={tr("ph.extName")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => set("ext_name", v)}
+            placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* First Name */}
         <Field label={`${tr("field.firstName")} *`}>
-          <MaskedInput
-            value={formData.first_name || ""}
-            onValueChange={(v) => set("first_name", v)}
-            placeholder={tr("ph.firstName")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.first_name || ""} onValueChange={(v) => set("first_name", v)}
+            placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Middle Name */}
         <Field label={tr("field.middleName")}>
-          <MaskedInput
-            value={formData.middle_name || ""}
-            onValueChange={(v) => set("middle_name", v)}
-            placeholder={tr("ph.middleName")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => set("middle_name", v)}
+            placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Surname */}
         <Field label={`${tr("field.Surname")} *`}>
-          <MaskedInput
-            value={formData.surname || ""}
-            onValueChange={(v) => set("surname", v)}
-            placeholder={tr("ph.Surname")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.surname || ""} onValueChange={(v) => set("surname", v)}
+            placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Date of Birth */}
         <Field label={`${tr("field.dob")} *`}>
-          <MaskedInput
-            type="date"
-            value={formData.date_of_birth || ""}
-            onValueChange={(v) => set("date_of_birth", v)}
-            placeholder={tr("field.dob")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput type="date" value={formData.date_of_birth || ""}
+            onValueChange={(v) => {
+              set("date_of_birth", v);
+              if (v) {
+                const dob = new Date(v); const today = new Date();
+                let age = today.getFullYear() - dob.getFullYear();
+                const m = today.getMonth() - dob.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+                set("age", age >= 0 ? String(age) : "");
+              } else { set("age", ""); }
+            }}
+            placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Place of Birth */}
+        {/* Place of Birth — full width */}
         <div className="md:col-span-2">
           <Field label={`${tr("field.pob")} *`}>
-            <MaskedInput
-              value={formData.place_of_birth || ""}
-              onValueChange={(v) => set("place_of_birth", v)}
-              placeholder={tr("ph.pob")}
-              className={inputCls}
-              style={{ borderColor: "#d1d5db" }}
-            />
+            <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => set("place_of_birth", v)}
+              placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         </div>
-        {/* Extra fields for Resident Registration */}
+
+        {/* ── Resident Registration ONLY ── */}
         {isResident && (
           <>
+            {/* Nickname — NEW */}
+            <Field label={tr("field.nickname")}>
+              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => set("nickname", v)}
+                placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            {/* Sex */}
             <Field label={`${tr("field.sex")} *`}>
               <SelectField value={formData.sex || ""} onChange={(v) => set("sex", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
@@ -950,6 +1099,7 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 <option value="Female">{tr("opt.female")}</option>
               </SelectField>
             </Field>
+            {/* Civil Status */}
             <Field label={`${tr("field.civilStatus")} *`}>
               <SelectField value={formData.marital_status || ""} onChange={(v) => set("marital_status", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
@@ -959,14 +1109,74 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 <option value="Separated">{tr("opt.separated")}</option>
               </SelectField>
             </Field>
+            {/* Spouse — only when married */}
+            {formData.marital_status === "Married" && (
+              <div className="md:col-span-2">
+                <Field label={tr("field.spouse")}>
+                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => set("name_of_spouse", v)}
+                    placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+                </Field>
+              </div>
+            )}
+            {/* Age — read-only */}
             <Field label={tr("field.age")}>
-              <MaskedInput
-                value={formData.age || ""}
-                onValueChange={(v) => set("age", v)}
-                placeholder="e.g. 35"
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
+              <input type="text" readOnly
+                value={formData.date_of_birth ? (() => {
+                  const dob = new Date(formData.date_of_birth); const today = new Date();
+                  let age = today.getFullYear() - dob.getFullYear();
+                  const m = today.getMonth() - dob.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+                  return age >= 0 ? String(age) : "";
+                })() : ""}
+                placeholder={tr("ph.agePlaceholder")} className={inputCls}
+                style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }}
+                aria-label={tr("field.age")} />
+            </Field>
+            {/* Blood Type */}
+            <Field label={tr("field.bloodType")}>
+              <SelectField value={formData.blood_type || ""} onChange={(v) => set("blood_type", v)} inputCls={inputCls}>
+                <option value="">{tr("opt.select")}</option>
+                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
+              </SelectField>
+            </Field>
+            {/* Complexion */}
+            <Field label={tr("field.complexion")}>
+              <Combobox
+                value={formData.complexion || ""}
+                onChange={(v) => set("complexion", v)}
+                options={[tr("opt.veryFair"), tr("opt.fair"), tr("opt.morena"), tr("opt.brown"), tr("opt.dark"), tr("opt.veryDark")]}
+                placeholder={tr("ph.complexion")}
+                inputCls={inputCls}
               />
+            </Field>
+            {/* Height */}
+            <Field label={tr("field.height")}>
+              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => set("height_cm", v)}
+                placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            {/* Weight */}
+            <Field label={tr("field.weight")}>
+              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => set("weight_kg", v)}
+                placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            {/* Religion */}
+            <Field label={tr("field.religion")}>
+              <MaskedInput value={formData.religion || ""} onValueChange={(v) => set("religion", v)}
+                placeholder={tr("ph.religion")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            {/* PWD — NEW */}
+            <Field label={tr("field.pwd")}>
+              <SelectField
+                value={formData.pwd ?? ""}
+                onChange={(v) => set("pwd", v)}
+                inputCls={inputCls}
+              >
+                <option value="">{tr("opt.select")}</option>
+                <option value="true">PWD</option>
+                <option value="false">Not PWD</option>
+              </SelectField>
             </Field>
           </>
         )}
@@ -985,9 +1195,9 @@ interface StepAddressProps extends CommonStepProps {
 }
 interface StreetRecord { id: number; name: string; sitio?: string; formerly?: string | null; }
 
-const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputCls }: StepAddressProps) => {
+const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputCls, docType }: StepAddressProps) => {
+  const isResident = docType === "resident-registration";
   const streetNames = Array.from(new Set(streets.map((s) => s.name))).sort();
-
   const zoneOptions = Array.from(
     new Set(
       streets
@@ -997,72 +1207,43 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
     )
   ).sort();
 
-  // ── FIXED: street and zone stored as separate fields to match backend ──────
-  const handleStreetChange = (val: string) => {
-    set("street", val);
-    set("zone", ""); // reset zone when street changes
-  };
-  const handleZoneChange   = (val: string) => set("zone", val);
-  const handleDetailChange = (val: string) => set("house_block_lot_no", val);
-
-  // Build preview string (display only — not submitted as one field)
+  const handleStreetChange = (val: string) => { set("street", val); set("zone", ""); };
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
   return (
     <Card eyebrow={tr("step3.eyebrow")} title={tr("step3.title")} subtitle={tr("step3.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        {/* House / Block / Lot — maps to backend house_block_lot_no */}
+        {/* House / Block / Lot */}
         <div className="md:col-span-2">
           <Field label={tr("field.houseUnit")}>
-            <MaskedInput
-              value={formData.house_block_lot_no || ""}
-              onValueChange={handleDetailChange}
-              placeholder={tr("ph.houseUnit")}
-              className={inputCls}
-              style={{ borderColor: "#d1d5db" }}
-            />
+            <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => set("house_block_lot_no", v)}
+              placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         </div>
-        {/* Street — maps to backend street */}
+        {/* Street */}
         <Field label={`${tr("field.street")} *`}>
-          <Combobox
-            value={formData.street || ""}
-            onChange={handleStreetChange}
-            options={streetNames}
-            placeholder={tr("ph.street")}
-            inputCls={inputCls}
-          />
+          <Combobox value={formData.street || ""} onChange={handleStreetChange}
+            options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} />
         </Field>
-        {/* Zone / Sitio — maps to backend zone */}
+        {/* Zone */}
         <Field label={`${tr("field.zone")} *`}>
-          <Combobox
-            value={formData.zone || ""}
-            onChange={handleZoneChange}
+          <Combobox value={formData.zone || ""} onChange={(v) => set("zone", v)}
             options={zoneOptions}
             placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
-            disabled={!formData.street}
-            inputCls={inputCls}
-          />
+            disabled={!formData.street} inputCls={inputCls} />
         </Field>
-        {/* Address preview (display only) */}
+        {/* Address preview */}
         {addressPreview && (
-          <div
-            className="md:col-span-2 p-3 text-muted-foreground"
-            style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}
-          >
+          <div className="md:col-span-2 p-3 text-muted-foreground"
+            style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}>
             <span className="font-bold uppercase tracking-wider" style={{ color: NAVY }}>{tr("addr.preview")} </span>
             {addressPreview}
           </div>
         )}
         {/* Period of Residency */}
         <Field label={`${tr("field.residency")} *`}>
-          <MaskedInput
-            value={formData.period_of_residency || ""}
-            onValueChange={(v) => set("period_of_residency", v)}
-            placeholder={tr("ph.residency")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => set("period_of_residency", v)}
+            placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Registered Voter */}
         <Field label={`${tr("field.voter")} *`}>
@@ -1072,25 +1253,35 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             <option value="No">{tr("opt.no")}</option>
           </SelectField>
         </Field>
+
+        {/* ── Resident Registration ONLY ── */}
+        {isResident && (
+          <>
+            {/* Resident Status — NEW */}
+            <Field label={tr("field.residentStatus")}>
+              <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => set("resident_status", v)}
+                placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            {/* Precinct No — NEW, conditional on voter = Yes */}
+            {formData.registered_voter === "Yes" && (
+              <Field label={tr("field.precinctNo")}>
+                <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => set("precinct_no", v)}
+                  placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              </Field>
+            )}
+          </>
+        )}
+        
+
         {/* House Owner */}
         <Field label={`${tr("field.houseOwner")} *`}>
-          <MaskedInput
-            value={formData.house_owner || ""}
-            onValueChange={(v) => set("house_owner", v)}
-            placeholder={tr("field.houseOwner")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => set("house_owner", v)}
+            placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Relation to Owner — maps to backend relationship_to_owner */}
+        {/* Relation to Owner */}
         <Field label={`${tr("field.relation")} *`}>
-          <MaskedInput
-            value={formData.relationship_to_owner || ""}
-            onValueChange={(v) => set("relationship_to_owner", v)}
-            placeholder={tr("field.relation")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.relationship_to_owner || ""} onValueChange={(v) => set("relationship_to_owner", v)}
+            placeholder={tr("field.relation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
@@ -1105,99 +1296,80 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
 const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
-  const isBCert    = docType === "barangay-certificate";
+  const isResident = docType === "resident-registration";
 
   return (
     <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        {/* Contact number — maps to backend contact_no */}
+        {/* Contact number */}
         <Field label={`${tr("field.contact")} *`}>
-          <MaskedInput
-            value={formData.contact_number || ""}
-            onValueChange={(v) => set("contact_number", v)}
-            placeholder={tr("ph.contact")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
+          <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => set("contact_number", v)}
+            placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+        </Field>
+        {/* Email — NEW, shown for all doc types */}
+        <Field label={tr("field.email")}>
+          <MaskedInput value={formData.email || ""} onValueChange={(v) => set("email", v)}
+            placeholder={tr("ph.email")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
         {/* Purpose */}
-        <Field label={`${tr("field.purpose")} *`}>
-          <MaskedInput
-            value={formData.purpose || ""}
-            onValueChange={(v) => set("purpose", v)}
-            placeholder={tr("ph.purpose")}
-            className={inputCls}
-            style={{ borderColor: "#d1d5db" }}
-          />
-        </Field>
+        <div className="md:col-span-2">
+          <Field label={`${tr("field.purpose")} *`}>
+            <MaskedInput value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}
+              placeholder={tr("ph.purpose")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          </Field>
+        </div>
+
+        {/* ── Resident Registration ONLY ── */}
+        {isResident && (
+          <>
+            <Field label={tr("field.occupation")}>
+              <MaskedInput value={formData.occupation || ""} onValueChange={(v) => set("occupation", v)}
+                placeholder={tr("ph.occupation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            <Field label={tr("field.position")}>
+              <MaskedInput value={formData.position || ""} onValueChange={(v) => set("position", v)}
+                placeholder={tr("ph.position")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            </Field>
+            <div className="md:col-span-2">
+              <Field label={tr("field.employmentStatus")}>
+                <MaskedInput value={formData.employment_status || ""} onValueChange={(v) => set("employment_status", v)}
+                  placeholder={tr("ph.employmentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              </Field>
+            </div>
+            <div className="md:col-span-2">
+              <Field label={tr("field.notes")}>
+                <textarea value={formData.notes || ""} onChange={(e) => set("notes", e.target.value)}
+                  placeholder={tr("ph.notes")} rows={3}
+                  className={inputCls}
+                  style={{ borderColor: "#d1d5db", resize: "vertical", fontSize: "inherit" }} />
+              </Field>
+            </div>
+          </>
+        )}
 
         {/* ── Business Clearance extras ── */}
         {isBusiness && (
           <>
             <Field label={`${tr("field.businessName")} *`}>
-              <MaskedInput
-                value={formData.business_name || ""}
-                onValueChange={(v) => set("business_name", v)}
-                placeholder={tr("ph.businessName")}
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
-              />
+              <MaskedInput value={formData.business_name || ""} onValueChange={(v) => set("business_name", v)}
+                placeholder={tr("ph.businessName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
             <Field label={`${tr("field.businessType")} *`}>
-              <MaskedInput
-                value={formData.business_type || ""}
-                onValueChange={(v) => set("business_type", v)}
-                placeholder={tr("ph.businessType")}
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
-              />
+              <MaskedInput value={formData.business_type || ""} onValueChange={(v) => set("business_type", v)}
+                placeholder={tr("ph.businessType")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
             <Field label={tr("field.capital")}>
-              <MaskedInput
-                value={formData.capital || ""}
-                onValueChange={(v) => set("capital", v)}
-                placeholder={tr("ph.capital")}
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
-              />
+              <MaskedInput value={formData.capital || ""} onValueChange={(v) => set("capital", v)}
+                placeholder={tr("ph.capital")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
           </>
         )}
 
         {/* ── Building Clearance extras ── */}
         {isBuilding && (
-          <>
-            <Field label={tr("field.establishment")}>
-              <MaskedInput
-                value={formData.establishment || ""}
-                onValueChange={(v) => set("establishment", v)}
-                placeholder={tr("ph.establishment")}
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
-              />
-            </Field>
-            {/* <Field label={tr("field.bcertNumber")}>
-              <MaskedInput
-                value={formData.bcert_number || ""}
-                onValueChange={(v) => set("bcert_number", v)}
-                placeholder={tr("ph.bcertNumber")}
-                className={inputCls}
-                style={{ borderColor: "#d1d5db" }}
-              />
-            </Field> */}
-          </>
-        )}
-
-        {/* ── Barangay Certificate extras ── */}
-        {isBCert && (
-          <Field label={tr("field.bcertNumber")}>
-            <MaskedInput
-              value={formData.bcert_number || ""}
-              onValueChange={(v) => set("bcert_number", v)}
-              placeholder={tr("ph.bcertNumber")}
-              className={inputCls}
-              style={{ borderColor: "#d1d5db" }}
-            />
+          <Field label={tr("field.establishment")}>
+            <MaskedInput value={formData.establishment || ""} onValueChange={(v) => set("establishment", v)}
+              placeholder={tr("ph.establishment")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
       </div>
@@ -1206,7 +1378,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
     </Card>
   );
 };
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 4: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1258,8 +1429,21 @@ const StepReview = ({
         </div>
         {isResident && (
           <>
-            <ReviewRow label={tr("review.sex")}         value={formData.sex} />
-            <ReviewRow label={tr("review.civilStatus")} value={formData.marital_status} />
+            <ReviewRow label={tr("review.sex")}            value={formData.sex} />
+            <ReviewRow label={tr("review.civilStatus")}    value={formData.marital_status} />
+            {formData.name_of_spouse && (
+              <div className="col-span-2">
+                <ReviewRow label={tr("review.spouse")}     value={formData.name_of_spouse} />
+              </div>
+            )}
+            {/* NEW */}
+            <ReviewRow label={tr("review.nickname")}       value={formData.nickname} />
+            <ReviewRow label={tr("review.bloodType")}      value={formData.blood_type} />
+            <ReviewRow label={tr("review.height")}         value={formData.height_cm} />
+            <ReviewRow label={tr("review.weight")}         value={formData.weight_kg} />
+            <ReviewRow label={tr("review.complexion")}     value={formData.complexion} />
+            <ReviewRow label={tr("review.religion")}       value={formData.religion} />
+            <ReviewRow label={tr("review.pwd")}            value={formData.pwd} />
           </>
         )}
       </ReviewSection>
@@ -1273,6 +1457,14 @@ const StepReview = ({
         <ReviewRow label={tr("review.zone")}      value={formData.zone} />
         <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
         <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
+        {isResident && (
+          <>
+            <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />
+            {formData.precinct_no && (
+              <ReviewRow label={tr("review.precinctNo")}   value={formData.precinct_no} />
+            )}
+          </>
+        )}
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
         <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
@@ -1296,6 +1488,19 @@ const StepReview = ({
         )}
         {isBCert && (
           <ReviewRow label={tr("field.bcertNumber")} value={formData.bcert_number} />
+        )}
+        <ReviewRow label={tr("review.email")} value={formData.email} />
+        {isResident && (
+          <>
+            <ReviewRow label={tr("review.occupation")}       value={formData.occupation} />
+            <ReviewRow label={tr("review.position")}         value={formData.position} />
+            <ReviewRow label={tr("review.employmentStatus")} value={formData.employment_status} />
+            {formData.notes && (
+              <div className="col-span-2">
+                <ReviewRow label={tr("review.notes")}        value={formData.notes} />
+              </div>
+            )}
+          </>
         )}
       </ReviewSection>
 
@@ -1461,6 +1666,7 @@ const FrontDesk = () => {
       const missing = !formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth;
       const missingResident = docType === "resident-registration" && (!formData.sex || !formData.marital_status);
       if (missing || missingResident) { setErrors(tr("err.fillRequired")); return; }
+
     }
 
     if (currentStep === 2) {
@@ -1505,11 +1711,17 @@ const FrontDesk = () => {
           ext_name:      formData.ext_name       || null,
 
           // ── Demographics (Resident Registration) ─────────────────────
-          sex:            formData.sex            || null,
-          marital_status: formData.marital_status || null,
-          age:            formData.age            || null,
-          date_of_birth:  formData.date_of_birth  || "",
-          place_of_birth: formData.place_of_birth || "",
+          sex:             formData.sex             || null,
+          marital_status:  formData.marital_status  || null,
+          name_of_spouse:  formData.name_of_spouse  || null,   // ← new
+          age:             formData.age             || null,
+          blood_type:      formData.blood_type      || null,   // ← new
+          height_cm:       formData.height_cm       || null,   // ← new
+          weight_kg:       formData.weight_kg       || null,   // ← new
+          complexion:      formData.complexion      || null,   // ← new
+          religion:        formData.religion        || null,   // ← new
+          date_of_birth:   formData.date_of_birth   || "",
+          place_of_birth:  formData.place_of_birth  || "",
 
           // ── Address — three separate fields to match backend ──────────
           house_block_lot_no:   formData.house_block_lot_no   || null,
@@ -1536,6 +1748,19 @@ const FrontDesk = () => {
           // ── Building Clearance extras ─────────────────────────────────
           establishment: formData.establishment || null,
           bcert_number:  formData.bcert_number  || null,
+
+          // ── Resident Registration extras ──────────────────────
+          nick_name:         formData.nickname          || null,   // was: nickname
+          pwd:               formData.pwd === "true" ? true : formData.pwd === "false" ? false : null,
+          resident_status:   formData.resident_status   || null,
+          precinct_no:       formData.precinct_no       || null,
+          occupation:        formData.occupation        || null,
+          position:          formData.position          || null,
+          emp_status:        formData.employment_status || null,   // was: employment_status
+          notes:             formData.notes             || null,
+
+          // ── All doc types ─────────────────────────────────────
+          email_address:     formData.email             || null,   // was: email
 
           // ── Authorized person (optional) ──────────────────────────────
           authorized_person: formData.authorized_person || null,

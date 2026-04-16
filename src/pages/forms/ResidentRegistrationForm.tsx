@@ -57,7 +57,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
     requester_type: "Online",
     prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
     nick_name: "", sex: "", marital_status: "", name_of_spouse: "",
-    date_of_birth: "", place_of_birth: "",
+    dob: "", pob: "",
     height_cm: 0, weight_kg: 0, blood_type: "", complexion: "", religion: "",
     phone_number: "", email_address: "",
     house_block_lot_no: "", street: "", zone: "",
@@ -108,8 +108,8 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
           sex: user.sex ?? "",
           marital_status: user.marital_status ?? "",
           name_of_spouse: user.name_of_spouse ?? "",
-          date_of_birth: user.date_of_birth ?? "",
-          place_of_birth: user.place_of_birth ?? "",
+          dob: user.dob ?? "",
+          pob: user.pob ?? "",
           height_cm: user.height_cm ?? 0,
           weight_kg: user.weight_kg ?? 0,
           blood_type: user.blood_type ?? "",
@@ -156,11 +156,10 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
       case 0: return (
         <div className="space-y-6">
           {/* Photo upload */}
-          <div
+          {/* <div
             className="flex items-center gap-6 p-4"
             style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}
           >
-            {/* Avatar preview */}
             <div
               className="flex-shrink-0 overflow-hidden"
               style={{
@@ -178,7 +177,6 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
               )}
             </div>
 
-            {/* Upload control */}
             <div className="flex-1">
               <FieldLabel htmlFor="resident_image">Resident Photo</FieldLabel>
               <input
@@ -199,7 +197,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
               />
               <p className="text-[10px] text-gray-400 mt-1">JPG, PNG — max 5MB</p>
             </div>
-          </div>
+          </div> */}
 
           <SectionDivider title="Personal Information" />
 
@@ -264,15 +262,15 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
               <FieldInput id="name_of_spouse" value={formData.name_of_spouse} onChange={(e) => upd("name_of_spouse", e.target.value)} />
             </div>
             <div>
-              <FieldLabel htmlFor="date_of_birth" required>Date of Birth</FieldLabel>
-              <FieldInput id="date_of_birth" type="date" value={formData.date_of_birth} onChange={(e) => upd("date_of_birth", e.target.value)} />
+              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
-              <FieldLabel htmlFor="place_of_birth" required>Place of Birth</FieldLabel>
-              <FieldInput id="place_of_birth" value={formData.place_of_birth} onChange={(e) => upd("place_of_birth", e.target.value)} />
+              <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
+              <FieldInput id="pob" value={formData.pob} onChange={(e) => upd("pob", e.target.value)} />
             </div>
             <div>
               <FieldLabel htmlFor="religion" required>Religion</FieldLabel>
@@ -482,7 +480,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
           <ReviewCard title="Personal Information">
             <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
             <ReviewRow label="Sex" value={formData.sex} />
-            <ReviewRow label="Date of Birth" value={formData.date_of_birth} />
+            <ReviewRow label="Date of Birth" value={formData.dob} />
             <ReviewRow label="Marital Status" value={formData.marital_status} />
             <ReviewRow label="Religion" value={formData.religion} />
           </ReviewCard>

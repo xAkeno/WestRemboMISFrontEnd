@@ -869,7 +869,7 @@ const Certificate = () => {
                           </td>
 
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">
-                            {`${item.firstname} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`.trim()}
+                            {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`.trim()}
                           </td>
 
                           <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
