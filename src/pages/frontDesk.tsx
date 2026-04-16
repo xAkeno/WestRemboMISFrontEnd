@@ -5,7 +5,7 @@ import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
 import {
   FileText, Building2, Briefcase, Users, Check,
-  ChevronRight, ChevronDown, X, Type, Globe,
+  ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
@@ -15,10 +15,26 @@ const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TRANSLATIONS
+// TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
+// NOTE: Update your DocumentType union in @/types/BarangayDocument.ts to include:
+// "clearance" | "building-clearance" | "business-clearance" | "barangay-certificate" | "resident-registration"
 type Lang = "en" | "tl" | "ceb";
 
+// ─── Map frontend doc type → exact backend service_type string ─────────────────
+const SERVICE_TYPE_MAP: Record<string, string> = {
+  "clearance":              "Barangay Clearance",
+  "building-clearance":     "Building Clearance",
+  "business-clearance":     "Business Clearance",
+  "barangay-certificate":   "Barangay Certificate",
+  "resident-registration":  "Resident Registration",
+};
+
+const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   en: {
     "a11y.language":          "Language",
@@ -43,8 +59,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.building.sub":       "For construction permits",
     "doc.business.label":     "Business Clearance",
     "doc.business.sub":       "For business registration",
-    "doc.resident.label":     "Resident Certificate",
-    "doc.resident.sub":       "Proof of residency",
+    "doc.bcert.label":        "Barangay Certificate",
+    "doc.bcert.sub":          "Official barangay certificate",
+    "doc.resident.label":     "Resident Registration",
+    "doc.resident.sub":       "Register as a barangay resident",
     "step1.eyebrow":          "Step 1 of 5",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
@@ -60,53 +78,87 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Step 5 of 5",
     "step5.title":            "Review your information",
     "step5.subtitle":         "Please verify all details before submitting",
+    // Personal fields
+    "field.prefix":           "Prefix",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name",
-    "field.Surname":         "Last name",
+    "field.Surname":          "Last name",
+    "field.extName":          "Ext. name (Jr./Sr./III)",
     "field.dob":              "Date of birth",
     "field.pob":              "Place of birth",
-    "field.houseUnit":        "House no. / Unit / Building",
+    "field.sex":              "Sex",
+    "field.civilStatus":      "Civil status",
+    "field.age":              "Age",
+    // Address fields
+    "field.houseUnit":        "House no. / Block / Lot",
     "field.street":           "Street",
-    "field.zone":             "Zone",
-    "field.fullAddress":      "Full address",
+    "field.zone":             "Zone / Sitio",
     "field.residency":        "Period of residency",
     "field.voter":            "Registered voter?",
     "field.houseOwner":       "House owner",
     "field.relation":         "Relation to owner",
+    // Contact
     "field.contact":          "Contact number",
     "field.purpose":          "Purpose of request",
+    // Business-specific
+    "field.businessName":     "Business name",
+    "field.businessType":     "Business type",
+    "field.capital":          "Capital amount",
+    // Building-specific
+    "field.establishment":    "Establishment name",
+    // Placeholders
+    "ph.prefix":              "e.g. Mr./Ms.",
     "ph.firstName":           "e.g. Juan",
     "ph.middleName":          "Optional",
-    "ph.Surname":            "e.g. Dela Cruz",
+    "ph.Surname":             "e.g. Dela Cruz",
+    "ph.extName":             "Optional",
     "ph.pob":                 "City/Municipality, Province",
-    "ph.houseUnit":           "e.g. 123 or Unit 4B",
+    "ph.houseUnit":           "e.g. 123 or Blk 4 Lot 2",
     "ph.street":              "Select or type street…",
     "ph.zone":                "Select zone…",
     "ph.zoneFirst":           "Select a street first",
     "ph.residency":           "e.g. 5 years",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "e.g. Employment, Loan",
+    "ph.businessName":        "e.g. ABC Store",
+    "ph.businessType":        "e.g. Retail, Food, Service",
+    "ph.capital":             "e.g. 50000",
+    "ph.establishment":       "e.g. Building name",
+    "ph.bcertNumber":         "e.g. 2024-001",
     "opt.select":             "Select…",
     "opt.yes":                "Yes",
     "opt.no":                 "No",
+    "opt.male":               "Male",
+    "opt.female":             "Female",
+    "opt.single":             "Single",
+    "opt.married":            "Married",
+    "opt.widowed":            "Widowed",
+    "opt.separated":          "Separated",
+    // Review
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
     "review.firstName":       "First name",
     "review.middleName":      "Middle name",
-    "review.Surname":        "Last name",
+    "review.Surname":         "Last name",
     "review.dob":             "Date of birth",
     "review.pob":             "Place of birth",
-    "review.fullAddress":     "Full address",
+    "review.sex":             "Sex",
+    "review.civilStatus":     "Civil status",
+    "review.houseUnit":       "House / Block / Lot",
+    "review.street":          "Street",
+    "review.zone":            "Zone",
     "review.residency":       "Period of residency",
     "review.voter":           "Registered voter",
     "review.houseOwner":      "House owner",
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
+    // Consent
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
+    // Buttons
     "btn.backHome":           "← Back to home",
     "btn.continue":           "Continue",
     "btn.review":             "Review",
@@ -115,10 +167,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Submit request",
     "btn.newRequest":         "Start new request",
     "btn.cancel":             "Cancel",
+    // Errors
     "err.selectDoc":          "Please select a document type.",
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
+    // Success
     "success.title":          "Request submitted!",
     "success.sub":            "Your document request has been received. Please wait for processing.",
     "addr.preview":           "Full address:",
@@ -147,8 +201,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.building.sub":       "Para sa mga permit sa konstruksiyon",
     "doc.business.label":     "Clearance sa Negosyo",
     "doc.business.sub":       "Para sa pagpaparehistro ng negosyo",
-    "doc.resident.label":     "Sertipiko ng Residente",
-    "doc.resident.sub":       "Patunay ng paninirahan",
+    "doc.bcert.label":        "Sertipiko ng Barangay",
+    "doc.bcert.sub":          "Opisyal na sertipiko ng barangay",
+    "doc.resident.label":     "Pagpaparehistro ng Residente",
+    "doc.resident.sub":       "Magparehistro bilang residente ng barangay",
     "step1.eyebrow":          "Hakbang 1 ng 5",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
@@ -164,44 +220,70 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Hakbang 5 ng 5",
     "step5.title":            "Suriin ang iyong impormasyon",
     "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
+    "field.prefix":           "Titulo",
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan",
-    "field.Surname":         "Apelyido",
+    "field.Surname":          "Apelyido",
+    "field.extName":          "Ext. pangalan (Jr./Sr./III)",
     "field.dob":              "Petsa ng kapanganakan",
     "field.pob":              "Lugar ng kapanganakan",
-    "field.houseUnit":        "Blg. ng bahay / Unit / Gusali",
+    "field.sex":              "Kasarian",
+    "field.civilStatus":      "Katayuang sibil",
+    "field.age":              "Edad",
+    "field.houseUnit":        "Blg. ng bahay / Bloke / Lote",
     "field.street":           "Kalye",
-    "field.zone":             "Zone",
-    "field.fullAddress":      "Buong tirahan",
+    "field.zone":             "Zone / Sitio",
     "field.residency":        "Tagal ng paninirahan",
     "field.voter":            "Rehistradong botante?",
     "field.houseOwner":       "May-ari ng bahay",
     "field.relation":         "Relasyon sa may-ari",
     "field.contact":          "Numero sa pakikipag-ugnayan",
     "field.purpose":          "Layunin ng kahilingan",
+    "field.businessName":     "Pangalan ng negosyo",
+    "field.businessType":     "Uri ng negosyo",
+    "field.capital":          "Halaga ng kapital",
+    "field.establishment":    "Pangalan ng establisyamento",
+    "field.bcertNumber":      "Numero ng sertipiko",
+    "ph.prefix":              "hal. G./Gng.",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
-    "ph.Surname":            "hal. Dela Cruz",
+    "ph.Surname":             "hal. Dela Cruz",
+    "ph.extName":             "Opsyonal",
     "ph.pob":                 "Lungsod/Munisipalidad, Lalawigan",
-    "ph.houseUnit":           "hal. 123 o Unit 4B",
+    "ph.houseUnit":           "hal. 123 o Blk 4 Lote 2",
     "ph.street":              "Piliin o i-type ang kalye…",
     "ph.zone":                "Piliin ang zone…",
     "ph.zoneFirst":           "Piliin muna ang kalye",
     "ph.residency":           "hal. 5 taon",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "hal. Trabaho, Pautang",
+    "ph.businessName":        "hal. Tindahan ng ABC",
+    "ph.businessType":        "hal. Tingi, Pagkain, Serbisyo",
+    "ph.capital":             "hal. 50000",
+    "ph.establishment":       "hal. Pangalan ng gusali",
+    "ph.bcertNumber":         "hal. 2024-001",
     "opt.select":             "Piliin…",
     "opt.yes":                "Oo",
     "opt.no":                 "Hindi",
+    "opt.male":               "Lalaki",
+    "opt.female":             "Babae",
+    "opt.single":             "Walang asawa",
+    "opt.married":            "May asawa",
+    "opt.widowed":            "Biyudo/Biyuda",
+    "opt.separated":          "Hiwalay",
     "review.personal":        "Personal na impormasyon",
     "review.address":         "Tirahan at paninirahan",
     "review.contact":         "Pakikipag-ugnayan at layunin",
     "review.firstName":       "Unang pangalan",
     "review.middleName":      "Gitnang pangalan",
-    "review.Surname":        "Apelyido",
+    "review.Surname":         "Apelyido",
     "review.dob":             "Petsa ng kapanganakan",
     "review.pob":             "Lugar ng kapanganakan",
-    "review.fullAddress":     "Buong tirahan",
+    "review.sex":             "Kasarian",
+    "review.civilStatus":     "Katayuang sibil",
+    "review.houseUnit":       "Bahay / Bloke / Lote",
+    "review.street":          "Kalye",
+    "review.zone":            "Zone",
     "review.residency":       "Tagal ng paninirahan",
     "review.voter":           "Rehistradong botante",
     "review.houseOwner":      "May-ari ng bahay",
@@ -251,8 +333,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.building.sub":       "Para sa mga permit sa konstruksyon",
     "doc.business.label":     "Clearance sa Negosyo",
     "doc.business.sub":       "Para sa rehistrasyon sa negosyo",
-    "doc.resident.label":     "Sertipiko sa Residente",
-    "doc.resident.sub":       "Patunay sa pagpuyo",
+    "doc.bcert.label":        "Sertipiko sa Barangay",
+    "doc.bcert.sub":          "Opisyal nga sertipiko sa barangay",
+    "doc.resident.label":     "Rehistrasyon sa Residente",
+    "doc.resident.sub":       "Magparehistro isip residente sa barangay",
     "step1.eyebrow":          "Lakang 1 sa 5",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
@@ -268,44 +352,70 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Lakang 5 sa 5",
     "step5.title":            "Susihon ang imong impormasyon",
     "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
+    "field.prefix":           "Titulo",
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan",
-    "field.Surname":         "Apelyido",
+    "field.Surname":          "Apelyido",
+    "field.extName":          "Ext. ngalan (Jr./Sr./III)",
     "field.dob":              "Petsa sa pagkatawo",
     "field.pob":              "Lugar sa pagkatawo",
-    "field.houseUnit":        "Blg. sa balay / Unit / Bilding",
+    "field.sex":              "Sekso",
+    "field.civilStatus":      "Katayoan sibil",
+    "field.age":              "Edad",
+    "field.houseUnit":        "Blg. sa balay / Bloke / Lote",
     "field.street":           "Karsada",
-    "field.zone":             "Zone",
-    "field.fullAddress":      "Tibuok adres",
+    "field.zone":             "Zone / Sitio",
     "field.residency":        "Gidugayon sa pagpuyo",
     "field.voter":            "Rehistradong botante?",
     "field.houseOwner":       "Tag-iya sa balay",
     "field.relation":         "Relasyon sa tag-iya",
     "field.contact":          "Numero sa kontak",
     "field.purpose":          "Katuyoan sa hangyo",
+    "field.businessName":     "Ngalan sa negosyo",
+    "field.businessType":     "Matang sa negosyo",
+    "field.capital":          "Kantidad sa kapital",
+    "field.establishment":    "Ngalan sa establisyamento",
+    "field.bcertNumber":      "Numero sa sertipiko",
+    "ph.prefix":              "hal. G./Gng.",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
-    "ph.Surname":            "hal. Dela Cruz",
+    "ph.Surname":             "hal. Dela Cruz",
+    "ph.extName":             "Opsyonal",
     "ph.pob":                 "Siyudad/Munisipyo, Probinsya",
-    "ph.houseUnit":           "hal. 123 o Unit 4B",
+    "ph.houseUnit":           "hal. 123 o Blk 4 Lote 2",
     "ph.street":              "Pilia o i-type ang karsada…",
     "ph.zone":                "Pilia ang zone…",
     "ph.zoneFirst":           "Pilia una ang karsada",
     "ph.residency":           "hal. 5 ka tuig",
     "ph.contact":             "09XX XXX XXXX",
     "ph.purpose":             "hal. Trabaho, Pautang",
+    "ph.businessName":        "hal. Tindahan sa ABC",
+    "ph.businessType":        "hal. Tingi, Pagkaon, Serbisyo",
+    "ph.capital":             "hal. 50000",
+    "ph.establishment":       "hal. Ngalan sa bilding",
+    "ph.bcertNumber":         "hal. 2024-001",
     "opt.select":             "Pilia…",
     "opt.yes":                "Oo",
     "opt.no":                 "Dili",
+    "opt.male":               "Lalaki",
+    "opt.female":             "Babaye",
+    "opt.single":             "Bulag",
+    "opt.married":            "Minyo",
+    "opt.widowed":            "Biyudo/Biyuda",
+    "opt.separated":          "Bulag na",
     "review.personal":        "Personal nga impormasyon",
     "review.address":         "Adres ug pagpuyo",
     "review.contact":         "Kontak ug katuyoan",
     "review.firstName":       "Una nga ngalan",
     "review.middleName":      "Tungatunga nga ngalan",
-    "review.Surname":        "Apelyido",
+    "review.Surname":         "Apelyido",
     "review.dob":             "Petsa sa pagkatawo",
     "review.pob":             "Lugar sa pagkatawo",
-    "review.fullAddress":     "Tibuok adres",
+    "review.sex":             "Sekso",
+    "review.civilStatus":     "Katayoan sibil",
+    "review.houseUnit":       "Balay / Bloke / Lote",
+    "review.street":          "Karsada",
+    "review.zone":            "Zone",
     "review.residency":       "Gidugayon sa pagpuyo",
     "review.voter":           "Rehistradong botante",
     "review.houseOwner":      "Tag-iya sa balay",
@@ -335,7 +445,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 
 // ─── Font size scale ───────────────────────────────────────────────────────────
 type FontSize = "sm" | "md" | "lg" | "xl";
-
 const FONT_SCALE: Record<FontSize, { scale: number; label: string; ariaLabel: string }> = {
   sm: { scale: 0.875, label: "A", ariaLabel: "Small text"       },
   md: { scale: 1,     label: "A", ariaLabel: "Normal text"      },
@@ -374,7 +483,6 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
     { id: "tl",  flag: "🇵🇭" },
     { id: "ceb", flag: "🇵🇭" },
   ];
-
   const FONT_SIZES: FontSize[] = ["sm", "md", "lg", "xl"];
 
   return (
@@ -387,7 +495,6 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
       <span className="text-[11px] font-bold uppercase tracking-widest hidden sm:block" style={{ color: "#ffffff88" }}>
         Barangay West Rembo
       </span>
-
       <div className="flex items-center gap-5 ml-auto">
         <div className="flex items-center gap-2" role="group" aria-label={tr("a11y.fontSize")}>
           <Type className="h-3.5 w-3.5" style={{ color: "#ffffffaa" }} aria-hidden="true" />
@@ -414,9 +521,7 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
             })}
           </div>
         </div>
-
         <div style={{ width: 1, height: 20, background: "#ffffff22" }} />
-
         <div ref={langRef} className="relative" role="group" aria-label={tr("a11y.language")}>
           <button
             onClick={() => setLangOpen((o) => !o)}
@@ -433,7 +538,6 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
             <span>{lang === "en" ? "EN" : lang === "tl" ? "TL" : "CEB"}</span>
             <ChevronDown className="h-3 w-3 opacity-70" aria-hidden="true" />
           </button>
-
           {langOpen && (
             <ul
               role="listbox"
@@ -467,7 +571,7 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PURE UI HELPERS  (module-level — stable identity, no focus-loss on re-render)
+// PURE UI HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 const labelCls = "block font-bold uppercase tracking-[0.14em] mb-1";
 
@@ -497,6 +601,25 @@ const ReviewSection = ({ title, children }: { title: string; children: React.Rea
   </div>
 );
 
+// ─── Select helper ─────────────────────────────────────────────────────────────
+const SelectField = ({
+  value, onChange, inputCls, children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inputCls: string;
+  children: React.ReactNode;
+}) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className={`${inputCls} cursor-pointer`}
+    style={{ borderColor: "#d1d5db", fontSize: "inherit" }}
+  >
+    {children}
+  </select>
+);
+
 // ─── Combobox ─────────────────────────────────────────────────────────────────
 interface ComboboxProps {
   value: string;
@@ -513,7 +636,6 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setQuery(value); }, [value]);
-
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -565,7 +687,6 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
           </button>
         </div>
       </div>
-
       {open && filtered.length > 0 && (
         <ul
           role="listbox"
@@ -609,7 +730,6 @@ const Card = ({ eyebrow, title, subtitle, children }: {
 );
 
 // ─── Action bar ────────────────────────────────────────────────────────────────
-// FIX: Accept backLabel so translated "← Back" is used instead of the old hardcoded string
 const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back", extraLeft }: {
   onBack?: () => void;
   onNext?: () => void;
@@ -646,11 +766,11 @@ const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP COMPONENTS  (all at module level → stable identity → no focus-loss bug)
+// STEP 0: DOCUMENT SELECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepDocumentProps {
-  docType: DocumentType | "";
-  setDocType: (t: DocumentType) => void;
+  docType: string;
+  setDocType: (t: string) => void;
   error: string;
   onNext: () => void;
   onHome: () => void;
@@ -658,29 +778,22 @@ interface StepDocumentProps {
   inputCls: string;
 }
 
+// ─── Document type config ──────────────────────────────────────────────────────
+// Each entry maps to a backend service_type via SERVICE_TYPE_MAP above.
 const DOC_TYPE_KEYS = [
-  { type: "clearance"          as DocumentType, bg: "#e8f0fe", icon: (cls: string) => <FileText  className={cls} /> },
-  { type: "building-clearance" as DocumentType, bg: "#e8f8f0", icon: (cls: string) => <Building2 className={cls} /> },
-  { type: "business-clearance" as DocumentType, bg: "#fef4e8", icon: (cls: string) => <Briefcase className={cls} /> },
-  { type: "resident"           as DocumentType, bg: "#fce8f0", icon: (cls: string) => <Users     className={cls} /> },
+  { type: "clearance",             bg: "#e8f0fe", icon: (cls: string) => <FileText   className={cls} /> },
+  { type: "building-clearance",    bg: "#e8f8f0", icon: (cls: string) => <Building2  className={cls} /> },
+  { type: "business-clearance",    bg: "#fef4e8", icon: (cls: string) => <Briefcase  className={cls} /> },
+  { type: "barangay-certificate",  bg: "#f0e8fe", icon: (cls: string) => <ScrollText className={cls} /> },
+  { type: "resident-registration", bg: "#fce8f0", icon: (cls: string) => <Users      className={cls} /> },
 ];
 
-const DOC_TR_KEYS: Record<DocumentType, { label: string; sub: string }> = {
-  "clearance":          { label: "doc.clearance.label", sub: "doc.clearance.sub" },
-  "building-clearance": { label: "doc.building.label",  sub: "doc.building.sub"  },
-  "business-clearance": { label: "doc.business.label",  sub: "doc.business.sub"  },
-  "resident":           { label: "doc.resident.label",  sub: "doc.resident.sub"  },
-};
-
-// FIX: Map frontend DocumentType to the exact service_type strings the backend expects
-const getServiceType = (tab: DocumentType): string => {
-  switch (tab) {
-    case "clearance":          return "Barangay Clearance";
-    case "building-clearance": return "Building Clearance";
-    case "business-clearance": return "Business Clearance";
-    case "resident":           return "Resident Registration";
-    default:                   return "Barangay Clearance";
-  }
+const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
+  "clearance":             { label: "doc.clearance.label", sub: "doc.clearance.sub" },
+  "building-clearance":    { label: "doc.building.label",  sub: "doc.building.sub"  },
+  "business-clearance":    { label: "doc.business.label",  sub: "doc.business.sub"  },
+  "barangay-certificate":  { label: "doc.bcert.label",     sub: "doc.bcert.sub"     },
+  "resident-registration": { label: "doc.resident.label",  sub: "doc.resident.sub"  },
 };
 
 const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => (
@@ -733,137 +846,251 @@ const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDo
   </Card>
 );
 
-// ─── Step 1: Personal ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 1: PERSONAL INFORMATION
+// ═══════════════════════════════════════════════════════════════════════════════
 interface CommonStepProps {
-  formData: Partial<BarangayDocument> & Record<string, string>;
-  set: (field: keyof BarangayDocument, value: string) => void;
+  formData: Record<string, string>;
+  set: (field: string, value: string) => void;
   error: string;
   onBack: () => void;
   onNext: () => void;
   tr: (k: string) => string;
   inputCls: string;
+  docType: string;
 }
 
-const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => (
-  <Card eyebrow={tr("step2.eyebrow")} title={tr("step2.title")} subtitle={tr("step2.subtitle")}>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-      <Field label={`${tr("field.firstName")} *`}>
-        <MaskedInput value={formData.first_name || ""} onValueChange={(v) => set("first_name", v)}
-          placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-      <Field label={tr("field.middleName")}>
-        <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => set("middle_name", v)}
-          placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-      <Field label={`${tr("field.Surname")} *`}>
-        <MaskedInput value={formData.surname || ""} onValueChange={(v) => set("surname", v)}
-          placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-      <Field label={`${tr("field.dob")} *`}>
-        <MaskedInput type="date" value={formData.date_of_birth || ""} onValueChange={(v) => set("date_of_birth", v)}
-          placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-      <div className="md:col-span-2">
-        <Field label={`${tr("field.pob")} *`}>
-          <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => set("place_of_birth", v)}
-            placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-        </Field>
-      </div>
-    </div>
-    {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
-  </Card>
-);
+const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
+  // Resident Registration requires extra demographic fields
+  const isResident = docType === "resident-registration";
 
-// ─── Step 2: Address ──────────────────────────────────────────────────────────
+  return (
+    <Card eyebrow={tr("step2.eyebrow")} title={tr("step2.title")} subtitle={tr("step2.subtitle")}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+        {/* Prefix */}
+        <Field label={tr("field.prefix")}>
+          <MaskedInput
+            value={formData.prefix || ""}
+            onValueChange={(v) => set("prefix", v)}
+            placeholder={tr("ph.prefix")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Ext Name */}
+        <Field label={tr("field.extName")}>
+          <MaskedInput
+            value={formData.ext_name || ""}
+            onValueChange={(v) => set("ext_name", v)}
+            placeholder={tr("ph.extName")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* First Name */}
+        <Field label={`${tr("field.firstName")} *`}>
+          <MaskedInput
+            value={formData.first_name || ""}
+            onValueChange={(v) => set("first_name", v)}
+            placeholder={tr("ph.firstName")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Middle Name */}
+        <Field label={tr("field.middleName")}>
+          <MaskedInput
+            value={formData.middle_name || ""}
+            onValueChange={(v) => set("middle_name", v)}
+            placeholder={tr("ph.middleName")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Surname */}
+        <Field label={`${tr("field.Surname")} *`}>
+          <MaskedInput
+            value={formData.surname || ""}
+            onValueChange={(v) => set("surname", v)}
+            placeholder={tr("ph.Surname")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Date of Birth */}
+        <Field label={`${tr("field.dob")} *`}>
+          <MaskedInput
+            type="date"
+            value={formData.date_of_birth || ""}
+            onValueChange={(v) => set("date_of_birth", v)}
+            placeholder={tr("field.dob")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Place of Birth */}
+        <div className="md:col-span-2">
+          <Field label={`${tr("field.pob")} *`}>
+            <MaskedInput
+              value={formData.place_of_birth || ""}
+              onValueChange={(v) => set("place_of_birth", v)}
+              placeholder={tr("ph.pob")}
+              className={inputCls}
+              style={{ borderColor: "#d1d5db" }}
+            />
+          </Field>
+        </div>
+        {/* Extra fields for Resident Registration */}
+        {isResident && (
+          <>
+            <Field label={`${tr("field.sex")} *`}>
+              <SelectField value={formData.sex || ""} onChange={(v) => set("sex", v)} inputCls={inputCls}>
+                <option value="">{tr("opt.select")}</option>
+                <option value="Male">{tr("opt.male")}</option>
+                <option value="Female">{tr("opt.female")}</option>
+              </SelectField>
+            </Field>
+            <Field label={`${tr("field.civilStatus")} *`}>
+              <SelectField value={formData.marital_status || ""} onChange={(v) => set("marital_status", v)} inputCls={inputCls}>
+                <option value="">{tr("opt.select")}</option>
+                <option value="Single">{tr("opt.single")}</option>
+                <option value="Married">{tr("opt.married")}</option>
+                <option value="Widowed">{tr("opt.widowed")}</option>
+                <option value="Separated">{tr("opt.separated")}</option>
+              </SelectField>
+            </Field>
+            <Field label={tr("field.age")}>
+              <MaskedInput
+                value={formData.age || ""}
+                onValueChange={(v) => set("age", v)}
+                placeholder="e.g. 35"
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field>
+          </>
+        )}
+      </div>
+      {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
+      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
+    </Card>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 2: ADDRESS & RESIDENCY
+// ═══════════════════════════════════════════════════════════════════════════════
 interface StepAddressProps extends CommonStepProps {
-  setExtra: (key: string, value: string) => void;
   streets: StreetRecord[];
 }
-
 interface StreetRecord { id: number; name: string; sitio?: string; formerly?: string | null; }
 
-const StepAddress = ({ formData, set, setExtra, streets, error, onBack, onNext, tr, inputCls }: StepAddressProps) => {
+const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputCls }: StepAddressProps) => {
   const streetNames = Array.from(new Set(streets.map((s) => s.name))).sort();
 
   const zoneOptions = Array.from(
     new Set(
       streets
-        .filter((s) => s.name.trim().toLowerCase() === (formData._street ?? "").trim().toLowerCase())
+        .filter((s) => s.name.trim().toLowerCase() === (formData.street ?? "").trim().toLowerCase())
         .map((s) => s.sitio ?? "")
         .filter((z) => z !== "")
     )
   ).sort();
 
-  const buildAddress = (detail: string, street: string, sitio: string) =>
-    [detail, street, sitio].filter(Boolean).join(", ");
-
+  // ── FIXED: street and zone stored as separate fields to match backend ──────
   const handleStreetChange = (val: string) => {
-    setExtra("_street", val);
-    setExtra("_zone", "");
-    set("address", buildAddress(formData._addressDetail || "", val, ""));
+    set("street", val);
+    set("zone", ""); // reset zone when street changes
   };
-  const handleZoneChange = (val: string) => {
-    setExtra("_zone", val);
-    set("address", buildAddress(formData._addressDetail || "", formData._street || "", val));
-  };
-  const handleDetailChange = (val: string) => {
-    setExtra("_addressDetail", val);
-    set("address", buildAddress(val, formData._street || "", formData._zone || ""));
-  };
+  const handleZoneChange   = (val: string) => set("zone", val);
+  const handleDetailChange = (val: string) => set("house_block_lot_no", val);
+
+  // Build preview string (display only — not submitted as one field)
+  const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
   return (
     <Card eyebrow={tr("step3.eyebrow")} title={tr("step3.title")} subtitle={tr("step3.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+        {/* House / Block / Lot — maps to backend house_block_lot_no */}
         <div className="md:col-span-2">
           <Field label={tr("field.houseUnit")}>
-            <MaskedInput value={formData._addressDetail || ""} onValueChange={handleDetailChange}
-              placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <MaskedInput
+              value={formData.house_block_lot_no || ""}
+              onValueChange={handleDetailChange}
+              placeholder={tr("ph.houseUnit")}
+              className={inputCls}
+              style={{ borderColor: "#d1d5db" }}
+            />
           </Field>
         </div>
+        {/* Street — maps to backend street */}
         <Field label={`${tr("field.street")} *`}>
-          <Combobox value={formData._street || ""} onChange={handleStreetChange}
-            options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} />
-        </Field>
-        <Field label={`${tr("field.zone")} *`}>
           <Combobox
-            value={formData._zone || ""} onChange={handleZoneChange}
-            options={zoneOptions}
-            placeholder={formData._street ? tr("ph.zone") : tr("ph.zoneFirst")}
-            disabled={!formData._street}
+            value={formData.street || ""}
+            onChange={handleStreetChange}
+            options={streetNames}
+            placeholder={tr("ph.street")}
             inputCls={inputCls}
           />
         </Field>
-        {formData.address && (
-          <div className="md:col-span-2 p-3 text-muted-foreground"
-            style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}>
+        {/* Zone / Sitio — maps to backend zone */}
+        <Field label={`${tr("field.zone")} *`}>
+          <Combobox
+            value={formData.zone || ""}
+            onChange={handleZoneChange}
+            options={zoneOptions}
+            placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
+            disabled={!formData.street}
+            inputCls={inputCls}
+          />
+        </Field>
+        {/* Address preview (display only) */}
+        {addressPreview && (
+          <div
+            className="md:col-span-2 p-3 text-muted-foreground"
+            style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}
+          >
             <span className="font-bold uppercase tracking-wider" style={{ color: NAVY }}>{tr("addr.preview")} </span>
-            {formData.address}
+            {addressPreview}
           </div>
         )}
+        {/* Period of Residency */}
         <Field label={`${tr("field.residency")} *`}>
-          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => set("period_of_residency", v)}
-            placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <MaskedInput
+            value={formData.period_of_residency || ""}
+            onValueChange={(v) => set("period_of_residency", v)}
+            placeholder={tr("ph.residency")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
         </Field>
+        {/* Registered Voter */}
         <Field label={`${tr("field.voter")} *`}>
-          <select
-            value={formData.registered_voter || ""}
-            onChange={(e) => set("registered_voter", e.target.value as "Yes" | "No")}
-            className="w-full bg-transparent border-0 border-b py-2.5 text-foreground focus:outline-none focus:border-[#c2467d] transition-colors duration-200 cursor-pointer"
-            style={{ borderColor: "#d1d5db", fontSize: "inherit" }}
-          >
+          <SelectField value={formData.registered_voter || ""} onChange={(v) => set("registered_voter", v)} inputCls={inputCls}>
             <option value="">{tr("opt.select")}</option>
             <option value="Yes">{tr("opt.yes")}</option>
             <option value="No">{tr("opt.no")}</option>
-          </select>
+          </SelectField>
         </Field>
+        {/* House Owner */}
         <Field label={`${tr("field.houseOwner")} *`}>
-          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => set("house_owner", v)}
-            placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <MaskedInput
+            value={formData.house_owner || ""}
+            onValueChange={(v) => set("house_owner", v)}
+            placeholder={tr("field.houseOwner")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
         </Field>
+        {/* Relation to Owner — maps to backend relationship_to_owner */}
         <Field label={`${tr("field.relation")} *`}>
-          <MaskedInput value={formData.relation_to_house_owner || ""} onValueChange={(v) => set("relation_to_house_owner", v)}
-            placeholder={tr("field.relation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <MaskedInput
+            value={formData.relationship_to_owner || ""}
+            onValueChange={(v) => set("relationship_to_owner", v)}
+            placeholder={tr("field.relation")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
         </Field>
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
@@ -872,29 +1099,120 @@ const StepAddress = ({ formData, set, setExtra, streets, error, onBack, onNext, 
   );
 };
 
-// ─── Step 3: Details ──────────────────────────────────────────────────────────
-const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => (
-  <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-      {/* FIX: field stored as contact_number to match backend */}
-      <Field label={`${tr("field.contact")} *`}>
-        <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => set("contact_number" as keyof BarangayDocument, v)}
-          placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-      <Field label={`${tr("field.purpose")} *`}>
-        <MaskedInput value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}
-          placeholder={tr("ph.purpose")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-      </Field>
-    </div>
-    {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
-  </Card>
-);
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 3: CONTACT, PURPOSE & SERVICE-SPECIFIC FIELDS
+// ═══════════════════════════════════════════════════════════════════════════════
+const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
+  const isBusiness = docType === "business-clearance";
+  const isBuilding = docType === "building-clearance";
+  const isBCert    = docType === "barangay-certificate";
 
-// ─── Step 4: Review ───────────────────────────────────────────────────────────
+  return (
+    <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+        {/* Contact number — maps to backend contact_no */}
+        <Field label={`${tr("field.contact")} *`}>
+          <MaskedInput
+            value={formData.contact_number || ""}
+            onValueChange={(v) => set("contact_number", v)}
+            placeholder={tr("ph.contact")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+        {/* Purpose */}
+        <Field label={`${tr("field.purpose")} *`}>
+          <MaskedInput
+            value={formData.purpose || ""}
+            onValueChange={(v) => set("purpose", v)}
+            placeholder={tr("ph.purpose")}
+            className={inputCls}
+            style={{ borderColor: "#d1d5db" }}
+          />
+        </Field>
+
+        {/* ── Business Clearance extras ── */}
+        {isBusiness && (
+          <>
+            <Field label={`${tr("field.businessName")} *`}>
+              <MaskedInput
+                value={formData.business_name || ""}
+                onValueChange={(v) => set("business_name", v)}
+                placeholder={tr("ph.businessName")}
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field>
+            <Field label={`${tr("field.businessType")} *`}>
+              <MaskedInput
+                value={formData.business_type || ""}
+                onValueChange={(v) => set("business_type", v)}
+                placeholder={tr("ph.businessType")}
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field>
+            <Field label={tr("field.capital")}>
+              <MaskedInput
+                value={formData.capital || ""}
+                onValueChange={(v) => set("capital", v)}
+                placeholder={tr("ph.capital")}
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field>
+          </>
+        )}
+
+        {/* ── Building Clearance extras ── */}
+        {isBuilding && (
+          <>
+            <Field label={tr("field.establishment")}>
+              <MaskedInput
+                value={formData.establishment || ""}
+                onValueChange={(v) => set("establishment", v)}
+                placeholder={tr("ph.establishment")}
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field>
+            {/* <Field label={tr("field.bcertNumber")}>
+              <MaskedInput
+                value={formData.bcert_number || ""}
+                onValueChange={(v) => set("bcert_number", v)}
+                placeholder={tr("ph.bcertNumber")}
+                className={inputCls}
+                style={{ borderColor: "#d1d5db" }}
+              />
+            </Field> */}
+          </>
+        )}
+
+        {/* ── Barangay Certificate extras ── */}
+        {isBCert && (
+          <Field label={tr("field.bcertNumber")}>
+            <MaskedInput
+              value={formData.bcert_number || ""}
+              onValueChange={(v) => set("bcert_number", v)}
+              placeholder={tr("ph.bcertNumber")}
+              className={inputCls}
+              style={{ borderColor: "#d1d5db" }}
+            />
+          </Field>
+        )}
+      </div>
+      {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
+      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
+    </Card>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 4: REVIEW
+// ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
-  docType: DocumentType | "";
-  formData: Partial<BarangayDocument> & Record<string, string>;
+  docType: string;
+  formData: Record<string, string>;
   consentChecked: boolean;
   setConsentChecked: (v: boolean) => void;
   error: string;
@@ -907,45 +1225,81 @@ interface StepReviewProps {
 const StepReview = ({
   docType, formData, consentChecked, setConsentChecked, error, onBack, onSubmit, onEdit, tr,
 }: StepReviewProps) => {
-  const docKeys = docType ? DOC_TR_KEYS[docType] : null;
+  const docKeys   = docType ? DOC_TR_KEYS[docType] : null;
+  const docConfig = DOC_TYPE_KEYS.find((d) => d.type === docType);
+  const isBusiness = docType === "business-clearance";
+  const isBuilding = docType === "building-clearance";
+  const isBCert    = docType === "barangay-certificate";
+  const isResident = docType === "resident-registration";
+
+  const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
+
   return (
     <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
+      {/* Document type badge */}
       {docKeys && (
         <div
           className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
           style={{ background: "#f0f4ff", border: "1px solid #dde3ed", borderRadius: 4, color: NAVY, fontSize: "0.75em" }}
         >
-          {DOC_TYPE_KEYS.find((d) => d.type === docType)?.icon("h-4 w-4")}
+          {docConfig?.icon("h-4 w-4")}
           {tr(docKeys.label)}
         </div>
       )}
 
+      {/* Personal */}
       <ReviewSection title={tr("review.personal")}>
         <ReviewRow label={tr("review.firstName")}  value={formData.first_name} />
         <ReviewRow label={tr("review.middleName")} value={formData.middle_name || "N/A"} />
-        <ReviewRow label={tr("review.Surname")}   value={formData.surname} />
+        <ReviewRow label={tr("review.Surname")}    value={formData.surname} />
         <ReviewRow label={tr("review.dob")}        value={formData.date_of_birth} />
         <div className="col-span-2">
           <ReviewRow label={tr("review.pob")} value={formData.place_of_birth} />
         </div>
+        {isResident && (
+          <>
+            <ReviewRow label={tr("review.sex")}         value={formData.sex} />
+            <ReviewRow label={tr("review.civilStatus")} value={formData.marital_status} />
+          </>
+        )}
       </ReviewSection>
 
+      {/* Address */}
       <ReviewSection title={tr("review.address")}>
         <div className="col-span-2">
-          <ReviewRow label={tr("review.fullAddress")} value={formData.address} />
+          <ReviewRow label="Full address" value={addressPreview} />
         </div>
-        <ReviewRow label={tr("review.residency")}  value={formData.period_of_residency} />
-        <ReviewRow label={tr("review.voter")}      value={formData.registered_voter} />
+        <ReviewRow label={tr("review.street")}    value={formData.street} />
+        <ReviewRow label={tr("review.zone")}      value={formData.zone} />
+        <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
+        <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
-        <ReviewRow label={tr("review.relation")}   value={formData.relation_to_house_owner} />
+        <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
 
+      {/* Contact & Purpose */}
       <ReviewSection title={tr("review.contact")}>
-        {/* FIX: use contact_number field consistent with backend */}
         <ReviewRow label={tr("review.contact")} value={formData.contact_number} />
         <ReviewRow label={tr("review.purpose")} value={formData.purpose} />
+        {isBusiness && (
+          <>
+            <ReviewRow label={tr("field.businessName")} value={formData.business_name} />
+            <ReviewRow label={tr("field.businessType")} value={formData.business_type} />
+            <ReviewRow label={tr("field.capital")}      value={formData.capital} />
+          </>
+        )}
+        {isBuilding && (
+          <>
+            <ReviewRow label={tr("field.establishment")} value={formData.establishment} />
+            <ReviewRow label={tr("field.bcertNumber")}   value={formData.bcert_number} />
+          </>
+        )}
+        {isBCert && (
+          <ReviewRow label={tr("field.bcertNumber")} value={formData.bcert_number} />
+        )}
       </ReviewSection>
 
+      {/* Consent */}
       <div className="mb-4 p-5" style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 4 }}>
         <p className="font-bold uppercase tracking-[0.15em] mb-2" style={{ color: NAVY, fontSize: "0.65em" }}>
           {tr("consent.heading")}
@@ -1009,14 +1363,8 @@ const SuccessScreen = ({ onReset, tr }: { onReset: () => void; tr: (k: string) =
   </div>
 );
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STEP BAR  — defined at module level so it never remounts on FrontDesk re-render
-// ═══════════════════════════════════════════════════════════════════════════════
-interface StepBarProps {
-  currentStep: number;
-  steps: string[];
-}
-
+// ─── Step Bar ──────────────────────────────────────────────────────────────────
+interface StepBarProps { currentStep: number; steps: string[]; }
 const StepBar = ({ currentStep, steps }: StepBarProps) => (
   <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
     {steps.map((label, i) => {
@@ -1061,17 +1409,13 @@ const StepBar = ({ currentStep, steps }: StepBarProps) => (
 const FrontDesk = () => {
   const navigate = useNavigate();
 
-  // ── Accessibility state (persisted) ────────────────────────────────────────
   const [lang, setLang]         = useState<Lang>(() => (localStorage.getItem(LS_LANG) as Lang) || "en");
   const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem(LS_FONT) as FontSize) || "md");
-
-  // Stable translation function — re-created only when lang changes
   const tr = useCallback((k: string) => TRANSLATIONS[lang][k] ?? k, [lang]);
 
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // FIX: useMemo so STEPS_TR is stable and not recreated every render
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
@@ -1082,8 +1426,8 @@ const FrontDesk = () => {
 
   // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
-  const [docType, setDocType]               = useState<DocumentType | "">("");
-  const [formData, setFormData]             = useState<Partial<BarangayDocument> & Record<string, string>>({});
+  const [docType, setDocType]               = useState("");
+  const [formData, setFormData]             = useState<Record<string, string>>({});
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors]                 = useState("");
   const [submitted, setSubmitted]           = useState(false);
@@ -1101,63 +1445,104 @@ const FrontDesk = () => {
   }, []);
 
   // ── Stable setters ─────────────────────────────────────────────────────────
-  const set = useCallback((field: keyof BarangayDocument, value: string) => {
+  const set = useCallback((field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const setExtra = useCallback((key: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  // ── Navigation ─────────────────────────────────────────────────────────────
+  // ── Validation per step ────────────────────────────────────────────────────
   const goNext = useCallback(() => {
     setErrors("");
+
     if (currentStep === 0 && !docType) {
       setErrors(tr("err.selectDoc")); return;
     }
-    if (currentStep === 1 && (!formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth)) {
-      setErrors(tr("err.fillRequired")); return;
+
+    if (currentStep === 1) {
+      const missing = !formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth;
+      const missingResident = docType === "resident-registration" && (!formData.sex || !formData.marital_status);
+      if (missing || missingResident) { setErrors(tr("err.fillRequired")); return; }
     }
-    if (currentStep === 2 && (!formData._street || !formData._zone || !formData.period_of_residency || !formData.registered_voter || !formData.house_owner || !formData.relation_to_house_owner)) {
-      setErrors(tr("err.fillAddress")); return;
+
+    if (currentStep === 2) {
+      if (!formData.street || !formData.zone || !formData.period_of_residency || !formData.registered_voter || !formData.house_owner || !formData.relationship_to_owner) {
+        setErrors(tr("err.fillAddress")); return;
+      }
     }
-    // FIX: validate contact_number (not contact)
-    if (currentStep === 3 && (!formData.contact_number || !formData.purpose)) {
-      setErrors(tr("err.fillRequired")); return;
+
+    if (currentStep === 3) {
+      if (!formData.contact_number || !formData.purpose) {
+        setErrors(tr("err.fillRequired")); return;
+      }
+      // Business Clearance: require business name & type
+      if (docType === "business-clearance" && (!formData.business_name || !formData.business_type)) {
+        setErrors(tr("err.fillRequired")); return;
+      }
     }
+
     setCurrentStep((s) => s + 1);
   }, [currentStep, docType, formData, tr]);
 
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit — payload matches backend KioskSubmitRequest ────────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
+
     try {
-      // FIX: use the shared `api` instance (respects baseURL from your lib/api config)
-      // FIX: send contact_number as contact_number — matches KioskSubmitRequest validation
       const response = await api.post(
         "api/kiosk/submit",
         {
-          service_type:             getServiceType(docType as DocumentType),
-          first_name:              formData.first_name              || "",
-          middle_name:             formData.middle_name             || "",
-          surname:               formData.surname               || "",
-          authorized_person:       formData.authorized_person       || null,
-          address:                 formData.address                 || "",
-          date_of_birth:           formData.date_of_birth           || "",
-          place_of_birth:          formData.place_of_birth          || "",
-          period_of_residency:     formData.period_of_residency     || "",
-          registered_voter:        formData.registered_voter        || "",
-          house_owner:             formData.house_owner             || "",
-          relation_to_house_owner: formData.relation_to_house_owner || "",
-          contact_number:          formData.contact_number          || "",   // FIX: was formData.contact
-          purpose:                 formData.purpose                 || "",
-          priority:                "Normal",
-          type:                    "walk_in",
+          // ── Service ───────────────────────────────────────────────────
+          service_type:  getServiceType(docType),   // e.g. "Barangay Clearance"
+          priority:      "Normal",
+          type:          "walk_in",
+
+          // ── Personal ─────────────────────────────────────────────────
+          prefix:        formData.prefix        || null,
+          first_name:    formData.first_name     || "",
+          middle_name:   formData.middle_name    || null,
+          surname:       formData.surname        || "",
+          ext_name:      formData.ext_name       || null,
+
+          // ── Demographics (Resident Registration) ─────────────────────
+          sex:            formData.sex            || null,
+          marital_status: formData.marital_status || null,
+          age:            formData.age            || null,
+          date_of_birth:  formData.date_of_birth  || "",
+          place_of_birth: formData.place_of_birth || "",
+
+          // ── Address — three separate fields to match backend ──────────
+          house_block_lot_no:   formData.house_block_lot_no   || null,
+          street:               formData.street               || "",
+          zone:                 formData.zone                 || "",
+
+          // ── Residency ─────────────────────────────────────────────────
+          period_of_residency:   formData.period_of_residency    || "",
+          registered_voter:      formData.registered_voter        || "",
+          house_owner:           formData.house_owner             || "",
+          relationship_to_owner: formData.relationship_to_owner   || "",  // matches backend
+
+          // ── Contact ───────────────────────────────────────────────────
+          contact_number: formData.contact_number || "",  // backend maps to contact_no
+
+          // ── Purpose ───────────────────────────────────────────────────
+          purpose:  formData.purpose  || "",
+
+          // ── Business Clearance extras ────────────────────────────────
+          business_name: formData.business_name || null,
+          business_type: formData.business_type || null,
+          capital:       formData.capital       || null,
+
+          // ── Building Clearance extras ─────────────────────────────────
+          establishment: formData.establishment || null,
+          bcert_number:  formData.bcert_number  || null,
+
+          // ── Authorized person (optional) ──────────────────────────────
+          authorized_person: formData.authorized_person || null,
         },
         { withCredentials: true }
       );
+
       console.log("Submission response:", response);
       toast.success(tr("success.title"));
       setSubmitted(true);
@@ -1194,11 +1579,11 @@ const FrontDesk = () => {
             <p className="text-muted-foreground" style={{ fontSize: "0.88em" }}>{tr("header.subtitle")}</p>
           </div>
 
-          {/* FIX: StepBar is now module-level; pass props instead of defining it inside FrontDesk */}
           {!submitted && <StepBar currentStep={currentStep} steps={STEPS_TR} />}
 
           {submitted ? (
             <SuccessScreen onReset={handleReset} tr={tr} />
+
           ) : currentStep === 0 ? (
             <StepDocument
               docType={docType} setDocType={setDocType}
@@ -1206,22 +1591,29 @@ const FrontDesk = () => {
               onHome={() => navigate("/frontdesk")}
               tr={tr} inputCls={inputCls}
             />
+
           ) : currentStep === 1 ? (
             <StepPersonal
               formData={formData} set={set} error={errors}
-              onBack={goBack} onNext={goNext} tr={tr} inputCls={inputCls}
+              onBack={goBack} onNext={goNext}
+              tr={tr} inputCls={inputCls} docType={docType}
             />
+
           ) : currentStep === 2 ? (
             <StepAddress
-              formData={formData} set={set} setExtra={setExtra}
+              formData={formData} set={set}
               streets={streets} error={errors}
-              onBack={goBack} onNext={goNext} tr={tr} inputCls={inputCls}
+              onBack={goBack} onNext={goNext}
+              tr={tr} inputCls={inputCls} docType={docType}
             />
+
           ) : currentStep === 3 ? (
             <StepDetails
               formData={formData} set={set} error={errors}
-              onBack={goBack} onNext={goNext} tr={tr} inputCls={inputCls}
+              onBack={goBack} onNext={goNext}
+              tr={tr} inputCls={inputCls} docType={docType}
             />
+
           ) : (
             <StepReview
               docType={docType} formData={formData}

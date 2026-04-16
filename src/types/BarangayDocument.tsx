@@ -1,4 +1,4 @@
-export type DocumentType = 'clearance' | 'building-clearance' | 'business-clearance' | 'resident';
+export type DocumentType = 'clearance' | 'building-clearance' | 'business-clearance' | 'resident' | 'certificate';
 
 export interface BarangayDocument {
   document_type?: DocumentType;

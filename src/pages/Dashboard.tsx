@@ -55,10 +55,10 @@ const serviceChartColors: Record<string, string> = {
 };
 const pathMap: Record<string, string> = {
   "Barangay Clearance": "/document-edit/2",
-  "Business Clearance": "/document-edit/3",
-  "Building Clearance": "/document-edit/4",
+  "Business Clearance": "/document-edit/4",
+  "Building Clearance": "/document-edit/3",
   "Barangay Certificate": "/document-edit/1",
-  "Resident Registration": "/document-edit/3",
+  "Resident Registration": "/document-edit/5",
 };
 
 const Dashboard = () => {
@@ -190,6 +190,7 @@ const Dashboard = () => {
 
   const handleProcessNow = (ticket: any) => {
     const key = toTitleCase(ticket.service_type);
+    
 
     const path = pathMap[key] ?? "/tickets";
 

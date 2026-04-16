@@ -257,6 +257,8 @@ export function CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
   const location = useLocation();
   const ticket = location.state?.ticket;
+
+  console.log(ticket)
   const autoPrint = location.state?.autoPrint;
 
   // ── UI state ────────────────────────────────────────────────────────────────
@@ -502,7 +504,7 @@ export function CertificateEditor() {
               surname:              'surname',
               dob:                  'date_of_birth',
               pob:                  'place_of_birth',
-              relationship_to_owner: 'relation_to_house_owner',
+              relationship_to_owner: 'relationship_to_owner',
             };
             value = source[keyMap[key] ?? key];
           }
