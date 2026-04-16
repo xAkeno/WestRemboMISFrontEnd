@@ -66,6 +66,7 @@ import QRScanner from "./pages/QRScanner";
 import { QueueControl } from "./components/queue/QueueControl";
 import QueueDisplay from "./components/queue/QueueDisplay";
 import { useMaintenance } from "@/hooks/useMaintenance";
+import { VacationModal } from "@/components/VacationModal";
 import { MaintenanceModal } from "@/components/MaintenanceModal";
 const App = () => { 
   const user = JSON.parse(localStorage.getItem("user") || "null");

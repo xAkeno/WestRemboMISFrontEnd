@@ -148,6 +148,8 @@ export default function AccountDetail() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [approving, setApproving]   = useState(false);
   const [lightbox, setLightbox]     = useState(false);
+  const [permConfirm, setPermConfirm] = useState<{ key: string; label: string; enabling: boolean } | null>(null);
+  const [permSaving, setPermSaving] = useState(false);
 
   const fetchAccount = async () => {
     setLoading(true);
@@ -171,11 +173,17 @@ export default function AccountDetail() {
 
   useEffect(() => { if (id) fetchAccount(); }, [id]);
 
-  const handlePermissionToggle = async (perm: string) => {
-    if (!account) return;
-    const updated = permissions.includes(perm)
-      ? permissions.filter(p => p !== perm)
-      : [...permissions, perm];
+  const handlePermissionToggle = (perm: string, label: string) => {
+    const enabling = !permissions.includes(perm);
+    setPermConfirm({ key: perm, label, enabling });
+  };
+
+  const confirmPermissionToggle = async () => {
+    if (!account || !permConfirm) return;
+    setPermSaving(true);
+    const updated = permConfirm.enabling
+      ? [...permissions, permConfirm.key]
+      : permissions.filter(p => p !== permConfirm.key);
     setPermissions(updated);
     try {
       await axios.put(`http://127.0.0.1:8000/api/users/${account.id}/permissions`,
@@ -183,6 +191,9 @@ export default function AccountDetail() {
       toast("Permission updated.");
     } catch {
       toast("Failed to update permissions.");
+    } finally {
+      setPermSaving(false);
+      setPermConfirm(null);
     }
   };
 
@@ -239,6 +250,69 @@ export default function AccountDetail() {
 
   return (
     <Layout>
+      {/* Permission Confirmation Modal */}
+      {permConfirm && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={() => !permSaving && setPermConfirm(null)}>
+          <div
+            className="bg-white rounded-sm shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            style={{ border: `1px solid #dde3ed`, borderTopWidth: 3, borderTopColor: permConfirm.enabling ? NAVY : PINK }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded-sm"
+                  style={{ background: permConfirm.enabling ? "#eff6ff" : "#fff1f2" }}>
+                  {permConfirm.enabling
+                    ? <ShieldCheck className="h-4 w-4" style={{ color: "#2563eb" }} />
+                    : <ShieldX     className="h-4 w-4" style={{ color: "#e11d48" }} />}
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]"
+                  style={{ color: permConfirm.enabling ? "#1d4ed8" : PINK }}>
+                  {permConfirm.enabling ? "Grant Permission" : "Revoke Permission"}
+                </p>
+              </div>
+              <h3 className="font-bold text-base mb-1" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
+                Are you sure?
+              </h3>
+              <p className="text-sm text-gray-500 leading-snug">
+                {permConfirm.enabling
+                  ? <>You are about to grant <strong className="text-gray-700">{permConfirm.label}</strong> access to this account.</>
+                  : <>You are about to revoke <strong className="text-gray-700">{permConfirm.label}</strong> access from this account.</>}
+              </p>
+            </div>
+
+            <div className="h-px" style={{ background: "#e5e7eb" }} />
+
+            {/* Actions */}
+            <div className="px-5 py-4 flex gap-2 justify-end">
+              <button
+                onClick={() => setPermConfirm(null)}
+                disabled={permSaving}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider border transition-all disabled:opacity-40"
+                style={{ borderColor: "#d1d5db", color: "#374151", borderRadius: 2 }}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmPermissionToggle}
+                disabled={permSaving}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5 transition-all disabled:opacity-40"
+                style={{
+                  background: permConfirm.enabling ? "#1d4ed8" : "#e11d48",
+                  borderRadius: 2,
+                }}>
+                {permSaving
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+                  : permConfirm.enabling
+                    ? <><ShieldCheck className="h-3.5 w-3.5" /> Grant Access</>
+                    : <><ShieldX     className="h-3.5 w-3.5" /> Revoke Access</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <style>{`
         .perm-card { transition: all 0.15s; cursor: pointer; }
         .perm-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,42,94,0.08); }
@@ -445,7 +519,7 @@ export default function AccountDetail() {
                   const active = permissions.includes(key);
                   return (
                     <div key={key}
-                      onClick={() => handlePermissionToggle(key)}
+                      onClick={() => handlePermissionToggle(key, label)}
                       className="perm-card rounded-sm border p-3 flex items-center justify-between gap-3"
                       style={{
                         borderColor: active ? "#bfdbfe" : "#e5e7eb",

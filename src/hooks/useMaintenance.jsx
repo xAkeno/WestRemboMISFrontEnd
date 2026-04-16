@@ -8,23 +8,32 @@ const api = axios.create({
 
 export function useMaintenance(user) {
   const [maintenance, setMaintenance] = useState(false);
-  const [message, setMessage] = useState("");
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
+  const [vacation, setVacation] = useState(false);
+  const [vacationStart, setVacationStart] = useState("");
+  const [vacationEnd, setVacationEnd] = useState("");
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchSettings = async () => {
       const { data } = await api.get("/settings/");
 
       setMaintenance(data.maintenance_mode === "true");
-      setMessage(data.maintenance_message || "Under Maintenance");
+      setMaintenanceMessage(data.maintenance_message || "Under Maintenance");
+      setVacation(data.vacation_mode === "true");
+      setVacationStart(data.vacation_start || "");
+      setVacationEnd(data.vacation_end || "");
     };
 
-    fetch();
+    fetchSettings();
   }, []);
 
   const isAdmin = user?.role === "admin";
 
   return {
     showMaintenance: maintenance && !isAdmin,
-    message,
+    message: maintenanceMessage,
+    showVacation: vacation && !isAdmin,
+    vacationStart,
+    vacationEnd,
   };
 }

@@ -16,7 +16,9 @@ import ResidentRegistrationForm from '../forms/ResidentRegistrationForm';
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
+import { MaintenanceModal } from '@/components/MaintenanceModal';
+import { VacationModal } from '@/components/VacationModal';
+import { useMaintenance } from '@/hooks/useMaintenance';
 // --- Data Models ---
 
 const CATEGORIES = [
@@ -201,9 +203,15 @@ const ServiceModal = ({ service, onClose, onProceed, selectedType, renderForm })
 export default function ServiceCards() {
   const navigate = useNavigate();
   const [self, setSelf] = useState<any>(null);
+
+  // Add this — grab the user from localStorage same as App.jsx
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const { showMaintenance, message, showVacation, vacationStart, vacationEnd } = useMaintenance(user);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedType, setSelectedType] = useState<RequestType>(null);
+
+  
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(false);
@@ -357,6 +365,10 @@ export default function ServiceCards() {
           featureLabel={pendingService ? `apply for ${pendingService.title}` : 'access this service'}
         />
       </main>
+      {showMaintenance && <MaintenanceModal message={message} />}
+      {showVacation && !showMaintenance && (
+        <VacationModal vacationStart={vacationStart} vacationEnd={vacationEnd} />
+      )}
     </div>
   );
 }
