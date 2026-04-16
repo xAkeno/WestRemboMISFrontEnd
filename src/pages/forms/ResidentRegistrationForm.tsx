@@ -263,7 +263,13 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
             </div>
             <div>
               <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
+              <FieldInput
+                id="dob"
+                type="date"
+                value={formData.dob}
+                max={new Date().toISOString().split("T")[0]} // ✅ prevents future dates
+                onChange={(e) => upd("dob", e.target.value)}
+              />
             </div>
           </div>
 

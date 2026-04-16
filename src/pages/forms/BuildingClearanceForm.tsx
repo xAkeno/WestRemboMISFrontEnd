@@ -22,10 +22,39 @@ const ST = {
   style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
 };
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+const MIN_AGE = 18;
+
+const today = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const maxDob = () => {
+  const d = today();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d;
+};
+
+const validateDob = (dob: string): string => {
+  if (!dob) return "";
+  const date = new Date(dob);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today()) return "Date of birth cannot be a future date.";
+  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old to apply for a Building Clearance.`;
+  return "";
+};
+
+const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
+  const [dobError, setDobError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,25 +74,36 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const [formData, setFormData] = useState({
     requester_type: "Online",
     prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
+    dob: "",
     establishment: "", purpose: "", purpose_details: "",
     house_block_lot_no: "", street: "", zone: "",
     bcert_number: "", issued_date: "", or_no: "", remarks: "",
     punong_barangay: "", for_the_punong_barangay: "", barangay_position: "",
   });
 
-  console.log("Form data:", formData);
-
   const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
-  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+
+  const handleDobChange = (val: string) => {
+    upd("dob", val);
+    setDobError(validateDob(val));
+  };
+
+  const handleNext = () => {
+    if (currentStep === 0 && formData.dob && dobError) return;
+    if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+  };
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
-  
 
   const handleSubmit = async () => {
+    const err = validateDob(formData.dob);
+    if (err) { setDobError(err); toast({ title: "Validation Error", description: err, variant: "destructive" }); return; }
+
     setIsSubmitting(true);
     const payload = {
       requester_type: formData.requester_type, prefix: formData.prefix,
       surname: formData.surname, first_name: formData.first_name,
       middle_name: formData.middle_name, ext_name: formData.ext_name,
+      dob: formData.dob,
       establishment: formData.establishment, house_block_lot_no: formData.house_block_lot_no,
       street: formData.street, zone: formData.zone,
       purpose: formData.purpose, purpose_details: formData.purpose_details,
@@ -77,7 +117,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
       const res = await api.post("/building-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         toast({ title: "Request Submitted", description: "Your building clearance request has been submitted successfully." });
-        console.log("Created building clearance record:", res.data);
         onBack();
       }
     } catch (error: any) {
@@ -94,28 +133,22 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
       try {
         const res = await api.get("/details", { withCredentials: true });
         const user = res.data.data;
-        console.log("Authenticated user details:", user);
         setFormData((prev) => ({
           ...prev,
-
-          // Owner Info
           prefix: user.prefix || "",
           surname: user.surname || "",
           first_name: user.first_name || "",
           middle_name: user.middle_name || "",
           ext_name: user.extension_name || "",
-
-          // Address
+          dob: user.dob || user.date_of_birth || "",
           house_block_lot_no: user.house_block_lot_no || "",
           street: user.street || "",
           zone: user.zone_purok || "",
         }));
-
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
       }
     };
-
     loadUser();
   }, []);
 
@@ -148,9 +181,25 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-          <div className="max-w-xs">
-            <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
-            <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
+              <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+              <FieldInput
+                id="dob"
+                type="date"
+                value={formData.dob}
+                max={toInputMax(maxDob())}
+                onChange={(e) => handleDobChange(e.target.value)}
+                style={{ borderColor: dobError ? "#ef4444" : undefined }}
+              />
+              {dobError && (
+                <p className="mt-1 text-xs text-red-500">{dobError}</p>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -224,53 +273,13 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         </div>
       );
 
-      // ── Step 3: Clearance Info ──────────────────────────────────────────────
-      // case 3: return (
-      //   <div className="space-y-6">
-      //     <SectionDivider title="Clearance Information" />
-      //     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-      //       <div>
-      //         <FieldLabel htmlFor="bcert_number">Clearance Number</FieldLabel>
-      //         <FieldInput id="bcert_number" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="issuedDate">Issued Date</FieldLabel>
-      //         <FieldInput id="issuedDate" type="date" value={formData.issuedDate} onChange={(e) => upd("issuedDate", e.target.value)} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="orNo">O.R. Number</FieldLabel>
-      //         <FieldInput id="orNo" value={formData.orNo} onChange={(e) => upd("orNo", e.target.value)} />
-      //       </div>
-      //     </div>
-      //     <div>
-      //       <FieldLabel htmlFor="remarks">Remarks</FieldLabel>
-      //       <FieldTextarea id="remarks" rows={3} value={formData.remarks} onChange={(e) => upd("remarks", e.target.value)} />
-      //     </div>
-
-      //     <SectionDivider title="Authorization" />
-      //     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-      //       <div>
-      //         <FieldLabel htmlFor="punongBarangay">Punong Barangay</FieldLabel>
-      //         <FieldInput id="punongBarangay" value={formData.punongBarangay} onChange={(e) => upd("punongBarangay", e.target.value)} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="forThePunongBarangay">For the Punong Barangay</FieldLabel>
-      //         <FieldInput id="forThePunongBarangay" value={formData.forThePunongBarangay} onChange={(e) => upd("forThePunongBarangay", e.target.value)} />
-      //       </div>
-      //     </div>
-      //     <div className="max-w-sm">
-      //       <FieldLabel htmlFor="barangayPosition">Barangay Position</FieldLabel>
-      //       <FieldInput id="barangayPosition" value={formData.barangayPosition} onChange={(e) => upd("barangayPosition", e.target.value)} />
-      //     </div>
-      //   </div>
-      // );
-
       // ── Step 3: Review ──────────────────────────────────────────────────────
       case 3: return (
         <div className="space-y-5">
           <ReviewHeader current={5} total={5} />
           <ReviewCard title="Applicant Information">
             <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+            <ReviewRow label="Date of Birth" value={formData.dob} />
           </ReviewCard>
           <ReviewCard title="Building Details">
             <ReviewRow label="Establishment" value={formData.establishment} />
@@ -282,11 +291,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             <ReviewRow label="Street" value={formData.street} />
             <ReviewRow label="Zone / Purok" value={formData.zone} />
           </ReviewCard>
-          {/* <ReviewCard title="Clearance Info">
-            <ReviewRow label="O.R. Number" value={formData.or_no} />
-            <ReviewRow label="Remarks" value={formData.remarks} />
-            <ReviewRow label="Punong Barangay" value={formData.punong_barangay} />
-          </ReviewCard> */}
         </div>
       );
 

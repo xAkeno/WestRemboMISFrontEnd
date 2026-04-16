@@ -23,13 +23,41 @@ const ST = {
   style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
 };
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+const MIN_AGE = 15;
+
+const today = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const maxDob = () => {
+  const d = today();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d;
+};
+
+const validateDob = (dob: string): string => {
+  if (!dob) return "";
+  const date = new Date(dob);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today()) return "Date of birth cannot be a future date.";
+  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old.`;
+  return "";
+};
+
+const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
+  const [dobError, setDobError] = useState("");
   const { toast } = useToast();
 
-  // Fetch streets from API on mount
   useEffect(() => {
     const load = async () => {
       try {
@@ -58,10 +86,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
   });
 
   const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
-  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+
+  const handleDobChange = (val: string) => {
+    upd("dob", val);
+    setDobError(validateDob(val));
+  };
+
+  const handleNext = () => {
+    if (currentStep === 0 && formData.dob && dobError) return;
+    if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+  };
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
+    const err = validateDob(formData.dob);
+    if (err) { setDobError(err); toast({ title: "Validation Error", description: err, variant: "destructive" }); return; }
+
     setIsSubmitting(true);
     const payload = {
       requester_type: formData.requester_type, prefix: formData.prefix,
@@ -99,27 +139,21 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
       try {
         const res = await api.get("/details", { withCredentials: true });
         const user = res.data.data;
-        console.log("Authenticated user details:", user);
 
         setFormData(prev => ({
           ...prev,
-          // Owner Info
           prefix: user.prefix ?? "",
           surname: user.surname ?? "",
           first_name: user.first_name ?? "",
           middle_name: user.middle_name ?? "",
           ext_name: user.extension_name ?? "",
-
           dob: user.date_of_birth ?? "",
           pob: user.place_of_birth ?? "",
           contact_no: user.contact_number ?? "",
           email: user.email ?? "",
-
-          // Address
           house_block_lot_no: user.house_block_lot_no ?? "",
           street: user.street ?? "",
           zone: user.zone_purok ?? "",
-
           house_owner: user.house_owner ?? "",
           relationship_to_owner: user.relationship_to_owner ?? "",
           period_of_residency: user.period_of_residency ?? "",
@@ -129,7 +163,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
         console.error("Failed to load authenticated user:", error);
       }
     };
-
     loadUser();
   }, []);
 
@@ -141,7 +174,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
           <SectionDivider title="Personal Information" />
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
-            {/* Prefix */}
             <div>
               <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
               <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
@@ -172,7 +204,17 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             </div>
             <div>
               <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
+              <FieldInput
+                id="dob"
+                type="date"
+                value={formData.dob}
+                max={toInputMax(maxDob())}
+                onChange={(e) => handleDobChange(e.target.value)}
+                style={{ borderColor: dobError ? "#ef4444" : undefined }}
+              />
+              {dobError && (
+                <p className="mt-1 text-xs text-red-500">{dobError}</p>
+              )}
             </div>
             <div>
               <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
@@ -207,7 +249,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
           </div>
 
-          {/* Street — fetched dropdown, fallback to text input */}
           <div>
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
@@ -226,7 +267,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             )}
           </div>
 
-          {/* Zone — derived from fetched streets' sitio field */}
           <div>
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
@@ -269,14 +309,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
           <SectionDivider title="Clearance Details" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-            {/* <div>
-              <FieldLabel htmlFor="bcert_number">Clearance Number</FieldLabel>
-              <FieldInput id="bcert_number" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="issued_date">Issued Date</FieldLabel>
-              <FieldInput id="issued_date" type="date" value={formData.issued_date} onChange={(e) => upd("issued_date", e.target.value)} />
-            </div> */}
             <div>
               <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
               <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
@@ -310,33 +342,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             <FieldLabel htmlFor="purpose_details">Purpose Details</FieldLabel>
             <FieldTextarea id="purpose_details" rows={3} placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} />
           </div>
-
-          {/* <SectionDivider title="Official Use Only" />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
-            <div>
-              <FieldLabel htmlFor="ctc_vrr_no">CTC / VRR No.</FieldLabel>
-              <FieldInput id="ctc_vrr_no" value={formData.ctc_vrr_no} onChange={(e) => upd("ctc_vrr_no", e.target.value)} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="issued_at">Issued At</FieldLabel>
-              <FieldInput id="issued_at" value={formData.issued_at} onChange={(e) => upd("issued_at", e.target.value)} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="issued_on">Issued On</FieldLabel>
-              <FieldInput id="issued_on" type="date" value={formData.issued_on} onChange={(e) => upd("issued_on", e.target.value)} />
-            </div>
-          </div>
-
-          <div className="max-w-xs">
-            <FieldLabel htmlFor="or_no">O.R. Number</FieldLabel>
-            <FieldInput id="or_no" value={formData.or_no} onChange={(e) => upd("or_no", e.target.value)} />
-          </div>
-
-          <div>
-            <FieldLabel htmlFor="remarks">Remarks</FieldLabel>
-            <FieldTextarea id="remarks" rows={3} value={formData.remarks} onChange={(e) => upd("remarks", e.target.value)} />
-          </div> */}
         </div>
       );
 

@@ -22,10 +22,39 @@ const ST = {
   style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
 };
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+const MIN_AGE = 18;
+
+const today = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const maxDob = () => {
+  const d = today();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d;
+};
+
+const validateDob = (dob: string): string => {
+  if (!dob) return "";
+  const date = new Date(dob);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today()) return "Date of birth cannot be a future date.";
+  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old to apply for a Business Clearance.`;
+  return "";
+};
+
+const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
+  const [dobError, setDobError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,6 +78,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     first_name: "",
     middle_name: "",
     ext_name: "",
+    dob: "",
 
     business_name: "",
     business_type: "",
@@ -72,18 +102,29 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     inspected_note: "",
   });
 
-  console.log("Current form data:", formData);
-
   const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
-  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+
+  const handleDobChange = (val: string) => {
+    upd("dob", val);
+    setDobError(validateDob(val));
+  };
+
+  const handleNext = () => {
+    if (currentStep === 0 && formData.dob && dobError) return;
+    if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+  };
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
+    const err = validateDob(formData.dob);
+    if (err) { setDobError(err); toast({ title: "Validation Error", description: err, variant: "destructive" }); return; }
+
     setIsSubmitting(true);
     const payload = {
       requester_type: formData.requester_type, prefix: formData.prefix,
       surname: formData.surname, first_name: formData.first_name,
       middle_name: formData.middle_name, ext: formData.ext_name,
+      dob: formData.dob,
       business_name: formData.business_name, business_type: formData.business_type,
       business_details: formData.business_details,
       capital: formData.capital ? Number(formData.capital) : null,
@@ -99,7 +140,6 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       const res = await api.post("/business-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         toast({ title: "Request Submitted", description: "Your business clearance request has been submitted successfully." });
-        console.log("Created business clearance record:", res.data);
         onBack();
       }
     } catch (error: any) {
@@ -116,28 +156,22 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       try {
         const res = await api.get("/details", { withCredentials: true });
         const user = res.data.data;
-        console.log("Authenticated user details:", user);
         setFormData((prev) => ({
           ...prev,
-
-          // Owner Info
           prefix: user.prefix || "",
           surname: user.surname || "",
           first_name: user.first_name || "",
           middle_name: user.middle_name || "",
           ext_name: user.extension_name || "",
-
-          // Address
+          dob: user.dob || user.date_of_birth || "",
           house_block_lot_no: user.house_block_lot_no || "",
           street: user.street || "",
           zone: user.zone_purok || "",
         }));
-
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
       }
     };
-
     loadUser();
   }, []);
 
@@ -170,9 +204,25 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
               <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-          <div className="max-w-xs">
-            <FieldLabel htmlFor="ext">Extension</FieldLabel>
-            <FieldInput id="ext" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <FieldLabel htmlFor="ext">Extension</FieldLabel>
+              <FieldInput id="ext" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+              <FieldInput
+                id="dob"
+                type="date"
+                value={formData.dob}
+                max={toInputMax(maxDob())}
+                onChange={(e) => handleDobChange(e.target.value)}
+                style={{ borderColor: dobError ? "#ef4444" : undefined }}
+              />
+              {dobError && (
+                <p className="mt-1 text-xs text-red-500">{dobError}</p>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -201,7 +251,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <FieldTextarea id="businessDetails" rows={3} placeholder="Describe your business activities..." value={formData.business_details} onChange={(e) => upd("business_details", e.target.value)} />
           </div>
           <div className="max-w-sm">
-            <FieldLabel htmlFor="capital" required >Capital (PHP)</FieldLabel>
+            <FieldLabel htmlFor="capital" required>Capital (PHP)</FieldLabel>
             <FieldInput id="capital" type="number" placeholder="0.00" value={formData.capital} onChange={(e) => upd("capital", e.target.value)} />
           </div>
         </div>
@@ -250,53 +300,13 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
         </div>
       );
 
-      // ── Step 3: Clearance Details ───────────────────────────────────────────
-      // case 3: return (
-      //   <div className="space-y-6">
-      //     <SectionDivider title="Clearance Details" />
-      //     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-      //       <div>
-      //         <FieldLabel htmlFor="brgyBusinessNo">Barangay Business No.</FieldLabel>
-      //         <FieldInput id="brgyBusinessNo" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="issuedDate">Issued Date</FieldLabel>
-      //         <FieldInput id="issuedDate" type="date" value={formData.issuedDate} onChange={(e) => upd("issuedDate", e.target.value)} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="orNo">O.R. Number</FieldLabel>
-      //         <FieldInput id="orNo" value={formData.orNo} onChange={(e) => upd("orNo", e.target.value)} />
-      //       </div>
-      //     </div>
-
-      //     <SectionDivider title="Inspection Details" />
-      //     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-      //       <div>
-      //         <FieldLabel htmlFor="inspectedBy">Inspected By</FieldLabel>
-      //         <FieldInput id="inspectedBy" value={formData.inspectedBy} onChange={(e) => upd("inspectedBy", e.target.value)} />
-      //       </div>
-      //       <div>
-      //         <FieldLabel htmlFor="dateOfInspection">Date of Inspection</FieldLabel>
-      //         <FieldInput id="dateOfInspection" type="date" value={formData.dateOfInspection} onChange={(e) => upd("dateOfInspection", e.target.value)} />
-      //       </div>
-      //     </div>
-      //     <div>
-      //       <FieldLabel htmlFor="inspectionRemarks">Inspection Remarks</FieldLabel>
-      //       <FieldTextarea id="inspectionRemarks" rows={3} value={formData.inspectionRemarks} onChange={(e) => upd("inspectionRemarks", e.target.value)} />
-      //     </div>
-      //     <div>
-      //       <FieldLabel htmlFor="inspectedNote">Additional Notes</FieldLabel>
-      //       <FieldTextarea id="inspectedNote" rows={3} value={formData.inspectedNote} onChange={(e) => upd("inspectedNote", e.target.value)} />
-      //     </div>
-      //   </div>
-      // );
-
       // ── Step 3: Review ──────────────────────────────────────────────────────
       case 3: return (
         <div className="space-y-5">
           <ReviewHeader current={5} total={5} />
           <ReviewCard title="Owner Information">
             <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+            <ReviewRow label="Date of Birth" value={formData.dob} />
           </ReviewCard>
           <ReviewCard title="Business Information">
             <ReviewRow label="Business Name" value={formData.business_name} />
@@ -308,11 +318,6 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <ReviewRow label="Street" value={formData.street} />
             <ReviewRow label="Zone / Purok" value={formData.zone} />
           </ReviewCard>
-          {/* <ReviewCard title="Clearance Details">
-            <ReviewRow label="O.R. Number" value={formData.or_no} />
-            <ReviewRow label="Inspected By" value={formData.inspected_by} />
-            <ReviewRow label="Date of Inspection" value={formData.date_of_inspection} />
-          </ReviewCard> */}
         </div>
       );
 

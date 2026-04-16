@@ -170,7 +170,7 @@ const Header = () => {
                 </a>
               ))}
               <div className="ml-4 pl-4 flex items-center gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
-                <NotificationBell/>
+                {self && <NotificationBell />}
                 {self ? (
                   <ProfileDropdown self={self} />
                 ) : (
@@ -291,7 +291,7 @@ const Header = () => {
                 </a>
               )}
             </div>
-            <NotificationBell/>
+            {self && <NotificationBell />}
           </div>
         )}
       </header>

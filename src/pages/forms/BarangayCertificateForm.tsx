@@ -23,10 +23,40 @@ const ST = {
   style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
 };
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+const MIN_AGE = 15;
+
+const today = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const maxDob = () => {
+  const d = today();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d;
+};
+
+/** Returns an error string or "" if valid */
+const validateDob = (dob: string): string => {
+  if (!dob) return "";
+  const date = new Date(dob);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today()) return "Date of birth cannot be a future date.";
+  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old.`;
+  return "";
+};
+
+const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
+  const [dobError, setDobError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,12 +87,30 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   });
 
   const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
-  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+
+  const handleDobChange = (val: string) => {
+    upd("dob", val);
+    const err = validateDob(val);
+    setDobError(err);
+
+    // Auto-compute age if valid
+    if (!err && val) {
+      const age = today().getFullYear() - new Date(val).getFullYear();
+      upd("age", String(age));
+    }
+  };
+
+  const handleNext = () => {
+    // Block step 0 advance if DOB has an error
+    if (currentStep === 0 && formData.dob && dobError) return;
+    if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+  };
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
-  console.log("Form data:", formData);
-
   const handleSubmit = async () => {
+    const err = validateDob(formData.dob);
+    if (err) { setDobError(err); toast({ title: "Validation Error", description: err, variant: "destructive" }); return; }
+
     setIsSubmitting(true);
     try {
       const res = await axios.post(
@@ -72,7 +120,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
       );
       if (res.status === 201 || res.status === 200) {
         toast({ title: "Success", description: "Barangay certificate request submitted successfully." });
-        console.log("Created record:", res.data);
         onBack();
       }
     } catch (error: any) {
@@ -90,11 +137,9 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
       try {
         const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
         const user = res.data.data;
-        console.log("Authenticated user details:", user);
 
         setFormData(prev => ({
           ...prev,
-          // Personal Info
           prefix: user.prefix ?? "",
           first_name: user.first_name ?? "",
           middle_name: user.middle_name ?? "",
@@ -102,18 +147,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           extension: user.extension_name ?? "",
           dob: user.dob ?? "",
           pob: user.pob ?? "",
-          age: user.dob ? new Date().getFullYear() - new Date(user.dob).getFullYear() + "" : "",
-
-          // Contact Info
+          age: user.dob ? String(today().getFullYear() - new Date(user.dob).getFullYear()) : "",
           contact_no: user.contact_number ?? "",
           email: user.email ?? "",
-
-          // Address
           house_block_lot_no: user.house_block_lot_no ?? "",
           street: user.street ?? "",
           zone: user.zone_purok ?? "",
-
-          // Other
           house_owner: user.house_owner ?? "",
           relationship_to_owner: user.relationship_to_owner ?? "",
           period_of_residency: user.period_of_residency ?? "",
@@ -123,7 +162,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
         console.error("Failed to load authenticated user:", error);
       }
     };
-
     loadUser();
   }, []);
 
@@ -165,11 +203,21 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
             </div>
             <div>
               <FieldLabel htmlFor="age" required>Age</FieldLabel>
-              <FieldInput id="age" type="number" value={formData.age} onChange={(e) => upd("age", e.target.value)} />
+              <FieldInput id="age" type="number" value={formData.age} readOnly style={{ opacity: 0.6, cursor: "not-allowed" }} />
             </div>
             <div>
               <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-              <FieldInput id="dob" type="date" value={formData.dob} onChange={(e) => upd("dob", e.target.value)} />
+              <FieldInput
+                id="dob"
+                type="date"
+                value={formData.dob}
+                max={toInputMax(maxDob())}
+                onChange={(e) => handleDobChange(e.target.value)}
+                style={{ borderColor: dobError ? "#ef4444" : undefined }}
+              />
+              {dobError && (
+                <p className="mt-1 text-xs text-red-500">{dobError}</p>
+              )}
             </div>
             <div>
               <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
@@ -261,14 +309,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <SectionDivider title="Certificate Details" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-            {/* <div>
-              <FieldLabel htmlFor="bcert_number">Certificate Number</FieldLabel>
-              <FieldInput id="bcert_number" placeholder="Auto-generated" disabled style={{ opacity: 0.45, cursor: "not-allowed" }} />
-            </div> */}
-            {/* <div>
-              <FieldLabel htmlFor="issued_date">Issued Date</FieldLabel>
-              <FieldInput id="issued_date" type="date" value={formData.issued_date} onChange={(e) => upd("issued_date", e.target.value)} />
-            </div> */}
             <div>
               <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
               <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
@@ -302,18 +342,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
             <FieldLabel htmlFor="purpose_details">Purpose Details</FieldLabel>
             <FieldTextarea id="purpose_details" rows={3} placeholder="Additional details about the purpose..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} />
           </div>
-
-          {/* <SectionDivider title="Authorization" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-            <div>
-              <FieldLabel htmlFor="punong_barangay">Punong Barangay</FieldLabel>
-              <FieldInput id="punong_barangay" value={formData.punong_barangay} onChange={(e) => upd("punong_barangay", e.target.value)} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="for_the_punong_barangay">For the Punong Barangay</FieldLabel>
-              <FieldInput id="for_the_punong_barangay" value={formData.for_the_punong_barangay} onChange={(e) => upd("for_the_punong_barangay", e.target.value)} />
-            </div>
-          </div> */}
         </div>
       );
 
