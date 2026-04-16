@@ -6,6 +6,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import ProfileDropdown from "./ProfileDropdown";
 import AuthRequiredModal from "../AuthRequiredModal";
+import NotificationBell from "../NotificationBell";
 // ── Protected routes that require login ───────────────────────────────────────
 const navLinks = [
   { label: "Home",     href: "/home",     protected: false },
@@ -168,8 +169,8 @@ const Header = () => {
                   {link.label}
                 </a>
               ))}
-
-              <div className="ml-4 pl-4" style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
+              <div className="ml-4 pl-4 flex items-center gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
+                <NotificationBell/>
                 {self ? (
                   <ProfileDropdown self={self} />
                 ) : (
@@ -290,6 +291,7 @@ const Header = () => {
                 </a>
               )}
             </div>
+            <NotificationBell/>
           </div>
         )}
       </header>
