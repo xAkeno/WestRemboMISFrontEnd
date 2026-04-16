@@ -9,7 +9,9 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
-
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -1280,8 +1282,16 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
         </Field>
         {/* Relation to Owner */}
         <Field label={`${tr("field.relation")} *`}>
-          <MaskedInput value={formData.relationship_to_owner || ""} onValueChange={(v) => set("relationship_to_owner", v)}
-            placeholder={tr("field.relation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <Select value={formData.relationship_to_owner || ""} onValueChange={(v) => set("relationship_to_owner", v)}>
+            <SelectTrigger className={inputCls} style={{ borderColor: "#d1d5db" }}>
+              <SelectValue placeholder={tr("opt.select")} />
+            </SelectTrigger>
+            <SelectContent>
+              {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
@@ -1314,8 +1324,16 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
         {/* Purpose */}
         <div className="md:col-span-2">
           <Field label={`${tr("field.purpose")} *`}>
-            <MaskedInput value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}
-              placeholder={tr("ph.purpose")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <Select value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}>
+              <SelectTrigger className={inputCls} style={{ borderColor: "#d1d5db" }}>
+                <SelectValue placeholder={tr("ph.purpose")} />
+              </SelectTrigger>
+              <SelectContent>
+                {["Employment","Business","Travel","Legal Purposes","School Requirement","Bank Transaction","Other"].map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
 
