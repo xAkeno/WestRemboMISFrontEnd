@@ -107,7 +107,7 @@ export function Toolbar({
   return (
 
     
-    <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 flex-wrap">
+    <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 overflow-x-auto whitespace-nowrap">
 
       {/* Upload template */}
       <label>

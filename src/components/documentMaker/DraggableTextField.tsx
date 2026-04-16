@@ -7,13 +7,12 @@ import { useRef } from 'react';
 interface DraggableTextFieldProps {
   field: TextField;
   isSelected: boolean;
-  scale: number;
   onSelect: (id: string) => void;
   onDrag: (id: string, x: number, y: number) => void;
   onDelete: (id: string) => void;
 }
 
-export function DraggableTextField({ field, isSelected, scale, onSelect, onDrag, onDelete }: DraggableTextFieldProps) {
+export function DraggableTextField({ field, isSelected, onSelect, onDrag, onDelete }: DraggableTextFieldProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
 
   const fontFamilyMap: Record<string, string> = {
@@ -25,7 +24,6 @@ export function DraggableTextField({ field, isSelected, scale, onSelect, onDrag,
   return (
     <Draggable
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
-      scale={scale}
       position={{ x: field.x, y: field.y }}
       onStop={(_e, data) => {
         onDrag(field.id, data.x, data.y);

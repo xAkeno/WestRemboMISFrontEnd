@@ -368,6 +368,19 @@ export function CertificateEditor() {
 
   return payload;
 };
+const LABEL_TO_FIELD_TYPE: Record<string, TextField["fieldType"]> = {
+  "Date": "DATE",
+  "Issued At": "DATE",
+  "Issued On": "DATE",
+  "Issued Date": "DATE",
+  "Date of Birth": "DATE",
+  "Date Inspected": "DATE",
+
+  "Street": "ADDRESS",
+  "House Block Lot No": "ADDRESS",
+
+  "Zone": "ZONE",
+};
 
   const normaliseDate = (value: any): any => {
     if (typeof value === "string" && value.includes("T")) {
@@ -494,23 +507,25 @@ export function CertificateEditor() {
       const record = existingData ?? null;
       const mergedFields = savedLayout.map((field) => {
         const key = LABEL_TO_KEY[field.label];
-        let value: any = '';
-        if (key) {
-          if (record) {
-            value = (record as any)[key];
-          } else if (ticket?.serviceable) {
-            const source = ticket.serviceable;
-            const keyMap: Record<string, string> = {
-              surname:              'surname',
-              dob:                  'date_of_birth',
-              pob:                  'place_of_birth',
-              relationship_to_owner: 'relationship_to_owner',
-            };
-            value = source[keyMap[key] ?? key];
-          }
+
+        const fieldType =
+          field.fieldType ??
+          LABEL_TO_FIELD_TYPE[field.label] ??
+          "TEXT";
+
+        let value: any = "";
+
+        if (key && record) {
+          value = (record as any)[key];
         }
+
         value = normaliseDate(value);
-        return { ...field, value: value ?? '' };
+
+        return {
+          ...field,
+          fieldType, // ✅ ensure type always exists
+          value: value ?? "",
+        };
       });
 
       setFields(mergedFields);
@@ -652,7 +667,18 @@ export function CertificateEditor() {
 
   const handleAddField = useCallback((label: string) => {
     const fieldId = `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const newField: TextField = { ...DEFAULT_FIELD, id: fieldId, label, value: '', page: currentPage };
+
+    const fieldType = LABEL_TO_FIELD_TYPE[label] ?? "TEXT";
+
+    const newField: TextField = {
+      ...DEFAULT_FIELD,
+      id: fieldId,
+      label,
+      value: "",
+      page: currentPage,
+      fieldType, // ✅ IMPORTANT
+    };
+
     setFields((prev) => [...prev, newField]);
     setSelectedId(fieldId);
   }, [currentPage]);

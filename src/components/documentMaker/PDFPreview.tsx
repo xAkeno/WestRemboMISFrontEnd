@@ -40,7 +40,7 @@ export function PDFPreview({
 }: PDFPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  // const [scale, setScale] = useState(1);
   const [qrSelected, setQrSelected] = useState(false);
 
   const pageInfo = templateInfo?.pages[currentPage];
@@ -49,22 +49,37 @@ export function PDFPreview({
     (f) => f.page === currentPage && !f.hidden
   );
 
-  const updateScale = useCallback(() => {
-    if (!containerRef.current || !pageInfo) return;
-    const containerWidth = containerRef.current.clientWidth - 32;
-    const containerHeight = containerRef.current.clientHeight - 32;
-    const s = Math.min(
-      containerWidth / pageInfo.width,
-      containerHeight / pageInfo.height
-    );
-    setScale(s);
-  }, [pageInfo]);
+  // const updateScale = useCallback(() => {
+  //   if (!containerRef.current || !pageInfo) return;
+  //   const containerWidth = containerRef.current.clientWidth - 32;
+  //   const containerHeight = containerRef.current.clientHeight - 32;
+  //   const s = Math.min(
+  //     containerWidth / pageInfo.width,
+  //     containerHeight / pageInfo.height
+  //   );
+  //   setScale(s);
+  // }, [pageInfo]);
+
+  // useEffect(() => {
+  //   updateScale();
+  //   window.addEventListener('resize', updateScale);
+  //   return () => window.removeEventListener('resize', updateScale);
+  // }, [updateScale]);
 
   useEffect(() => {
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, [updateScale]);
+  const preventZoom = (e: WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  document.addEventListener("wheel", preventZoom, { passive: false });
+
+  return () => {
+    document.removeEventListener("wheel", preventZoom);
+  };
+}, []);
 
   if (!blobUrl || !templateInfo || !pageInfo) {
     return (
@@ -84,7 +99,7 @@ export function PDFPreview({
 
   return (
     <div
-      className="flex flex-1 flex-col bg-muted/30 overflow-auto"
+      className="flex flex-1 items-center justify-center bg-muted/30 overflow-hidden"
       ref={containerRef}
       onClick={() => {
         onDeselect();
@@ -99,12 +114,13 @@ export function PDFPreview({
           style={{
             width: pageInfo.width,
             height: pageInfo.height,
-            transform: `scale(${scale})`,
+            maxWidth: "95%",
+            maxHeight: "95%",
           }}
         >
           <iframe
             src={`${blobUrl}#page=${currentPage + 1}&toolbar=0`}
-            className="absolute inset-0 w-full h-full border-0"
+            className="w-full h-full border-0"
             title="PDF Preview"
           />
 
@@ -116,7 +132,6 @@ export function PDFPreview({
                   key={f.id}
                   field={f}
                   isSelected={f.id === selectedId}
-                  scale={scale}
                   onSelect={onSelectField}
                   onDrag={onDragField}
                   onDelete={onDeleteField}
