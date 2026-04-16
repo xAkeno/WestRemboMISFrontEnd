@@ -17,6 +17,7 @@ import {
   NotebookTabs,
   UserRoundPen,
   Bell,
+  Settings,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect, useCallback } from "react";
@@ -252,8 +253,9 @@ const allMenuItems = [
   { title: "Account Manage",    path: "/AccountManage",     icon: UserRoundPen, permission: "settings" },
   { title: "Backup Recovery",   path: "/backup-recovery",   icon: Database,     permission: "settings" },
   { title: "Activity Log",      path: "/activity-log",      icon: Activity,     permission: "settings" },
+  { title: "Settings",          path: "/settings",          icon: Settings,     permission: "settings" }
 ];
-
+  
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
