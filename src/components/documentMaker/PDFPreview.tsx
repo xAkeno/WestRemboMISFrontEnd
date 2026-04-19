@@ -4,6 +4,44 @@ import { DraggableTextField } from './DraggableTextField';
 import type { QRCodeFieldData } from './QRCodeField';
 import { QRCodeField } from './QRCodeField';
 
+// ─── Concat groups ─────────────────────────────────────────────────────────────
+
+export interface ConcatGroup {
+  label: string;
+  members: string[];
+  separator: string;
+}
+
+export const CONCAT_GROUPS: ConcatGroup[] = [
+  {
+    label: 'Full Name',
+    members: ['First Name', 'M.I.', 'Last Name', 'Ext Name'],
+    separator: ' ',
+  },
+  {
+    label: 'Full Address',
+    members: ['House Block Lot No', 'Street', 'Zone'],
+    separator: ', ',
+  },
+];
+
+const norm = (s: string) => s.trim().toLowerCase();
+
+export function getConcatValue(
+  members: string[],
+  separator: string,
+  fields: TextField[]
+): string {
+  return members
+    .map((label) =>
+      fields.find((f) => norm(f.label) === norm(label))?.value?.toString().trim() ?? ''
+    )
+    .filter(Boolean)
+    .join(separator);
+}
+
+// ─── Props ─────────────────────────────────────────────────────────────────────
+
 interface PDFPreviewProps {
   blobUrl: string | null;
   templateInfo: PDFTemplateInfo | null;
@@ -12,15 +50,18 @@ interface PDFPreviewProps {
   currentPage: number;
   onPageChange: (page: number) => void;
   onSelectField: (id: string) => void;
+  /** x/y passed here are already in PDF points (scale-corrected by this component) */
   onDragField: (id: string, x: number, y: number) => void;
   onDeleteField: (id: string) => void;
   onDeselect: () => void;
-  // QR props
   qrField: QRCodeFieldData | null;
   onQRChange: (updates: Partial<QRCodeFieldData>) => void;
   onQRRemove: () => void;
   bcertNumber?: string | null;
+  isAdmin?: boolean;
 }
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 export function PDFPreview({
   blobUrl,
@@ -37,59 +78,92 @@ export function PDFPreview({
   onQRChange,
   onQRRemove,
   bcertNumber,
+  isAdmin = false,
 }: PDFPreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
-  // const [scale, setScale] = useState(1);
   const [qrSelected, setQrSelected] = useState(false);
+  // The ratio of rendered container size to actual PDF page size.
+  // When maxWidth/maxHeight kicks in and scales the container down,
+  // drag coordinates (screen px) must be divided by this to get PDF points.
+  const [scale, setScale] = useState(1);
 
   const pageInfo = templateInfo?.pages[currentPage];
 
-  const pageFields = fields.filter(
-    (f) => f.page === currentPage && !f.hidden
-  );
-
-  // const updateScale = useCallback(() => {
-  //   if (!containerRef.current || !pageInfo) return;
-  //   const containerWidth = containerRef.current.clientWidth - 32;
-  //   const containerHeight = containerRef.current.clientHeight - 32;
-  //   const s = Math.min(
-  //     containerWidth / pageInfo.width,
-  //     containerHeight / pageInfo.height
-  //   );
-  //   setScale(s);
-  // }, [pageInfo]);
-
-  // useEffect(() => {
-  //   updateScale();
-  //   window.addEventListener('resize', updateScale);
-  //   return () => window.removeEventListener('resize', updateScale);
-  // }, [updateScale]);
+  // Track actual rendered scale whenever container or page changes
+  const updateScale = useCallback(() => {
+    if (!canvasWrapRef.current || !pageInfo) return;
+    const renderedW = canvasWrapRef.current.offsetWidth;
+    const renderedH = canvasWrapRef.current.offsetHeight;
+    const scaleX = renderedW / pageInfo.width;
+    const scaleY = renderedH / pageInfo.height;
+    // Use the smaller axis (the constraining one)
+    setScale(Math.min(scaleX, scaleY));
+  }, [pageInfo]);
 
   useEffect(() => {
-  const preventZoom = (e: WheelEvent) => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    if (canvasWrapRef.current) ro.observe(canvasWrapRef.current);
+    return () => ro.disconnect();
+  }, [updateScale]);
 
-  document.addEventListener("wheel", preventZoom, { passive: false });
-
-  return () => {
-    document.removeEventListener("wheel", preventZoom);
-  };
-}, []);
+  useEffect(() => {
+    const preventZoom = (e: WheelEvent) => {
+      if (e.ctrlKey) { e.preventDefault(); e.stopPropagation(); }
+    };
+    document.addEventListener('wheel', preventZoom, { passive: false });
+    return () => document.removeEventListener('wheel', preventZoom);
+  }, []);
 
   if (!blobUrl || !templateInfo || !pageInfo) {
     return (
       <div className="flex flex-1 items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground text-sm">
-          Upload a PDF template to get started
-        </p>
+        <p className="text-muted-foreground text-sm">Upload a PDF template to get started</p>
       </div>
     );
   }
+
+  // Scale drag coords → PDF points before passing up
+  const handleDrag = (id: string, screenX: number, screenY: number) => {
+    onDragField(id, screenX / scale, screenY / scale);
+  };
+
+  // Scale stored PDF-point coords → screen pixels for the overlay position
+  const toScreen = (field: TextField): TextField => ({
+    ...field,
+    x: field.x * scale,
+    y: field.y * scale,
+    fontSize: (field.fontSize ?? 12) * scale,
+  });
+
+  // ── Build concat overlays ───────────────────────────────────────────────────
+
+  const suppressedNormLabels = new Set<string>();
+  const concatOverlays: TextField[] = [];
+
+  for (const group of CONCAT_GROUPS) {
+    const pageMembers = group.members
+      .map((label) =>
+        fields.find((f) => norm(f.label) === norm(label) && f.page === currentPage)
+      )
+      .filter((f): f is TextField => !!f);
+
+    if (pageMembers.length === 0) continue;
+
+    const combinedValue = getConcatValue(group.members, group.separator, fields);
+    const anchor = pageMembers[0];
+
+    concatOverlays.push({ ...anchor, label: group.label, value: combinedValue });
+    group.members.forEach((l) => suppressedNormLabels.add(norm(l)));
+  }
+
+  const regularPageFields = fields.filter(
+    (f) =>
+      f.page === currentPage &&
+      !f.hidden &&
+      !suppressedNormLabels.has(norm(f.label))
+  );
 
   const showQR =
     qrField?.visible &&
@@ -101,21 +175,19 @@ export function PDFPreview({
     <div
       className="flex flex-1 items-center justify-center bg-muted/30 overflow-hidden"
       ref={containerRef}
-      onClick={() => {
-        onDeselect();
-        setQrSelected(false);
-      }}
+      onClick={() => { onDeselect(); setQrSelected(false); }}
     >
       <div className="flex flex-1 items-center justify-center p-4 overflow-hidden">
-        {/* The scaled canvas wrapper — QR is positioned relative to this */}
         <div
           ref={canvasWrapRef}
-          className="relative shadow-lg origin-top-left"
+          className="relative shadow-lg"
           style={{
-            width: pageInfo.width,
-            height: pageInfo.height,
-            maxWidth: "95%",
-            maxHeight: "95%",
+            // Size to PDF page dims; CSS constrains via maxWidth/maxHeight.
+            // scale tracks how much CSS actually shrinks this.
+            width:     pageInfo.width,
+            height:    pageInfo.height,
+            maxWidth:  '95%',
+            maxHeight: '95%',
           }}
         >
           <iframe
@@ -124,23 +196,38 @@ export function PDFPreview({
             title="PDF Preview"
           />
 
-          {/* Text field overlay */}
-          <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
-            <div style={{ pointerEvents: 'auto' }}>
-              {pageFields.map((f) => (
+          {/* Regular fields — positions scaled to screen px */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="pointer-events-auto">
+              {regularPageFields.map((f) => (
                 <DraggableTextField
                   key={f.id}
-                  field={f}
+                  field={toScreen(f)}
                   isSelected={f.id === selectedId}
                   onSelect={onSelectField}
-                  onDrag={onDragField}
-                  onDelete={onDeleteField}
+                  onDrag={handleDrag}
+                  onDelete={isAdmin ? onDeleteField : undefined}
                 />
               ))}
             </div>
           </div>
 
-          {/* QR Code drag overlay */}
+          {/* Concat overlays — same scale treatment */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="pointer-events-auto">
+              {concatOverlays.map((syntheticField) => (
+                <DraggableTextField
+                  key={`concat-${syntheticField.id}`}
+                  field={toScreen(syntheticField)}
+                  isSelected={syntheticField.id === selectedId}
+                  onSelect={onSelectField}
+                  onDrag={handleDrag}
+                  onDelete={undefined}
+                />
+              ))}
+            </div>
+          </div>
+
           {showQR && (
             <QRCodeField
               bcertNumber={bcertNumber}

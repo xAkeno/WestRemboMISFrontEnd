@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-export function VacationModal({ vacationStart, vacationEnd }) {
+export function VacationModal({ vacationStart, vacationEnd, vacationName }) {
   const navigate = useNavigate();
   
   const format = (dateStr) => {
@@ -17,16 +17,15 @@ export function VacationModal({ vacationStart, vacationEnd }) {
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center">
         <div className="text-5xl mb-4">🌴</div>
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
-          We're on Vacation!
+          {vacationName ? `We're on ${vacationName}!` : "We're on Vacation!"}
         </h2>
         <p className="text-gray-500 dark:text-gray-400 mb-4">
-          Our office is currently closed for vacation leave. We will be back and
-          ready to serve you soon.
+          Our office is currently closed. We will be back and ready to serve you soon.
         </p>
         {vacationStart && vacationEnd && (
           <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl px-6 py-4 mb-4">
             <p className="text-sm text-blue-600 dark:text-blue-300 font-medium">
-              Vacation Period
+              {vacationName || "Vacation"} Period
             </p>
             <p className="text-blue-800 dark:text-blue-100 font-semibold mt-1">
               {format(vacationStart)} – {format(vacationEnd)}

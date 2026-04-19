@@ -34,9 +34,8 @@ export interface Ticket {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const POLL_MS       = 10_000;
-const GRACE_SECONDS = 5 * 60;
-const MAX_MISSED    = 3;
+const POLL_MS   = 10_000;
+const MAX_MISSED = 3;
 
 // ─── Normalize ────────────────────────────────────────────────────────────────
 
@@ -100,7 +99,6 @@ const getApplicantName = (t: Ticket) => {
   return "—";
 };
 
-// FIX: "late" moved out of DONE and into ACTIVE so late tickets appear in the queue
 const DONE_STATUSES   = ["released", "completed", "rejected", "no_show"];
 const ACTIVE_STATUSES = ["pending", "waiting", "called", "processing", "in_progress", "late"];
 
@@ -115,22 +113,16 @@ const isProcessing = (t: Ticket) =>
 const getSortedQueueWithDisplayStatus = (tickets: Ticket[]) => {
   const queueTickets = tickets.filter(t => !isDone(t));
   const sorted = [...queueTickets].sort((a, b) => {
-    // Late tickets always sort to the bottom
     const aLate = isLate(a) ? 1 : 0;
     const bLate = isLate(b) ? 1 : 0;
     if (aLate !== bLate) return aLate - bLate;
-
-    // Currently being served goes first
     const ap = isProcessing(a) ? 0 : 1;
     const bp = isProcessing(b) ? 0 : 1;
     if (ap !== bp) return ap - bp;
-
-    // Sort by position — backend updates this on every move-to-back and re-admit
     const aPos = a.position ?? 999999;
     const bPos = b.position ?? 999999;
     return aPos - bPos;
   });
-  // Find the first non-late, non-processing ticket to label as "Pending"
   let pendingAssigned = false;
   return sorted.map((t) => {
     if (isLate(t))       return { ...t, _displayStatus: "Late" };
@@ -180,44 +172,6 @@ function Pill({ label, style }: { label: string; style: { bg: string; color: str
     }}>
       {label}
     </span>
-  );
-}
-
-// ─── Grace Timer ──────────────────────────────────────────────────────────────
-
-function GraceTimer({ secondsLeft, missedAttempts }: { secondsLeft: number; missedAttempts: number }) {
-  const pct     = Math.max(0, secondsLeft / GRACE_SECONDS);
-  const mins    = Math.floor(secondsLeft / 60);
-  const secs    = secondsLeft % 60;
-  const urgent  = secondsLeft <= 60;
-  const warning = secondsLeft <= 120 && !urgent;
-  const color   = urgent ? "#A32D2D" : warning ? "#854F0B" : "#185FA5";
-  const bgColor = urgent ? "#FCEBEB" : warning ? "#FAEEDA" : "#E6F1FB";
-
-  return (
-    <div style={{
-      background: bgColor, border: `0.5px solid ${color}`,
-      borderRadius: 10, padding: "12px 16px", marginBottom: 14, textAlign: "center",
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color, marginBottom: 8 }}>
-        Grace Period{missedAttempts > 0 ? ` · Attempt ${missedAttempts + 1}/${MAX_MISSED}` : ""}
-      </div>
-      <div style={{ fontSize: 40, fontWeight: 700, color, lineHeight: 1, marginBottom: 10, fontVariantNumeric: "tabular-nums" }}>
-        {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
-      </div>
-      <div style={{ height: 5, background: "rgba(0,0,0,0.1)", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{
-          height: "100%", width: `${pct * 100}%`,
-          background: color, borderRadius: 99,
-          transition: "width 1s linear",
-        }} />
-      </div>
-      {urgent && (
-        <div style={{ fontSize: 11, color, marginTop: 6, fontWeight: 500 }}>
-          {secondsLeft <= 0 ? "⚠ Time's up — auto action firing…" : "⚠ Almost out of time"}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -404,18 +358,14 @@ function TicketDetail({ ticket, onClose, onAct, onRequeue, busy }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function QueueControl() {
-  const [tickets,       setTickets]       = useState<Ticket[]>([]);
-  const [busy,          setBusy]          = useState<string | null>(null);
-  const [filter,        setFilter]        = useState("all");
-  const [search,        setSearch]        = useState("");
-  const [selected,      setSelected]      = useState<Ticket | null>(null);
-  const [log,           setLog]           = useState<{ msg: string; type: string; time: string }[]>([]);
-  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
-  const [calling,       setCalling]       = useState(false);
-  const [graceSeconds,  setGraceSeconds]  = useState<number>(GRACE_SECONDS);
-  const [graceTicketId, setGraceTicketId] = useState<number | null>(null);
-  const graceRef     = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoActFired = useRef<boolean>(false);
+  const [tickets,  setTickets]  = useState<Ticket[]>([]);
+  const [busy,     setBusy]     = useState<string | null>(null);
+  const [filter,   setFilter]   = useState("all");
+  const [search,   setSearch]   = useState("");
+  const [selected, setSelected] = useState<Ticket | null>(null);
+  const [log,      setLog]      = useState<{ msg: string; type: string; time: string }[]>([]);
+  const [toast,    setToast]    = useState<{ msg: string; ok: boolean } | null>(null);
+  const [calling,  setCalling]  = useState(false);
 
   const sortedQueueWithDisplay = getSortedQueueWithDisplayStatus(tickets);
   const activeQueue            = sortedQueueWithDisplay.filter(t => !isLate(t));
@@ -442,7 +392,6 @@ export function QueueControl() {
   const load = useCallback(async () => {
     try {
       const res = await getQueue();
-      console.log("Fetched queue data:", res);
       setTickets(res.data ?? res);
     } catch { /* keep last state */ }
   }, []);
@@ -461,44 +410,10 @@ export function QueueControl() {
     }
   }, [tickets]);
 
-  // ── Grace timer ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!calledTicket) {
-      if (graceRef.current) clearInterval(graceRef.current);
-      setGraceTicketId(null);
-      setGraceSeconds(GRACE_SECONDS);
-      autoActFired.current = false;
-      return;
-    }
-
-    // ✅ NEW: If the ticket is already being processed, stop/clear the timer
-    if (isProcessing(calledTicket)) {
-      if (graceRef.current) clearInterval(graceRef.current);
-      setGraceTicketId(null);
-      setGraceSeconds(GRACE_SECONDS);
-      autoActFired.current = false;
-      return;
-    }
-
-    if (calledTicket.id === graceTicketId) return;
-
-    if (graceRef.current) clearInterval(graceRef.current);
-    autoActFired.current = false;
-    setGraceTicketId(calledTicket.id);
-    setGraceSeconds(GRACE_SECONDS);
-
-    graceRef.current = setInterval(() => {
-      setGraceSeconds(prev => Math.max(0, prev - 1));
-    }, 1000);
-
-    return () => { if (graceRef.current) clearInterval(graceRef.current); };
-  }, [calledTicket?.id, calledTicket?.status]); // ✅ Also watch status changes
-
   // ── Auto-call next when nothing is being served and queue has pending ─────
   const autoCallFired = useRef<boolean>(false);
 
   useEffect(() => {
-    // Already serving someone — reset guard
     if (calledTicket) {
       autoCallFired.current = false;
       return;
@@ -522,23 +437,6 @@ export function QueueControl() {
       });
   }, [calledTicket?.id, activeQueue.length]);
 
-  // ── Auto-act when timer hits 0 ────────────────────────────────────────────
-  useEffect(() => {
-    if (graceSeconds !== 0) return;
-    if (!graceTicketId) return;
-    if (autoActFired.current) return;
-    if (calledTicket?.id !== graceTicketId) return;
-
-    autoActFired.current = true;
-    if (graceRef.current) clearInterval(graceRef.current);
-
-    // Always move to back — backend decides if this becomes 'late' after MAX_MISSED
-    const missedAttempts = (calledTicket.missed_attempts ?? 0) + 1;
-    addLog(`${calledTicket.ticket_number} → Grace expired, moving to back (miss #${missedAttempts})`, "warn");
-    showToast(`${calledTicket.ticket_number} missed grace — moved to back`, false);
-    postMoveBack(calledTicket.id).then(load).catch(() => showToast("Failed", false));
-  }, [graceSeconds]);
-
   // ── Act ───────────────────────────────────────────────────────────────────
   async function act(ticket: Ticket, action: string) {
     setBusy(ticket.id + action);
@@ -554,14 +452,6 @@ export function QueueControl() {
       const msg = `${ticket.ticket_number} → ${labels[action] ?? action}`;
       showToast(msg, true);
       addLog(msg, "success");
-
-      if (ticket.id === graceTicketId) {
-        if (graceRef.current) clearInterval(graceRef.current);
-        setGraceSeconds(GRACE_SECONDS);
-        setGraceTicketId(null);
-        autoActFired.current = false;
-      }
-
       await load();
     } catch {
       showToast("Action failed", false);
@@ -658,11 +548,6 @@ export function QueueControl() {
                 </div>
               ))}
             </div>
-
-            {/* Grace timer */}
-            {calledTicket && graceTicketId === calledTicket.id && (
-              <GraceTimer secondsLeft={graceSeconds} missedAttempts={calledTicket.missed_attempts ?? 0} />
-            )}
 
             {/* Now Serving */}
             <div style={{
@@ -771,7 +656,6 @@ export function QueueControl() {
                 const rt                 = getRequesterType(t);
                 const displayStatus      = (t as any)._displayStatus ?? t.status;
                 const isCurrentlyServing = calledTicket?.id === t.id;
-                const isTimerTicket      = graceTicketId === t.id;
                 const ticketIsLate       = isLate(t);
 
                 return (
@@ -803,15 +687,6 @@ export function QueueControl() {
                         <Pill label={rt.label} style={{ bg: rt.bg, color: rt.color }} />
                         {(t.missed_attempts ?? 0) > 0 && (
                           <span style={{ fontSize: 11, color: "#A32D2D" }}>{t.missed_attempts}× missed</span>
-                        )}
-                        {isTimerTicket && graceSeconds > 0 && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
-                            background: graceSeconds <= 60 ? "#FCEBEB" : "#FAEEDA",
-                            color: graceSeconds <= 60 ? "#A32D2D" : "#854F0B",
-                          }}>
-                            ⏱ {String(Math.floor(graceSeconds / 60)).padStart(2, "0")}:{String(graceSeconds % 60).padStart(2, "0")}
-                          </span>
                         )}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -9,9 +9,7 @@ const api = axios.create({
 export function useMaintenance(user) {
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
-  const [vacation, setVacation] = useState(false);
-  const [vacationStart, setVacationStart] = useState("");
-  const [vacationEnd, setVacationEnd] = useState("");
+  const [activeVacation, setActiveVacation] = useState(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -19,9 +17,22 @@ export function useMaintenance(user) {
 
       setMaintenance(data.maintenance_mode === "true");
       setMaintenanceMessage(data.maintenance_message || "Under Maintenance");
-      setVacation(data.vacation_mode === "true");
-      setVacationStart(data.vacation_start || "");
-      setVacationEnd(data.vacation_end || "");
+
+      // Parse the dynamic vacations array
+      let vacations = [];
+      try {
+        vacations = JSON.parse(data.vacations || "[]");
+      } catch {
+        vacations = [];
+      }
+
+      // Find one that is active and covers today
+      const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+      const current = vacations.find(
+        (v) => v.active === true && v.start <= today && v.end >= today
+      );
+
+      setActiveVacation(current ?? null);
     };
 
     fetchSettings();
@@ -32,8 +43,9 @@ export function useMaintenance(user) {
   return {
     showMaintenance: maintenance && !isAdmin,
     message: maintenanceMessage,
-    showVacation: vacation && !isAdmin,
-    vacationStart,
-    vacationEnd,
+    showVacation: !!activeVacation && !isAdmin,
+    vacationStart: activeVacation?.start ?? "",
+    vacationEnd:   activeVacation?.end   ?? "",
+    vacationName:  activeVacation?.name  ?? "",
   };
 }

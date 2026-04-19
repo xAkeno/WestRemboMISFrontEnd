@@ -43,6 +43,8 @@ interface ToolbarProps {
   hasReleasedDocument?: boolean;
   onChangeStatus: (status: string) => void;
   isChangingStatus?: boolean;
+  // ── Current record status ────────────────────────────────────────────────
+  currentStatus?: string;
 }
 
 const CLEARANCE_FIELDS: Record<string, string[]> = {
@@ -78,6 +80,7 @@ const Spinner = () => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
   </svg>
 );
+
 export function Toolbar({
   onUpload,
   onAddField,
@@ -102,11 +105,16 @@ export function Toolbar({
   hasReleasedDocument = false,
   onChangeStatus,
   isChangingStatus = false,
+  currentStatus = "",
 }: ToolbarProps) {
   const [statusValue, setStatusValue] = useState("");
-  return (
 
-    
+  // ── Derived visibility flags ─────────────────────────────────────────────
+  const isPaid = currentStatus === "PAID";
+  const showMarkToPay = isUpdate && !isPaid;
+  const showRelease = isAdmin && isUpdate && isPaid;
+
+  return (
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 overflow-x-auto whitespace-nowrap">
 
       {/* Upload template */}
@@ -199,6 +207,7 @@ export function Toolbar({
               <SelectItem value="REJECTED">Rejected</SelectItem>
               <SelectItem value="INCOMPLETE">Incomplete</SelectItem>
               <SelectItem value="APPROVED">Approved</SelectItem>
+              <SelectItem value="PAID">Paid</SelectItem>
             </SelectContent>
           </Select>
 
@@ -218,8 +227,8 @@ export function Toolbar({
         </div>
       )}
 
-      {/* Mark as To Pay */}
-      {isUpdate && (
+      {/* Mark as To Pay — hidden once record is PAID */}
+      {showMarkToPay && (
         <Button
           variant="outline"
           size="sm"
@@ -235,8 +244,8 @@ export function Toolbar({
         </Button>
       )}
 
-      {/* ── Release & Save to S3 — admin only, existing records only ─── */}
-      {isAdmin && isUpdate && (
+      {/* Release & Save — admin only, shown ONLY when status is PAID */}
+      {showRelease && (
         <Button
           variant="outline"
           size="sm"
@@ -252,7 +261,7 @@ export function Toolbar({
         </Button>
       )}
 
-      {/* ── Download Released Document ─────────────────────────────────── */}
+      {/* Download Released Document — shown only when a released doc exists */}
       {hasReleasedDocument && (
         <Button
           variant="outline"

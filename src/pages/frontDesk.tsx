@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import {
   FileText, Building2, Briefcase, Users, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
+  Shield, ArrowRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -19,17 +21,14 @@ const PINK = "#c2467d";
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
-// NOTE: Update your DocumentType union in @/types/BarangayDocument.ts to include:
-// "clearance" | "building-clearance" | "business-clearance" | "barangay-certificate" | "resident-registration"
 type Lang = "en" | "tl" | "ceb";
 
-// ─── Map frontend doc type → exact backend service_type string ─────────────────
 const SERVICE_TYPE_MAP: Record<string, string> = {
-  "clearance":              "Barangay Clearance",
-  "building-clearance":     "Building Clearance",
-  "business-clearance":     "Business Clearance",
-  "barangay-certificate":   "Barangay Certificate",
-  "resident-registration":  "Resident Registration",
+  "clearance":             "Barangay Clearance",
+  "building-clearance":    "Building Clearance",
+  "business-clearance":    "Business Clearance",
+  "barangay-certificate":  "Barangay Certificate",
+  "resident-registration": "Resident Registration",
 };
 
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
@@ -39,6 +38,15 @@ const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barang
 // ═══════════════════════════════════════════════════════════════════════════════
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   en: {
+    // Welcome screen
+    "welcome.title":          "Document Request System",
+    "welcome.subtitle":       "Barangay West Rembo · Makati City",
+    "welcome.tagline":        "Fast, simple, and paperless document requests for all barangay residents.",
+    "welcome.startBtn":       "Start Request",
+    "welcome.privacy.title":  "Data Privacy Notice",
+    "welcome.privacy.text":   "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
+    "welcome.privacy.check":  "I have read and understood the Data Privacy Notice.",
+    "welcome.privacy.proceed":"Proceed",
     // ── New fields ──────────────────────────────────────────
     "field.nickname":         "Nickname",
     "field.pwd":              "PWD",
@@ -49,7 +57,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.position":         "Position",
     "field.employmentStatus": "Employment status",
     "field.notes":            "Notes",
-
     "ph.nickname":            "Optional",
     "ph.pwd":                 "e.g. Visual, Hearing, Physical",
     "ph.email":               "e.g. juan@email.com",
@@ -59,7 +66,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ph.position":            "e.g. Supervisor",
     "ph.employmentStatus":    "e.g. Employed, Self-employed",
     "ph.notes":               "Additional notes…",
-
     "review.nickname":        "Nickname",
     "review.pwd":             "PWD",
     "review.email":           "Email address",
@@ -87,7 +93,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "English",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-    "header.title":           "Document Request Kiosk",
+    "header.title":           "Document Request System",
     "header.subtitle":        "Complete the form below to request your barangay document",
     "step.document":          "Document",
     "step.personal":          "Personal",
@@ -119,7 +125,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.eyebrow":          "Step 5 of 5",
     "step5.title":            "Review your information",
     "step5.subtitle":         "Please verify all details before submitting",
-    // Personal fields
     "field.prefix":           "Prefix",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name",
@@ -130,7 +135,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.sex":              "Sex",
     "field.civilStatus":      "Civil status",
     "field.age":              "Age",
-    // Address fields
     "field.houseUnit":        "House no. / Block / Lot",
     "field.street":           "Street",
     "field.zone":             "Zone / Sitio",
@@ -138,16 +142,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.voter":            "Registered voter?",
     "field.houseOwner":       "House owner",
     "field.relation":         "Relation to owner",
-    // Contact
     "field.contact":          "Contact number",
     "field.purpose":          "Purpose of request",
-    // Business-specific
     "field.businessName":     "Business name",
     "field.businessType":     "Business type",
     "field.capital":          "Capital amount",
-    // Building-specific
     "field.establishment":    "Establishment name",
-    // Placeholders
     "ph.prefix":              "e.g. Mr./Ms.",
     "ph.firstName":           "e.g. Juan",
     "ph.middleName":          "Optional",
@@ -175,7 +175,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "opt.married":            "Married",
     "opt.widowed":            "Widowed",
     "opt.separated":          "Separated",
-    // Review
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
@@ -195,11 +194,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
-    // Consent
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
-    // Buttons
     "btn.backHome":           "← Back to home",
     "btn.continue":           "Continue",
     "btn.review":             "Review",
@@ -208,16 +205,13 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Submit request",
     "btn.newRequest":         "Start new request",
     "btn.cancel":             "Cancel",
-    // Errors
     "err.selectDoc":          "Please select a document type.",
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
-    // Success
     "success.title":          "Request submitted!",
     "success.sub":            "Your document request has been received. Please wait for processing.",
     "addr.preview":           "Full address:",
-
     "field.spouse":           "Name of spouse",
     "field.bloodType":        "Blood type",
     "field.height":           "Height (cm)",
@@ -239,6 +233,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   },
 
   tl: {
+    "welcome.title":          "Sistema ng Kahilingan ng Dokumento",
+    "welcome.subtitle":       "Barangay West Rembo · Lungsod ng Makati",
+    "welcome.tagline":        "Mabilis, simple, at walang papel na kahilingan ng dokumento para sa lahat ng residente.",
+    "welcome.startBtn":       "Magsimula ng Kahilingan",
+    "welcome.privacy.title":  "Abiso sa Privacy ng Data",
+    "welcome.privacy.text":   "Ang iyong personal na impormasyon ay kokolektahin at ipoproseso lamang para sa layunin ng kahilingang ito ng dokumento ng barangay, alinsunod sa Batas sa Privacy ng Data ng 2012 (RA 10173). Hindi ito ibabahagi sa mga hindi awtorisadong third party.",
+    "welcome.privacy.check":  "Nabasa at naunawaan ko ang Abiso sa Privacy ng Data.",
+    "welcome.privacy.proceed":"Magpatuloy",
     "field.nickname":         "Palayaw",
     "field.pwd":              "PWD",
     "field.email":            "Email address",
@@ -284,7 +286,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "Ingles",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-    "header.title":           "Kiosk ng Kahilingan ng Dokumento",
+    "header.title":           "Sistema ng Kahilingan ng Dokumento",
     "header.subtitle":        "Kumpletuhin ang form sa ibaba upang humiling ng dokumento mula sa barangay",
     "step.document":          "Dokumento",
     "step.personal":          "Personal",
@@ -339,7 +341,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.businessType":     "Uri ng negosyo",
     "field.capital":          "Halaga ng kapital",
     "field.establishment":    "Pangalan ng establisyamento",
-    "field.bcertNumber":      "Numero ng sertipiko",
     "ph.prefix":              "hal. G./Gng.",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
@@ -404,7 +405,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "addr.preview":           "Buong tirahan:",
-
     "field.spouse":           "Pangalan ng asawa",
     "field.bloodType":        "Uri ng dugo",
     "field.height":           "Taas (cm)",
@@ -426,7 +426,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   },
 
   ceb: {
-
+    "welcome.title":          "Sistema sa Pagsugo og Dokumento",
+    "welcome.subtitle":       "Barangay West Rembo · Lungsod sa Makati",
+    "welcome.tagline":        "Paspas, simple, ug walay papel nga hangyo sa dokumento alang sa tanan nga residente.",
+    "welcome.startBtn":       "Magsugod og Hangyo",
+    "welcome.privacy.title":  "Abiso sa Privacy sa Data",
+    "welcome.privacy.text":   "Ang imong personal nga impormasyon makolekta ug maproseso lamang alang sa katuyoan niini nga hangyo sa dokumento sa barangay, subay sa Data Privacy Act of 2012 (RA 10173). Dili kini ibahin sa mga wala'y awtorisasyon nga ikatulo nga partido.",
+    "welcome.privacy.check":  "Nabasa ug nasabtan nako ang Abiso sa Privacy sa Data.",
+    "welcome.privacy.proceed":"Magpadayon",
     "field.nickname":         "Ngalan sa balay",
     "field.pwd":              "PWD",
     "field.email":            "Email address",
@@ -472,7 +479,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "a11y.lang.en":           "Ingles",
     "a11y.lang.tl":           "Filipino",
     "a11y.lang.ceb":          "Bisaya",
-    "header.title":           "Kiosk sa Pagsugo og Dokumento",
+    "header.title":           "Sistema sa Pagsugo og Dokumento",
     "header.subtitle":        "Pun-a ang porma sa ubos aron makakuha og dokumento gikan sa barangay",
     "step.document":          "Dokumento",
     "step.personal":          "Personal",
@@ -527,7 +534,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "field.businessType":     "Matang sa negosyo",
     "field.capital":          "Kantidad sa kapital",
     "field.establishment":    "Ngalan sa establisyamento",
-    "field.bcertNumber":      "Numero sa sertipiko",
     "ph.prefix":              "hal. G./Gng.",
     "ph.firstName":           "hal. Juan",
     "ph.middleName":          "Opsyonal",
@@ -592,7 +598,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "addr.preview":           "Tibuok adres:",
-
     "field.spouse":           "Ngalan sa asawa",
     "field.bloodType":        "Matang sa dugo",
     "field.height":           "Gihabugon (cm)",
@@ -742,6 +747,136 @@ const AccessibilityBar = ({ lang, setLang, fontSize, setFontSize }: Accessibilit
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// WELCOME SCREEN
+// ═══════════════════════════════════════════════════════════════════════════════
+interface WelcomeScreenProps {
+  tr: (k: string) => string;
+  onProceed: () => void;
+}
+
+const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
+  const [privacyChecked, setPrivacyChecked] = useState(false);
+  const [privacyError, setPrivacyError] = useState(false);
+
+  const handleProceed = () => {
+    if (!privacyChecked) {
+      setPrivacyError(true);
+      return;
+    }
+    onProceed();
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-2xl">
+        {/* Hero card */}
+        <div
+          className="bg-card border border-border overflow-hidden mb-6"
+          style={{ borderRadius: 2, borderTopWidth: 4, borderTopColor: NAVY }}
+        >
+          {/* Top accent strip */}
+          <div style={{ background: NAVY, padding: "32px 40px 28px" }}>
+            <p
+              className="font-bold uppercase tracking-[0.22em] mb-3"
+              style={{ color: "#ffffffaa", fontSize: "0.62em" }}
+            >
+              Republic of the Philippines · Barangay West Rembo · Makati City
+            </p>
+            <h1
+              className="font-bold text-white mb-3"
+              style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)", lineHeight: 1.15 }}
+            >
+              {tr("welcome.title")}
+            </h1>
+            <div style={{ width: 40, height: 3, backgroundColor: PINK, marginBottom: 14 }} />
+            <p style={{ color: "#ffffffcc", fontSize: "0.92em", lineHeight: 1.6 }}>
+              {tr("welcome.tagline")}
+            </p>
+          </div>
+
+          {/* Services quick glance */}
+          <div className="px-8 py-6" style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <p className="font-bold uppercase tracking-[0.14em] mb-4" style={{ color: PINK, fontSize: "0.62em" }}>
+              Available Documents
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { icon: <FileText className="h-4 w-4" />, label: "Barangay Clearance" },
+                { icon: <Building2 className="h-4 w-4" />, label: "Building Clearance" },
+                { icon: <Briefcase className="h-4 w-4" />, label: "Business Clearance" },
+                { icon: <ScrollText className="h-4 w-4" />, label: "Barangay Certificate" },
+                { icon: <Users className="h-4 w-4" />, label: "Resident Registration" },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 px-3 py-2"
+                  style={{ background: "#f8faff", borderRadius: 6, border: "1px solid #e8edf5" }}
+                >
+                  <span style={{ color: NAVY }}>{item.icon}</span>
+                  <span className="font-medium text-foreground" style={{ fontSize: "0.78em" }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Data Privacy */}
+          <div className="px-8 py-6">
+            <div
+              className="p-5 mb-5"
+              style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 6 }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
+                <p className="font-bold uppercase tracking-[0.14em]" style={{ color: NAVY, fontSize: "0.65em" }}>
+                  {tr("welcome.privacy.title")}
+                </p>
+              </div>
+              <p className="text-muted-foreground leading-relaxed mb-4" style={{ fontSize: "0.85em" }}>
+                {tr("welcome.privacy.text")}
+              </p>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="welcome-consent"
+                  checked={privacyChecked}
+                  onCheckedChange={(v) => { setPrivacyChecked(v as boolean); setPrivacyError(false); }}
+                />
+                <label
+                  htmlFor="welcome-consent"
+                  className="cursor-pointer leading-snug"
+                  style={{ fontSize: "0.85em", color: privacyError ? PINK : "var(--color-text-primary)" }}
+                >
+                  {tr("welcome.privacy.check")}
+                </label>
+              </div>
+              {privacyError && (
+                <p className="mt-2" style={{ color: PINK, fontSize: "0.78em" }}>
+                  Please accept the data privacy notice to continue.
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={handleProceed}
+              className="w-full inline-flex items-center justify-center gap-3 py-3.5 font-bold uppercase tracking-wider text-white transition-all duration-200"
+              style={{ backgroundColor: NAVY, borderRadius: 2, fontSize: "0.82em" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+            >
+              {tr("welcome.startBtn")}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <p className="text-center text-muted-foreground" style={{ fontSize: "0.75em" }}>
+          Walk-in kiosk · Barangay Hall, West Rembo, Makati City
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PURE UI HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 const labelCls = "block font-bold uppercase tracking-[0.14em] mb-1";
@@ -772,7 +907,6 @@ const ReviewSection = ({ title, children }: { title: string; children: React.Rea
   </div>
 );
 
-// ─── Select helper ─────────────────────────────────────────────────────────────
 const SelectField = ({
   value, onChange, inputCls, children,
 }: {
@@ -791,7 +925,6 @@ const SelectField = ({
   </select>
 );
 
-// ─── Combobox ─────────────────────────────────────────────────────────────────
 interface ComboboxProps {
   value: string;
   onChange: (val: string) => void;
@@ -861,7 +994,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
       {open && filtered.length > 0 && (
         <ul
           role="listbox"
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto "
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
           style={{ borderRadius: 4, fontSize: "inherit" }}
         >
           {filtered.map((opt) => (
@@ -883,7 +1016,6 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
   );
 };
 
-// ─── Card shell ────────────────────────────────────────────────────────────────
 const Card = ({ eyebrow, title, subtitle, children }: {
   eyebrow: string; title: string; subtitle?: string; children: React.ReactNode;
 }) => (
@@ -900,7 +1032,6 @@ const Card = ({ eyebrow, title, subtitle, children }: {
   </div>
 );
 
-// ─── Action bar ────────────────────────────────────────────────────────────────
 const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back", extraLeft }: {
   onBack?: () => void;
   onNext?: () => void;
@@ -949,8 +1080,6 @@ interface StepDocumentProps {
   inputCls: string;
 }
 
-// ─── Document type config ──────────────────────────────────────────────────────
-// Each entry maps to a backend service_type via SERVICE_TYPE_MAP above.
 const DOC_TYPE_KEYS = [
   { type: "clearance",             bg: "#e8f0fe", icon: (cls: string) => <FileText   className={cls} /> },
   { type: "building-clearance",    bg: "#e8f8f0", icon: (cls: string) => <Building2  className={cls} /> },
@@ -1037,32 +1166,26 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
   return (
     <Card eyebrow={tr("step2.eyebrow")} title={tr("step2.title")} subtitle={tr("step2.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        {/* Prefix */}
         <Field label={tr("field.prefix")}>
           <MaskedInput value={formData.prefix || ""} onValueChange={(v) => set("prefix", v)}
             placeholder={tr("ph.prefix")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Ext Name */}
         <Field label={tr("field.extName")}>
           <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => set("ext_name", v)}
             placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* First Name */}
         <Field label={`${tr("field.firstName")} *`}>
           <MaskedInput value={formData.first_name || ""} onValueChange={(v) => set("first_name", v)}
             placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Middle Name */}
         <Field label={tr("field.middleName")}>
           <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => set("middle_name", v)}
             placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Surname */}
         <Field label={`${tr("field.Surname")} *`}>
           <MaskedInput value={formData.surname || ""} onValueChange={(v) => set("surname", v)}
             placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Date of Birth */}
         <Field label={`${tr("field.dob")} *`}>
           <MaskedInput type="date" value={formData.date_of_birth || ""}
             onValueChange={(v) => {
@@ -1077,7 +1200,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
             }}
             placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Place of Birth — full width */}
         <div className="md:col-span-2">
           <Field label={`${tr("field.pob")} *`}>
             <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => set("place_of_birth", v)}
@@ -1085,15 +1207,12 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
           </Field>
         </div>
 
-        {/* ── Resident Registration ONLY ── */}
         {isResident && (
           <>
-            {/* Nickname — NEW */}
             <Field label={tr("field.nickname")}>
               <MaskedInput value={formData.nickname || ""} onValueChange={(v) => set("nickname", v)}
                 placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
-            {/* Sex */}
             <Field label={`${tr("field.sex")} *`}>
               <SelectField value={formData.sex || ""} onChange={(v) => set("sex", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
@@ -1101,7 +1220,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 <option value="Female">{tr("opt.female")}</option>
               </SelectField>
             </Field>
-            {/* Civil Status */}
             <Field label={`${tr("field.civilStatus")} *`}>
               <SelectField value={formData.marital_status || ""} onChange={(v) => set("marital_status", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
@@ -1111,7 +1229,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 <option value="Separated">{tr("opt.separated")}</option>
               </SelectField>
             </Field>
-            {/* Spouse — only when married */}
             {formData.marital_status === "Married" && (
               <div className="md:col-span-2">
                 <Field label={tr("field.spouse")}>
@@ -1120,7 +1237,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 </Field>
               </div>
             )}
-            {/* Age — read-only */}
             <Field label={tr("field.age")}>
               <input type="text" readOnly
                 value={formData.date_of_birth ? (() => {
@@ -1134,7 +1250,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }}
                 aria-label={tr("field.age")} />
             </Field>
-            {/* Blood Type */}
             <Field label={tr("field.bloodType")}>
               <SelectField value={formData.blood_type || ""} onChange={(v) => set("blood_type", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
@@ -1143,7 +1258,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 ))}
               </SelectField>
             </Field>
-            {/* Complexion */}
             <Field label={tr("field.complexion")}>
               <Combobox
                 value={formData.complexion || ""}
@@ -1153,28 +1267,20 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 inputCls={inputCls}
               />
             </Field>
-            {/* Height */}
             <Field label={tr("field.height")}>
               <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => set("height_cm", v)}
                 placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
-            {/* Weight */}
             <Field label={tr("field.weight")}>
               <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => set("weight_kg", v)}
                 placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
-            {/* Religion */}
             <Field label={tr("field.religion")}>
               <MaskedInput value={formData.religion || ""} onValueChange={(v) => set("religion", v)}
                 placeholder={tr("ph.religion")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
-            {/* PWD — NEW */}
             <Field label={tr("field.pwd")}>
-              <SelectField
-                value={formData.pwd ?? ""}
-                onChange={(v) => set("pwd", v)}
-                inputCls={inputCls}
-              >
+              <SelectField value={formData.pwd ?? ""} onChange={(v) => set("pwd", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
                 <option value="true">PWD</option>
                 <option value="false">Not PWD</option>
@@ -1215,26 +1321,22 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
   return (
     <Card eyebrow={tr("step3.eyebrow")} title={tr("step3.title")} subtitle={tr("step3.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        {/* House / Block / Lot */}
         <div className="md:col-span-2">
           <Field label={tr("field.houseUnit")}>
             <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => set("house_block_lot_no", v)}
               placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         </div>
-        {/* Street */}
         <Field label={`${tr("field.street")} *`}>
           <Combobox value={formData.street || ""} onChange={handleStreetChange}
             options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} />
         </Field>
-        {/* Zone */}
         <Field label={`${tr("field.zone")} *`}>
           <Combobox value={formData.zone || ""} onChange={(v) => set("zone", v)}
             options={zoneOptions}
             placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
             disabled={!formData.street} inputCls={inputCls} />
         </Field>
-        {/* Address preview */}
         {addressPreview && (
           <div className="md:col-span-2 p-3 text-muted-foreground"
             style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}>
@@ -1242,12 +1344,10 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             {addressPreview}
           </div>
         )}
-        {/* Period of Residency */}
         <Field label={`${tr("field.residency")} *`}>
           <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => set("period_of_residency", v)}
             placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Registered Voter */}
         <Field label={`${tr("field.voter")} *`}>
           <SelectField value={formData.registered_voter || ""} onChange={(v) => set("registered_voter", v)} inputCls={inputCls}>
             <option value="">{tr("opt.select")}</option>
@@ -1256,31 +1356,25 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
           </SelectField>
         </Field>
 
-        {/* ── Resident Registration ONLY ── */}
-        {isResident && (
-          <>
-            {/* Resident Status — NEW */}
-            <Field label={tr("field.residentStatus")}>
-              <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => set("resident_status", v)}
-                placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            {/* Precinct No — NEW, conditional on voter = Yes */}
-            {formData.registered_voter === "Yes" && (
-              <Field label={tr("field.precinctNo")}>
-                <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => set("precinct_no", v)}
-                  placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-              </Field>
-            )}
-          </>
+        {/* Precinct No — shown for ALL doc types when registered voter = Yes */}
+        {formData.registered_voter === "Yes" && (
+          <Field label={tr("field.precinctNo")}>
+            <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => set("precinct_no", v)}
+              placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          </Field>
         )}
-        
 
-        {/* House Owner */}
+        {isResident && (
+          <Field label={tr("field.residentStatus")}>
+            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => set("resident_status", v)}
+              placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          </Field>
+        )}
+
         <Field label={`${tr("field.houseOwner")} *`}>
           <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => set("house_owner", v)}
             placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Relation to Owner */}
         <Field label={`${tr("field.relation")} *`}>
           <Select value={formData.relationship_to_owner || ""} onValueChange={(v) => set("relationship_to_owner", v)}>
             <SelectTrigger className={inputCls} style={{ borderColor: "#d1d5db" }}>
@@ -1311,17 +1405,14 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
   return (
     <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        {/* Contact number */}
         <Field label={`${tr("field.contact")} *`}>
           <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => set("contact_number", v)}
             placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Email — NEW, shown for all doc types */}
         <Field label={tr("field.email")}>
           <MaskedInput value={formData.email || ""} onValueChange={(v) => set("email", v)}
             placeholder={tr("ph.email")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
         </Field>
-        {/* Purpose */}
         <div className="md:col-span-2">
           <Field label={`${tr("field.purpose")} *`}>
             <Select value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}>
@@ -1337,7 +1428,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
           </Field>
         </div>
 
-        {/* ── Resident Registration ONLY ── */}
         {isResident && (
           <>
             <Field label={tr("field.occupation")}>
@@ -1365,7 +1455,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
           </>
         )}
 
-        {/* ── Business Clearance extras ── */}
         {isBusiness && (
           <>
             <Field label={`${tr("field.businessName")} *`}>
@@ -1383,7 +1472,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
           </>
         )}
 
-        {/* ── Building Clearance extras ── */}
         {isBuilding && (
           <Field label={tr("field.establishment")}>
             <MaskedInput value={formData.establishment || ""} onValueChange={(v) => set("establishment", v)}
@@ -1396,6 +1484,7 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
     </Card>
   );
 };
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 4: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1420,12 +1509,10 @@ const StepReview = ({
   const isBuilding = docType === "building-clearance";
   const isBCert    = docType === "barangay-certificate";
   const isResident = docType === "resident-registration";
-
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
   return (
     <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
-      {/* Document type badge */}
       {docKeys && (
         <div
           className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
@@ -1436,7 +1523,6 @@ const StepReview = ({
         </div>
       )}
 
-      {/* Personal */}
       <ReviewSection title={tr("review.personal")}>
         <ReviewRow label={tr("review.firstName")}  value={formData.first_name} />
         <ReviewRow label={tr("review.middleName")} value={formData.middle_name || "N/A"} />
@@ -1454,7 +1540,6 @@ const StepReview = ({
                 <ReviewRow label={tr("review.spouse")}     value={formData.name_of_spouse} />
               </div>
             )}
-            {/* NEW */}
             <ReviewRow label={tr("review.nickname")}       value={formData.nickname} />
             <ReviewRow label={tr("review.bloodType")}      value={formData.blood_type} />
             <ReviewRow label={tr("review.height")}         value={formData.height_cm} />
@@ -1466,7 +1551,6 @@ const StepReview = ({
         )}
       </ReviewSection>
 
-      {/* Address */}
       <ReviewSection title={tr("review.address")}>
         <div className="col-span-2">
           <ReviewRow label="Full address" value={addressPreview} />
@@ -1475,19 +1559,16 @@ const StepReview = ({
         <ReviewRow label={tr("review.zone")}      value={formData.zone} />
         <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
         <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
+        {formData.precinct_no && (
+          <ReviewRow label={tr("review.precinctNo")} value={formData.precinct_no} />
+        )}
         {isResident && (
-          <>
-            <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />
-            {formData.precinct_no && (
-              <ReviewRow label={tr("review.precinctNo")}   value={formData.precinct_no} />
-            )}
-          </>
+          <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />
         )}
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
         <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
 
-      {/* Contact & Purpose */}
       <ReviewSection title={tr("review.contact")}>
         <ReviewRow label={tr("review.contact")} value={formData.contact_number} />
         <ReviewRow label={tr("review.purpose")} value={formData.purpose} />
@@ -1515,7 +1596,7 @@ const StepReview = ({
             <ReviewRow label={tr("review.employmentStatus")} value={formData.employment_status} />
             {formData.notes && (
               <div className="col-span-2">
-                <ReviewRow label={tr("review.notes")}        value={formData.notes} />
+                <ReviewRow label={tr("review.notes")} value={formData.notes} />
               </div>
             )}
           </>
@@ -1647,6 +1728,9 @@ const FrontDesk = () => {
     tr("step.review"),
   ], [tr]);
 
+  // ── App stage: "welcome" | "form" ──────────────────────────────────────────
+  const [stage, setStage]                   = useState<"welcome" | "form">("welcome");
+
   // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
   const [docType, setDocType]               = useState("");
@@ -1684,7 +1768,6 @@ const FrontDesk = () => {
       const missing = !formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth;
       const missingResident = docType === "resident-registration" && (!formData.sex || !formData.marital_status);
       if (missing || missingResident) { setErrors(tr("err.fillRequired")); return; }
-
     }
 
     if (currentStep === 2) {
@@ -1697,7 +1780,6 @@ const FrontDesk = () => {
       if (!formData.contact_number || !formData.purpose) {
         setErrors(tr("err.fillRequired")); return;
       }
-      // Business Clearance: require business name & type
       if (docType === "business-clearance" && (!formData.business_name || !formData.business_type)) {
         setErrors(tr("err.fillRequired")); return;
       }
@@ -1708,7 +1790,7 @@ const FrontDesk = () => {
 
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit — payload matches backend KioskSubmitRequest ────────────────────
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
 
@@ -1716,71 +1798,48 @@ const FrontDesk = () => {
       const response = await api.post(
         "api/kiosk/submit",
         {
-          // ── Service ───────────────────────────────────────────────────
-          service_type:  getServiceType(docType),   // e.g. "Barangay Clearance"
+          service_type:  getServiceType(docType),
           priority:      "Normal",
           type:          "walk_in",
-
-          // ── Personal ─────────────────────────────────────────────────
           prefix:        formData.prefix        || null,
           first_name:    formData.first_name     || "",
           middle_name:   formData.middle_name    || null,
           surname:       formData.surname        || "",
           ext_name:      formData.ext_name       || null,
-
-          // ── Demographics (Resident Registration) ─────────────────────
           sex:             formData.sex             || null,
           marital_status:  formData.marital_status  || null,
-          name_of_spouse:  formData.name_of_spouse  || null,   // ← new
+          name_of_spouse:  formData.name_of_spouse  || null,
           age:             formData.age             || null,
-          blood_type:      formData.blood_type      || null,   // ← new
-          height_cm:       formData.height_cm       || null,   // ← new
-          weight_kg:       formData.weight_kg       || null,   // ← new
-          complexion:      formData.complexion      || null,   // ← new
-          religion:        formData.religion        || null,   // ← new
+          blood_type:      formData.blood_type      || null,
+          height_cm:       formData.height_cm       || null,
+          weight_kg:       formData.weight_kg       || null,
+          complexion:      formData.complexion      || null,
+          religion:        formData.religion        || null,
           date_of_birth:   formData.date_of_birth   || "",
           place_of_birth:  formData.place_of_birth  || "",
-
-          // ── Address — three separate fields to match backend ──────────
           house_block_lot_no:   formData.house_block_lot_no   || null,
           street:               formData.street               || "",
           zone:                 formData.zone                 || "",
-
-          // ── Residency ─────────────────────────────────────────────────
           period_of_residency:   formData.period_of_residency    || "",
           registered_voter:      formData.registered_voter        || "",
           house_owner:           formData.house_owner             || "",
-          relationship_to_owner: formData.relationship_to_owner   || "",  // matches backend
-
-          // ── Contact ───────────────────────────────────────────────────
-          contact_number: formData.contact_number || "",  // backend maps to contact_no
-
-          // ── Purpose ───────────────────────────────────────────────────
+          relationship_to_owner: formData.relationship_to_owner   || "",
+          contact_number: formData.contact_number || "",
           purpose:  formData.purpose  || "",
-
-          // ── Business Clearance extras ────────────────────────────────
           business_name: formData.business_name || null,
           business_type: formData.business_type || null,
           capital:       formData.capital       || null,
-
-          // ── Building Clearance extras ─────────────────────────────────
           establishment: formData.establishment || null,
           bcert_number:  formData.bcert_number  || null,
-
-          // ── Resident Registration extras ──────────────────────
-          nick_name:         formData.nickname          || null,   // was: nickname
+          nick_name:         formData.nickname          || null,
           pwd:               formData.pwd === "true" ? true : formData.pwd === "false" ? false : null,
           resident_status:   formData.resident_status   || null,
           precinct_no:       formData.precinct_no       || null,
           occupation:        formData.occupation        || null,
           position:          formData.position          || null,
-          emp_status:        formData.employment_status || null,   // was: employment_status
+          emp_status:        formData.employment_status || null,
           notes:             formData.notes             || null,
-
-          // ── All doc types ─────────────────────────────────────
-          email_address:     formData.email             || null,   // was: email
-
-          // ── Authorized person (optional) ──────────────────────────────
+          email_address:     formData.email             || null,
           authorized_person: formData.authorized_person || null,
         },
         { withCredentials: true }
@@ -1797,9 +1856,22 @@ const FrontDesk = () => {
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
+    // Return to welcome screen for fresh start
+    setStage("welcome");
   }, []);
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Welcome screen — shown before the form, includes privacy notice
+  if (stage === "welcome") {
+    return (
+      <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
+        <AccessibilityBar lang={lang} setLang={setLang} fontSize={fontSize} setFontSize={setFontSize} />
+        <WelcomeScreen tr={tr} onProceed={() => setStage("form")} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
       <AccessibilityBar lang={lang} setLang={setLang} fontSize={fontSize} setFontSize={setFontSize} />
