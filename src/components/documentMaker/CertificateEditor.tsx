@@ -398,11 +398,18 @@ export function CertificateEditor() {
     if (!templateBytesRef.current) return;
 
     try {
+      // Build PDF fields with concat groups for layout reference
+      // Clear values in preview to show empty template
+      const previewFields = buildPDFFields(currentFields).map(f => ({
+        ...f,
+        value: '' // Empty values for preview layout
+      }));
+
       const bytes = await generatePDF(
         templateBytesRef.current,
-        [], // ❗️IMPORTANT: pass EMPTY fields here
-        qrField,
-        resolvedBcert
+        previewFields, // Pass fields for layout positioning
+        qrField,       // QR will always generate if qrField.visible is true
+        resolvedBcert  // Always pass the bcertNumber for QR
       );
 
       const url = pdfBytesToBlobUrl(bytes);
@@ -536,6 +543,20 @@ export function CertificateEditor() {
     })));
     setSelectedId(null);
   };
+
+  // Auto-generate QR code when bcertNumber becomes available
+  useEffect(() => {
+    if (resolvedBcert && resolvedBcert !== 'new' && !qrField?.visible) {
+      setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
+    }
+  }, [resolvedBcert]);
+
+  // Auto-generate QR code when bcertNumber becomes available
+  useEffect(() => {
+    if (resolvedBcert && resolvedBcert !== 'new' && !qrField?.visible) {
+      setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
+    }
+  }, [resolvedBcert]);
 
   const handleToggleQR = () => {
     setQrField(qrField?.visible

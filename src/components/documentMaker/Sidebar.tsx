@@ -115,32 +115,22 @@ export function EditorSidebar({
         </div>
       </ScrollArea>
 
-      {/* ── QR Code Panel ─────────────────────────────────────────── */}
+      {/* ── QR Code Panel (Auto-Generated) ─────────────────────────────────────────── */}
       <div className="border-t border-sidebar-border p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
+            <QrCode className="h-3.5 w-3.5 text-blue-600" />
             <span className="text-xs font-semibold">QR Code</span>
           </div>
 
-          <Button
-            variant={qrEnabled ? 'default' : 'outline'}
-            size="sm"
-            className={cn(
-              'h-7 text-xs',
-              qrEnabled && 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
-            )}
-            disabled={!hasNumber}
-            onClick={onToggleQR}
-            title={!hasNumber ? 'Save the document first to get a BCert number' : undefined}
-          >
-            {qrEnabled ? 'QR Added ✓' : 'Add QR Code'}
-          </Button>
+          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+            Auto ✓
+          </span>
         </div>
 
         {!hasNumber && (
           <p className="text-[11px] text-muted-foreground leading-snug">
-            Save this document first — the BCert number is required to generate a QR code.
+            QR code will be generated automatically once you save the document.
           </p>
         )}
 
@@ -150,20 +140,13 @@ export function EditorSidebar({
               {bcertNumber}
             </p>
 
-            <div
-              className={cn(
-                'flex justify-center rounded-md border bg-white p-2 transition-opacity',
-                qrEnabled ? 'opacity-100 border-blue-200' : 'opacity-40 border-border'
-              )}
-            >
+            <div className="flex justify-center rounded-md border border-blue-200 bg-white p-2">
               <QRPreviewCanvas value={bcertNumber} size={120} />
             </div>
 
-            {qrEnabled && (
-              <p className="text-[11px] text-muted-foreground text-center">
-                Drag the QR on the preview to reposition it.
-              </p>
-            )}
+            <p className="text-[11px] text-muted-foreground text-center">
+              QR code is active. Drag it on the preview to reposition.
+            </p>
           </div>
         )}
       </div>
