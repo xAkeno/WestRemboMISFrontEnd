@@ -33,6 +33,9 @@ const SERVICE_TYPE_MAP: Record<string, string> = {
 
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
 
+// Prefix options for the combobox
+const PREFIX_OPTIONS = ["Mr.", "Ms.", "Mrs.", "Dr.", "Atty.", "Engr.", "Prof."];
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSLATIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -84,6 +87,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "opt.dark":               "Dark",
     "opt.veryDark":           "Very Dark",
     "err.minAge":             "Applicant must be at least 1 year old.",
+    "err.invalidName":        "Name must contain only letters and be at least 2 characters.",
+    "err.invalidContact":     "Contact number must be exactly 11 digits starting with 09.",
+    "err.invalidEmail":       "Please enter a valid email address.",
+    "err.invalidAge":         "Please enter a valid age.",
+    "err.invalidHeight":      "Height must be a positive number.",
+    "err.invalidWeight":      "Weight must be a positive number.",
+    "err.invalidCapital":     "Capital must be a positive number.",
+    "err.invalidResidency":   "Please enter a valid period (e.g., 5 years, 6 months).",
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -127,9 +138,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Please verify all details before submitting",
     "field.prefix":           "Prefix",
     "field.firstName":        "First name",
-    "field.middleName":       "Middle name",
+    "field.middleName":       "Middle name (Optional)",
     "field.Surname":          "Last name",
-    "field.extName":          "Ext. name (Jr./Sr./III)",
+    "field.extName":          "Ext. name (Jr./Sr./III) (Optional)",
     "field.dob":              "Date of birth",
     "field.pob":              "Place of birth",
     "field.sex":              "Sex",
@@ -212,12 +223,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Request submitted!",
     "success.sub":            "Your document request has been received. Please wait for processing.",
     "addr.preview":           "Full address:",
-    "field.spouse":           "Name of spouse",
-    "field.bloodType":        "Blood type",
-    "field.height":           "Height (cm)",
-    "field.weight":           "Weight (kg)",
-    "field.complexion":       "Complexion",
-    "field.religion":         "Religion",
+    "field.spouse":           "Name of spouse (Optional)",
+    "field.bloodType":        "Blood type (Optional)",
+    "field.height":           "Height (cm) (Optional)",
+    "field.weight":           "Weight (kg) (Optional)",
+    "field.complexion":       "Complexion (Optional)",
+    "field.religion":         "Religion (Optional)",
     "ph.spouse":              "e.g. Maria Dela Cruz",
     "ph.bloodType":           "e.g. O+",
     "ph.height":              "e.g. 165",
@@ -277,6 +288,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "opt.dark":               "Maitim",
     "opt.veryDark":           "Napakaitim",
     "err.minAge":             "Ang aplikante ay dapat na hindi bababa sa 1 taong gulang.",
+    "err.invalidName":        "Ang pangalan ay dapat naglalaman lamang ng mga letra at hindi bababa sa 2 character.",
+    "err.invalidContact":     "Ang numero ng contact ay dapat eksaktong 11 digit na nagsisimula sa 09.",
+    "err.invalidEmail":       "Mangyaring maglagay ng wastong email address.",
+    "err.invalidAge":         "Mangyaring maglagay ng wastong edad.",
+    "err.invalidHeight":      "Ang taas ay dapat na positibong numero.",
+    "err.invalidWeight":      "Ang timbang ay dapat na positibong numero.",
+    "err.invalidCapital":     "Ang kapital ay dapat na positibong numero.",
+    "err.invalidResidency":   "Mangyaring maglagay ng wastong panahon (hal., 5 taon, 6 buwan).",
     "a11y.language":          "Wika",
     "a11y.fontSize":          "Laki ng teksto",
     "a11y.small":             "A",
@@ -320,9 +339,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Unang pangalan",
-    "field.middleName":       "Gitnang pangalan",
+    "field.middleName":       "Gitnang pangalan (Opsyonal)",
     "field.Surname":          "Apelyido",
-    "field.extName":          "Ext. pangalan (Jr./Sr./III)",
+    "field.extName":          "Ext. pangalan (Jr./Sr./III) (Opsyonal)",
     "field.dob":              "Petsa ng kapanganakan",
     "field.pob":              "Lugar ng kapanganakan",
     "field.sex":              "Kasarian",
@@ -405,12 +424,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "addr.preview":           "Buong tirahan:",
-    "field.spouse":           "Pangalan ng asawa",
-    "field.bloodType":        "Uri ng dugo",
-    "field.height":           "Taas (cm)",
-    "field.weight":           "Timbang (kg)",
-    "field.complexion":       "Kutis",
-    "field.religion":         "Relihiyon",
+    "field.spouse":           "Pangalan ng asawa (Opsyonal)",
+    "field.bloodType":        "Uri ng dugo (Opsyonal)",
+    "field.height":           "Taas (cm) (Opsyonal)",
+    "field.weight":           "Timbang (kg) (Opsyonal)",
+    "field.complexion":       "Kutis (Opsyonal)",
+    "field.religion":         "Relihiyon (Opsyonal)",
     "ph.spouse":              "hal. Maria Dela Cruz",
     "ph.bloodType":           "hal. O+",
     "ph.height":              "hal. 165",
@@ -470,6 +489,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "opt.dark":               "Ngitngit",
     "opt.veryDark":           "Ngitngit Kaayo",
     "err.minAge":             "Ang aplikante kinahanglan nga may edad nga labing menos 1 ka tuig.",
+    "err.invalidName":        "Ang ngalan kinahanglan nga adunay mga letra lamang ug dili moubos sa 2 ka karakter.",
+    "err.invalidContact":     "Ang numero sa kontak kinahanglan nga eksaktong 11 ka digit nga nagsugod sa 09.",
+    "err.invalidEmail":       "Palihug pagbutang og balido nga email address.",
+    "err.invalidAge":         "Palihug pagbutang og balido nga edad.",
+    "err.invalidHeight":      "Ang gitas-on kinahanglan nga positibo nga numero.",
+    "err.invalidWeight":      "Ang timbang kinahanglan nga positibo nga numero.",
+    "err.invalidCapital":     "Ang kapital kinahanglan nga positibo nga numero.",
+    "err.invalidResidency":   "Palihug pagbutang og balido nga panahon (pananglitan, 5 ka tuig, 6 ka bulan).",
     "a11y.language":          "Pinulongan",
     "a11y.fontSize":          "Gidak-on sa teksto",
     "a11y.small":             "A",
@@ -513,9 +540,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Una nga ngalan",
-    "field.middleName":       "Tungatunga nga ngalan",
+    "field.middleName":       "Tungatunga nga ngalan (Opsyonal)",
     "field.Surname":          "Apelyido",
-    "field.extName":          "Ext. ngalan (Jr./Sr./III)",
+    "field.extName":          "Ext. ngalan (Jr./Sr./III) (Opsyonal)",
     "field.dob":              "Petsa sa pagkatawo",
     "field.pob":              "Lugar sa pagkatawo",
     "field.sex":              "Sekso",
@@ -598,12 +625,12 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "addr.preview":           "Tibuok adres:",
-    "field.spouse":           "Ngalan sa asawa",
-    "field.bloodType":        "Matang sa dugo",
-    "field.height":           "Gihabugon (cm)",
-    "field.weight":           "Gibug-aton (kg)",
-    "field.complexion":       "Kolor sa panit",
-    "field.religion":         "Relihiyon",
+    "field.spouse":           "Ngalan sa asawa (Opsyonal)",
+    "field.bloodType":        "Matang sa dugo (Opsyonal)",
+    "field.height":           "Gihabugon (cm) (Opsyonal)",
+    "field.weight":           "Gibug-aton (kg) (Opsyonal)",
+    "field.complexion":       "Kolor sa panit (Opsyonal)",
+    "field.religion":         "Relihiyon (Opsyonal)",
     "ph.spouse":              "hal. Maria Dela Cruz",
     "ph.bloodType":           "hal. O+",
     "ph.height":              "hal. 165",
@@ -630,6 +657,66 @@ const FONT_SCALE: Record<FontSize, { scale: number; label: string; ariaLabel: st
 
 const LS_LANG = "fd_lang";
 const LS_FONT = "fd_font";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VALIDATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+const toUpperCase = (value: string): string => {
+  return value.toUpperCase();
+};
+
+const validateName = (name: string, fieldName: string, tr: (k: string) => string): string => {
+  if (!name || name.trim() === "") return `${fieldName} is required.`;
+  if (!/^[A-Za-z\s\-']+$/.test(name)) return tr("err.invalidName");
+  if (name.trim().length === 1) return tr("err.invalidName");
+  return "";
+};
+
+const validateContact = (contact: string, tr: (k: string) => string): string => {
+  if (!contact || contact.trim() === "") return "Contact number is required.";
+  const cleanContact = contact.replace(/\D/g, '');
+  if (cleanContact.length !== 11) return tr("err.invalidContact");
+  if (!/^09\d{9}$/.test(cleanContact)) return tr("err.invalidContact");
+  return "";
+};
+
+const validateEmail = (email: string, tr: (k: string) => string): string => {
+  if (email && email.trim() !== "") {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return tr("err.invalidEmail");
+  }
+  return "";
+};
+
+const validateRequired = (value: string, fieldName: string): string => {
+  if (!value || value.trim() === "") return `${fieldName} is required.`;
+  return "";
+};
+
+const validatePositiveNumber = (value: string, fieldName: string, tr: (k: string) => string, required: boolean = false): string => {
+  if (!value || value.trim() === "") {
+    return required ? `${fieldName} is required.` : "";
+  }
+  const num = parseFloat(value);
+  if (isNaN(num) || num <= 0) return tr(`err.invalid${fieldName}`);
+  return "";
+};
+
+const validatePeriodOfResidency = (value: string, tr: (k: string) => string): string => {
+  if (!value || value.trim() === "") return "Period of residency is required.";
+  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim())) return tr("err.invalidResidency");
+  return "";
+};
+
+const validateDob = (dob: string, tr: (k: string) => string): string => {
+  if (!dob) return "Date of birth is required.";
+  const date = new Date(dob);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today) return "Date of birth cannot be a future date.";
+  return "";
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ACCESSIBILITY BAR
@@ -769,12 +856,10 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-2xl">
-        {/* Hero card */}
         <div
           className="bg-card border border-border overflow-hidden mb-6"
           style={{ borderRadius: 2, borderTopWidth: 4, borderTopColor: NAVY }}
         >
-          {/* Top accent strip */}
           <div style={{ background: NAVY, padding: "32px 40px 28px" }}>
             <p
               className="font-bold uppercase tracking-[0.22em] mb-3"
@@ -794,7 +879,6 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
             </p>
           </div>
 
-          {/* Services quick glance */}
           <div className="px-8 py-6" style={{ borderBottom: "1px solid #e5e7eb" }}>
             <p className="font-bold uppercase tracking-[0.14em] mb-4" style={{ color: PINK, fontSize: "0.62em" }}>
               Available Documents
@@ -819,7 +903,6 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
             </div>
           </div>
 
-          {/* Data Privacy */}
           <div className="px-8 py-6">
             <div
               className="p-5 mb-5"
@@ -881,10 +964,14 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 const labelCls = "block font-bold uppercase tracking-[0.14em] mb-1";
 
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+const Field = ({ label, children, error, required }: { label: string; children: React.ReactNode; error?: string; required?: boolean }) => (
   <div>
-    <label className={labelCls} style={{ color: PINK, fontSize: "0.65em" }}>{label}</label>
+    <label className={labelCls} style={{ color: PINK, fontSize: "0.65em" }}>
+      {label}
+      {required && <span style={{ color: PINK, marginLeft: 2 }}>*</span>}
+    </label>
     {children}
+    {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
   </div>
 );
 
@@ -908,22 +995,115 @@ const ReviewSection = ({ title, children }: { title: string; children: React.Rea
 );
 
 const SelectField = ({
-  value, onChange, inputCls, children,
+  value, onChange, inputCls, children, error
 }: {
   value: string;
   onChange: (v: string) => void;
   inputCls: string;
   children: React.ReactNode;
+  error?: string;
 }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    className={`${inputCls} cursor-pointer`}
-    style={{ borderColor: "#d1d5db", fontSize: "inherit" }}
-  >
-    {children}
-  </select>
+  <div>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${inputCls} cursor-pointer`}
+      style={{ borderColor: error ? PINK : "#d1d5db", fontSize: "inherit" }}
+    >
+      {children}
+    </select>
+    {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
+  </div>
 );
+
+interface PrefixComboboxProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  inputCls: string;
+  error?: string;
+}
+
+const PrefixCombobox = ({ value, onChange, placeholder = "Select prefix…", inputCls, error }: PrefixComboboxProps) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setQuery(value); }, [value]);
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const filtered = query
+    ? PREFIX_OPTIONS.filter((o) => o.toLowerCase().includes(query.toLowerCase()))
+    : PREFIX_OPTIONS;
+
+  const select = (opt: string) => { setQuery(opt); onChange(opt); setOpen(false); };
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setQuery(v); onChange(v); setOpen(true);
+  };
+  const clear = () => { setQuery(""); onChange(""); setOpen(false); };
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative flex items-center">
+        <input
+          value={query}
+          onChange={handleInput}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className={`${inputCls} pr-12`}
+          style={{ borderColor: error ? PINK : open ? PINK : "#d1d5db" }}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          role="combobox"
+        />
+        <div className="absolute right-0 flex items-center gap-0.5 pb-1">
+          {query && (
+            <button type="button" onClick={clear} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Clear">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="p-1 text-gray-400"
+            aria-label="Toggle dropdown"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
+      {open && filtered.length > 0 && (
+        <ul
+          role="listbox"
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
+          style={{ borderRadius: 4, fontSize: "inherit" }}
+        >
+          {filtered.map((opt) => (
+            <li
+              key={opt}
+              role="option"
+              aria-selected={opt === value}
+              onMouseDown={() => select(opt)}
+              className="px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
+              style={{ color: opt === value ? NAVY : undefined, fontWeight: opt === value ? 500 : 400 }}
+            >
+              {opt}
+              {opt === value && <Check className="h-3.5 w-3.5" style={{ color: PINK }} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 interface ComboboxProps {
   value: string;
@@ -932,9 +1112,10 @@ interface ComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   inputCls: string;
+  error?: string;
 }
 
-const Combobox = ({ value, onChange, options, placeholder = "Select or type…", disabled, inputCls }: ComboboxProps) => {
+const Combobox = ({ value, onChange, options, placeholder = "Select or type…", disabled, inputCls, error }: ComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
@@ -969,7 +1150,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
           placeholder={placeholder}
           disabled={disabled}
           className={`${inputCls} pr-12`}
-          style={{ borderColor: open ? PINK : "#d1d5db" }}
+          style={{ borderColor: error ? PINK : open ? PINK : "#d1d5db" }}
           aria-autocomplete="list"
           aria-expanded={open}
           role="combobox"
@@ -991,6 +1172,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
           </button>
         </div>
       </div>
+      {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
       {open && filtered.length > 0 && (
         <ul
           role="listbox"
@@ -1162,66 +1344,145 @@ interface CommonStepProps {
 
 const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
   const isResident = docType === "resident-registration";
+  
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateAndSet = (field: string, value: string) => {
+    // Convert to uppercase for text fields (except prefix and email)
+    const textFields = ["first_name", "middle_name", "surname", "ext_name", "place_of_birth", "nickname", "religion", "name_of_spouse"];
+    let processedValue = value;
+    if (textFields.includes(field)) {
+      processedValue = toUpperCase(value);
+    }
+    
+    set(field, processedValue);
+    
+    let errorMsg = "";
+    switch (field) {
+      case "first_name":
+        errorMsg = validateName(processedValue, tr("field.firstName"), tr);
+        break;
+      case "surname":
+        errorMsg = validateName(processedValue, tr("field.Surname"), tr);
+        break;
+      case "date_of_birth":
+        errorMsg = validateDob(processedValue, tr);
+        if (!errorMsg && processedValue) {
+          const dob = new Date(processedValue);
+          const today = new Date();
+          let age = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+          if (age >= 0) set("age", String(age));
+        }
+        break;
+      case "place_of_birth":
+        errorMsg = validateRequired(processedValue, "Place of birth");
+        break;
+      case "sex":
+        errorMsg = validateRequired(processedValue, "Sex");
+        break;
+      case "marital_status":
+        errorMsg = validateRequired(processedValue, "Marital status");
+        break;
+      case "height_cm":
+        errorMsg = validatePositiveNumber(processedValue, "Height", tr, false);
+        break;
+      case "weight_kg":
+        errorMsg = validatePositiveNumber(processedValue, "Weight", tr, false);
+        break;
+    }
+    
+    setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
+  };
+
+  const validateStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    newErrors.first_name = validateName(formData.first_name || "", tr("field.firstName"), tr);
+    newErrors.surname = validateName(formData.surname || "", tr("field.Surname"), tr);
+    newErrors.date_of_birth = validateDob(formData.date_of_birth || "", tr);
+    newErrors.place_of_birth = validateRequired(formData.place_of_birth || "", "Place of birth");
+    
+    if (isResident) {
+      newErrors.sex = validateRequired(formData.sex || "", "Sex");
+      newErrors.marital_status = validateRequired(formData.marital_status || "", "Marital status");
+      // Height and weight are optional, only validate if provided
+      if (formData.height_cm && formData.height_cm.trim()) {
+        newErrors.height_cm = validatePositiveNumber(formData.height_cm, "Height", tr, false);
+      }
+      if (formData.weight_kg && formData.weight_kg.trim()) {
+        newErrors.weight_kg = validatePositiveNumber(formData.weight_kg, "Weight", tr, false);
+      }
+    }
+    
+    setFieldErrors(newErrors);
+    return !Object.values(newErrors).some(err => err);
+  };
+
+  const handleNext = () => {
+    if (validateStep()) {
+      onNext();
+    } else {
+      // Show toast for validation errors
+      toast.error(tr("err.fillRequired"));
+    }
+  };
 
   return (
     <Card eyebrow={tr("step2.eyebrow")} title={tr("step2.title")} subtitle={tr("step2.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         <Field label={tr("field.prefix")}>
-          <MaskedInput value={formData.prefix || ""} onValueChange={(v) => set("prefix", v)}
-            placeholder={tr("ph.prefix")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <PrefixCombobox
+            value={formData.prefix || ""}
+            onChange={(v) => validateAndSet("prefix", v)}
+            placeholder={tr("ph.prefix")}
+            inputCls={inputCls}
+          />
         </Field>
         <Field label={tr("field.extName")}>
-          <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => set("ext_name", v)}
-            placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => validateAndSet("ext_name", v)}
+            placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: fieldErrors.ext_name ? PINK : "#d1d5db" }} />
         </Field>
-        <Field label={`${tr("field.firstName")} *`}>
-          <MaskedInput value={formData.first_name || ""} onValueChange={(v) => set("first_name", v)}
-            placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+        <Field label={`${tr("field.firstName")}`} error={fieldErrors.first_name} required>
+          <MaskedInput value={formData.first_name || ""} onValueChange={(v) => validateAndSet("first_name", v)}
+            placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: fieldErrors.first_name ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={tr("field.middleName")}>
-          <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => set("middle_name", v)}
-            placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => validateAndSet("middle_name", v)}
+            placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: fieldErrors.middle_name ? PINK : "#d1d5db" }} />
         </Field>
-        <Field label={`${tr("field.Surname")} *`}>
-          <MaskedInput value={formData.surname || ""} onValueChange={(v) => set("surname", v)}
-            placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+        <Field label={`${tr("field.Surname")}`} error={fieldErrors.surname} required>
+          <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)}
+            placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
         </Field>
-        <Field label={`${tr("field.dob")} *`}>
+        <Field label={`${tr("field.dob")}`} error={fieldErrors.date_of_birth} required>
           <MaskedInput type="date" value={formData.date_of_birth || ""}
-            onValueChange={(v) => {
-              set("date_of_birth", v);
-              if (v) {
-                const dob = new Date(v); const today = new Date();
-                let age = today.getFullYear() - dob.getFullYear();
-                const m = today.getMonth() - dob.getMonth();
-                if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-                set("age", age >= 0 ? String(age) : "");
-              } else { set("age", ""); }
-            }}
-            placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            onValueChange={(v) => validateAndSet("date_of_birth", v)}
+            placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }} />
         </Field>
         <div className="md:col-span-2">
-          <Field label={`${tr("field.pob")} *`}>
-            <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => set("place_of_birth", v)}
-              placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <Field label={`${tr("field.pob")}`} error={fieldErrors.place_of_birth} required>
+            <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => validateAndSet("place_of_birth", v)}
+              placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: fieldErrors.place_of_birth ? PINK : "#d1d5db" }} />
           </Field>
         </div>
 
         {isResident && (
           <>
             <Field label={tr("field.nickname")}>
-              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => set("nickname", v)}
-                placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => validateAndSet("nickname", v)}
+                placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: fieldErrors.nickname ? PINK : "#d1d5db" }} />
             </Field>
-            <Field label={`${tr("field.sex")} *`}>
-              <SelectField value={formData.sex || ""} onChange={(v) => set("sex", v)} inputCls={inputCls}>
+            <Field label={`${tr("field.sex")}`} error={fieldErrors.sex} required>
+              <SelectField value={formData.sex || ""} onChange={(v) => validateAndSet("sex", v)} inputCls={inputCls} error={fieldErrors.sex}>
                 <option value="">{tr("opt.select")}</option>
                 <option value="Male">{tr("opt.male")}</option>
                 <option value="Female">{tr("opt.female")}</option>
               </SelectField>
             </Field>
-            <Field label={`${tr("field.civilStatus")} *`}>
-              <SelectField value={formData.marital_status || ""} onChange={(v) => set("marital_status", v)} inputCls={inputCls}>
+            <Field label={`${tr("field.civilStatus")}`} error={fieldErrors.marital_status} required>
+              <SelectField value={formData.marital_status || ""} onChange={(v) => validateAndSet("marital_status", v)} inputCls={inputCls} error={fieldErrors.marital_status}>
                 <option value="">{tr("opt.select")}</option>
                 <option value="Single">{tr("opt.single")}</option>
                 <option value="Married">{tr("opt.married")}</option>
@@ -1232,8 +1493,8 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
             {formData.marital_status === "Married" && (
               <div className="md:col-span-2">
                 <Field label={tr("field.spouse")}>
-                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => set("name_of_spouse", v)}
-                    placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => validateAndSet("name_of_spouse", v)}
+                    placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: fieldErrors.name_of_spouse ? PINK : "#d1d5db" }} />
                 </Field>
               </div>
             )}
@@ -1251,7 +1512,7 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                 aria-label={tr("field.age")} />
             </Field>
             <Field label={tr("field.bloodType")}>
-              <SelectField value={formData.blood_type || ""} onChange={(v) => set("blood_type", v)} inputCls={inputCls}>
+              <SelectField value={formData.blood_type || ""} onChange={(v) => validateAndSet("blood_type", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
                 {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => (
                   <option key={bt} value={bt}>{bt}</option>
@@ -1261,26 +1522,31 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
             <Field label={tr("field.complexion")}>
               <Combobox
                 value={formData.complexion || ""}
-                onChange={(v) => set("complexion", v)}
+                onChange={(v) => validateAndSet("complexion", v)}
                 options={[tr("opt.veryFair"), tr("opt.fair"), tr("opt.morena"), tr("opt.brown"), tr("opt.dark"), tr("opt.veryDark")]}
                 placeholder={tr("ph.complexion")}
                 inputCls={inputCls}
               />
             </Field>
             <Field label={tr("field.height")}>
-              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => set("height_cm", v)}
-                placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => validateAndSet("height_cm", v)}
+                placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: fieldErrors.height_cm ? PINK : "#d1d5db" }} />
             </Field>
             <Field label={tr("field.weight")}>
-              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => set("weight_kg", v)}
-                placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => validateAndSet("weight_kg", v)}
+                placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: fieldErrors.weight_kg ? PINK : "#d1d5db" }} />
             </Field>
             <Field label={tr("field.religion")}>
-              <MaskedInput value={formData.religion || ""} onValueChange={(v) => set("religion", v)}
-                placeholder={tr("ph.religion")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <Combobox
+                value={formData.religion || ""}
+                onChange={(v) => validateAndSet("religion", v)}
+                options={["Roman Catholic", "Iglesia Ni Cristo", "Born Again Christian", "Muslim", "Buddhist", "Other"]}
+                placeholder={tr("ph.religion")}
+                inputCls={inputCls}
+              />
             </Field>
             <Field label={tr("field.pwd")}>
-              <SelectField value={formData.pwd ?? ""} onChange={(v) => set("pwd", v)} inputCls={inputCls}>
+              <SelectField value={formData.pwd ?? ""} onChange={(v) => validateAndSet("pwd", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
                 <option value="true">PWD</option>
                 <option value="false">Not PWD</option>
@@ -1290,7 +1556,7 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
         )}
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
+      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
     </Card>
   );
 };
@@ -1315,27 +1581,90 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
     )
   ).sort();
 
-  const handleStreetChange = (val: string) => { set("street", val); set("zone", ""); };
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateAndSet = (field: string, value: string) => {
+    // Convert to uppercase for address fields
+    const textFields = ["house_block_lot_no", "street", "zone", "house_owner", "resident_status"];
+    let processedValue = value;
+    if (textFields.includes(field)) {
+      processedValue = toUpperCase(value);
+    }
+    
+    set(field, processedValue);
+    
+    let errorMsg = "";
+    switch (field) {
+      case "street":
+        errorMsg = validateRequired(processedValue, "Street");
+        break;
+      case "zone":
+        errorMsg = validateRequired(processedValue, "Zone/Purok");
+        break;
+      case "period_of_residency":
+        errorMsg = validatePeriodOfResidency(processedValue, tr);
+        break;
+      case "registered_voter":
+        errorMsg = validateRequired(processedValue, "Voter status");
+        break;
+      case "house_owner":
+        errorMsg = validateRequired(processedValue, "House owner");
+        break;
+      case "relationship_to_owner":
+        errorMsg = validateRequired(processedValue, "Relationship to owner");
+        break;
+      case "house_block_lot_no":
+        errorMsg = validateRequired(processedValue, "House/Block/Lot number");
+        break;
+    }
+    
+    setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
+  };
+
+  const handleStreetChange = (val: string) => { validateAndSet("street", val); validateAndSet("zone", ""); };
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
+
+  const validateStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no || "", "House/Block/Lot number");
+    newErrors.street = validateRequired(formData.street || "", "Street");
+    newErrors.zone = validateRequired(formData.zone || "", "Zone/Purok");
+    newErrors.period_of_residency = validatePeriodOfResidency(formData.period_of_residency || "", tr);
+    newErrors.registered_voter = validateRequired(formData.registered_voter || "", "Voter status");
+    newErrors.house_owner = validateRequired(formData.house_owner || "", "House owner");
+    newErrors.relationship_to_owner = validateRequired(formData.relationship_to_owner || "", "Relationship to owner");
+    
+    setFieldErrors(newErrors);
+    return !Object.values(newErrors).some(err => err);
+  };
+
+  const handleNext = () => {
+    if (validateStep()) {
+      onNext();
+    } else {
+      toast.error(tr("err.fillAddress"));
+    }
+  };
 
   return (
     <Card eyebrow={tr("step3.eyebrow")} title={tr("step3.title")} subtitle={tr("step3.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         <div className="md:col-span-2">
-          <Field label={tr("field.houseUnit")}>
-            <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => set("house_block_lot_no", v)}
-              placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+          <Field label={tr("field.houseUnit")} error={fieldErrors.house_block_lot_no} required>
+            <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => validateAndSet("house_block_lot_no", v)}
+              placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: fieldErrors.house_block_lot_no ? PINK : "#d1d5db" }} />
           </Field>
         </div>
-        <Field label={`${tr("field.street")} *`}>
+        <Field label={`${tr("field.street")}`} error={fieldErrors.street} required>
           <Combobox value={formData.street || ""} onChange={handleStreetChange}
-            options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} />
+            options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} error={fieldErrors.street} />
         </Field>
-        <Field label={`${tr("field.zone")} *`}>
-          <Combobox value={formData.zone || ""} onChange={(v) => set("zone", v)}
+        <Field label={`${tr("field.zone")}`} error={fieldErrors.zone} required>
+          <Combobox value={formData.zone || ""} onChange={(v) => validateAndSet("zone", v)}
             options={zoneOptions}
             placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
-            disabled={!formData.street} inputCls={inputCls} />
+            disabled={!formData.street} inputCls={inputCls} error={fieldErrors.zone} />
         </Field>
         {addressPreview && (
           <div className="md:col-span-2 p-3 text-muted-foreground"
@@ -1344,40 +1673,39 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             {addressPreview}
           </div>
         )}
-        <Field label={`${tr("field.residency")} *`}>
-          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => set("period_of_residency", v)}
-            placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+        <Field label={`${tr("field.residency")}`} error={fieldErrors.period_of_residency} required>
+          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => validateAndSet("period_of_residency", v)}
+            placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: fieldErrors.period_of_residency ? PINK : "#d1d5db" }} />
         </Field>
-        <Field label={`${tr("field.voter")} *`}>
-          <SelectField value={formData.registered_voter || ""} onChange={(v) => set("registered_voter", v)} inputCls={inputCls}>
+        <Field label={`${tr("field.voter")}`} error={fieldErrors.registered_voter} required>
+          <SelectField value={formData.registered_voter || ""} onChange={(v) => validateAndSet("registered_voter", v)} inputCls={inputCls} error={fieldErrors.registered_voter}>
             <option value="">{tr("opt.select")}</option>
             <option value="Yes">{tr("opt.yes")}</option>
             <option value="No">{tr("opt.no")}</option>
           </SelectField>
         </Field>
 
-        {/* Precinct No — shown for ALL doc types when registered voter = Yes */}
         {formData.registered_voter === "Yes" && (
           <Field label={tr("field.precinctNo")}>
-            <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => set("precinct_no", v)}
-              placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => validateAndSet("precinct_no", v)}
+              placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: fieldErrors.precinct_no ? PINK : "#d1d5db" }} />
           </Field>
         )}
 
         {isResident && (
           <Field label={tr("field.residentStatus")}>
-            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => set("resident_status", v)}
-              placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => validateAndSet("resident_status", v)}
+              placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: fieldErrors.resident_status ? PINK : "#d1d5db" }} />
           </Field>
         )}
 
-        <Field label={`${tr("field.houseOwner")} *`}>
-          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => set("house_owner", v)}
-            placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+        <Field label={`${tr("field.houseOwner")}`} error={fieldErrors.house_owner} required>
+          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => validateAndSet("house_owner", v)}
+            placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: fieldErrors.house_owner ? PINK : "#d1d5db" }} />
         </Field>
-        <Field label={`${tr("field.relation")} *`}>
-          <Select value={formData.relationship_to_owner || ""} onValueChange={(v) => set("relationship_to_owner", v)}>
-            <SelectTrigger className={inputCls} style={{ borderColor: "#d1d5db" }}>
+        <Field label={`${tr("field.relation")}`} error={fieldErrors.relationship_to_owner} required>
+          <Select value={formData.relationship_to_owner || ""} onValueChange={(v) => validateAndSet("relationship_to_owner", v)}>
+            <SelectTrigger className={inputCls} style={{ borderColor: fieldErrors.relationship_to_owner ? PINK : "#d1d5db" }}>
               <SelectValue placeholder={tr("opt.select")} />
             </SelectTrigger>
             <SelectContent>
@@ -1389,7 +1717,7 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
         </Field>
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
+      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
     </Card>
   );
 };
@@ -1401,90 +1729,228 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
   const isResident = docType === "resident-registration";
-
+ 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+ 
+  const validateAndSet = (field: string, value: string) => {
+    // Convert to uppercase for text fields
+    const textFields = ["business_name", "business_type", "establishment", "occupation", "position", "employment_status", "notes", "purpose_details"];
+    let processedValue = value;
+    if (textFields.includes(field)) {
+      processedValue = toUpperCase(value);
+    }
+ 
+    set(field, processedValue);
+ 
+    let errorMsg = "";
+    switch (field) {
+      case "contact_number":
+        errorMsg = validateContact(processedValue, tr);
+        break;
+      case "email": // ← was "email", now consistent with API key
+        errorMsg = validateEmail(processedValue, tr);
+        break;
+      case "purpose":
+        errorMsg = validateRequired(processedValue, "Purpose");
+        break;
+      case "business_name":
+        if (isBusiness) errorMsg = validateRequired(processedValue, "Business name");
+        break;
+      case "business_type":
+        if (isBusiness) errorMsg = validateRequired(processedValue, "Business type");
+        break;
+      case "capital":
+        if (isBusiness) errorMsg = validatePositiveNumber(processedValue, "Capital", tr, false);
+        break;
+    }
+ 
+    setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
+  };
+ 
+  const validateStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+ 
+    newErrors.contact_number = validateContact(formData.contact_number || "", tr);
+    if (formData.email && formData.email.trim()) {
+      newErrors.email = validateEmail(formData.email, tr);
+    }
+    newErrors.purpose = validateRequired(formData.purpose || "", "Purpose");
+ 
+    if (isBusiness) {
+      newErrors.business_name = validateRequired(formData.business_name || "", "Business name");
+      newErrors.business_type = validateRequired(formData.business_type || "", "Business type");
+      if (formData.capital && formData.capital.trim()) {
+        newErrors.capital = validatePositiveNumber(formData.capital, "Capital", tr, false);
+      }
+    }
+ 
+    setFieldErrors(newErrors);
+    return !Object.values(newErrors).some(err => err);
+  };
+ 
+  const handleNext = () => {
+    if (validateStep()) {
+      onNext();
+    } else {
+      toast.error(tr("err.fillRequired"));
+    }
+  };
+ 
   return (
     <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-        <Field label={`${tr("field.contact")} *`}>
-          <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => set("contact_number", v)}
-            placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+ 
+        {/* Contact number */}
+        <Field label={`${tr("field.contact")}`} error={fieldErrors.contact_number} required>
+          <MaskedInput
+            value={formData.contact_number || ""}
+            onValueChange={(v) => validateAndSet("contact_number", v)}
+            placeholder={tr("ph.contact")}
+            className={inputCls}
+            style={{ borderColor: fieldErrors.contact_number ? PINK : "#d1d5db" }}
+          />
         </Field>
-        <Field label={tr("field.email")}>
-          <MaskedInput value={formData.email || ""} onValueChange={(v) => set("email", v)}
-            placeholder={tr("ph.email")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+ 
+        {/* Email — key is now "email" everywhere */}
+        <Field label={tr("field.email")} error={fieldErrors.email}>
+          <MaskedInput
+            value={formData.email || ""}
+            onValueChange={(v) => validateAndSet("email", v)}
+            placeholder={tr("ph.email")}
+            className={inputCls}
+            style={{ borderColor: fieldErrors.email ? PINK : "#d1d5db" }}
+          />
         </Field>
+ 
+        {/* Purpose */}
         <div className="md:col-span-2">
-          <Field label={`${tr("field.purpose")} *`}>
-            <Select value={formData.purpose || ""} onValueChange={(v) => set("purpose", v)}>
-              <SelectTrigger className={inputCls} style={{ borderColor: "#d1d5db" }}>
+          <Field label={`${tr("field.purpose")}`} error={fieldErrors.purpose} required>
+            <Select value={formData.purpose || ""} onValueChange={(v) => validateAndSet("purpose", v)}>
+              <SelectTrigger className={inputCls} style={{ borderColor: fieldErrors.purpose ? PINK : "#d1d5db" }}>
                 <SelectValue placeholder={tr("ph.purpose")} />
               </SelectTrigger>
               <SelectContent>
-                {["Employment","Business","Travel","Legal Purposes","School Requirement","Bank Transaction","Other"].map((p) => (
+                {["Employment", "Business", "Travel", "Legal Purposes", "School Requirement", "Bank Transaction", "Other"].map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
         </div>
-
+ 
+        {/* ── FIX 1: purpose_details textarea (was missing entirely) ── */}
+        <div className="md:col-span-2">
+          <Field label="Purpose Details (Optional)">
+            <textarea
+              value={formData.purpose_details || ""}
+              onChange={(e) => set("purpose_details", e.target.value)}
+              placeholder="Provide additional details about your purpose (e.g. company name, school, etc.)…"
+              rows={3}
+              className={inputCls}
+              style={{ resize: "vertical", fontSize: "inherit" }}
+            />
+          </Field>
+        </div>
+ 
+        {/* Resident-specific fields */}
         {isResident && (
           <>
             <Field label={tr("field.occupation")}>
-              <MaskedInput value={formData.occupation || ""} onValueChange={(v) => set("occupation", v)}
-                placeholder={tr("ph.occupation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <MaskedInput
+                value={formData.occupation || ""}
+                onValueChange={(v) => validateAndSet("occupation", v)}
+                placeholder={tr("ph.occupation")}
+                className={inputCls}
+                style={{ borderColor: fieldErrors.occupation ? PINK : "#d1d5db" }}
+              />
             </Field>
             <Field label={tr("field.position")}>
-              <MaskedInput value={formData.position || ""} onValueChange={(v) => set("position", v)}
-                placeholder={tr("ph.position")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+              <MaskedInput
+                value={formData.position || ""}
+                onValueChange={(v) => validateAndSet("position", v)}
+                placeholder={tr("ph.position")}
+                className={inputCls}
+                style={{ borderColor: fieldErrors.position ? PINK : "#d1d5db" }}
+              />
             </Field>
             <div className="md:col-span-2">
               <Field label={tr("field.employmentStatus")}>
-                <MaskedInput value={formData.employment_status || ""} onValueChange={(v) => set("employment_status", v)}
-                  placeholder={tr("ph.employmentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+                <MaskedInput
+                  value={formData.employment_status || ""}
+                  onValueChange={(v) => validateAndSet("employment_status", v)}
+                  placeholder={tr("ph.employmentStatus")}
+                  className={inputCls}
+                  style={{ borderColor: fieldErrors.employment_status ? PINK : "#d1d5db" }}
+                />
               </Field>
             </div>
             <div className="md:col-span-2">
               <Field label={tr("field.notes")}>
-                <textarea value={formData.notes || ""} onChange={(e) => set("notes", e.target.value)}
-                  placeholder={tr("ph.notes")} rows={3}
+                <textarea
+                  value={formData.notes || ""}
+                  onChange={(e) => validateAndSet("notes", e.target.value)}
+                  placeholder={tr("ph.notes")}
+                  rows={3}
                   className={inputCls}
-                  style={{ borderColor: "#d1d5db", resize: "vertical", fontSize: "inherit" }} />
+                  style={{ borderColor: fieldErrors.notes ? PINK : "#d1d5db", resize: "vertical", fontSize: "inherit" }}
+                />
               </Field>
             </div>
           </>
         )}
-
+ 
+        {/* Business-specific fields */}
         {isBusiness && (
           <>
-            <Field label={`${tr("field.businessName")} *`}>
-              <MaskedInput value={formData.business_name || ""} onValueChange={(v) => set("business_name", v)}
-                placeholder={tr("ph.businessName")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <Field label={`${tr("field.businessName")}`} error={fieldErrors.business_name} required>
+              <MaskedInput
+                value={formData.business_name || ""}
+                onValueChange={(v) => validateAndSet("business_name", v)}
+                placeholder={tr("ph.businessName")}
+                className={inputCls}
+                style={{ borderColor: fieldErrors.business_name ? PINK : "#d1d5db" }}
+              />
             </Field>
-            <Field label={`${tr("field.businessType")} *`}>
-              <MaskedInput value={formData.business_type || ""} onValueChange={(v) => set("business_type", v)}
-                placeholder={tr("ph.businessType")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <Field label={`${tr("field.businessType")}`} error={fieldErrors.business_type} required>
+              <MaskedInput
+                value={formData.business_type || ""}
+                onValueChange={(v) => validateAndSet("business_type", v)}
+                placeholder={tr("ph.businessType")}
+                className={inputCls}
+                style={{ borderColor: fieldErrors.business_type ? PINK : "#d1d5db" }}
+              />
             </Field>
-            <Field label={tr("field.capital")}>
-              <MaskedInput value={formData.capital || ""} onValueChange={(v) => set("capital", v)}
-                placeholder={tr("ph.capital")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <Field label={tr("field.capital")} error={fieldErrors.capital}>
+              <MaskedInput
+                value={formData.capital || ""}
+                onValueChange={(v) => validateAndSet("capital", v)}
+                placeholder={tr("ph.capital")}
+                className={inputCls}
+                style={{ borderColor: fieldErrors.capital ? PINK : "#d1d5db" }}
+              />
             </Field>
           </>
         )}
-
+ 
+        {/* Building-specific fields */}
         {isBuilding && (
           <Field label={tr("field.establishment")}>
-            <MaskedInput value={formData.establishment || ""} onValueChange={(v) => set("establishment", v)}
-              placeholder={tr("ph.establishment")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
+            <MaskedInput
+              value={formData.establishment || ""}
+              onValueChange={(v) => validateAndSet("establishment", v)}
+              placeholder={tr("ph.establishment")}
+              className={inputCls}
+              style={{ borderColor: fieldErrors.establishment ? PINK : "#d1d5db" }}
+            />
           </Field>
         )}
+ 
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-      <Actions onBack={onBack} onNext={onNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
+      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
     </Card>
   );
 };
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 4: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1510,6 +1976,14 @@ const StepReview = ({
   const isBCert    = docType === "barangay-certificate";
   const isResident = docType === "resident-registration";
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
+
+  const handleSubmitWithValidation = () => {
+    if (!consentChecked) {
+      toast.error(tr("err.consent"));
+      return;
+    }
+    onSubmit();
+  };
 
   return (
     <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
@@ -1546,7 +2020,7 @@ const StepReview = ({
             <ReviewRow label={tr("review.weight")}         value={formData.weight_kg} />
             <ReviewRow label={tr("review.complexion")}     value={formData.complexion} />
             <ReviewRow label={tr("review.religion")}       value={formData.religion} />
-            <ReviewRow label={tr("review.pwd")}            value={formData.pwd} />
+            <ReviewRow label={tr("review.pwd")}            value={formData.pwd === "true" ? "PWD" : formData.pwd === "false" ? "Not PWD" : formData.pwd} />
           </>
         )}
       </ReviewSection>
@@ -1621,7 +2095,7 @@ const StepReview = ({
 
       <Actions
         onBack={onBack}
-        onNext={onSubmit}
+        onNext={handleSubmitWithValidation}
         nextLabel={tr("btn.submit")}
         backLabel={tr("btn.back")}
         extraLeft={
@@ -1759,41 +2233,15 @@ const FrontDesk = () => {
   // ── Validation per step ────────────────────────────────────────────────────
   const goNext = useCallback(() => {
     setErrors("");
-
-    if (currentStep === 0 && !docType) {
-      setErrors(tr("err.selectDoc")); return;
-    }
-
-    if (currentStep === 1) {
-      const missing = !formData.first_name || !formData.surname || !formData.date_of_birth || !formData.place_of_birth;
-      const missingResident = docType === "resident-registration" && (!formData.sex || !formData.marital_status);
-      if (missing || missingResident) { setErrors(tr("err.fillRequired")); return; }
-    }
-
-    if (currentStep === 2) {
-      if (!formData.street || !formData.zone || !formData.period_of_residency || !formData.registered_voter || !formData.house_owner || !formData.relationship_to_owner) {
-        setErrors(tr("err.fillAddress")); return;
-      }
-    }
-
-    if (currentStep === 3) {
-      if (!formData.contact_number || !formData.purpose) {
-        setErrors(tr("err.fillRequired")); return;
-      }
-      if (docType === "business-clearance" && (!formData.business_name || !formData.business_type)) {
-        setErrors(tr("err.fillRequired")); return;
-      }
-    }
-
     setCurrentStep((s) => s + 1);
-  }, [currentStep, docType, formData, tr]);
+  }, []);
 
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-
+  
     try {
       const response = await api.post(
         "api/kiosk/submit",
@@ -1801,11 +2249,15 @@ const FrontDesk = () => {
           service_type:  getServiceType(docType),
           priority:      "Normal",
           type:          "walk_in",
+  
+          // ── Personal ──────────────────────────────────────────────
           prefix:        formData.prefix        || null,
-          first_name:    formData.first_name     || "",
-          middle_name:   formData.middle_name    || null,
-          surname:       formData.surname        || "",
-          ext_name:      formData.ext_name       || null,
+          first_name:    formData.first_name    || "",
+          middle_name:   formData.middle_name   || null,
+          surname:       formData.surname       || "",
+          ext_name:      formData.ext_name      || null,
+  
+          // ── Demographics ──────────────────────────────────────────
           sex:             formData.sex             || null,
           marital_status:  formData.marital_status  || null,
           name_of_spouse:  formData.name_of_spouse  || null,
@@ -1817,20 +2269,35 @@ const FrontDesk = () => {
           religion:        formData.religion        || null,
           date_of_birth:   formData.date_of_birth   || "",
           place_of_birth:  formData.place_of_birth  || "",
-          house_block_lot_no:   formData.house_block_lot_no   || null,
-          street:               formData.street               || "",
-          zone:                 formData.zone                 || "",
-          period_of_residency:   formData.period_of_residency    || "",
-          registered_voter:      formData.registered_voter        || "",
-          house_owner:           formData.house_owner             || "",
-          relationship_to_owner: formData.relationship_to_owner   || "",
+  
+          // ── Address ───────────────────────────────────────────────
+          house_block_lot_no:    formData.house_block_lot_no    || null,
+          street:                formData.street                || "",
+          zone:                  formData.zone                  || "",
+          period_of_residency:   formData.period_of_residency   || "",
+          registered_voter:      formData.registered_voter      || "",
+          house_owner:           formData.house_owner           || "",
+          relationship_to_owner: formData.relationship_to_owner || "",
+  
+          // ── Contact ───────────────────────────────────────────────
           contact_number: formData.contact_number || "",
-          purpose:  formData.purpose  || "",
+          email:  formData.email  || null,  // ← was formData.email (bug)
+  
+          // ── Purpose ───────────────────────────────────────────────
+          purpose:         formData.purpose         || "",
+          purpose_details: formData.purpose_details || null, // ← now populated from textarea
+  
+          // ── Business ──────────────────────────────────────────────
           business_name: formData.business_name || null,
           business_type: formData.business_type || null,
           capital:       formData.capital       || null,
           establishment: formData.establishment || null,
-          bcert_number:  formData.bcert_number  || null,
+  
+          // ── Clearance numbers ──────────────────────────────────────
+          bcert_number:      formData.bcert_number      || null,
+          brgy_business_no:  formData.brgy_business_no  || null,
+  
+          // ── Resident-specific ──────────────────────────────────────
           nick_name:         formData.nickname          || null,
           pwd:               formData.pwd === "true" ? true : formData.pwd === "false" ? false : null,
           resident_status:   formData.resident_status   || null,
@@ -1839,12 +2306,11 @@ const FrontDesk = () => {
           position:          formData.position          || null,
           emp_status:        formData.employment_status || null,
           notes:             formData.notes             || null,
-          email_address:     formData.email             || null,
           authorized_person: formData.authorized_person || null,
         },
         { withCredentials: true }
       );
-
+  
       console.log("Submission response:", response);
       toast.success(tr("success.title"));
       setSubmitted(true);
@@ -1856,13 +2322,11 @@ const FrontDesk = () => {
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
-    // Return to welcome screen for fresh start
     setStage("welcome");
   }, []);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  // Welcome screen — shown before the form, includes privacy notice
   if (stage === "welcome") {
     return (
       <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
@@ -1879,7 +2343,6 @@ const FrontDesk = () => {
       <main className="min-h-screen bg-background py-10 px-4">
         <div className="container max-w-3xl mx-auto">
 
-          {/* Page header */}
           <div className="text-center mb-10">
             <p className="font-bold uppercase tracking-[0.20em] mb-2" style={{ color: PINK, fontSize: "0.72em" }}>
               Republic of the Philippines · Barangay West Rembo

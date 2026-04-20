@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileCheck, Clock, ArrowRight, Play, Loader2 } from "lucide-react";
+import { FileCheck, Clock, ArrowRight, Play } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Layout } from "../components/Layout";
 import { PendingClearancesModal } from "@/components/PendingClearancesModal";
@@ -53,7 +53,6 @@ const serviceChartColors: Record<string, string> = {
   Resident:    serviceColors["Resident Registration"],
   Certificate: serviceColors["Barangay Certificate"],
 };
-
 const pathMap: Record<string, string> = {
   "Barangay Clearance": "/document-edit/2",
   "Business Clearance": "/document-edit/4",
@@ -79,7 +78,6 @@ const Dashboard = () => {
   const [modalOpen, setModalOpen]                   = useState(false);
   const [selectedClearanceType, setSelectedClearanceType] = useState("");
   const [processingId, setProcessingId]             = useState<number | null>(null);
-  const [processedTickets, setProcessedTickets]     = useState<Set<number>>(new Set());
 
   const fetchDashboard = async () => {
     try {
@@ -147,6 +145,8 @@ const Dashboard = () => {
         date:        item.created_at ? new Date(item.created_at).toLocaleDateString() : null,
       })));
 
+      // console.log("Latest Activities:", data.latest_activities);
+
       // ── Total Encoded Today ────────────────────────────────────
       setTotalEncodedToday(data.total_released_today ?? 0);
 
@@ -179,137 +179,28 @@ const Dashboard = () => {
     return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
   });
 
-  // Get requester name from ticket (check both top level and serviceable object)
-  const getRequesterName = (ticket: any): string => {
-    // Try serviceable object first (nested data)
-    const serviceable = ticket.serviceable || ticket;
-    
-    const first = serviceable.first_name || serviceable.firstname || "";
-    const last = serviceable.surname || serviceable.last_name || "";
-    const prefix = serviceable.prefix || "";
-    
-    let fullName = "";
-    if (prefix) fullName += `${prefix} `;
-    if (first) fullName += first;
-    if (last) fullName += ` ${last}`;
-    
-    return fullName.trim() || "Unknown";
+  console.log("Sorted Tickets:", sortedTickets);
+
+  const toTitleCase = (str: string) => {
+    return str
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
-  const handleProcessNow = async (ticket: any) => {
+  const handleProcessNow = (ticket: any) => {
     const key = toTitleCase(ticket.service_type);
+    
+
     const path = pathMap[key] ?? "/tickets";
 
-    try {
-      setProcessingId(ticket.id);
+    console.log("DEBUG ROUTE:", {
+      raw: ticket.service_type,
+      normalized: key,
+      resolved: path,
+    });
 
-      // Build request payload from serviceable data
-      const serviceable = ticket.serviceable || ticket;
-      const payload: any = {
-        requester_type: ticket.requester_type || serviceable.requester_type || "WALK_IN",
-        service_type: ticket.service_type,
-        ticket_number: ticket.ticket_number,
-        status: "ENCODED",
-      };
-
-      // Add requester name fields
-      if (serviceable.first_name) payload.first_name = serviceable.first_name;
-      if (serviceable.middle_name) payload.middle_name = serviceable.middle_name;
-      if (serviceable.surname) payload.surname = serviceable.surname;
-      if (serviceable.prefix) payload.prefix = serviceable.prefix;
-      if (serviceable.ext_name) payload.ext_name = serviceable.ext_name;
-      if (serviceable.email_address) payload.email_address = serviceable.email_address;
-      if (serviceable.contact_no) payload.contact_no = serviceable.contact_no;
-      if (serviceable.date_of_birth) payload.date_of_birth = serviceable.date_of_birth;
-      if (serviceable.place_of_birth) payload.place_of_birth = serviceable.place_of_birth;
-      if (serviceable.house_block_lot_no) payload.house_block_lot_no = serviceable.house_block_lot_no;
-      if (serviceable.street) payload.street = serviceable.street;
-      if (serviceable.zone) payload.zone = serviceable.zone;
-      if (serviceable.house_owner) payload.house_owner = serviceable.house_owner;
-      if (serviceable.relationship_to_owner) payload.relationship_to_owner = serviceable.relationship_to_owner;
-      if (serviceable.period_of_residency) payload.period_of_residency = serviceable.period_of_residency;
-      if (serviceable.purpose) payload.purpose = serviceable.purpose;
-      if (serviceable.establishment) payload.establishment = serviceable.establishment;
-
-      // Determine API endpoint based on service type
-      let apiEndpoint = "";
-      if (ticket.service_type === "Barangay Clearance") apiEndpoint = "barangay-clearances";
-      else if (ticket.service_type === "Business Clearance") apiEndpoint = "business-clearances";
-      else if (ticket.service_type === "Building Clearance") apiEndpoint = "building-clearances";
-      else if (ticket.service_type === "Barangay Certificate") apiEndpoint = "barangay-certificates";
-      else if (ticket.service_type === "Resident Registration") apiEndpoint = "residents";
-
-      if (!apiEndpoint) {
-        console.error("Unknown service type:", ticket.service_type);
-        alert("Unknown service type");
-        return;
-      }
-
-      // Create the record in the database
-      const res = await axios.post(
-        `${BASE}/${apiEndpoint}`,
-        payload,
-        { withCredentials: true }
-      );
-
-      if (res.status === 201 || res.status === 200) {
-        // Mark ticket as processed
-        setProcessedTickets((prev) => new Set([...prev, ticket.id]));
-
-        // Get the created service data
-        const createdService = res.data.data?.service || res.data.data;
-        
-        // Determine the document ID based on service type
-        let documentId = "";
-        if (ticket.service_type === "Barangay Clearance") 
-          documentId = createdService.bcert_number || createdService.id;
-        else if (ticket.service_type === "Business Clearance") 
-          documentId = createdService.brgy_business_no || createdService.id;
-        else if (ticket.service_type === "Building Clearance") 
-          documentId = createdService.bcert_number || createdService.id;
-        else if (ticket.service_type === "Barangay Certificate") 
-          documentId = createdService.bcert_number || createdService.id;
-        else if (ticket.service_type === "Resident Registration") 
-          documentId = createdService.resident_id || createdService.id;
-
-        // Navigate to editor with document ID
-        navigate(`${path}/${documentId}`, {
-          state: {
-            ticket: {
-              ...ticket,
-              processed: true,
-              record_id: createdService.id,
-              serviceable: createdService,
-            },
-          },
-        });
-      }
-    } catch (error: any) {
-      console.error("Failed to process ticket:", error);
-      if (error.response?.data?.message) {
-        alert(`Error: ${error.response.data.message}`);
-      } else {
-        alert("Failed to process ticket. Please try again.");
-      }
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleViewDocument = (ticket: any) => {
-    const key = toTitleCase(ticket.service_type);
-    const path = pathMap[key] ?? "/tickets";
-
-    // Get the bcert number or ID based on service type
-    const serviceable = ticket.serviceable || ticket;
-    let bcertId = "";
-    if (ticket.service_type === "Barangay Clearance") bcertId = serviceable.bcert_number || ticket.ticket_number;
-    else if (ticket.service_type === "Business Clearance") bcertId = serviceable.brgy_business_no || ticket.ticket_number;
-    else if (ticket.service_type === "Building Clearance") bcertId = serviceable.bcert_number || ticket.ticket_number;
-    else if (ticket.service_type === "Barangay Certificate") bcertId = serviceable.bcert_number || ticket.ticket_number;
-    else if (ticket.service_type === "Resident Registration") bcertId = serviceable.resident_id || ticket.ticket_number;
-
-    navigate(`${path}/${bcertId}`, { state: { ticket } });
+    navigate(path, { state: { ticket } });
   };
 
   return (
@@ -344,7 +235,7 @@ const Dashboard = () => {
                     {sortedTickets[0]?.ticket_number || nowServing}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1 truncate">
-                    {getRequesterName(sortedTickets[0])} • {sortedTickets[0]?.service_type}
+                    {sortedTickets[0]?.service_type}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -357,130 +248,89 @@ const Dashboard = () => {
                     size="sm"
                     className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
                     onClick={() => handleProcessNow(sortedTickets[0])}
-                    disabled={processingId === sortedTickets[0]?.id}
                   >
-                    {processingId === sortedTickets[0]?.id ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        Process Now
-                      </>
-                    )}
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Process Now
                   </Button>
                 </div>
               </div>
 
               {/* Ticket Queue */}
               <div className="flex overflow-x-auto gap-3 py-2">
-                {sortedTickets.map((ticket, index) => {
-                  const isProcessed = processedTickets.has(ticket.id);
+                {sortedTickets.map((ticket, index) => (
+                  <div
+                    key={ticket.id}
+                    className={`relative flex-shrink-0 w-52 flex flex-col gap-2 p-3 rounded-xl border transition-all group
+                      ${index === 0
+                        ? "border-primary bg-primary/10 shadow-md"
+                        : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
+                      }`}
+                  >
+                    {/* Top row: number + ticket number + status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0
+                            ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                        >
+                          {index + 1}
+                        </span>
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {ticket.ticket_number}
+                        </p>
+                      </div>
+                      <Badge
+                        className={`text-[10px] px-1.5 py-0 h-4 shrink-0 border-0
+                          ${ticket.status === "Pending"  ? "bg-yellow-100 text-yellow-800" : ""}
+                          ${ticket.status === "Encoded"  ? "bg-blue-100   text-blue-800"   : ""}
+                          ${ticket.status === "Released" ? "bg-green-100  text-green-800"  : ""}
+                          ${ticket.status === "Rejected" ? "bg-red-100    text-red-800"    : ""}
+                        `}
+                      >
+                        {ticket.status}
+                      </Badge>
+                    </div>
 
-                  return (
-                    <div
-                      key={ticket.id}
-                      className={`relative flex-shrink-0 w-56 flex flex-col gap-2 p-3 rounded-xl border transition-all group
+                    {/* Service type pill */}
+                    <span
+                      className="text-[10px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
+                      style={{ backgroundColor: serviceColors[ticket.service_type] || "#9ca3af" }}
+                    >
+                      {ticket.service_type}
+                    </span>
+
+                    {/* Priority + submitted time */}
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span className={`font-semibold
+                        ${ticket.priority === "High"   ? "text-red-500"    : ""}
+                        ${ticket.priority === "Normal" ? "text-blue-500"   : ""}
+                        ${ticket.priority === "Low"    ? "text-green-500"  : ""}
+                      `}>
+                        {ticket.priority ?? "Normal"}
+                      </span>
+                      <span>
+                        {ticket.submitted_at
+                          ? new Date(ticket.submitted_at).toLocaleTimeString("en-PH", {
+                              hour: "2-digit", minute: "2-digit",
+                            })
+                          : "—"}
+                      </span>
+                    </div>
+
+                    {/* Process Now button — visible on hover, always visible for first */}
+                    <button
+                      onClick={() => handleProcessNow(ticket)}
+                      className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-[11px] font-semibold transition-all
                         ${index === 0
-                          ? "border-primary bg-primary/10 shadow-md"
-                          : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                          : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
                         }`}
                     >
-                      {/* Top row: number + ticket number + status */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0
-                              ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                          >
-                            {index + 1}
-                          </span>
-                          <p className="text-sm font-semibold text-foreground truncate">
-                            {ticket.ticket_number}
-                          </p>
-                        </div>
-                        <Badge
-                          className={`text-[10px] px-1.5 py-0 h-4 shrink-0 border-0
-                            ${ticket.status === "Pending"  ? "bg-yellow-100 text-yellow-800" : ""}
-                            ${ticket.status === "Encoded"  ? "bg-blue-100   text-blue-800"   : ""}
-                            ${ticket.status === "Released" ? "bg-green-100  text-green-800"  : ""}
-                            ${ticket.status === "Rejected" ? "bg-red-100    text-red-800"    : ""}
-                          `}
-                        >
-                          {ticket.status}
-                        </Badge>
-                      </div>
-
-                      {/* Requester Name */}
-                      <div className="text-[11px] font-medium text-foreground truncate px-1">
-                        👤 {getRequesterName(ticket)}
-                      </div>
-
-                      {/* Service type pill */}
-                      <span
-                        className="text-[10px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
-                        style={{ backgroundColor: serviceColors[ticket.service_type] || "#9ca3af" }}
-                      >
-                        {ticket.service_type}
-                      </span>
-
-                      {/* Priority + submitted time */}
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span className={`font-semibold
-                          ${ticket.priority === "High"   ? "text-red-500"    : ""}
-                          ${ticket.priority === "Normal" ? "text-blue-500"   : ""}
-                          ${ticket.priority === "Low"    ? "text-green-500"  : ""}
-                        `}>
-                          {ticket.priority ?? "Normal"}
-                        </span>
-                        <span>
-                          {ticket.submitted_at
-                            ? new Date(ticket.submitted_at).toLocaleTimeString("en-PH", {
-                                hour: "2-digit", minute: "2-digit",
-                              })
-                            : "—"}
-                        </span>
-                      </div>
-
-                      {/* Action Buttons */}
-                      {isProcessed ? (
-                        <button
-                          onClick={() => handleViewDocument(ticket)}
-                          className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-[11px] font-semibold transition-all bg-green-600 text-white hover:bg-green-700"
-                        >
-                          <FileCheck className="w-3 h-3" />
-                          View Document
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleProcessNow(ticket)}
-                          disabled={processingId === ticket.id}
-                          className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-[11px] font-semibold transition-all
-                            ${processingId === ticket.id
-                              ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
-                              : index === 0
-                              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                              : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
-                            }`}
-                        >
-                          {processingId === ticket.id ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <ArrowRight className="w-3 h-3" />
-                              Process Now
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                      <ArrowRight className="w-3 h-3" />
+                      Process Now
+                    </button>
+                  </div>
+                ))}
               </div>
 
             </CardContent>
@@ -488,7 +338,7 @@ const Dashboard = () => {
         )}
 
         {/* ── Chart + Side Cards ───────────────────────────────────── */}
-        <div className="flex gap-6 w-full flex-wrap">
+        <div className="flex gap-6">
 
           {/* Chart */}
           <Card className="flex-[0_0_71%] p-2">
@@ -570,7 +420,7 @@ const Dashboard = () => {
           </Card>
 
           {/* Side Cards */}
-          <div className="flex-[0_0_27%] gap-4 flex flex-col">
+          <div className="flex-[0_0_20%] gap-4 flex flex-col">
 
             {/* Total Released Today */}
             <div className="h-[30%]">

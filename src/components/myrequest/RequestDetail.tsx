@@ -10,13 +10,12 @@ import {
   User, MapPin, Phone, Building2, Briefcase,
   ClipboardList, ShieldCheck, Hash, BadgeInfo,
   CheckCircle, Clock, Banknote, Users, Hammer,
-  Info, FileX, BadgeCheck, Download, FileDown,
+  Info, FileX, BadgeCheck, Mail,
   ChevronRight, ListChecks,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect, useRef } from "react";
 import Header from "../forms/Header";
-import { useDownloadReleasedDoc } from "./useDownloadReleasedDoc";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -157,9 +156,6 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 // ─── Process steps definition ──────────────────────────────────────────────────
-// Steps: 0=Encoded, 1=Scheduled, 2=To Pay, 3=Released
-// rejected/incomplete are error states shown on the current step
-
 const STATUS_TO_STEP: Record<string, number> = {
   pending:    0,
   incomplete: 0,
@@ -199,8 +195,8 @@ const PROCESS_STEPS: ProcessStep[] = [
   },
   {
     label: "Released",
-    sublabel: "Document ready for download",
-    icon: FileDown,
+    sublabel: "Document sent to your email",
+    icon: Mail,
     statuses: ["released"],
   },
 ];
@@ -374,9 +370,9 @@ function ProcessTracker({
             className="mt-5 flex items-center gap-2 p-3"
             style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a", borderRadius: 2 }}
           >
-            <FileCheck className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
+            <Mail className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
             <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
-              All steps complete — your document is ready to download above.
+              All steps complete — your document has been sent to your registered email address.
             </p>
           </div>
         ) : normalizedStatus === "to_pay" ? (
@@ -426,19 +422,12 @@ function ProcessTracker({
   );
 }
 
-// ─── Released Document Download Banner ────────────────────────────────────────
-function ReleasedDownloadBanner({
-  documentType,
-  recordId,
+// ─── Released Document Sent Banner ────────────────────────────────────────────
+function ReleasedSentBanner({
   releasedAt,
 }: {
-  documentType: string;
-  recordId: number | string;
   releasedAt?: string | null;
 }) {
-  const { download, isLoading } = useDownloadReleasedDoc();
-  const downloading = isLoading(documentType, recordId);
-
   const releasedDate = releasedAt
     ? new Date(releasedAt).toLocaleDateString(undefined, {
         month: "long", day: "numeric", year: "numeric",
@@ -455,9 +444,9 @@ function ReleasedDownloadBanner({
         className="flex items-center gap-2 px-4 py-2.5"
         style={{ backgroundColor: "#dcfce7", borderBottom: "1px solid #86efac" }}
       >
-        <FileDown className="h-4 w-4 shrink-0" style={{ color: "#15803d" }} />
+        <Mail className="h-4 w-4 shrink-0" style={{ color: "#15803d" }} />
         <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#15803d" }}>
-          Official Document — Ready to Download
+          Official Document — Sent to Your Email
         </span>
         {releasedDate && (
           <span className="ml-auto text-[10px] font-semibold" style={{ color: "#166534" }}>
@@ -468,41 +457,24 @@ function ReleasedDownloadBanner({
 
       {/* Body */}
       <div
-        className="px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="px-4 py-4 flex items-start gap-3"
         style={{ backgroundColor: "#f0fdf4" }}
       >
-        <div className="flex items-start gap-3">
-          <div
-            className="flex items-center justify-center w-12 h-12 shrink-0"
-            style={{ backgroundColor: "#dcfce7", borderRadius: 2, border: "1px solid #86efac" }}
-          >
-            <FileCheck className="h-6 w-6" style={{ color: "#16a34a" }} />
-          </div>
-          <div>
-            <p className="text-sm font-bold" style={{ color: "#15803d" }}>
-              Your document is officially released
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: "#166534" }}>
-              Click the button to download your signed PDF. The link is valid for 15 minutes.
-              You can generate a new link anytime by visiting this page.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => download(documentType, recordId)}
-          disabled={downloading}
-          className="flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white shrink-0 disabled:opacity-60 transition-colors w-full sm:w-auto"
-          style={{ backgroundColor: "#16a34a", borderRadius: 2 }}
-          onMouseEnter={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#15803d")}
-          onMouseLeave={(e) => !downloading && ((e.currentTarget as HTMLElement).style.backgroundColor = "#16a34a")}
+        <div
+          className="flex items-center justify-center w-12 h-12 shrink-0"
+          style={{ backgroundColor: "#dcfce7", borderRadius: 2, border: "1px solid #86efac" }}
         >
-          {downloading ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />Generating link...</>
-          ) : (
-            <><Download className="h-4 w-4" />Download Document</>
-          )}
-        </button>
+          <FileCheck className="h-6 w-6" style={{ color: "#16a34a" }} />
+        </div>
+        <div>
+          <p className="text-sm font-bold" style={{ color: "#15803d" }}>
+            Your document has been officially released
+          </p>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: "#166534" }}>
+            We have sent your signed document to your registered email address. Please check your inbox (and spam folder) to retrieve it.
+            If you did not receive it, please visit the barangay hall for assistance.
+          </p>
+        </div>
       </div>
 
       <div
@@ -1242,7 +1214,6 @@ export default function RequestDetail() {
 
   useEffect(() => {
     if (hasShownModal.current || !request) return;
-    // Never show the modal if the document is already released
     const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
     if (normalizedStatus === "released") return;
     const key = (request.document_type ?? "").replace(/-/g, "_");
@@ -1297,7 +1268,6 @@ export default function RequestDetail() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Modal — hidden when document is already released */}
       {showCompleteModal && !isReleased && (
         <RequirementsCompleteModal
           documentType={request.document_type}
@@ -1366,7 +1336,6 @@ export default function RequestDetail() {
                   {normalizedStatus}
                 </span>
 
-                {/* Pickup scheduled badge — hidden when released */}
                 {schedule && !isReleased && (
                   <span
                     className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 flex-shrink-0"
@@ -1377,7 +1346,6 @@ export default function RequestDetail() {
                   </span>
                 )}
 
-                {/* Quick-jump to tracker button */}
                 <button
                   onClick={scrollToTracker}
                   className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 transition-colors flex-shrink-0"
@@ -1400,13 +1368,9 @@ export default function RequestDetail() {
           {/* ── Card body ── */}
           <div className="p-6 space-y-7">
 
-            {/* Released download banner — shown first when released */}
+            {/* Released sent banner — shown first when released */}
             {isReleased && (
-              <ReleasedDownloadBanner
-                documentType={request.document_type}
-                recordId={request.id}
-                releasedAt={request.raw?.released_at}
-              />
+              <ReleasedSentBanner releasedAt={request.raw?.released_at} />
             )}
 
             {/* Process Tracker — always visible */}

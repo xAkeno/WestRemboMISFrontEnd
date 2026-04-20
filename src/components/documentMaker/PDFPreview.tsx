@@ -15,7 +15,7 @@ export interface ConcatGroup {
 export const CONCAT_GROUPS: ConcatGroup[] = [
   {
     label: 'Full Name',
-    members: ['First Name', 'M.I.', 'Last Name', 'Ext Name'],
+    members: ['Prefix', 'First Name', 'M.I.', 'Last Name', 'Ext Name'],
     separator: ' ',
   },
   {

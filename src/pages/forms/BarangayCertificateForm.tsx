@@ -12,6 +12,8 @@ import {
   FieldLabel, FieldInput, FieldTextarea,
   SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
 } from "./LguFormPrimitives";
+import { PrefixCombobox } from "./PrefixCombobox";
+import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 
 interface BarangayCertificateFormProps { onBack: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
@@ -40,11 +42,59 @@ const maxDob = () => {
 
 /** Returns an error string or "" if valid */
 const validateDob = (dob: string): string => {
-  if (!dob) return "";
+  if (!dob) return "Date of birth is required.";
   const date = new Date(dob);
   if (isNaN(date.getTime())) return "Invalid date.";
   if (date > today()) return "Date of birth cannot be a future date.";
   if (date > maxDob()) return `You must be at least ${MIN_AGE} years old.`;
+  return "";
+};
+
+const validateName = (name: string, fieldName: string): string => {
+  if (!name || name.trim() === "") return `${fieldName} is required.`;
+  if (!/^[A-Za-z\s\-']+$/.test(name)) return `${fieldName} must contain only letters.`;
+  if (name.trim().length === 1) return `${fieldName} must be at least 2 characters.`;
+  return "";
+};
+
+const validateContact = (contact: string): string => {
+  if (!contact || contact.trim() === "") return "Contact number is required.";
+  const cleanContact = contact.replace(/\D/g, '');
+  if (cleanContact.length !== 11) return "Contact number must be exactly 11 digits.";
+  if (!/^09\d{9}$/.test(cleanContact)) return "Contact number must start with '09' and contain 11 digits.";
+  return "";
+};
+
+const validateEmail = (email: string): string => {
+  if (!email || email.trim() === "") return "Email address is required.";
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return "Please enter a valid email address (e.g., name@domain.com).";
+  return "";
+};
+
+const validateRequired = (value: string, fieldName: string): string => {
+  if (!value || value.trim() === "") return `${fieldName} is required.`;
+  return "";
+};
+
+const validatePeriodOfResidency = (value: string): string => {
+  if (!value || value.trim() === "") return "Period of residency is required.";
+  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim())) return "Please enter a valid period (e.g., 5 years, 6 months).";
+  return "";
+};
+
+const validatePurpose = (value: string): string => {
+  if (!value || value.trim() === "") return "Purpose is required.";
+  return "";
+};
+
+const validateStreet = (value: string): string => {
+  if (!value || value.trim() === "") return "Street is required.";
+  return "";
+};
+
+const validateZone = (value: string): string => {
+  if (!value || value.trim() === "") return "Zone/Purok is required.";
   return "";
 };
 
@@ -57,6 +107,22 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
   const [dobError, setDobError] = useState("");
+  
+  // Error states for each field
+  const [errors, setErrors] = useState({
+    surname: "",
+    first_name: "",
+    dob: "",
+    pob: "",
+    contact_no: "",
+    email: "",
+    house_block_lot_no: "",
+    street: "",
+    zone: "",
+    period_of_residency: "",
+    purpose: "",
+  });
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,30 +152,131 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
     punong_barangay: "", for_the_punong_barangay: "",
   });
 
-  const upd = (f: string, v: string) => setFormData((p) => ({ ...p, [f]: v }));
+  const upd = (f: string, v: string) => {
+    // Auto-convert text fields to uppercase
+    const textFields = [
+      "first_name", "middle_name", "surname", "extension", "pob",
+      "house_block_lot_no", "street", "zone", "house_owner",
+      "relationship_to_owner", "bcert_number", "purpose_details",
+      "punong_barangay", "for_the_punong_barangay"
+    ];
+
+    const value = textFields.includes(f) ? toUpperCase(v) : v;
+    setFormData((p) => ({ ...p, [f]: value }));
+    
+    // Clear error when field is updated
+    if (errors[f as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [f]: "" }));
+    }
+  };
 
   const handleDobChange = (val: string) => {
     upd("dob", val);
     const err = validateDob(val);
     setDobError(err);
+    setErrors((prev) => ({ ...prev, dob: err }));
 
     // Auto-compute age if valid
     if (!err && val) {
       const age = today().getFullYear() - new Date(val).getFullYear();
       upd("age", String(age));
+    } else if (err) {
+      upd("age", "");
     }
   };
 
-  const handleNext = () => {
-    // Block step 0 advance if DOB has an error
-    if (currentStep === 0 && formData.dob && dobError) return;
-    if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+  // Validation function for current step
+  const validateCurrentStep = (): boolean => {
+    let isValid = true;
+    const newErrors = { ...errors };
+
+    switch (currentStep) {
+      case 0: // Personal Info
+        const surnameError = validateName(formData.surname, "Surname");
+        const firstNameError = validateName(formData.first_name, "First name");
+        const pobError = validateRequired(formData.pob, "Place of birth");
+        const dobValidationError = validateDob(formData.dob);
+        
+        newErrors.surname = surnameError;
+        newErrors.first_name = firstNameError;
+        newErrors.pob = pobError;
+        newErrors.dob = dobValidationError;
+        
+        setDobError(dobValidationError);
+        
+        if (surnameError || firstNameError || pobError || dobValidationError) isValid = false;
+        break;
+        
+      case 1: // Contact
+        const contactError = validateContact(formData.contact_no);
+        const emailError = validateEmail(formData.email);
+        
+        newErrors.contact_no = contactError;
+        newErrors.email = emailError;
+        
+        if (contactError || emailError) isValid = false;
+        break;
+        
+      case 2: // Address
+        const houseError = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
+        const streetError = validateStreet(formData.street);
+        const zoneError = validateZone(formData.zone);
+        
+        newErrors.house_block_lot_no = houseError;
+        newErrors.street = streetError;
+        newErrors.zone = zoneError;
+        
+        if (houseError || streetError || zoneError) isValid = false;
+        break;
+        
+      case 3: // Certificate Details
+        const periodError = validatePeriodOfResidency(formData.period_of_residency);
+        const purposeError = validatePurpose(formData.purpose);
+        
+        newErrors.period_of_residency = periodError;
+        newErrors.purpose = purposeError;
+        
+        if (periodError || purposeError) isValid = false;
+        break;
+    }
+
+    setErrors(newErrors);
+    
+    if (!isValid) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors before proceeding.",
+        variant: "destructive",
+      });
+    }
+    
+    return isValid;
   };
+
+  const handleNext = () => {
+    if (validateCurrentStep()) {
+      if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+    }
+  };
+  
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
-    const err = validateDob(formData.dob);
-    if (err) { setDobError(err); toast({ title: "Validation Error", description: err, variant: "destructive" }); return; }
+    // Validate all steps before submission
+    const allStepsValid = [0, 1, 2, 3].every(step => {
+      setCurrentStep(step);
+      return validateCurrentStep();
+    });
+    
+    if (!allStepsValid) {
+      setCurrentStep(0);
+      toast({ 
+        title: "Validation Error", 
+        description: "Please complete all required fields correctly.", 
+        variant: "destructive" 
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -175,20 +342,32 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
-              <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {["Mr.","Mrs.","Ms.","Dr."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PrefixCombobox
+                options={PREFIX_OPTIONS}
+                value={formData.prefix}
+                onChange={(v) => upd("prefix", v)}
+                placeholder="Select prefix"
+              />
             </div>
             <div>
               <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
-              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
+              <FieldInput 
+                id="surname" 
+                value={formData.surname} 
+                onChange={(e) => upd("surname", e.target.value)}
+                style={{ borderColor: errors.surname ? "#ef4444" : undefined }}
+              />
+              {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
-              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} />
+              <FieldInput 
+                id="first_name" 
+                value={formData.first_name} 
+                onChange={(e) => upd("first_name", e.target.value)}
+                style={{ borderColor: errors.first_name ? "#ef4444" : undefined }}
+              />
+              {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
@@ -213,15 +392,19 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
                 value={formData.dob}
                 max={toInputMax(maxDob())}
                 onChange={(e) => handleDobChange(e.target.value)}
-                style={{ borderColor: dobError ? "#ef4444" : undefined }}
+                style={{ borderColor: errors.dob ? "#ef4444" : undefined }}
               />
-              {dobError && (
-                <p className="mt-1 text-xs text-red-500">{dobError}</p>
-              )}
+              {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
-              <FieldInput id="pob" value={formData.pob} onChange={(e) => upd("pob", e.target.value)} />
+              <FieldInput 
+                id="pob" 
+                value={formData.pob} 
+                onChange={(e) => upd("pob", e.target.value)}
+                style={{ borderColor: errors.pob ? "#ef4444" : undefined }}
+              />
+              {errors.pob && <p className="mt-1 text-xs text-red-500">{errors.pob}</p>}
             </div>
           </div>
         </div>
@@ -233,11 +416,27 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <SectionDivider title="Contact Information" />
           <div className="max-w-sm">
             <FieldLabel htmlFor="contact_no" required>Contact Number</FieldLabel>
-            <FieldInput id="contact_no" type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} onChange={(e) => upd("contact_no", e.target.value)} />
+            <FieldInput 
+              id="contact_no" 
+              type="tel" 
+              placeholder="09XX XXX XXXX" 
+              value={formData.contact_no} 
+              onChange={(e) => upd("contact_no", e.target.value)}
+              style={{ borderColor: errors.contact_no ? "#ef4444" : undefined }}
+            />
+            {errors.contact_no && <p className="mt-1 text-xs text-red-500">{errors.contact_no}</p>}
           </div>
           <div className="max-w-sm">
             <FieldLabel htmlFor="email" required>Email Address</FieldLabel>
-            <FieldInput id="email" type="email" placeholder="example@domain.com" value={formData.email} onChange={(e) => upd("email", e.target.value)} />
+            <FieldInput 
+              id="email" 
+              type="email" 
+              placeholder="example@domain.com" 
+              value={formData.email} 
+              onChange={(e) => upd("email", e.target.value)}
+              style={{ borderColor: errors.email ? "#ef4444" : undefined }}
+            />
+            {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
           </div>
         </div>
       );
@@ -248,38 +447,72 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <SectionDivider title="Address Information" />
           <div>
             <FieldLabel htmlFor="house_block_lot_no" required>House / Block / Lot No.</FieldLabel>
-            <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
+            <FieldInput 
+              id="house_block_lot_no" 
+              value={formData.house_block_lot_no} 
+              onChange={(e) => upd("house_block_lot_no", e.target.value)}
+              style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }}
+            />
+            {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
           </div>
 
           <div>
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
-              <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select street" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {streets.map((s) => (
-                    <SelectItem key={s.id} value={s.name}>
-                      {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                  <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
+                    <SelectValue placeholder="Select street" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {streets.map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+              </>
             ) : (
-              <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" />
+              <>
+                <FieldInput 
+                  id="street" 
+                  value={formData.street} 
+                  onChange={(e) => upd("street", e.target.value)} 
+                  placeholder="Enter street name"
+                  style={{ borderColor: errors.street ? "#ef4444" : undefined }}
+                />
+                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+              </>
             )}
           </div>
 
           <div>
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
-              <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select zone" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                  <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+              </>
             ) : (
-              <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" />
+              <>
+                <FieldInput 
+                  id="zone" 
+                  value={formData.zone} 
+                  onChange={(e) => upd("zone", e.target.value)} 
+                  placeholder="Enter zone / purok"
+                  style={{ borderColor: errors.zone ? "#ef4444" : undefined }}
+                />
+                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+              </>
             )}
           </div>
 
@@ -311,7 +544,14 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
-              <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
+              <FieldInput 
+                id="period_of_residency" 
+                placeholder="e.g., 5 years" 
+                value={formData.period_of_residency} 
+                onChange={(e) => upd("period_of_residency", e.target.value)}
+                style={{ borderColor: errors.period_of_residency ? "#ef4444" : undefined }}
+              />
+              {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
             </div>
             <div>
               <FieldLabel>Registered Voter</FieldLabel>
@@ -329,13 +569,16 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
           <div>
             <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
             <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
-              <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
+              <SelectTrigger {...ST} style={{ borderColor: errors.purpose ? "#ef4444" : undefined }}>
+                <SelectValue placeholder="Select purpose" />
+              </SelectTrigger>
               <SelectContent>
                 {["Residency","Employment","School","Travel","Legal","Bank","Other"].map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {errors.purpose && <p className="mt-1 text-xs text-red-500">{errors.purpose}</p>}
           </div>
 
           <div>

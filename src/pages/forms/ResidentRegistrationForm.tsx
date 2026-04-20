@@ -13,6 +13,8 @@ import {
   FieldLabel, FieldInput, FieldTextarea,
   SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
 } from "./LguFormPrimitives";
+import { PrefixCombobox } from "./PrefixCombobox";
+import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 
 interface ResidentRegistrationFormProps { onBack: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
@@ -24,12 +26,86 @@ const ST = {
   style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
 };
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+const validateName = (name: string, fieldName: string): string => {
+  if (!name || name.trim() === "") return `${fieldName} is required.`;
+  if (!/^[A-Za-z\s\-']+$/.test(name)) return `${fieldName} must contain only letters.`;
+  if (name.trim().length === 1) return `${fieldName} must be at least 2 characters.`;
+  return "";
+};
+
+const validateContact = (contact: string): string => {
+  if (!contact || contact.trim() === "") return "Phone number is required.";
+  const cleanContact = contact.replace(/\D/g, '');
+  if (cleanContact.length !== 11) return "Phone number must be exactly 11 digits.";
+  if (!/^09\d{9}$/.test(cleanContact)) return "Phone number must start with '09' and contain 11 digits.";
+  return "";
+};
+
+const validateEmail = (email: string): string => {
+  if (!email || email.trim() === "") return "Email address is required.";
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return "Please enter a valid email address (e.g., name@domain.com).";
+  return "";
+};
+
+const validateRequired = (value: string, fieldName: string): string => {
+  if (!value || value.trim() === "") return `${fieldName} is required.`;
+  return "";
+};
+
+const validateNumber = (value: number, fieldName: string): string => {
+  if (!value || value <= 0) return `${fieldName} is required and must be greater than 0.`;
+  return "";
+};
+
+const validatePeriodOfResidency = (value: string): string => {
+  if (!value || value.trim() === "") return "Period of residency is required.";
+  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim())) return "Please enter a valid period (e.g., 5 years, 6 months).";
+  return "";
+};
+
+const validateDob = (dob: string): string => {
+  if (!dob) return "Date of birth is required.";
+  const date = new Date(dob);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (isNaN(date.getTime())) return "Invalid date.";
+  if (date > today) return "Date of birth cannot be a future date.";
+  return "";
+};
+
 const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
   const [residentImage, setResidentImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  const [errors, setErrors] = useState({
+    surname: "",
+    first_name: "",
+    sex: "",
+    marital_status: "",
+    dob: "",
+    pob: "",
+    religion: "",
+    height_cm: "",
+    weight_kg: "",
+    blood_type: "",
+    complexion: "",
+    phone_number: "",
+    email_address: "",
+    house_block_lot_no: "",
+    street: "",
+    zone: "",
+    resident_status: "",
+    period_of_residency: "",
+    voter_status: "",
+    emp_status: "",
+    pwd: "",
+  });
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,11 +144,110 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
     notes: "",
   });
 
-  const upd = (f: string, v: string | number) => setFormData((p) => ({ ...p, [f]: v }));
-  const handleNext = () => { if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1); };
+  const upd = (f: string, v: string | number) => {
+    const textFields = [
+      "surname", "first_name", "middle_name", "ext_name", "nick_name",
+      "pob", "religion", "house_block_lot_no", "street", "zone",
+      "house_owner", "relationship_to_owner", "occupation", "position",
+      "period_of_residency", "notes", "precinct_no"
+    ];
+
+    const value = typeof v === "string" && textFields.includes(f)
+      ? toUpperCase(v)
+      : v;
+
+    setFormData((p) => ({ ...p, [f]: value }));
+    
+    if (errors[f as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [f]: "" }));
+    }
+  };
+
+  const validateCurrentStep = (): boolean => {
+    let isValid = true;
+    const newErrors = { ...errors };
+
+    switch (currentStep) {
+      case 0:
+        newErrors.surname = validateName(formData.surname, "Surname");
+        newErrors.first_name = validateName(formData.first_name, "First name");
+        newErrors.sex = validateRequired(formData.sex, "Sex");
+        newErrors.marital_status = validateRequired(formData.marital_status, "Marital status");
+        newErrors.dob = validateDob(formData.dob);
+        newErrors.pob = validateRequired(formData.pob, "Place of birth");
+        newErrors.religion = validateRequired(formData.religion, "Religion");
+        newErrors.height_cm = validateNumber(formData.height_cm, "Height");
+        newErrors.weight_kg = validateNumber(formData.weight_kg, "Weight");
+        newErrors.blood_type = validateRequired(formData.blood_type, "Blood type");
+        newErrors.complexion = validateRequired(formData.complexion, "Complexion");
+        
+        if (Object.values(newErrors).some(error => error)) isValid = false;
+        break;
+        
+      case 1:
+        newErrors.phone_number = validateContact(formData.phone_number);
+        newErrors.email_address = validateEmail(formData.email_address);
+        
+        if (newErrors.phone_number || newErrors.email_address) isValid = false;
+        break;
+        
+      case 2:
+        newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
+        newErrors.street = validateRequired(formData.street, "Street");
+        newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
+        
+        if (newErrors.house_block_lot_no || newErrors.street || newErrors.zone) isValid = false;
+        break;
+        
+      case 3:
+        newErrors.resident_status = validateRequired(formData.resident_status, "Resident status");
+        newErrors.period_of_residency = validatePeriodOfResidency(formData.period_of_residency);
+        newErrors.voter_status = validateRequired(formData.voter_status, "Voter status");
+        newErrors.emp_status = validateRequired(formData.emp_status, "Employment status");
+        newErrors.pwd = validateRequired(formData.pwd, "PWD status");
+        
+        if (newErrors.resident_status || newErrors.period_of_residency || 
+            newErrors.voter_status || newErrors.emp_status || newErrors.pwd) isValid = false;
+        break;
+    }
+
+    setErrors(newErrors);
+    
+    if (!isValid) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors before proceeding.",
+        variant: "destructive",
+      });
+    }
+    
+    return isValid;
+  };
+
+  const handleNext = () => {
+    if (validateCurrentStep()) {
+      if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
+    }
+  };
+  
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
+    const allStepsValid = [0, 1, 2, 3].every(step => {
+      setCurrentStep(step);
+      return validateCurrentStep();
+    });
+    
+    if (!allStepsValid) {
+      setCurrentStep(0);
+      toast({ 
+        title: "Validation Error", 
+        description: "Please complete all required fields correctly.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = new FormData();
@@ -98,7 +273,6 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
 
         setFormData(prev => ({
           ...prev,
-          // Personal Info
           prefix: user.prefix ?? "",
           surname: user.surname ?? "",
           first_name: user.first_name ?? "",
@@ -115,19 +289,13 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
           blood_type: user.blood_type ?? "",
           complexion: user.complexion ?? "",
           religion: user.religion ?? "",
-
-          // Contact Info
           phone_number: user.phone_number ?? "",
           email_address: user.email_address ?? "",
-
-          // Address
           house_block_lot_no: user.house_block_lot_no ?? "",
           street: user.street ?? "",
           zone: user.zone_purok ?? "",
           house_owner: user.house_owner ?? "",
           relationship_to_owner: user.relationship_to_owner ?? "",
-
-          // Residency & Status
           resident_status: user.resident_status ?? "",
           voter_status: user.voter_status ? "Registered" : "Not Registered",
           precinct_no: user.precinct_no ?? "",
@@ -139,9 +307,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
           notes: user.notes ?? "",
         }));
 
-        // Optionally, load resident photo
         if (user.photo_url) setImagePreview(user.photo_url);
-
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
       }
@@ -152,79 +318,44 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
 
   const renderStep = () => {
     switch (currentStep) {
-      // ── Step 0: Personal Info ───────────────────────────────────────────────
       case 0: return (
         <div className="space-y-6">
-          {/* Photo upload */}
-          {/* <div
-            className="flex items-center gap-6 p-4"
-            style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}
-          >
-            <div
-              className="flex-shrink-0 overflow-hidden"
-              style={{
-                width: 80, height: 80, borderRadius: 2,
-                border: `2px solid ${PINK}`,
-                backgroundColor: "#f0f4ff",
-              }}
-            >
-              {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <UserCircle2 className="w-10 h-10" style={{ color: "#c8d5f0" }} />
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1">
-              <FieldLabel htmlFor="resident_image">Resident Photo</FieldLabel>
-              <input
-                id="resident_image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="block w-full text-sm text-gray-500 mt-1
-                  file:mr-3 file:py-1.5 file:px-3
-                  file:border file:rounded-none file:text-[10px] file:font-bold
-                  file:uppercase file:tracking-wider file:cursor-pointer
-                  file:transition-colors file:duration-200"
-                style={{
-                  ["--file-bg" as any]: "#f0f4ff",
-                  ["--file-color" as any]: NAVY,
-                  ["--file-border-color" as any]: "#c8d5f0",
-                }}
-              />
-              <p className="text-[10px] text-gray-400 mt-1">JPG, PNG — max 5MB</p>
-            </div>
-          </div> */}
-
           <SectionDivider title="Personal Information" />
-
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
-              <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {["Mr.","Mrs.","Ms.","Dr."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PrefixCombobox
+                options={PREFIX_OPTIONS}
+                value={formData.prefix}
+                onChange={(v) => upd("prefix", v)}
+                placeholder="Select prefix"
+              />
             </div>
             <div>
               <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
-              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} />
+              <FieldInput 
+                id="surname" 
+                value={formData.surname} 
+                onChange={(e) => upd("surname", e.target.value)}
+                style={{ borderColor: errors.surname ? "#ef4444" : undefined }}
+              />
+              {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
-              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} />
+              <FieldInput 
+                id="first_name" 
+                value={formData.first_name} 
+                onChange={(e) => upd("first_name", e.target.value)}
+                style={{ borderColor: errors.first_name ? "#ef4444" : undefined }}
+              />
+              {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
               <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
@@ -244,18 +375,21 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
                   </div>
                 ))}
               </RadioGroup>
+              {errors.sex && <p className="mt-1 text-xs text-red-500">{errors.sex}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="marital_status" required>Marital Status</FieldLabel>
               <Select value={formData.marital_status} onValueChange={(v) => upd("marital_status", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger {...ST} style={{ borderColor: errors.marital_status ? "#ef4444" : undefined }}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   {["Single","Married","Widowed","Separated"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {errors.marital_status && <p className="mt-1 text-xs text-red-500">{errors.marital_status}</p>}
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="name_of_spouse">Name of Spouse</FieldLabel>
@@ -267,111 +401,187 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
                 id="dob"
                 type="date"
                 value={formData.dob}
-                max={new Date().toISOString().split("T")[0]} // ✅ prevents future dates
+                max={new Date().toISOString().split("T")[0]}
                 onChange={(e) => upd("dob", e.target.value)}
+                style={{ borderColor: errors.dob ? "#ef4444" : undefined }}
               />
+              {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="pob" required>Place of Birth</FieldLabel>
-              <FieldInput id="pob" value={formData.pob} onChange={(e) => upd("pob", e.target.value)} />
+              <FieldInput 
+                id="pob" 
+                value={formData.pob} 
+                onChange={(e) => upd("pob", e.target.value)}
+                style={{ borderColor: errors.pob ? "#ef4444" : undefined }}
+              />
+              {errors.pob && <p className="mt-1 text-xs text-red-500">{errors.pob}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="religion" required>Religion</FieldLabel>
-              <FieldInput id="religion" value={formData.religion} onChange={(e) => upd("religion", e.target.value)} />
+              <FieldInput 
+                id="religion" 
+                value={formData.religion} 
+                onChange={(e) => upd("religion", e.target.value)}
+                style={{ borderColor: errors.religion ? "#ef4444" : undefined }}
+              />
+              {errors.religion && <p className="mt-1 text-xs text-red-500">{errors.religion}</p>}
             </div>
           </div>
-
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="height_cm" required>Height (cm)</FieldLabel>
-              <FieldInput id="height_cm" type="number" value={formData.height_cm || ""} onChange={(e) => upd("height_cm", e.target.value)} />
+              <FieldInput 
+                id="height_cm" 
+                type="number" 
+                value={formData.height_cm || ""} 
+                onChange={(e) => upd("height_cm", e.target.value)}
+                style={{ borderColor: errors.height_cm ? "#ef4444" : undefined }}
+              />
+              {errors.height_cm && <p className="mt-1 text-xs text-red-500">{errors.height_cm}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="weight_kg" required>Weight (kg)</FieldLabel>
-              <FieldInput id="weight_kg" type="number" value={formData.weight_kg || ""} onChange={(e) => upd("weight_kg", e.target.value)} />
+              <FieldInput 
+                id="weight_kg" 
+                type="number" 
+                value={formData.weight_kg || ""} 
+                onChange={(e) => upd("weight_kg", e.target.value)}
+                style={{ borderColor: errors.weight_kg ? "#ef4444" : undefined }}
+              />
+              {errors.weight_kg && <p className="mt-1 text-xs text-red-500">{errors.weight_kg}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="blood_type" required>Blood Type</FieldLabel>
               <Select value={formData.blood_type} onValueChange={(v) => upd("blood_type", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger {...ST} style={{ borderColor: errors.blood_type ? "#ef4444" : undefined }}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   {["A+","A-","B+","B-","O+","O-","AB+","AB-","N/A"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {errors.blood_type && <p className="mt-1 text-xs text-red-500">{errors.blood_type}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="complexion" required>Complexion</FieldLabel>
               <Select value={formData.complexion} onValueChange={(v) => upd("complexion", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger {...ST} style={{ borderColor: errors.complexion ? "#ef4444" : undefined }}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   {["Fair","Light","Medium","Tan","Dark"].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {errors.complexion && <p className="mt-1 text-xs text-red-500">{errors.complexion}</p>}
             </div>
           </div>
         </div>
       );
 
-      // ── Step 1: Contact ─────────────────────────────────────────────────────
       case 1: return (
         <div className="space-y-6">
           <SectionDivider title="Contact Information" />
           <div className="max-w-sm">
             <FieldLabel htmlFor="phone_number" required>Phone Number</FieldLabel>
-            <FieldInput id="phone_number" type="tel" placeholder="09XX XXX XXXX" value={formData.phone_number} onChange={(e) => upd("phone_number", e.target.value)} />
+            <FieldInput 
+              id="phone_number" 
+              type="tel" 
+              placeholder="09XX XXX XXXX" 
+              value={formData.phone_number} 
+              onChange={(e) => upd("phone_number", e.target.value)}
+              style={{ borderColor: errors.phone_number ? "#ef4444" : undefined }}
+            />
+            {errors.phone_number && <p className="mt-1 text-xs text-red-500">{errors.phone_number}</p>}
           </div>
           <div className="max-w-sm">
             <FieldLabel htmlFor="email_address" required>Email Address</FieldLabel>
-            <FieldInput id="email_address" type="email" placeholder="your.email@example.com" value={formData.email_address} onChange={(e) => upd("email_address", e.target.value)} />
+            <FieldInput 
+              id="email_address" 
+              type="email" 
+              placeholder="your.email@example.com" 
+              value={formData.email_address} 
+              onChange={(e) => upd("email_address", e.target.value)}
+              style={{ borderColor: errors.email_address ? "#ef4444" : undefined }}
+            />
+            {errors.email_address && <p className="mt-1 text-xs text-red-500">{errors.email_address}</p>}
           </div>
         </div>
       );
 
-      // ── Step 2: Address ─────────────────────────────────────────────────────
       case 2: return (
         <div className="space-y-6">
           <SectionDivider title="Address Information" />
-
           <div>
             <FieldLabel htmlFor="house_block_lot_no" required>House / Block / Lot No.</FieldLabel>
-            <FieldInput id="house_block_lot_no" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} />
+            <FieldInput 
+              id="house_block_lot_no" 
+              value={formData.house_block_lot_no} 
+              onChange={(e) => upd("house_block_lot_no", e.target.value)}
+              style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }}
+            />
+            {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
           </div>
-
           <div>
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
-              <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select street" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {streets.map((s) => (
-                    <SelectItem key={s.id} value={s.name}>
-                      {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                  <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
+                    <SelectValue placeholder="Select street" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {streets.map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+              </>
             ) : (
-              <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" />
+              <>
+                <FieldInput 
+                  id="street" 
+                  value={formData.street} 
+                  onChange={(e) => upd("street", e.target.value)} 
+                  placeholder="Enter street name"
+                  style={{ borderColor: errors.street ? "#ef4444" : undefined }}
+                />
+                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+              </>
             )}
           </div>
-
           <div>
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
-              <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select zone" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                  <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+              </>
             ) : (
-              <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" />
+              <>
+                <FieldInput 
+                  id="zone" 
+                  value={formData.zone} 
+                  onChange={(e) => upd("zone", e.target.value)} 
+                  placeholder="Enter zone / purok"
+                  style={{ borderColor: errors.zone ? "#ef4444" : undefined }}
+                />
+                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+              </>
             )}
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="house_owner">House Owner</FieldLabel>
@@ -392,29 +602,35 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
         </div>
       );
 
-      // ── Step 3: Residency & Status ──────────────────────────────────────────
       case 3: return (
         <div className="space-y-6">
           <SectionDivider title="Residency Information" />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="resident_status" required>Resident Status</FieldLabel>
               <Select value={formData.resident_status} onValueChange={(v) => upd("resident_status", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger {...ST} style={{ borderColor: errors.resident_status ? "#ef4444" : undefined }}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   {["Permanent","Temporary","Transient"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {errors.resident_status && <p className="mt-1 text-xs text-red-500">{errors.resident_status}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="period_of_residency" required>Period of Residency</FieldLabel>
-              <FieldInput id="period_of_residency" placeholder="e.g., 5 years" value={formData.period_of_residency} onChange={(e) => upd("period_of_residency", e.target.value)} />
+              <FieldInput 
+                id="period_of_residency" 
+                placeholder="e.g., 5 years" 
+                value={formData.period_of_residency} 
+                onChange={(e) => upd("period_of_residency", e.target.value)}
+                style={{ borderColor: errors.period_of_residency ? "#ef4444" : undefined }}
+              />
+              {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
             </div>
           </div>
-
           <SectionDivider title="Voter & Employment Status" />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <div>
               <FieldLabel required>Voter Status</FieldLabel>
@@ -426,22 +642,25 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
                   </div>
                 ))}
               </RadioGroup>
+              {errors.voter_status && <p className="mt-1 text-xs text-red-500">{errors.voter_status}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="precinct_no">Precinct No.</FieldLabel>
               <FieldInput id="precinct_no" value={formData.precinct_no} onChange={(e) => upd("precinct_no", e.target.value)} />
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="emp_status" required>Employment Status</FieldLabel>
               <Select value={formData.emp_status} onValueChange={(v) => upd("emp_status", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger {...ST} style={{ borderColor: errors.emp_status ? "#ef4444" : undefined }}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   {["Employed","Self-Employed","Unemployed","Student","Retired"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {errors.emp_status && <p className="mt-1 text-xs text-red-500">{errors.emp_status}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
@@ -452,7 +671,6 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
               <FieldInput id="position" value={formData.position} onChange={(e) => upd("position", e.target.value)} />
             </div>
           </div>
-
           <div>
             <FieldLabel required>PWD Status</FieldLabel>
             <RadioGroup value={formData.pwd} onValueChange={(v) => upd("pwd", v)} className="flex gap-6 mt-2.5">
@@ -463,16 +681,14 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
                 </div>
               ))}
             </RadioGroup>
+            {errors.pwd && <p className="mt-1 text-xs text-red-500">{errors.pwd}</p>}
           </div>
         </div>
       );
 
-      // ── Step 4: Review ──────────────────────────────────────────────────────
       case 4: return (
         <div className="space-y-5">
           <ReviewHeader current={5} total={5} />
-
-          {/* Photo preview in review */}
           {imagePreview && (
             <div className="flex items-center gap-4 p-4" style={{ backgroundColor: "#f8faff", borderRadius: 2, border: "1px solid #dde3ed" }}>
               <img src={imagePreview} alt="Resident" className="w-14 h-14 object-cover flex-shrink-0" style={{ borderRadius: 2, border: `2px solid ${PINK}` }} />
@@ -482,7 +698,6 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
               </div>
             </div>
           )}
-
           <ReviewCard title="Personal Information">
             <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
             <ReviewRow label="Sex" value={formData.sex} />
@@ -490,27 +705,22 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
             <ReviewRow label="Marital Status" value={formData.marital_status} />
             <ReviewRow label="Religion" value={formData.religion} />
           </ReviewCard>
-
           <ReviewCard title="Contact Information">
             <ReviewRow label="Phone" value={formData.phone_number} />
             <ReviewRow label="Email" value={formData.email_address} />
           </ReviewCard>
-
           <ReviewCard title="Address Information">
             <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
             <ReviewRow label="Street" value={formData.street} />
             <ReviewRow label="Zone / Purok" value={formData.zone} />
             <ReviewRow label="House Owner" value={formData.house_owner} />
           </ReviewCard>
-
           <ReviewCard title="Residency & Status">
             <ReviewRow label="Resident Status" value={formData.resident_status} />
             <ReviewRow label="Voter Status" value={formData.voter_status} />
             <ReviewRow label="Employment" value={formData.emp_status} />
             <ReviewRow label="PWD" value={formData.pwd} />
           </ReviewCard>
-
-          {/* Notes */}
           <div>
             <FieldLabel htmlFor="notes">Additional Notes</FieldLabel>
             <FieldTextarea id="notes" rows={3} placeholder="Any additional information..." value={formData.notes} onChange={(e) => upd("notes", e.target.value)} />
