@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, Eye, EyeOff, Check, X } from "lucide-react";
+import axios from "axios";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -16,6 +17,9 @@ const Register = () => {
     phone: "",
     gender: "",
     dateOfBirth: "",
+    houseBlockLotNo: "",
+    street: "",
+    zonePurok: "",
     password: "",
     confirmPassword: "",
   });
@@ -23,11 +27,30 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [streets, setStreets] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Fetch streets data on component mount
+  useEffect(() => {
+    const loadStreets = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) {
+        console.error("Failed to fetch streets:", e);
+      }
+    };
+    loadStreets();
+  }, []);
+
   const updateField = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  // Get unique zones/purok from streets
+  const uniqueZones = Array.from(new Set(
+    streets.map((s) => s.sitio).filter(Boolean)
+  ));
 
   const passwordRules = [
     { label: "Minimum 8 characters", valid: formData.password.length >= 8 },
@@ -67,13 +90,16 @@ const Register = () => {
       form.append("first_name", formData.firstName);
       form.append("surname", formData.surname);
       form.append("email", formData.email);
-      form.append("contact", formData.phone);
+      form.append("contact_number", formData.phone);
       const normalizeSex = (value: string) => {
         if (!value) return '';
         return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
       };
       form.append("sex", normalizeSex(formData.gender));
       form.append("date_of_birth", formData.dateOfBirth);
+      form.append("house_block_lot_no", formData.houseBlockLotNo);
+      form.append("street", formData.street);
+      form.append("zone_purok", formData.zonePurok);
       form.append("password", formData.password);
       form.append("password_confirmation", formData.confirmPassword);
       form.append("id_url", idFile);
@@ -88,7 +114,7 @@ const Register = () => {
   };
 
   const handleClear = () => {
-    setFormData({ firstName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", password: "", confirmPassword: "" });
+    setFormData({ firstName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "", zonePurok: "", password: "", confirmPassword: "" });
     setIdFile(null);
   };
 
@@ -184,7 +210,7 @@ const Register = () => {
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Contact & Identity</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Contact & Address</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -234,10 +260,88 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Section 3 — ID & Password confirmation */}
+            {/* Section 3 — Address Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Address Information</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No.</Label>
+                  <Input
+                    placeholder="e.g., 123-A, Blk 5, Lot 12"
+                    value={formData.houseBlockLotNo || ""}
+                    onChange={(e) => updateField("houseBlockLotNo", e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street Name</Label>
+                  {streets.length > 0 ? (
+                    <Select value={formData.street} onValueChange={(v) => updateField("street", v)}>
+                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
+                        <SelectValue placeholder="Select street" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {streets.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>
+                            {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="Enter street name"
+                      value={formData.street}
+                      onChange={(e) => updateField("street", e.target.value)}
+                      className={underlineInput}
+                      style={{ borderBottomColor: "#dde3ed" }}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                    />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone</Label>
+                  {uniqueZones.length > 0 ? (
+                    <Select value={formData.zonePurok} onValueChange={(v) => updateField("zonePurok", v)}>
+                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
+                        <SelectValue placeholder="Select zone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueZones.map((z) => (
+                          <SelectItem key={z} value={z}>
+                            {z}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="Enter zone"
+                      value={formData.zonePurok}
+                      onChange={(e) => updateField("zonePurok", e.target.value)}
+                      className={underlineInput}
+                      style={{ borderBottomColor: "#dde3ed" }}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4 — Verification Documents */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Verification Documents</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
@@ -272,8 +376,32 @@ const Register = () => {
                     <span className="text-xs mt-1" style={{ color: "#9ca3af" }}>PNG, JPG, or PDF accepted</span>
                     <input type="file" className="hidden" accept="image/*" onChange={(e) => setIdFile(e.target.files?.[0] || null)} />
                   </label>
+                  
+                  {/* Instructions Box */}
+                  <div className="p-3" style={{ backgroundColor: "#fef3f5", border: "1px solid #fce7e7", borderRadius: 2 }}>
+                    <p className="text-xs font-semibold mb-2" style={{ color: "#c2467d" }}>📋 Upload Requirements:</p>
+                    <ul className="space-y-1.5 text-xs" style={{ color: "#6b7280" }}>
+                      <li className="flex gap-2">
+                        <span className="font-bold" style={{ color: "#c2467d" }}>✓</span>
+                        <span>You must be <strong>visibly holding</strong> the government ID</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold" style={{ color: "#c2467d" }}>✓</span>
+                        <span>ID must be <strong>clearly readable</strong> with all details visible</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold" style={{ color: "#c2467d" }}>✓</span>
+                        <span>Your <strong>face must be visible</strong> in the photo</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold" style={{ color: "#c2467d" }}>✓</span>
+                        <span><strong>Take a selfie</strong> or have someone take your photo</span>
+                      </li>
+                    </ul>
+                  </div>
+
                   <p className="text-xs" style={{ color: "#9ca3af" }}>
-                    Accepted: PhilSys ID, Driver's License, Passport, Voter's ID, etc.
+                    Accepted IDs: PhilSys ID, Driver's License, Passport, Voter's ID, NBI, SSS, PRC License, etc.
                   </p>
                 </div>
 

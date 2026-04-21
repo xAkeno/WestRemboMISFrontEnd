@@ -140,9 +140,9 @@ const ServiceCard = ({ service, onClick }) => {
   );
 };
 
-// --- Service Form Modal ---
+// --- Service Form Modal (Updated - no proceed button, shows form directly) ---
 
-const ServiceModal = ({ service, onClose, onProceed, selectedType, renderForm }) => {
+const ServiceModal = ({ service, onClose, renderForm }) => {
   if (!service) return null;
   const Icon = service.icon;
 
@@ -174,24 +174,9 @@ const ServiceModal = ({ service, onClose, onProceed, selectedType, renderForm })
           </button>
         </div>
 
-        {/* Body */}
+        {/* Body - Show form directly */}
         <div className="p-6 overflow-y-auto">
-          {!selectedType ? (
-            <>
-              <p className="text-muted-foreground mb-6 text-sm leading-relaxed">{service.description}</p>
-              <button
-                onClick={() => onProceed(service.type)}
-                className="w-full py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
-                style={{ backgroundColor: '#0f2a5e', borderRadius: 1, letterSpacing: '0.08em' }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#1a3d7c')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '#0f2a5e')}
-              >
-                Proceed with Application
-              </button>
-            </>
-          ) : (
-            renderForm()
-          )}
+          {renderForm()}
         </div>
       </div>
     </div>
@@ -210,8 +195,6 @@ export default function ServiceCards() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedType, setSelectedType] = useState<RequestType>(null);
-
-  
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(false);
@@ -237,7 +220,7 @@ export default function ServiceCards() {
       setAuthModal(true);
       return;
     }
-    // Logged in → open service modal directly
+    // Logged in → open service modal directly with the form
     setSelectedService(service);
     setSelectedType(service.type as RequestType);
   };
@@ -260,6 +243,11 @@ export default function ServiceCards() {
       case 'building-clearance':     return <BuildingClearanceForm    onBack={handleBack} />;
       default:                       return null;
     }
+  };
+
+  const handleModalClose = () => {
+    setSelectedService(null);
+    setSelectedType(null);
   };
 
   return (
@@ -344,17 +332,12 @@ export default function ServiceCards() {
           ))}
         </div>
 
-        {/* Service Form Modal — only when logged in */}
+        {/* Service Form Modal — shows form directly when logged in */}
         {selectedService && (
           <ServiceModal
             service={selectedService}
-            selectedType={selectedType}
-            onProceed={(type) => setSelectedType(type as RequestType)}
             renderForm={renderForm}
-            onClose={() => {
-              setSelectedService(null);
-              setSelectedType(null);
-            }}
+            onClose={handleModalClose}
           />
         )}
 

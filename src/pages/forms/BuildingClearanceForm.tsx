@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -6,6 +7,7 @@ import FormProgress from "./FormProgress";
 import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/components/services/clearanceApi";
+import { CheckCircle, Copy, Check } from "lucide-react";
 import {
   NAVY, PINK,
   FieldLabel, FieldInput, FieldTextarea,
@@ -68,13 +70,29 @@ const validatePurposeDetails = (value: string): string => {
 
 const toInputMax = (d: Date) => d.toISOString().split("T")[0];
 
+// ── Address parser helper (same as Certificate/Clearance) ────────────────────
+const parseAddress = (address: string) => {
+  if (!address) {
+    return { house_block_lot_no: "", street: "", zone: "" };
+  }
+  const parts = address.split(",").map((p) => p.trim());
+  return {
+    house_block_lot_no: parts[0] || "",
+    street: parts[1] || "",
+    zone: parts[2] || "",
+  };
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
   const [dobError, setDobError] = useState("");
+  const [successData, setSuccessData] = useState<{ id: number; refNo: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const [errors, setErrors] = useState({
     surname: "",
@@ -90,19 +108,20 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   const { toast } = useToast();
 
+  // ── Fetch streets ─────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
         const res = await api.get("/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
-      } catch (e) { console.error("Failed to fetch streets:", e); }
+      } catch (e) {
+        console.error("Failed to fetch streets:", e);
+      }
     };
     load();
   }, []);
 
-  const uniqueZones = Array.from(new Set(
-    streets.map((s) => s.sitio).filter(Boolean)
-  ));
+  const uniqueZones = Array.from(new Set(streets.map((s) => s.sitio).filter(Boolean)));
 
   const [formData, setFormData] = useState({
     requester_type: "Online",
@@ -184,18 +203,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     }
   };
 
-  const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
+  const handleBack = () => {
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
+    else onBack();
+  };
 
   const handleSubmit = async () => {
-    const allStepsValid = [0, 1, 2].every(step => {
-      setCurrentStep(step);
-      return validateCurrentStep();
-    });
-    if (!allStepsValid) {
-      setCurrentStep(0);
-      toast({ title: "Validation Error", description: "Please complete all required fields correctly.", variant: "destructive" });
-      return;
-    }
     setIsSubmitting(true);
     const payload = {
       requester_type: formData.requester_type, prefix: formData.prefix,
@@ -214,208 +227,333 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     try {
       const res = await api.post("/building-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
-        toast({ title: "Request Submitted", description: "Your building clearance request has been submitted successfully." });
-        onBack();
+        const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
+        setSuccessData({
+          id: newId,
+          refNo: `REF-${String(newId).padStart(4, "0")}`,
+        });
       }
     } catch (error: any) {
       toast({
         title: error.response?.status === 422 ? "Validation Error" : "Error",
-        description: error.response?.status === 422 ? "Please check required fields and try again." : "Something went wrong. Please try again.",
+        description: error.response?.status === 422
+          ? "Please check required fields and try again."
+          : "Something went wrong. Please try again.",
         variant: "destructive",
       });
-    } finally { setIsSubmitting(false); }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // ── Auto-fill from authenticated user — depends on [streets] so that
+  //    street-matching runs AFTER the streets list has loaded. ────────────────
   useEffect(() => {
     const loadUser = async () => {
       try {
         const res = await api.get("/details", { withCredentials: true });
         const user = res.data.data;
+
+        // Normalize date
+        const normalizedDob = user.date_of_birth
+          ? user.date_of_birth.split("T")[0]
+          : (user.dob ? user.dob.split("T")[0] : "");
+
+        // Parse address from user.address string
+        const addressParts = parseAddress(user.address || "");
+
+        // Match street with available options and NORMALIZE to UPPERCASE
+        let matchedStreet = "";
+        if (addressParts.street && streets.length > 0) {
+          const foundStreet = streets.find((s) =>
+            addressParts.street.toLowerCase().includes(s.name.toLowerCase()) ||
+            s.name.toLowerCase().includes(addressParts.street.toLowerCase())
+          );
+          matchedStreet = foundStreet
+            ? toUpperCase(foundStreet.name)
+            : toUpperCase(addressParts.street);
+        } else {
+          matchedStreet = toUpperCase(addressParts.street);
+        }
+
+        // Normalize zone to UPPERCASE
+        const normalizedZone = toUpperCase(addressParts.zone);
+
         setFormData((prev) => ({
           ...prev,
-          prefix: user.prefix || "",
-          surname: toUpperCase(user.surname || ""),
-          first_name: toUpperCase(user.first_name || ""),
-          middle_name: toUpperCase(user.middle_name || ""),
-          ext_name: toUpperCase(user.extension_name || ""),
-          dob: user.dob || user.date_of_birth || "",
-          house_block_lot_no: toUpperCase(user.house_block_lot_no || ""),
-          // FIX: store as uppercase so it matches SelectItem value={toUpperCase(s.name / z)}
-          street: toUpperCase(user.street || ""),
-          zone: toUpperCase(user.zone_purok || ""),
+          prefix: user.prefix ?? "",
+          surname: toUpperCase(user.surname ?? ""),
+          first_name: toUpperCase(user.first_name ?? ""),
+          middle_name: toUpperCase(user.middle_name ?? ""),
+          ext_name: toUpperCase(user.extension_name ?? ""),
+          dob: normalizedDob,
+          house_block_lot_no: toUpperCase(addressParts.house_block_lot_no),
+          street: matchedStreet,
+          zone: normalizedZone,
         }));
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
       }
     };
     loadUser();
-  }, []);
+  }, [streets]); // ← depends on streets so street-matching works after streets load
 
   const renderStep = () => {
     switch (currentStep) {
 
-      // ── Step 0: Applicant Info ──────────────────────────────────────────────
-      case 0: return (
-        <div className="space-y-6">
-          <SectionDivider title="Applicant Information" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+      case 0:
+        return (
+          <div className="space-y-6">
+            <SectionDivider title="Applicant Information" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+              <div>
+                <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
+                <PrefixCombobox options={PREFIX_OPTIONS} value={formData.prefix} onChange={(v) => upd("prefix", v)} placeholder="Select prefix" />
+              </div>
+              <div>
+                <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
+                <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} style={{ borderColor: errors.surname ? "#ef4444" : undefined }} />
+                {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
+              </div>
+              <div>
+                <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
+                <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} style={{ borderColor: errors.first_name ? "#ef4444" : undefined }} />
+                {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
+              </div>
+              <div>
+                <FieldLabel htmlFor="middle_name" required>Middle Name</FieldLabel>
+                <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} style={{ borderColor: errors.middle_name ? "#ef4444" : undefined }} />
+                {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
+                <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+              </div>
+              <div>
+                <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
+                <FieldInput id="dob" type="date" value={formData.dob} max={toInputMax(maxDob())} onChange={(e) => handleDobChange(e.target.value)} style={{ borderColor: errors.dob ? "#ef4444" : undefined }} />
+                {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 1:
+        return (
+          <div className="space-y-6">
+            <SectionDivider title="Building Details" />
             <div>
-              <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
-              <PrefixCombobox options={PREFIX_OPTIONS} value={formData.prefix} onChange={(v) => upd("prefix", v)} placeholder="Select prefix" />
+              <FieldLabel htmlFor="establishment" required>Establishment / Project Name</FieldLabel>
+              <FieldInput id="establishment" placeholder="e.g., Residential Building, Commercial Complex" value={formData.establishment} onChange={(e) => upd("establishment", e.target.value)} style={{ borderColor: errors.establishment ? "#ef4444" : undefined }} />
+              {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
             </div>
             <div>
-              <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
-              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} style={{ borderColor: errors.surname ? "#ef4444" : undefined }} />
-              {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
+              <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
+              <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
+                <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
+                <SelectContent>
+                  {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
-              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} style={{ borderColor: errors.first_name ? "#ef4444" : undefined }} />
-              {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
+              <FieldLabel htmlFor="purposeDetails" required>Purpose Details</FieldLabel>
+              <FieldTextarea id="purposeDetails" rows={4} placeholder="Describe the building / construction project in detail..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} style={{ borderColor: errors.purpose_details ? "#ef4444" : undefined }} />
+              {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
             </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div className="space-y-6">
+            <SectionDivider title="Project Location" />
             <div>
-              <FieldLabel htmlFor="middle_name" required>Middle Name</FieldLabel>
-              <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} style={{ borderColor: errors.middle_name ? "#ef4444" : undefined }} />
-              {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
+              <FieldLabel htmlFor="houseBlockLot" required>House / Block / Lot No.</FieldLabel>
+              <FieldInput id="houseBlockLot" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }} />
+              {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+
             <div>
-              <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
-              <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+              <FieldLabel htmlFor="street" required>Street</FieldLabel>
+              {streets.length > 0 ? (
+                <>
+                  <Select
+                    value={formData.street}
+                    onValueChange={(v) => {
+                      setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                      setErrors((prev) => ({ ...prev, street: "" }));
+                    }}
+                  >
+                    <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
+                      <SelectValue placeholder="Select street" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {streets.map((s) => (
+                        <SelectItem key={s.id} value={toUpperCase(s.name)}>
+                          {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+                </>
+              ) : (
+                <>
+                  <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" style={{ borderColor: errors.street ? "#ef4444" : undefined }} />
+                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+                </>
+              )}
             </div>
+
             <div>
-              <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-              <FieldInput id="dob" type="date" value={formData.dob} max={toInputMax(maxDob())} onChange={(e) => handleDobChange(e.target.value)} style={{ borderColor: errors.dob ? "#ef4444" : undefined }} />
-              {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
+              <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
+              {uniqueZones.length > 0 ? (
+                <>
+                  <Select
+                    value={formData.zone}
+                    onValueChange={(v) => {
+                      setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
+                      setErrors((prev) => ({ ...prev, zone: "" }));
+                    }}
+                  >
+                    <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
+                      <SelectValue placeholder="Select zone" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {uniqueZones.map((z) => (
+                        <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+                </>
+              ) : (
+                <>
+                  <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" style={{ borderColor: errors.zone ? "#ef4444" : undefined }} />
+                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+                </>
+              )}
             </div>
           </div>
-        </div>
-      );
+        );
 
-      // ── Step 1: Building Details ────────────────────────────────────────────
-      case 1: return (
-        <div className="space-y-6">
-          <SectionDivider title="Building Details" />
-          <div>
-            <FieldLabel htmlFor="establishment" required>Establishment / Project Name</FieldLabel>
-            <FieldInput id="establishment" placeholder="e.g., Residential Building, Commercial Complex" value={formData.establishment} onChange={(e) => upd("establishment", e.target.value)} style={{ borderColor: errors.establishment ? "#ef4444" : undefined }} />
-            {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
+      case 3:
+        return (
+          <div className="space-y-5">
+            <ReviewHeader current={5} total={5} />
+            <ReviewCard title="Applicant Information">
+              <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+              <ReviewRow label="Date of Birth" value={formData.dob} />
+            </ReviewCard>
+            <ReviewCard title="Building Details">
+              <ReviewRow label="Establishment" value={formData.establishment} />
+              <ReviewRow label="Purpose" value={formData.purpose} />
+              <ReviewRow label="Details" value={formData.purpose_details} />
+            </ReviewCard>
+            <ReviewCard title="Location">
+              <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
+              <ReviewRow label="Street" value={formData.street} />
+              <ReviewRow label="Zone / Purok" value={formData.zone} />
+            </ReviewCard>
           </div>
-          <div>
-            <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
-            <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
-              <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
-              <SelectContent>
-                {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <FieldLabel htmlFor="purposeDetails" required>Purpose Details</FieldLabel>
-            <FieldTextarea id="purposeDetails" rows={4} placeholder="Describe the building / construction project in detail..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} style={{ borderColor: errors.purpose_details ? "#ef4444" : undefined }} />
-            {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
-          </div>
-        </div>
-      );
+        );
 
-      // ── Step 2: Location ────────────────────────────────────────────────────
-      case 2: return (
-        <div className="space-y-6">
-          <SectionDivider title="Project Location" />
-          <div>
-            <FieldLabel htmlFor="houseBlockLot" required>House / Block / Lot No.</FieldLabel>
-            <FieldInput id="houseBlockLot" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }} />
-            {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
-          </div>
-
-          <div>
-            <FieldLabel htmlFor="street" required>Street</FieldLabel>
-            {streets.length > 0 ? (
-              <>
-                {/* FIX: value={toUpperCase(s.name)} matches stored formData.street (uppercase) */}
-                <Select value={formData.street} onValueChange={(v) => {
-                  setFormData((p) => ({ ...p, street: toUpperCase(v) }));
-                  setErrors((prev) => ({ ...prev, street: "" }));
-                }}>
-                  <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
-                    <SelectValue placeholder="Select street" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {streets.map((s) => (
-                      <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                        {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
-              </>
-            ) : (
-              <>
-                <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" style={{ borderColor: errors.street ? "#ef4444" : undefined }} />
-                {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
-              </>
-            )}
-          </div>
-
-          <div>
-            <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
-            {uniqueZones.length > 0 ? (
-              <>
-                {/* FIX: value={toUpperCase(z)} matches stored formData.zone (uppercase) */}
-                <Select value={formData.zone} onValueChange={(v) => {
-                  setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
-                  setErrors((prev) => ({ ...prev, zone: "" }));
-                }}>
-                  <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
-                    <SelectValue placeholder="Select zone" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {uniqueZones.map((z) => (
-                      <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
-              </>
-            ) : (
-              <>
-                <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" style={{ borderColor: errors.zone ? "#ef4444" : undefined }} />
-                {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
-              </>
-            )}
-          </div>
-        </div>
-      );
-
-      // ── Step 3: Review ──────────────────────────────────────────────────────
-      case 3: return (
-        <div className="space-y-5">
-          <ReviewHeader current={5} total={5} />
-          <ReviewCard title="Applicant Information">
-            <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
-            <ReviewRow label="Date of Birth" value={formData.dob} />
-          </ReviewCard>
-          <ReviewCard title="Building Details">
-            <ReviewRow label="Establishment" value={formData.establishment} />
-            <ReviewRow label="Purpose" value={formData.purpose} />
-            <ReviewRow label="Details" value={formData.purpose_details} />
-          </ReviewCard>
-          <ReviewCard title="Location">
-            <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
-            <ReviewRow label="Street" value={formData.street} />
-            <ReviewRow label="Zone / Purok" value={formData.zone} />
-          </ReviewCard>
-        </div>
-      );
-
-      default: return null;
+      default:
+        return null;
     }
   };
 
+  // ── Success Modal ─────────────────────────────────────────────────────────
+  if (successData) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      >
+        <div
+          className="w-full sm:max-w-lg md:max-w-xl overflow-hidden"
+          style={{
+            borderRadius: "20px",
+            backgroundColor: "white",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div
+            className="relative overflow-hidden px-6 pt-8 pb-6 text-center"
+            style={{ backgroundColor: NAVY }}
+          >
+            <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10 bg-white" />
+            <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10 bg-white" />
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10"
+              style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+            >
+              <CheckCircle className="h-8 w-8 text-white" />
+            </div>
+            <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
+            <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
+              Building Clearance
+            </p>
+          </div>
+
+          <div className="px-6 py-6">
+            <div
+              className="flex items-center justify-between px-4 py-3 rounded-xl mb-4"
+              style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+            >
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>
+                  Reference Number
+                </p>
+                <p className="text-lg font-black font-mono" style={{ color: NAVY }}>
+                  {successData.refNo}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(successData.refNo);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="p-2 rounded-lg transition-colors"
+                style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}
+                title="Copy reference number"
+              >
+                {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+              </button>
+            </div>
+
+            <p className="text-sm text-center mb-6 leading-relaxed" style={{ color: "#6b7280" }}>
+              Your building clearance request is being reviewed by the barangay office.
+              You'll be notified once it's processed.
+            </p>
+
+            <button
+              onClick={() => navigate(`/request/building_clearance/${successData.id}`)}
+              className="w-full py-3 text-sm font-bold text-white rounded-lg mb-3 transition-opacity hover:opacity-90"
+              style={{ backgroundColor: NAVY }}
+            >
+              View My Request
+            </button>
+            <button
+              onClick={onBack}
+              className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
+              style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
+            >
+              Back to Requests
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main Form ─────────────────────────────────────────────────────────────
   return (
     <FormCard title="Building Clearance" subtitle="Online Application">
       <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />

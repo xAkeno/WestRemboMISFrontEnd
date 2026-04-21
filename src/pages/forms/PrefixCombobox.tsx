@@ -11,6 +11,7 @@ interface PrefixComboboxProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }
 
 export const PrefixCombobox = ({
@@ -18,6 +19,7 @@ export const PrefixCombobox = ({
   value,
   onChange,
   placeholder = "Select prefix",
+  disabled = false,
 }: PrefixComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -44,15 +46,23 @@ export const PrefixCombobox = ({
   }, []);
 
   const handleSelect = (optionValue: string) => {
+    if (disabled) return;
     onChange(optionValue);
     setOpen(false);
     setSearch("");
   };
 
   const handleClear = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation();
     onChange("");
     setSearch("");
+  };
+
+  const handleToggle = () => {
+    if (!disabled) {
+      setOpen(!open);
+    }
   };
 
   const selectedLabel = options.find((opt) => opt.value === value)?.label;
@@ -60,8 +70,10 @@ export const PrefixCombobox = ({
   return (
     <div ref={containerRef} className="relative w-full">
       <div
-        onClick={() => setOpen(!open)}
-        className="border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none cursor-pointer flex items-center justify-between"
+        onClick={handleToggle}
+        className={`border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none flex items-center justify-between ${
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        }`}
         style={{ borderBottomWidth: 1, borderColor: "#d1d5db" }}
       >
         <input
@@ -69,16 +81,20 @@ export const PrefixCombobox = ({
           type="text"
           value={open ? search : selectedLabel || ""}
           onChange={(e) => {
+            if (disabled) return;
             setSearch(e.target.value);
             if (!open) setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            if (!disabled) setOpen(true);
+          }}
           placeholder={placeholder}
           className="flex bg-transparent border-0 focus:ring-0 focus:outline-none text-sm p-0"
           autoComplete="off"
+          disabled={disabled}
         />
         <div className="flex items-center gap-1">
-          {value && (
+          {value && !disabled && (
             <button
               onClick={handleClear}
               className="p-0.5 hover:bg-gray-100 rounded"
@@ -87,11 +103,17 @@ export const PrefixCombobox = ({
               <X className="w-4 h-4 text-gray-500" />
             </button>
           )}
-
+          {!disabled && (
+            <ChevronDown
+              className={`w-4 h-4 text-gray-500 transition-transform ${
+                open ? "rotate-180" : ""
+              }`}
+            />
+          )}
         </div>
       </div>
 
-      {open && (
+      {open && !disabled && (
         <div
           className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50"
           style={{ maxHeight: "200px", overflowY: "auto" }}
