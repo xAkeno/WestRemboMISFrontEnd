@@ -130,6 +130,8 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
   const [formData, setFormData] = useState({
     requester_type: "Online",
     prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
+    // ── added: age field ──────────────────────────────────────────────────────
+    age: "",
     dob: "", pob: "",
     contact_no: "", email: "",
     house_block_lot_no: "", street: "", zone: "",
@@ -156,11 +158,19 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
     }
   };
 
+  // ── updated: auto-computes age on valid DOB (matches BarangayCertificateForm)
   const handleDobChange = (val: string) => {
     upd("dob", val);
     const err = validateDob(val);
     setDobError(err);
     setErrors((prev) => ({ ...prev, dob: err }));
+
+    if (!err && val) {
+      const age = today().getFullYear() - new Date(val).getFullYear();
+      upd("age", String(age));
+    } else if (err) {
+      upd("age", "");
+    }
   };
 
   const validateCurrentStep = (): boolean => {
@@ -258,6 +268,8 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
       requester_type: formData.requester_type, prefix: formData.prefix,
       surname: formData.surname, first_name: formData.first_name,
       middle_name: formData.middle_name, ext_name: formData.ext_name,
+      // ── added: include age in payload ─────────────────────────────────────
+      age: formData.age ? Number(formData.age) : null,
       house_block_lot_no: formData.house_block_lot_no, street: formData.street,
       zone: formData.zone, dob: formData.dob, pob: formData.pob,
       contact_no: formData.contact_no, period_of_residency: formData.period_of_residency,
@@ -294,18 +306,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
         setFormData(prev => ({
           ...prev,
           prefix: user.prefix ?? "",
-          surname: user.surname ?? "",
-          first_name: user.first_name ?? "",
-          middle_name: user.middle_name ?? "",
-          ext_name: user.extension_name ?? "",
+          surname: toUpperCase(user.surname ?? ""),
+          first_name: toUpperCase(user.first_name ?? ""),
+          middle_name: toUpperCase(user.middle_name ?? ""),
+          ext_name: toUpperCase(user.extension_name ?? ""),
           dob: user.date_of_birth ?? "",
-          pob: user.place_of_birth ?? "",
+          pob: toUpperCase(user.place_of_birth ?? ""),
+          // ── added: compute age when pre-filling from user profile ──────────
+          age: user.date_of_birth
+            ? String(today().getFullYear() - new Date(user.date_of_birth).getFullYear())
+            : "",
           contact_no: user.contact_number ?? "",
           email: user.email ?? "",
-          house_block_lot_no: user.house_block_lot_no ?? "",
-          street: user.street ?? "",
-          zone: user.zone_purok ?? "",
-          house_owner: user.house_owner ?? "",
+          house_block_lot_no: toUpperCase(user.house_block_lot_no ?? ""),
+          street: toUpperCase(user.street ?? ""),
+          zone: toUpperCase(user.zone_purok ?? ""),
+          house_owner: toUpperCase(user.house_owner ?? ""),
           relationship_to_owner: user.relationship_to_owner ?? "",
           period_of_residency: user.period_of_residency ?? "",
           registered_voter: user.voter_status ? "Yes" : "No",
@@ -357,10 +373,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
               <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+
+          {/* ── added: Age + DOB + POB row matching BarangayCertificateForm ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
               <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
+            </div>
+            <div>
+              <FieldLabel htmlFor="age" required>Age</FieldLabel>
+              <FieldInput
+                id="age"
+                type="number"
+                value={formData.age}
+                readOnly
+                style={{ opacity: 0.6, cursor: "not-allowed" }}
+              />
             </div>
             <div>
               <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
@@ -435,13 +463,17 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
               <>
-                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <Select value={formData.street} onValueChange={(v) => {
+                  // ── fixed: apply toUpperCase on street value (matches cert form)
+                  setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, street: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select street" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     {streets.map((s) => (
-                      <SelectItem key={s.id} value={s.name}>
+                      <SelectItem key={s.id} value={toUpperCase(s.name)}>
                         {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
                       </SelectItem>
                     ))}
@@ -466,12 +498,15 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
               <>
-                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <Select value={formData.zone} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, zone: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select zone" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                    {uniqueZones.map((z) => <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
@@ -496,7 +531,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
             </div>
             <div>
               <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
-              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => {
+                setFormData((p) => ({ ...p, relationship_to_owner: v }));
+                setErrors((prev) => ({ ...prev, relationship_to_owner: "" }));
+              }}>
                 <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
                   {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (
@@ -562,6 +600,8 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps) => {
           <ReviewHeader current={5} total={5} />
           <ReviewCard title="Personal Information">
             <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
+            {/* ── added: Age row in Review ──────────────────────────────────── */}
+            <ReviewRow label="Age" value={formData.age} />
             <ReviewRow label="Date of Birth" value={formData.dob} />
             <ReviewRow label="Place of Birth" value={formData.pob} />
           </ReviewCard>

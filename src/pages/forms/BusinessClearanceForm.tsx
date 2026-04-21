@@ -83,7 +83,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
   const [dobError, setDobError] = useState("");
-  
+
   const [errors, setErrors] = useState({
     surname: "",
     first_name: "",
@@ -95,7 +95,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     street: "",
     zone: "",
   });
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -114,41 +114,24 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
 
   const [formData, setFormData] = useState({
     requester_type: "ONLINE",
-    prefix: "",
-    surname: "",
-    first_name: "",
-    middle_name: "",
-    ext_name: "",
+    prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
     dob: "",
-    business_name: "",
-    business_type: "",
-    business_details: "",
-    capital: "",
-    house_block_lot_no: "",
-    street: "",
-    zone: "",
-    brgy_business_no: "",
-    issued_date: "",
-    or_no: "",
-    inspected_by: "",
-    date_of_inspection: "",
-    inspection_remarks: "",
-    inspected_remarks: "",
-    date_inspected: "",
-    inspected_note: "",
+    business_name: "", business_type: "", business_details: "", capital: "",
+    house_block_lot_no: "", street: "", zone: "",
+    brgy_business_no: "", issued_date: "", or_no: "",
+    inspected_by: "", date_of_inspection: "", inspection_remarks: "",
+    inspected_remarks: "", date_inspected: "", inspected_note: "",
   });
 
   const upd = (f: string, v: string) => {
     const textFields = [
       "surname", "first_name", "middle_name", "ext_name",
-      "business_name", "business_details", "house_block_lot_no", "street", "zone",
+      "business_name", "business_details", "house_block_lot_no",
       "brgy_business_no", "or_no", "inspected_by", "inspection_remarks",
-      "inspected_remarks", "inspected_note"
+      "inspected_remarks", "inspected_note",
     ];
-
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
-    
     if (errors[f as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [f]: "" }));
     }
@@ -166,54 +149,43 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     const newErrors = { ...errors };
 
     switch (currentStep) {
-      case 0:
+      case 0: {
         const surnameError = validateName(formData.surname, "Surname");
         const firstNameError = validateName(formData.first_name, "First name");
         const dobValidationError = validateDob(formData.dob);
-        
         newErrors.surname = surnameError;
         newErrors.first_name = firstNameError;
         newErrors.dob = dobValidationError;
-        
         setDobError(dobValidationError);
         if (surnameError || firstNameError || dobValidationError) isValid = false;
         break;
-        
-      case 1:
+      }
+      case 1: {
         const businessNameError = validateRequired(formData.business_name, "Business name");
         const businessDetailsError = validateBusinessDetails(formData.business_details);
         const capitalError = validateCapital(formData.capital);
-        
         newErrors.business_name = businessNameError;
         newErrors.business_details = businessDetailsError;
         newErrors.capital = capitalError;
-        
         if (businessNameError || businessDetailsError || capitalError) isValid = false;
         break;
-        
-      case 2:
+      }
+      case 2: {
         const houseError = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
         const streetError = validateRequired(formData.street, "Street");
         const zoneError = validateRequired(formData.zone, "Zone/Purok");
-        
         newErrors.house_block_lot_no = houseError;
         newErrors.street = streetError;
         newErrors.zone = zoneError;
-        
         if (houseError || streetError || zoneError) isValid = false;
         break;
+      }
     }
 
     setErrors(newErrors);
-    
     if (!isValid) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the errors before proceeding.",
-        variant: "destructive",
-      });
+      toast({ title: "Validation Error", description: "Please fix the errors before proceeding.", variant: "destructive" });
     }
-    
     return isValid;
   };
 
@@ -222,7 +194,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
     }
   };
-  
+
   const handleBack = () => { if (currentStep > 0) setCurrentStep(currentStep - 1); else onBack(); };
 
   const handleSubmit = async () => {
@@ -230,17 +202,11 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       setCurrentStep(step);
       return validateCurrentStep();
     });
-    
     if (!allStepsValid) {
       setCurrentStep(0);
-      toast({ 
-        title: "Validation Error", 
-        description: "Please complete all required fields correctly.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Validation Error", description: "Please complete all required fields correctly.", variant: "destructive" });
       return;
     }
-
     setIsSubmitting(true);
     const payload = {
       requester_type: formData.requester_type, prefix: formData.prefix,
@@ -281,14 +247,15 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
         setFormData((prev) => ({
           ...prev,
           prefix: user.prefix || "",
-          surname: user.surname || "",
-          first_name: user.first_name || "",
-          middle_name: user.middle_name || "",
-          ext_name: user.extension_name || "",
+          surname: toUpperCase(user.surname || ""),
+          first_name: toUpperCase(user.first_name || ""),
+          middle_name: toUpperCase(user.middle_name || ""),
+          ext_name: toUpperCase(user.extension_name || ""),
           dob: user.dob || user.date_of_birth || "",
-          house_block_lot_no: user.house_block_lot_no || "",
-          street: user.street || "",
-          zone: user.zone_purok || "",
+          house_block_lot_no: toUpperCase(user.house_block_lot_no || ""),
+          // FIX: store as uppercase so it matches SelectItem value={toUpperCase(s.name / z)}
+          street: toUpperCase(user.street || ""),
+          zone: toUpperCase(user.zone_purok || ""),
         }));
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
@@ -299,37 +266,24 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
 
   const renderStep = () => {
     switch (currentStep) {
+
+      // ── Step 0: Owner Info ──────────────────────────────────────────────────
       case 0: return (
         <div className="space-y-6">
           <SectionDivider title="Business Owner Information" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
             <div>
               <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
-              <PrefixCombobox
-                options={PREFIX_OPTIONS}
-                value={formData.prefix}
-                onChange={(v) => upd("prefix", v)}
-                placeholder="Select prefix"
-              />
+              <PrefixCombobox options={PREFIX_OPTIONS} value={formData.prefix} onChange={(v) => upd("prefix", v)} placeholder="Select prefix" />
             </div>
             <div>
               <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
-              <FieldInput 
-                id="surname" 
-                value={formData.surname} 
-                onChange={(e) => upd("surname", e.target.value)}
-                style={{ borderColor: errors.surname ? "#ef4444" : undefined }}
-              />
+              <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} style={{ borderColor: errors.surname ? "#ef4444" : undefined }} />
               {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
             </div>
             <div>
               <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
-              <FieldInput 
-                id="first_name" 
-                value={formData.first_name} 
-                onChange={(e) => upd("first_name", e.target.value)}
-                style={{ borderColor: errors.first_name ? "#ef4444" : undefined }}
-              />
+              <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} style={{ borderColor: errors.first_name ? "#ef4444" : undefined }} />
               {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
             </div>
             <div>
@@ -344,31 +298,20 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             </div>
             <div>
               <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-              <FieldInput
-                id="dob"
-                type="date"
-                value={formData.dob}
-                max={toInputMax(maxDob())}
-                onChange={(e) => handleDobChange(e.target.value)}
-                style={{ borderColor: errors.dob ? "#ef4444" : undefined }}
-              />
+              <FieldInput id="dob" type="date" value={formData.dob} max={toInputMax(maxDob())} onChange={(e) => handleDobChange(e.target.value)} style={{ borderColor: errors.dob ? "#ef4444" : undefined }} />
               {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
             </div>
           </div>
         </div>
       );
 
+      // ── Step 1: Business Info ───────────────────────────────────────────────
       case 1: return (
         <div className="space-y-6">
           <SectionDivider title="Business Information" />
           <div>
             <FieldLabel htmlFor="businessName" required>Business Name</FieldLabel>
-            <FieldInput 
-              id="businessName" 
-              value={formData.business_name} 
-              onChange={(e) => upd("business_name", e.target.value)}
-              style={{ borderColor: errors.business_name ? "#ef4444" : undefined }}
-            />
+            <FieldInput id="businessName" value={formData.business_name} onChange={(e) => upd("business_name", e.target.value)} style={{ borderColor: errors.business_name ? "#ef4444" : undefined }} />
             {errors.business_name && <p className="mt-1 text-xs text-red-500">{errors.business_name}</p>}
           </div>
           <div>
@@ -376,7 +319,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <Select value={formData.business_type} onValueChange={(v) => upd("business_type", v)}>
               <SelectTrigger {...ST}><SelectValue placeholder="Select business type" /></SelectTrigger>
               <SelectContent>
-                {["Retail","Food & Beverage","Services","Manufacturing","Construction","Transportation","Other"].map((t) => (
+                {["Retail", "Food & Beverage", "Services", "Manufacturing", "Construction", "Transportation", "Other"].map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>
@@ -384,55 +327,42 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
           </div>
           <div>
             <FieldLabel htmlFor="businessDetails" required>Business Details</FieldLabel>
-            <FieldTextarea 
-              id="businessDetails" 
-              rows={3} 
-              placeholder="Describe your business activities..." 
-              value={formData.business_details} 
-              onChange={(e) => upd("business_details", e.target.value)}
-              style={{ borderColor: errors.business_details ? "#ef4444" : undefined }}
-            />
+            <FieldTextarea id="businessDetails" rows={3} placeholder="Describe your business activities..." value={formData.business_details} onChange={(e) => upd("business_details", e.target.value)} style={{ borderColor: errors.business_details ? "#ef4444" : undefined }} />
             {errors.business_details && <p className="mt-1 text-xs text-red-500">{errors.business_details}</p>}
           </div>
           <div className="max-w-sm">
             <FieldLabel htmlFor="capital" required>Capital (PHP)</FieldLabel>
-            <FieldInput 
-              id="capital" 
-              type="number" 
-              placeholder="0.00" 
-              value={formData.capital} 
-              onChange={(e) => upd("capital", e.target.value)}
-              style={{ borderColor: errors.capital ? "#ef4444" : undefined }}
-            />
+            <FieldInput id="capital" type="number" placeholder="0.00" value={formData.capital} onChange={(e) => upd("capital", e.target.value)} style={{ borderColor: errors.capital ? "#ef4444" : undefined }} />
             {errors.capital && <p className="mt-1 text-xs text-red-500">{errors.capital}</p>}
           </div>
         </div>
       );
 
+      // ── Step 2: Address ─────────────────────────────────────────────────────
       case 2: return (
         <div className="space-y-6">
           <SectionDivider title="Business Address" />
           <div>
             <FieldLabel htmlFor="houseBlockLotNo" required>House / Block / Lot No.</FieldLabel>
-            <FieldInput 
-              id="houseBlockLotNo" 
-              value={formData.house_block_lot_no} 
-              onChange={(e) => upd("house_block_lot_no", e.target.value)}
-              style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }}
-            />
+            <FieldInput id="houseBlockLotNo" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }} />
             {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
           </div>
+
           <div>
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
               <>
-                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                {/* FIX: value={toUpperCase(s.name)} matches stored formData.street (uppercase) */}
+                <Select value={formData.street} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, street: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select street" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     {streets.map((s) => (
-                      <SelectItem key={s.id} value={s.name}>
+                      <SelectItem key={s.id} value={toUpperCase(s.name)}>
                         {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
                       </SelectItem>
                     ))}
@@ -442,40 +372,35 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
               </>
             ) : (
               <>
-                <FieldInput 
-                  id="street" 
-                  value={formData.street} 
-                  onChange={(e) => upd("street", e.target.value)} 
-                  placeholder="Enter street name"
-                  style={{ borderColor: errors.street ? "#ef4444" : undefined }}
-                />
+                <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" style={{ borderColor: errors.street ? "#ef4444" : undefined }} />
                 {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
               </>
             )}
           </div>
+
           <div>
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
               <>
-                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                {/* FIX: value={toUpperCase(z)} matches stored formData.zone (uppercase) */}
+                <Select value={formData.zone} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, zone: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select zone" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                    {uniqueZones.map((z) => (
+                      <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
               </>
             ) : (
               <>
-                <FieldInput 
-                  id="zone" 
-                  value={formData.zone} 
-                  onChange={(e) => upd("zone", e.target.value)} 
-                  placeholder="Enter zone / purok"
-                  style={{ borderColor: errors.zone ? "#ef4444" : undefined }}
-                />
+                <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" style={{ borderColor: errors.zone ? "#ef4444" : undefined }} />
                 {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
               </>
             )}
@@ -483,6 +408,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
         </div>
       );
 
+      // ── Step 3: Review ──────────────────────────────────────────────────────
       case 3: return (
         <div className="space-y-5">
           <ReviewHeader current={5} total={5} />
@@ -494,6 +420,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <ReviewRow label="Business Name" value={formData.business_name} />
             <ReviewRow label="Business Type" value={formData.business_type} />
             <ReviewRow label="Capital" value={formData.capital ? `₱${formData.capital}` : ""} />
+            <ReviewRow label="Details" value={formData.business_details} />
           </ReviewCard>
           <ReviewCard title="Business Address">
             <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />

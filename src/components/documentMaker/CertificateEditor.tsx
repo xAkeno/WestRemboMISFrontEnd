@@ -234,11 +234,27 @@ const LABEL_TO_FIELD_TYPE: Record<string, TextField["fieldType"]> = {
   "Street": "ADDRESS", "House Block Lot No": "ADDRESS", "Zone": "ZONE",
 };
 
+// ─── Fields that should NEVER have date normalization applied ─────────────────
+// These are text/address fields whose values might accidentally look like dates
+// (e.g. zone codes like "2001-A", lot numbers like "123-B-01")
+const NON_DATE_KEYS = new Set([
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
+  'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
+  'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
+  'inspected_note', 'or_no', 'orNo', 'ctc_vrr_no', 'issued_at', 'purpose',
+  'purpose_details', 'remarks', 'bcert_number', 'brgy_business_no',
+  'punong_barangay', 'for_the_punong_barangay', 'barangay_position', 'status',
+  'registered_voter', 'notes', 'position', 'occupation', 'emp_status',
+  'blood_type', 'complexion', 'pwd', 'precinct_no', 'religion', 'voter_status',
+  'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
+  'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
+  'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg',
+]);
+
 const norm = (s: string) => s.trim().toLowerCase();
 
 // ─── Build PDF fields: suppress concat members, inject merged field ───────────
-// x/y in state are already in PDF points (scale-corrected by PDFPreview).
-
 function buildPDFFields(fields: TextField[]): TextField[] {
   const suppressedNorm = new Set<string>();
   const extras: TextField[] = [];
@@ -328,7 +344,16 @@ export function CertificateEditor() {
     resident_id:    r.resident_id ?? undefined,
   });
 
-  const normaliseDate = (value: any): any => {
+  /**
+   * Only normalizes a value to a date string if:
+   * 1. The mapped data key is a known date field (not in NON_DATE_KEYS)
+   * 2. The value is a string containing "T" (ISO timestamp format)
+   * 3. It parses as a valid Date
+   */
+  const normaliseDate = (value: any, dataKey?: string): any => {
+    // Skip normalization for non-date fields entirely
+    if (dataKey && NON_DATE_KEYS.has(dataKey)) return value;
+
     if (typeof value === "string" && value.includes("T")) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
@@ -352,7 +377,8 @@ export function CertificateEditor() {
       const key = LABEL_TO_KEY[field.label];
       if (!key) return;
       let value = field.value;
-      if (typeof value === "string" && value.includes("T")) {
+      // Only format dates for actual date fields
+      if (!NON_DATE_KEYS.has(key) && typeof value === "string" && value.includes("T")) {
         const d = new Date(value);
         if (!isNaN(d.getTime())) value = d.toISOString().split("T")[0];
       }
@@ -392,24 +418,54 @@ export function CertificateEditor() {
     } catch { toast.error('Failed to fetch document'); }
   };
 
+  // ── Refresh: re-fetches document data and re-maps fields ─────────────────────
+
+  const handleRefresh = async () => {
+    if (!bcertNumber || bcertNumber === "new") {
+      toast.info("Nothing to refresh for a new document.");
+      return;
+    }
+    try {
+      const apiPath = getApiPath(id!);
+      const res = await axios.get(
+        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+        { withCredentials: true }
+      );
+      const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
+      setDocumentUserData(records);
+
+      const record = records[0];
+      if (record) {
+        setFields((prev) =>
+          prev.map((field) => {
+            const key = LABEL_TO_KEY[field.label];
+            if (!key) return field;
+            return { ...field, value: normaliseDate((record as any)[key], key) ?? field.value };
+          })
+        );
+      }
+      toast.success("Document data refreshed.");
+    } catch {
+      toast.error("Failed to refresh document data.");
+    }
+  };
+
   // ── PDF ───────────────────────────────────────────────────────────────────────
 
   const renderPreview = useCallback(async (currentFields: TextField[]) => {
     if (!templateBytesRef.current) return;
 
     try {
-      // Build PDF fields with concat groups for layout reference
-      // Clear values in preview to show empty template
       const previewFields = buildPDFFields(currentFields).map(f => ({
         ...f,
-        value: '' // Empty values for preview layout
+        value: ''
       }));
 
       const bytes = await generatePDF(
         templateBytesRef.current,
-        previewFields, // Pass fields for layout positioning
-        qrField,       // QR will always generate if qrField.visible is true
-        resolvedBcert  // Always pass the bcertNumber for QR
+        previewFields,
+        qrField,
+        resolvedBcert
       );
 
       const url = pdfBytesToBlobUrl(bytes);
@@ -457,7 +513,8 @@ export function CertificateEditor() {
         const key = LABEL_TO_KEY[field.label];
         const fieldType = field.fieldType ?? LABEL_TO_FIELD_TYPE[field.label] ?? "TEXT";
         let value: any = key && record ? (record as any)[key] : "";
-        value = normaliseDate(value);
+        // Pass key so non-date fields are never date-normalized
+        value = normaliseDate(value, key);
         return { ...field, fieldType, value: value ?? "" };
       });
 
@@ -505,7 +562,8 @@ export function CertificateEditor() {
     setFields((prev) => prev.map((field) => {
       const key = LABEL_TO_KEY[field.label];
       if (!key) return field;
-      return { ...field, value: normaliseDate((record as any)[key]) ?? field.value };
+      // Pass key to prevent date-normalizing non-date fields
+      return { ...field, value: normaliseDate((record as any)[key], key) ?? field.value };
     }));
   }, [documentUserData, bcertNumber]);
 
@@ -514,7 +572,7 @@ export function CertificateEditor() {
     setFields((prev) => prev.map((field) => {
       const key = LABEL_TO_KEY[field.label];
       if (!key) return field;
-      return { ...field, value: normaliseDate(getTicketValue(key, ticket)) ?? field.value };
+      return { ...field, value: normaliseDate(getTicketValue(key, ticket), key) ?? field.value };
     }));
   }, [ticket, fields.length]);
 
@@ -544,14 +602,6 @@ export function CertificateEditor() {
     setSelectedId(null);
   };
 
-  // Auto-generate QR code when bcertNumber becomes available
-  useEffect(() => {
-    if (resolvedBcert && resolvedBcert !== 'new' && !qrField?.visible) {
-      setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
-    }
-  }, [resolvedBcert]);
-
-  // Auto-generate QR code when bcertNumber becomes available
   useEffect(() => {
     if (resolvedBcert && resolvedBcert !== 'new' && !qrField?.visible) {
       setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
@@ -592,7 +642,6 @@ export function CertificateEditor() {
     setSelectedId((prev) => prev === fieldId ? null : prev);
   }, []);
 
-  // onDragField receives PDF-point coords (already scale-corrected by PDFPreview)
   const handleDrag = useCallback((fieldId: string, x: number, y: number) => {
     setFields((prev) => prev.map((f) => f.id === fieldId ? { ...f, x, y } : f));
   }, []);
@@ -760,6 +809,7 @@ export function CertificateEditor() {
           isDownloading={isDownloading}
           hasReleasedDocument={hasReleasedDocument || !!existingRecord?.released_document_path}
           currentStatus={currentStatus}
+          onRefresh={handleRefresh}
         />
 
         <div className="flex flex-1 min-h-0">

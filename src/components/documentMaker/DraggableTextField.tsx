@@ -11,6 +11,8 @@ interface DraggableTextFieldProps {
   onDrag: (id: string, x: number, y: number) => void;
   /** When undefined the delete button is never rendered (staff view) */
   onDelete?: (id: string) => void;
+  /** Width of the PDF canvas in pixels (used to compute wrap boundary) */
+  canvasWidth?: number;
 }
 
 export function DraggableTextField({
@@ -19,6 +21,7 @@ export function DraggableTextField({
   onSelect,
   onDrag,
   onDelete,
+  canvasWidth,
 }: DraggableTextFieldProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +30,21 @@ export function DraggableTextField({
     TimesRoman: '"Times New Roman", Times, serif',
     Courier:    '"Courier New", Courier, monospace',
   };
+
+  // Fields that should wrap instead of overflow in a single line.
+  // ADDRESS fields always wrap; other fields stay nowrap unless they
+  // explicitly opt in via a future field property.
+  const shouldWrap =
+    field.fieldType === 'ADDRESS' ||
+    field.fieldType === 'ZONE' ||
+    field.fieldType === 'TEXT';
+
+  // Max width = remaining horizontal space from the field's x position
+  // to the right edge of the canvas, with a small safety margin.
+  // Falls back to a generous fixed cap when canvasWidth is not provided.
+  const maxWidth = canvasWidth
+    ? Math.max(80, canvasWidth - field.x - 8)
+    : 420;
 
   return (
     <Draggable
@@ -54,11 +72,20 @@ export function DraggableTextField({
           opacity:       field.opacity,
           letterSpacing: field.letterSpacing,
           textAlign:     field.alignment,
-          whiteSpace:    'nowrap',
+
+          // ── Wrapping ──────────────────────────────────────────────────────
+          // shouldWrap: constrain width and let text flow naturally.
+          // Otherwise keep nowrap for short single-value fields (dates, IDs).
+          whiteSpace:   shouldWrap ? 'pre-wrap' : 'nowrap',
+          wordBreak:    shouldWrap ? 'break-word' : 'normal',
+          overflowWrap: shouldWrap ? 'break-word' : 'normal',
+          maxWidth:     shouldWrap ? maxWidth : undefined,
+          // ─────────────────────────────────────────────────────────────────
+
           // Zero out any box-model that could skew the perceived position
-          padding:       0,
-          margin:        0,
-          lineHeight:    1,
+          padding:    0,
+          margin:     0,
+          lineHeight: 1.3,
         }}
         onClick={(e) => { e.stopPropagation(); onSelect(field.id); }}
       >

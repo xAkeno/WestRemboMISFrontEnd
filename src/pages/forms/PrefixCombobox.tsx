@@ -74,7 +74,7 @@ export const PrefixCombobox = ({
           }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
-          className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none text-sm p-0"
+          className="flex bg-transparent border-0 focus:ring-0 focus:outline-none text-sm p-0"
           autoComplete="off"
         />
         <div className="flex items-center gap-1">
@@ -87,13 +87,7 @@ export const PrefixCombobox = ({
               <X className="w-4 h-4 text-gray-500" />
             </button>
           )}
-          <ChevronDown
-            className="w-4 h-4 text-gray-400"
-            style={{
-              transform: open ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 0.2s",
-            }}
-          />
+
         </div>
       </div>
 

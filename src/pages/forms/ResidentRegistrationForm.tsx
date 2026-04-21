@@ -274,37 +274,37 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
         setFormData(prev => ({
           ...prev,
           prefix: user.prefix ?? "",
-          surname: user.surname ?? "",
-          first_name: user.first_name ?? "",
-          middle_name: user.middle_name ?? "",
-          ext_name: user.extension_name ?? "",
-          nick_name: user.nick_name ?? "",
+          surname: toUpperCase(user.surname ?? ""),
+          first_name: toUpperCase(user.first_name ?? ""),
+          middle_name: toUpperCase(user.middle_name ?? ""),
+          ext_name: toUpperCase(user.extension_name ?? ""),
+          nick_name: toUpperCase(user.nick_name ?? ""),
           sex: user.sex ?? "",
           marital_status: user.marital_status ?? "",
-          name_of_spouse: user.name_of_spouse ?? "",
+          name_of_spouse: toUpperCase(user.name_of_spouse ?? ""),
           dob: user.dob ?? "",
-          pob: user.pob ?? "",
+          pob: toUpperCase(user.pob ?? ""),
           height_cm: user.height_cm ?? 0,
           weight_kg: user.weight_kg ?? 0,
           blood_type: user.blood_type ?? "",
           complexion: user.complexion ?? "",
-          religion: user.religion ?? "",
+          religion: toUpperCase(user.religion ?? ""),
           phone_number: user.phone_number ?? "",
           email_address: user.email_address ?? "",
-          house_block_lot_no: user.house_block_lot_no ?? "",
-          street: user.street ?? "",
-          zone: user.zone_purok ?? "",
-          house_owner: user.house_owner ?? "",
+          house_block_lot_no: toUpperCase(user.house_block_lot_no ?? ""),
+          street: toUpperCase(user.street ?? ""),
+          zone: toUpperCase(user.zone_purok ?? ""),
+          house_owner: toUpperCase(user.house_owner ?? ""),
           relationship_to_owner: user.relationship_to_owner ?? "",
           resident_status: user.resident_status ?? "",
           voter_status: user.voter_status ? "Registered" : "Not Registered",
           precinct_no: user.precinct_no ?? "",
           emp_status: user.emp_status ?? "",
-          occupation: user.occupation ?? "",
-          position: user.position ?? "",
+          occupation: toUpperCase(user.occupation ?? ""),
+          position: toUpperCase(user.position ?? ""),
           pwd: user.pwd ? "Yes" : "No",
           period_of_residency: user.period_of_residency ?? "",
-          notes: user.notes ?? "",
+          notes: toUpperCase(user.notes ?? ""),
         }));
 
         if (user.photo_url) setImagePreview(user.photo_url);
@@ -528,7 +528,10 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
               <>
-                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <Select value={formData.street} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, street: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select street" />
                   </SelectTrigger>
@@ -559,7 +562,10 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
               <>
-                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <Select value={formData.zone} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, zone: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select zone" />
                   </SelectTrigger>
@@ -589,7 +595,10 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
             </div>
             <div>
               <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
-              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => {
+                setFormData((p) => ({ ...p, relationship_to_owner: v }));
+                setErrors((prev) => ({ ...prev, relationship_to_owner: "" }));
+              }}>
                 <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
                   {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (

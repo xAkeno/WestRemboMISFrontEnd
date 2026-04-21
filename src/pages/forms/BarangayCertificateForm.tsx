@@ -308,19 +308,19 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
         setFormData(prev => ({
           ...prev,
           prefix: user.prefix ?? "",
-          first_name: user.first_name ?? "",
-          middle_name: user.middle_name ?? "",
-          surname: user.surname ?? "",
-          extension: user.extension_name ?? "",
+          first_name: toUpperCase(user.first_name ?? ""),
+          middle_name: toUpperCase(user.middle_name ?? ""),
+          surname: toUpperCase(user.surname ?? ""),
+          extension: toUpperCase(user.extension_name ?? ""),
           dob: user.dob ?? "",
-          pob: user.pob ?? "",
+          pob: toUpperCase(user.pob ?? ""),
           age: user.dob ? String(today().getFullYear() - new Date(user.dob).getFullYear()) : "",
           contact_no: user.contact_number ?? "",
           email: user.email ?? "",
-          house_block_lot_no: user.house_block_lot_no ?? "",
-          street: user.street ?? "",
-          zone: user.zone_purok ?? "",
-          house_owner: user.house_owner ?? "",
+          house_block_lot_no: toUpperCase(user.house_block_lot_no ?? ""),
+          street: toUpperCase(user.street ?? ""),
+          zone: toUpperCase(user.zone_purok ?? ""),
+          house_owner: toUpperCase(user.house_owner ?? ""),
           relationship_to_owner: user.relationship_to_owner ?? "",
           period_of_residency: user.period_of_residency ?? "",
           registered_voter: user.voter_status ? "Yes" : "No",
@@ -460,13 +460,16 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
             <FieldLabel htmlFor="street" required>Street</FieldLabel>
             {streets.length > 0 ? (
               <>
-                <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                <Select value={formData.street} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                  setErrors((prev) => ({ ...prev, street: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select street" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     {streets.map((s) => (
-                      <SelectItem key={s.id} value={s.name}>
+                      <SelectItem key={s.id} value={toUpperCase(s.name)}>
                         {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
                       </SelectItem>
                     ))}
@@ -492,12 +495,17 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
             <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
             {uniqueZones.length > 0 ? (
               <>
-                <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                <Select value={formData.zone} onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, zone: v }));
+                  setErrors((prev) => ({ ...prev, zone: "" }));
+                }}>
                   <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
                     <SelectValue placeholder="Select zone" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {uniqueZones.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                    {uniqueZones.map((z) => <SelectItem key={z} value={toUpperCase(z)}>
+                      {z}
+                    </SelectItem>)}
                   </SelectContent>
                 </Select>
                 {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
@@ -523,7 +531,10 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps) => {
             </div>
             <div>
               <FieldLabel htmlFor="relationship_to_owner">Relationship to Owner</FieldLabel>
-              <Select value={formData.relationship_to_owner} onValueChange={(v) => upd("relationship_to_owner", v)}>
+              <Select value={formData.relationship_to_owner} onValueChange={(v) => {
+                setFormData((p) => ({ ...p, relationship_to_owner: v }));
+                setErrors((prev) => ({ ...prev, relationship_to_owner: "" }));
+              }}>
                 <SelectTrigger {...ST}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
                   {["Owner","Spouse","Child","Parent","Sibling","Relative","Tenant","Boarder"].map((r) => (

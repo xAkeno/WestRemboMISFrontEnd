@@ -1,4 +1,4 @@
-import { Upload, Plus, Download, Save, SaveAll, Printer, BadgeDollarSign, FileCheck2, FolderDown } from 'lucide-react';
+import { Upload, Plus, Download, Save, SaveAll, Printer, BadgeDollarSign, FileCheck2, FolderDown, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -45,6 +45,8 @@ interface ToolbarProps {
   isChangingStatus?: boolean;
   // ── Current record status ────────────────────────────────────────────────
   currentStatus?: string;
+  // ── Refresh ──────────────────────────────────────────────────────────────
+  onRefresh: () => void;
 }
 
 const CLEARANCE_FIELDS: Record<string, string[]> = {
@@ -106,13 +108,24 @@ export function Toolbar({
   onChangeStatus,
   isChangingStatus = false,
   currentStatus = "",
+  onRefresh,
 }: ToolbarProps) {
   const [statusValue, setStatusValue] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ── Derived visibility flags ─────────────────────────────────────────────
   const isPaid = currentStatus === "PAID";
   const showMarkToPay = isUpdate && !isPaid;
   const showRelease = isAdmin && isUpdate && isPaid;
+
+  const handleRefreshClick = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 overflow-x-auto whitespace-nowrap">
@@ -195,6 +208,18 @@ export function Toolbar({
       <Button variant="outline" size="sm" onClick={onSubmit}>
         <SaveAll className="mr-2 h-4 w-4" />
         {isUpdate ? "Update Data" : "Save Data"}
+      </Button>
+
+      {/* Refresh — re-fetches latest record data into fields */}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isRefreshing || !isUpdate}
+        onClick={handleRefreshClick}
+        title="Reload latest data from server"
+      >
+        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+        Refresh
       </Button>
 
       {isUpdate && (

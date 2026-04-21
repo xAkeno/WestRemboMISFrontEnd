@@ -1,8 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRequestById } from "../services/api";
-import { DOCUMENT_LABELS, STATUS_CONFIG } from "@/types/types";
-import { Input } from "@/components/ui/input";
+import { DOCUMENT_LABELS } from "@/types/types";
 import { format } from "date-fns";
 import {
   ArrowLeft, Calendar, AlertTriangle, FileCheck,
@@ -11,9 +10,8 @@ import {
   ClipboardList, ShieldCheck, Hash, BadgeInfo,
   CheckCircle, Clock, Banknote, Users, Hammer,
   Info, FileX, BadgeCheck, Mail,
-  ChevronRight, ListChecks,
+  ChevronRight, ListChecks, X, ExternalLink,
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
 import { useState, useEffect, useRef } from "react";
 import Header from "../forms/Header";
 
@@ -21,16 +19,16 @@ const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 // ─── Status badge colors ───────────────────────────────────────────────────────
-const statusStyle: Record<string, { bg: string; text: string; border: string }> = {
-  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
-  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
-  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
-  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
-  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa" },
-  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3" },
-  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac" },
-  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
-  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a" },
+const statusStyle: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0", dot: "#16a34a" },
+  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
+  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
+  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
+  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
+  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
 };
 
 // ─── Reply types ───────────────────────────────────────────────────────────────
@@ -45,7 +43,6 @@ interface DocReply {
   user?: { name: string };
 }
 
-// ─── Schedule type ─────────────────────────────────────────────────────────────
 interface ScheduleData {
   id: number;
   document_type: string;
@@ -57,81 +54,18 @@ interface ScheduleData {
 }
 
 const REPLY_STATUS_CONFIG = {
-  info: {
-    label: "Info",
-    icon: Info,
-    bg: "#eff6ff",
-    border: "#bfdbfe",
-    color: "#1d4ed8",
-    badgeBg: "#dbeafe",
-    leftBorder: "#3b82f6",
-  },
-  warning: {
-    label: "Warning",
-    icon: AlertTriangle,
-    bg: "#fffbeb",
-    border: "#fde68a",
-    color: "#b45309",
-    badgeBg: "#fef3c7",
-    leftBorder: "#f59e0b",
-  },
-  missing: {
-    label: "Missing Document",
-    icon: FileX,
-    bg: "#fff1f2",
-    border: "#fecdd3",
-    color: "#be123c",
-    badgeBg: "#ffe4e6",
-    leftBorder: "#e11d48",
-  },
-  approved: {
-    label: "Approved",
-    icon: BadgeCheck,
-    bg: "#f0fdf4",
-    border: "#bbf7d0",
-    color: "#15803d",
-    badgeBg: "#dcfce7",
-    leftBorder: "#16a34a",
-  },
+  info:     { label: "Info",             icon: Info,          bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8", badgeBg: "#dbeafe", leftBorder: "#3b82f6" },
+  warning:  { label: "Warning",          icon: AlertTriangle, bg: "#fffbeb", border: "#fde68a", color: "#b45309", badgeBg: "#fef3c7", leftBorder: "#f59e0b" },
+  missing:  { label: "Missing Document", icon: FileX,         bg: "#fff1f2", border: "#fecdd3", color: "#be123c", badgeBg: "#ffe4e6", leftBorder: "#e11d48" },
+  approved: { label: "Approved",         icon: BadgeCheck,    bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d", badgeBg: "#dcfce7", leftBorder: "#16a34a" },
 } as const;
 
-// ─── Service requirements data ─────────────────────────────────────────────────
-const serviceData: Record<string, {
-  icon: React.ElementType;
-  requirements: string[];
-  processingTime: string;
-  fee: string;
-}> = {
-  barangay_certificate: {
-    icon: FileText,
-    requirements: ["Valid government ID", "Proof of Residency", "Purpose of request"],
-    processingTime: "Same day",
-    fee: "₱50.00",
-  },
-  barangay_clearance: {
-    icon: ShieldCheck,
-    requirements: ["Valid government ID", "Proof of Residency", "Community Tax Certificate (Cedula)", "2x2 ID photo"],
-    processingTime: "1-2 business days",
-    fee: "₱100.00",
-  },
-  business_clearance: {
-    icon: Building2,
-    requirements: ["DTI / SEC Registration", "Mayor's Business Permit", "BIR Certificate of Registration", "Valid government ID"],
-    processingTime: "3-5 business days",
-    fee: "₱500.00 - ₱2,000.00",
-  },
-  building_clearance: {
-    icon: Hammer,
-    requirements: ["Transfer Certificate of Title (TCT)", "Tax Declaration", "Building Permit", "Barangay clearance"],
-    processingTime: "5-7 business days",
-    fee: "₱300.00 - ₱1,000.00",
-  },
-  resident_registration: {
-    icon: Users,
-    requirements: ["Valid government ID", "Proof of Residency", "2x2 ID photos (2 pieces)", "Accomplished registration form"],
-    processingTime: "1-2 business days",
-    fee: "Free",
-  },
+const serviceData: Record<string, { processingTime: string; fee: string }> = {
+  barangay_certificate:  { processingTime: "Same day",          fee: "₱50.00" },
+  barangay_clearance:    { processingTime: "1–2 business days", fee: "₱100.00" },
+  business_clearance:    { processingTime: "3–5 business days", fee: "₱500.00 – ₱2,000.00" },
+  building_clearance:    { processingTime: "5–7 business days", fee: "₱300.00 – ₱1,000.00" },
+  resident_registration: { processingTime: "1–2 business days", fee: "Free" },
 };
 
 const REQUIRED_SLOTS_BY_DOC: Record<string, string[]> = {
@@ -155,477 +89,420 @@ const SLOT_LABELS: Record<string, string> = {
   supporting_document:   "Supporting Document",
 };
 
-// ─── Process steps definition ──────────────────────────────────────────────────
 const STATUS_TO_STEP: Record<string, number> = {
-  pending:    0,
-  incomplete: 0,
-  processing: 0,
-  encoded:    0,
-  approved:   1,
-  scheduled:  1,
-  to_pay:     2,
-  released:   3,
+  pending: 0, incomplete: 0, processing: 0, encoded: 0,
+  approved: 1, scheduled: 1,
+  to_pay: 2,
+  released: 3,
 };
 
-interface ProcessStep {
-  label: string;
-  sublabel: string;
-  icon: React.ElementType;
-  statuses: string[];
-}
+const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null }> = {
+  encoded:    { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
+  pending:    { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
+  processing: { message: "Your request is being reviewed by the barangay office.", nextStep: "Scheduled" },
+  incomplete: { message: "Action required — please upload missing documents to continue.", nextStep: null },
+  approved:   { message: "Your request has been approved!", nextStep: "To Pay" },
+  scheduled:  { message: "A pickup date has been assigned for your document.", nextStep: "To Pay" },
+  to_pay:     { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
+  released:   { message: "Your document has been sent to your registered email address.", nextStep: null },
+  rejected:   { message: "Your request was not approved. See details for more information.", nextStep: null },
+};
 
-const PROCESS_STEPS: ProcessStep[] = [
-  {
-    label: "Encoded",
-    sublabel: "Request received by barangay",
-    icon: FileText,
-    statuses: ["pending", "incomplete", "processing", "encoded"],
-  },
-  {
-    label: "Scheduled",
-    sublabel: "Pickup date assigned",
-    icon: Calendar,
-    statuses: ["approved", "scheduled"],
-  },
-  {
-    label: "To Pay",
-    sublabel: "Payment required",
-    icon: Banknote,
-    statuses: ["to_pay"],
-  },
-  {
-    label: "Released",
-    sublabel: "Document sent to your email",
-    icon: Mail,
-    statuses: ["released"],
-  },
-];
+const PROCESS_STEPS = ["Encoded", "Scheduled", "To Pay", "Released"];
 
-// ─── Process Tracker Component ─────────────────────────────────────────────────
-function ProcessTracker({
-  status,
-  schedule,
-  trackerRef,
-}: {
-  status: string;
-  schedule?: ScheduleData | null;
-  trackerRef?: React.RefObject<HTMLDivElement>;
-}) {
-  const normalizedStatus = status.toLowerCase();
-  const isRejected = normalizedStatus === "rejected";
-  const currentStep = isRejected ? -1 : (STATUS_TO_STEP[normalizedStatus] ?? 0);
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns true only if value is non-null, non-undefined, non-empty string */
+const hasValue = (v: any): boolean =>
+  v !== null && v !== undefined && String(v).trim() !== "";
+
+/** Returns true if at least one value in an object is non-empty */
+const sectionHasData = (fields: Record<string, any>): boolean =>
+  Object.values(fields).some(hasValue);
+
+// ─── Compact Process Bar ───────────────────────────────────────────────────────
+function ProcessBar({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
+  const isRejected = normalized === "rejected";
+  const currentStep = isRejected ? -1 : (STATUS_TO_STEP[normalized] ?? 0);
 
   return (
-    <div
-      ref={trackerRef}
-      className="rounded-sm overflow-hidden"
-      style={{ border: "1px solid #dde3ed" }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center gap-2 px-4 py-2.5"
-        style={{ backgroundColor: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}
-      >
-        <ListChecks className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: NAVY }}>
-          Request Progress
-        </span>
-        {isRejected && (
-          <span
-            className="ml-auto text-[9px] font-black uppercase tracking-wider px-2 py-0.5"
-            style={{ backgroundColor: "#fff1f2", color: "#e11d48", border: "1px solid #fecdd3", borderRadius: 2 }}
-          >
-            Rejected
-          </span>
-        )}
-      </div>
-
-      {/* Steps */}
-      <div className="bg-white px-4 py-5">
-        <div className="flex items-start justify-between gap-0 relative">
-          {/* Connector line behind icons */}
-          <div
-            className="absolute top-3.5 left-0 right-0 mx-auto"
-            style={{
-              height: 2,
-              zIndex: 0,
-              left: "calc(14px + 0.5rem)",
-              right: "calc(14px + 0.5rem)",
-              backgroundColor: "#e5e7eb",
-            }}
-          />
-
-          {PROCESS_STEPS.map((step, i) => {
-            const isDone = !isRejected && i < currentStep;
-            const isCurrent = !isRejected && i === currentStep;
-            const isFuture = isRejected || i > currentStep;
-
-            let iconBg = "#f3f4f6";
-            let iconColor = "#9ca3af";
-            let borderColor = "#e5e7eb";
-            let labelColor = "#9ca3af";
-
-            if (isDone) {
-              iconBg = "#dcfce7";
-              iconColor = "#16a34a";
-              borderColor = "#86efac";
-              labelColor = "#16a34a";
-            } else if (isCurrent && !isRejected) {
-              iconBg = "#dbeafe";
-              iconColor = "#1d4ed8";
-              borderColor = "#93c5fd";
-              labelColor = NAVY;
-            }
-
-            const Icon = step.icon;
-            const isSpinning = isCurrent && normalizedStatus === "processing";
-
-            return (
+    <div className="flex items-center gap-1">
+      {PROCESS_STEPS.map((step, i) => {
+        const isDone    = !isRejected && i < currentStep;
+        const isCurrent = !isRejected && i === currentStep;
+        return (
+          <div key={i} className="flex items-center gap-1 flex-1">
+            <div className="flex flex-col items-center flex-1">
               <div
-                key={i}
-                className="flex flex-col items-center gap-1.5 flex-1 relative"
-                style={{ zIndex: 1 }}
+                className="h-1.5 w-full rounded-full mb-1"
+                style={{
+                  backgroundColor: isDone
+                    ? "#16a34a"
+                    : isCurrent
+                    ? NAVY
+                    : "#e5e7eb",
+                }}
+              />
+              <span
+                className="text-[9px] font-semibold truncate w-full text-center"
+                style={{
+                  color: isDone ? "#16a34a" : isCurrent ? NAVY : "#9ca3af",
+                }}
               >
-                {/* Circle */}
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    backgroundColor: iconBg,
-                    border: `2px solid ${borderColor}`,
-                  }}
-                >
-                  {isDone ? (
-                    <CheckCircle className="h-4 w-4" style={{ color: iconColor }} />
-                  ) : (
-                    <Icon
-                      className={`h-3.5 w-3.5 ${isSpinning ? "animate-spin" : ""}`}
-                      style={{ color: iconColor }}
-                    />
-                  )}
-                </div>
-
-                {/* Label */}
-                <div className="text-center px-1">
-                  <p
-                    className="text-[10px] font-bold leading-tight"
-                    style={{ color: labelColor }}
-                  >
-                    {step.label}
-                  </p>
-                  {isCurrent && (
-                    <p className="text-[9px] mt-0.5 leading-tight" style={{ color: "#6b7280" }}>
-                      {step.sublabel}
-                    </p>
-                  )}
-                </div>
-
-                {/* "Current" pulse indicator */}
-                {isCurrent && (
-                  <span
-                    className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5"
-                    style={{
-                      backgroundColor: "#dbeafe",
-                      color: "#1d4ed8",
-                      borderRadius: 2,
-                      border: "1px solid #bfdbfe",
-                    }}
-                  >
-                    Current
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Status note below */}
-        {isRejected ? (
-          <div
-            className="mt-5 flex items-start gap-2 p-3"
-            style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3", borderLeftWidth: 3, borderLeftColor: "#e11d48", borderRadius: 2 }}
-          >
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#e11d48" }} />
-            <div>
-              <p className="text-xs font-bold" style={{ color: "#9f1239" }}>Request Rejected</p>
-              <p className="text-xs mt-0.5" style={{ color: "#be123c" }}>
-                Your request was not approved. Please check the remarks below for details, then submit a new request if needed.
-              </p>
+                {step}
+              </span>
             </div>
+            {i < PROCESS_STEPS.length - 1 && (
+              <ChevronRight className="h-3 w-3 flex-shrink-0 mb-4" style={{ color: "#d1d5db" }} />
+            )}
           </div>
-        ) : normalizedStatus === "incomplete" ? (
-          <div
-            className="mt-5 flex items-start gap-2 p-3"
-            style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderLeftWidth: 3, borderLeftColor: "#ea580c", borderRadius: 2 }}
-          >
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
-            <div>
-              <p className="text-xs font-bold" style={{ color: "#9a3412" }}>Action Required</p>
-              <p className="text-xs mt-0.5" style={{ color: "#c2410c" }}>
-                Your submission is incomplete. Please upload any missing documents or fill in required information to continue.
-              </p>
-            </div>
-          </div>
-        ) : normalizedStatus === "released" ? (
-          <div
-            className="mt-5 flex items-center gap-2 p-3"
-            style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a", borderRadius: 2 }}
-          >
-            <Mail className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
-            <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
-              All steps complete — your document has been sent to your registered email address.
-            </p>
-          </div>
-        ) : normalizedStatus === "to_pay" ? (
-          <div
-            className="mt-5 flex items-start gap-2 p-3"
-            style={{ backgroundColor: "#fefce8", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
-          >
-            <Banknote className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#ca8a04" }} />
-            <div>
-              <p className="text-xs font-bold" style={{ color: "#92400e" }}>Payment Required</p>
-              <p className="text-xs mt-0.5" style={{ color: "#c2410c" }}>
-                Please proceed to the barangay hall to settle the payment for your document.
-              </p>
-            </div>
-          </div>
-        ) : normalizedStatus === "scheduled" || normalizedStatus === "approved" ? (
-          <div
-            className="mt-5 flex items-start gap-2 p-3"
-            style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb", borderRadius: 2 }}
-          >
-            <Calendar className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#1d4ed8" }} />
-            <div>
-              <p className="text-xs font-bold" style={{ color: "#1e40af" }}>
-                {schedule ? "Pickup Scheduled" : "Awaiting Schedule"}
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "#1d4ed8" }}>
-                {schedule
-                  ? `Visit the barangay hall on ${new Date(schedule.schedule_date + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}.`
-                  : "The barangay will assign a pickup date soon. Check back here for updates."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          // default — encoded / pending / processing
-          <div
-            className="mt-5 flex items-center gap-2 p-3"
-            style={{ backgroundColor: "#fefce8", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
-          >
-            <Clock className="h-4 w-4 shrink-0" style={{ color: "#ca8a04" }} />
-            <p className="text-xs font-semibold" style={{ color: "#92400e" }}>
-              Your request has been submitted and is being encoded by the barangay office.
-            </p>
-          </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-// ─── Released Document Sent Banner ────────────────────────────────────────────
-function ReleasedSentBanner({
-  releasedAt,
-}: {
-  releasedAt?: string | null;
-}) {
-  const releasedDate = releasedAt
-    ? new Date(releasedAt).toLocaleDateString(undefined, {
-        month: "long", day: "numeric", year: "numeric",
-      })
-    : null;
+// ─── Full Details Modal ────────────────────────────────────────────────────────
+function DetailsModal({ request, onClose }: { request: any; onClose: () => void }) {
+  const docType = request.document_type ?? "";
+
+  const DetailLabel = ({ children }: { children: React.ReactNode }) => (
+    <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>{children}</p>
+  );
+  const DetailValue = ({ children }: { children: React.ReactNode }) => (
+    <p className="text-sm font-medium" style={{ color: NAVY }}>{children}</p>
+  );
+
+  /** Only renders if value exists */
+  const Field = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
+    if (!hasValue(value)) return null;
+    const display = value === true ? "Yes" : value === false ? "No" : String(value);
+    return (
+      <div>
+        <DetailLabel>{label}</DetailLabel>
+        <DetailValue>{display}</DetailValue>
+      </div>
+    );
+  };
+
+  /** Only renders if at least one field in the group has data */
+  const Section = ({ title, icon: Icon, fields }: {
+    title: string;
+    icon: React.ElementType;
+    fields: { label: string; value?: any }[];
+  }) => {
+    const visible = fields.filter(f => hasValue(f.value));
+    if (visible.length === 0) return null;
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
+          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: NAVY }}>{title}</p>
+          <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          {visible.map((f, i) => <Field key={i} label={f.label} value={f.value} />)}
+        </div>
+      </div>
+    );
+  };
+
+  const r = request;
+  const raw = r.raw ?? {};
+
+  // Build sections per document type
+  const sections = (() => {
+    if (docType === "barangay_certificate" || docType === "barangay_clearance") {
+      return [
+        {
+          title: "Requester Details", icon: User,
+          fields: [
+            { label: "Full Name",           value: r.requester_name },
+            { label: "Age",                 value: r.age },
+            { label: "Date of Birth",       value: r.date_of_birth },
+            { label: "Place of Birth",      value: r.place_of_birth },
+            { label: "Contact No.",         value: r.contact_no },
+          ],
+        },
+        {
+          title: "Address", icon: MapPin,
+          fields: [
+            { label: "Address",                  value: r.address },
+            { label: "House Owner",              value: r.house_owner },
+            { label: "Relationship to Owner",    value: r.relationship_to_owner },
+          ],
+        },
+        {
+          title: docType === "barangay_certificate" ? "Certificate Details" : "Clearance Details", icon: ClipboardList,
+          fields: [
+            { label: docType === "barangay_certificate" ? "Certificate No." : "Clearance No.", value: r.bcert_number },
+            { label: "Purpose",              value: r.purpose },
+            { label: "Purpose Details",      value: r.purpose_details },
+            { label: "Period of Residency",  value: r.period_of_residency },
+            { label: "Registered Voter",     value: r.registered_voter },
+          ],
+        },
+        ...(docType === "barangay_clearance" ? [{
+          title: "Official Reference", icon: Hash,
+          fields: [
+            { label: "CTC / VRR No.",  value: r.ctc_vrr_no },
+            { label: "Issued At",      value: r.issued_at },
+            { label: "Issued On",      value: r.issued_on },
+            { label: "O.R. Number",    value: r.or_no },
+          ],
+        }] : []),
+      ];
+    }
+
+    if (docType === "building_clearance") {
+      return [
+        {
+          title: "Applicant Details", icon: User,
+          fields: [{ label: "Full Name", value: r.requester_name }],
+        },
+        {
+          title: "Building Details", icon: Building2,
+          fields: [
+            { label: "Establishment",    value: raw.establishment },
+            { label: "Purpose",          value: r.purpose },
+            { label: "Purpose Details",  value: r.purpose_details },
+          ],
+        },
+        {
+          title: "Project Location", icon: MapPin,
+          fields: [{ label: "Address", value: r.address }],
+        },
+        {
+          title: "Clearance Info", icon: ShieldCheck,
+          fields: [
+            { label: "Clearance No.",       value: r.bcert_number },
+            { label: "O.R. Number",         value: raw.orNo },
+            { label: "Punong Barangay",     value: raw.punongBarangay },
+            { label: "Barangay Position",   value: raw.barangayPosition },
+            { label: "Updated By",          value: r.updated_by },
+          ],
+        },
+      ];
+    }
+
+    if (docType === "business_clearance") {
+      return [
+        {
+          title: "Owner Details", icon: User,
+          fields: [{ label: "Full Name", value: r.requester_name }],
+        },
+        {
+          title: "Business Information", icon: Briefcase,
+          fields: [
+            { label: "Business Name",    value: raw.businessName ?? r.purpose },
+            { label: "Business Type",    value: raw.businessType },
+            { label: "Business Details", value: r.purpose_details },
+            { label: "Capital (PHP)",    value: r.capital != null ? `₱${r.capital}` : null },
+          ],
+        },
+        {
+          title: "Business Address", icon: MapPin,
+          fields: [{ label: "Address", value: r.address }],
+        },
+        {
+          title: "Clearance Details", icon: ClipboardList,
+          fields: [
+            { label: "Barangay Business No.", value: r.bcert_number },
+            { label: "O.R. Number",           value: raw.orNo },
+            { label: "Updated By",            value: r.updated_by },
+          ],
+        },
+        {
+          title: "Inspection Details", icon: BadgeInfo,
+          fields: [
+            { label: "Inspected By",         value: r.inspected_by },
+            { label: "Date of Inspection",   value: r.date_of_inspection },
+            { label: "Inspection Remarks",   value: raw.inspectionRemarks },
+            { label: "Additional Notes",     value: r.inspected_notes },
+          ],
+        },
+      ];
+    }
+
+    if (docType === "resident_registration") {
+      const res = raw ?? r;
+      return [
+        {
+          title: "Personal Information", icon: User,
+          fields: [
+            { label: "Resident ID",       value: res.resident_id },
+            { label: "Prefix",            value: res.prefix },
+            { label: "First Name",        value: res.first_name },
+            { label: "Middle Name",       value: res.middle_name },
+            { label: "Surname",           value: res.surname },
+            { label: "Ext. Name",         value: res.ext_name },
+            { label: "Nickname",          value: res.nick_name },
+            { label: "Sex",               value: res.sex },
+            { label: "Date of Birth",     value: res.date_of_birth ? new Date(res.date_of_birth).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null },
+            { label: "Place of Birth",    value: res.place_of_birth },
+            { label: "Blood Type",        value: res.blood_type },
+            { label: "Complexion",        value: res.complexion },
+            { label: "Height (cm)",       value: res.height_cm },
+            { label: "Weight (kg)",       value: res.weight_kg },
+            { label: "Religion",          value: res.religion },
+            { label: "Marital Status",    value: res.marital_status },
+            { label: "Name of Spouse",    value: res.name_of_spouse },
+            { label: "PWD",               value: res.pwd },
+          ],
+        },
+        {
+          title: "Address", icon: MapPin,
+          fields: [
+            { label: "House / Block / Lot No.",  value: res.house_block_lot_no },
+            { label: "Street",                   value: res.street },
+            { label: "Zone",                     value: res.zone },
+            { label: "House Owner",              value: res.house_owner },
+            { label: "Relationship to Owner",    value: res.relationship_to_owner },
+            { label: "Period of Residency",      value: res.period_of_residency ? `${res.period_of_residency} year(s)` : null },
+            { label: "Resident Status",          value: res.resident_status },
+          ],
+        },
+        {
+          title: "Contact & Employment", icon: Phone,
+          fields: [
+            { label: "Phone Number",      value: res.phone_number },
+            { label: "Email Address",     value: res.email_address },
+            { label: "Occupation",        value: res.occupation },
+            { label: "Employment Status", value: res.emp_status },
+            { label: "Position",          value: res.position },
+          ],
+        },
+        {
+          title: "Civil Registration", icon: ShieldCheck,
+          fields: [
+            { label: "Voter Status",  value: res.voter_status },
+            { label: "Precinct No.", value: res.precinct_no },
+          ],
+        },
+        ...(res.notes ? [{
+          title: "Notes", icon: ClipboardList,
+          fields: [{ label: "Notes", value: res.notes }],
+        }] : []),
+      ];
+    }
+
+    return [];
+  })();
 
   return (
     <div
-      className="rounded-sm overflow-hidden"
-      style={{ border: "1px solid #86efac", borderLeftWidth: 3, borderLeftColor: "#16a34a" }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Header strip */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5"
-        style={{ backgroundColor: "#dcfce7", borderBottom: "1px solid #86efac" }}
+        className="w-full sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden"
+        style={{ backgroundColor: "white", borderRadius: "12px 12px 0 0", borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
       >
-        <Mail className="h-4 w-4 shrink-0" style={{ color: "#15803d" }} />
-        <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#15803d" }}>
-          Official Document — Sent to Your Email
-        </span>
-        {releasedDate && (
-          <span className="ml-auto text-[10px] font-semibold" style={{ color: "#166534" }}>
-            Released {releasedDate}
-          </span>
-        )}
-      </div>
-
-      {/* Body */}
-      <div
-        className="px-4 py-4 flex items-start gap-3"
-        style={{ backgroundColor: "#f0fdf4" }}
-      >
+        {/* Modal header */}
         <div
-          className="flex items-center justify-center w-12 h-12 shrink-0"
-          style={{ backgroundColor: "#dcfce7", borderRadius: 2, border: "1px solid #86efac" }}
+          className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+          style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
         >
-          <FileCheck className="h-6 w-6" style={{ color: "#16a34a" }} />
-        </div>
-        <div>
-          <p className="text-sm font-bold" style={{ color: "#15803d" }}>
-            Your document has been officially released
-          </p>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: "#166534" }}>
-            We have sent your signed document to your registered email address. Please check your inbox (and spam folder) to retrieve it.
-            If you did not receive it, please visit the barangay hall for assistance.
-          </p>
-        </div>
-      </div>
-
-      <div
-        className="px-4 py-2 flex items-center gap-1.5"
-        style={{ borderTop: "1px solid #86efac", backgroundColor: "#dcfce7" }}
-      >
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "#16a34a" }} />
-        <p className="text-[10px]" style={{ color: "#166534" }}>
-          This is an official document issued by the Barangay. Present this when required by government agencies or employers.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Requirements panel ────────────────────────────────────────────────────────
-function RequirementsPanel({
-  documentType,
-  uploadedTypes,
-}: {
-  documentType: string;
-  uploadedTypes: Set<string>;
-}) {
-  const key = documentType.replace(/-/g, "_");
-  const service = serviceData[key];
-  if (!service) return null;
-
-  const Icon = service.icon;
-  const requiredSlots = REQUIRED_SLOTS_BY_DOC[key] ?? [];
-  const missingSlots = requiredSlots.filter((s) => !uploadedTypes.has(s));
-  const allUploaded = missingSlots.length === 0 && requiredSlots.length > 0;
-
-  return (
-    <div className="rounded-sm border overflow-hidden" style={{ borderColor: "#dde3ed" }}>
-      <div
-        className="flex items-center gap-2 px-4 py-2.5"
-        style={{ backgroundColor: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}
-      >
-        <Icon className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: NAVY }}>
-          Requirements for this Request
-        </span>
-      </div>
-
-      <div className="px-4 py-4 grid sm:grid-cols-2 gap-4 bg-white">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: PINK }}>
-            Documents Needed
-          </p>
-          <ul className="space-y-2">
-            {service.requirements.map((req, i) => {
-              const slotKey = requiredSlots[i];
-              const uploaded = slotKey ? uploadedTypes.has(slotKey) : false;
-              const isRequired = !!slotKey;
-              return (
-                <li key={i} className="flex items-start gap-2">
-                  {isRequired ? (
-                    uploaded ? (
-                      <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: "#16a34a" }} />
-                    ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: "#ca8a04" }} />
-                    )
-                  ) : (
-                    <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: NAVY }} />
-                  )}
-                  <span className="text-xs" style={{ color: uploaded ? "#16a34a" : isRequired ? "#92400e" : "#4b5563" }}>
-                    {req}
-                    {uploaded && (
-                      <span className="ml-1.5 text-[10px] font-bold" style={{ color: "#16a34a" }}>✓ Uploaded</span>
-                    )}
-                    {isRequired && !uploaded && (
-                      <span
-                        className="ml-1.5 text-[9px] font-black uppercase tracking-wider px-1 py-0.5"
-                        style={{ backgroundColor: "#fde68a", color: "#92400e", borderRadius: 2 }}
-                      >
-                        Missing
-                      </span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="flex flex-col gap-4 sm:border-l sm:pl-4" style={{ borderColor: "#dde3ed" }}>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>Processing Time</p>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
-              <span className="text-xs font-semibold text-gray-700">{service.processingTime}</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4" style={{ color: NAVY }} />
+            <p className="text-sm font-bold" style={{ color: NAVY }}>Full Request Details</p>
           </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: PINK }}>Fee</p>
-            <div className="flex items-center gap-2">
-              <Banknote className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
-              <span className="text-xs font-semibold text-gray-700">{service.fee}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {missingSlots.length > 0 && (
-        <div
-          className="mx-4 mb-4 p-3"
-          style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04", borderRadius: 2 }}
-        >
-          <div className="flex items-start gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#ca8a04" }} />
-            <p className="text-xs font-bold" style={{ color: "#92400e" }}>
-              You still need to upload the following to proceed:
-            </p>
-          </div>
-          <ul className="ml-6 space-y-1 mb-3">
-            {missingSlots.map((s) => (
-              <li key={s} className="text-xs flex items-center gap-1.5" style={{ color: "#92400e" }}>
-                <span style={{ color: "#ca8a04" }}>—</span>
-                {SLOT_LABELS[s] ?? s}
-              </li>
-            ))}
-          </ul>
-          <a
-            href="/mydocuments"
-            className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white transition-colors"
-            style={{ backgroundColor: NAVY, borderRadius: 2, textDecoration: "none" }}
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full transition-colors"
+            style={{ backgroundColor: "#f3f4f6" }}
           >
-            <Upload className="h-3 w-3" />
-            Upload Missing Documents
-          </a>
+            <X className="h-4 w-4" style={{ color: "#6b7280" }} />
+          </button>
         </div>
-      )}
 
-      {allUploaded && (
-        <div
-          className="mx-4 mb-4 p-3 flex items-center gap-2"
-          style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderLeftWidth: 3, borderLeftColor: "#16a34a", borderRadius: 2 }}
-        >
-          <FileCheck className="h-4 w-4 shrink-0" style={{ color: "#16a34a" }} />
-          <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
-            All required documents have been uploaded. Your request can proceed.
-          </p>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-6">
+          {/* Submission meta */}
+          <div
+            className="grid grid-cols-2 gap-4 p-4 rounded-lg"
+            style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+          >
+            {hasValue(request.created_at) && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>Date Submitted</p>
+                <p className="text-sm font-medium" style={{ color: NAVY }}>{format(new Date(request.created_at), "MMMM d, yyyy")}</p>
+              </div>
+            )}
+            {hasValue(request.updated_at) && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>Last Updated</p>
+                <p className="text-sm font-medium" style={{ color: NAVY }}>{format(new Date(request.updated_at), "MMMM d, yyyy")}</p>
+              </div>
+            )}
+            {hasValue(request.raw?.released_at) && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>Released On</p>
+                <p className="text-sm font-medium" style={{ color: NAVY }}>{format(new Date(request.raw.released_at), "MMMM d, yyyy")}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Document-type sections */}
+          {sections.map((sec, i) => (
+            <Section key={i} title={sec.title} icon={sec.icon} fields={sec.fields} />
+          ))}
+
+          {/* Missing items */}
+          {request.missing_items && request.missing_items.length > 0 && (
+            <div
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: "#fefce8", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04" }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4" style={{ color: "#ca8a04" }} />
+                <p className="text-xs font-bold" style={{ color: "#92400e" }}>Missing Information</p>
+              </div>
+              <ul className="space-y-1 ml-6">
+                {request.missing_items.map((item: string, i: number) => (
+                  <li key={i} className="text-xs" style={{ color: "#92400e" }}>— {item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Legacy remarks */}
+          {hasValue(request.remarks) && (
+            <div
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3", borderLeftWidth: 3, borderLeftColor: "#e11d48" }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare className="h-4 w-4" style={{ color: "#e11d48" }} />
+                <p className="text-xs font-bold" style={{ color: "#9f1239" }}>Additional Remarks</p>
+              </div>
+              <p className="text-sm" style={{ color: NAVY }}>{request.remarks}</p>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Footer */}
+        <div
+          className="px-5 py-4 flex-shrink-0"
+          style={{ borderTop: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
+        >
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 text-xs font-bold uppercase tracking-wider text-white"
+            style={{ backgroundColor: NAVY, borderRadius: 8, border: "none" }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Replies feed ──────────────────────────────────────────────────────────────
+// ─── Replies feed (compact, only shown if there are replies) ───────────────────
 function RepliesFeed({ documentType, documentId }: { documentType: string; documentId: string | number }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const [replies, setReplies] = useState<DocReply[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -637,7 +514,7 @@ function RepliesFeed({ documentType, documentId }: { documentType: string; docum
           `http://127.0.0.1:8000/api/documents/${documentType}/${documentId}/replies`,
           { credentials: "include", headers: { Accept: "application/json" } }
         );
-        if (!res.ok) throw new Error("Failed to fetch replies");
+        if (!res.ok) throw new Error("Failed");
         const json = await res.json();
         setReplies(json.data ?? []);
       } catch (err) {
@@ -649,102 +526,104 @@ function RepliesFeed({ documentType, documentId }: { documentType: string; docum
     fetchReplies();
   }, [documentType, documentId]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [replies]);
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin" style={{ color: NAVY }} />
+      <div className="flex items-center gap-2 py-3">
+        <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />
+        <span className="text-xs text-gray-400">Loading remarks…</span>
       </div>
     );
   }
 
-  if (replies.length === 0) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center py-8 rounded-sm"
-        style={{ backgroundColor: "#f8faff", border: "1px dashed #c8d4ed" }}
-      >
-        <MessageSquare className="h-6 w-6 mb-2" style={{ color: "#9ca3af" }} />
-        <p className="text-xs text-gray-400">No remarks from the barangay office yet.</p>
-      </div>
-    );
-  }
+  if (replies.length === 0) return null; // Hidden when empty
 
   return (
-    <div className="flex flex-col gap-3">
-      {replies.map((reply) => {
-        const cfg = REPLY_STATUS_CONFIG[reply.status];
-        const Icon = cfg.icon;
-        const date = new Date(reply.created_at).toLocaleString(undefined, {
-          month: "short", day: "numeric", year: "numeric",
-          hour: "numeric", minute: "2-digit",
-        });
-        return (
-          <div
-            key={reply.id}
-            className="rounded-sm px-4 py-3"
-            style={{
-              backgroundColor: cfg.bg,
-              border: `1px solid ${cfg.border}`,
-              borderLeftWidth: 3,
-              borderLeftColor: cfg.leftBorder,
-            }}
-          >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: cfg.color }} />
-                <span
-                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5"
-                  style={{ backgroundColor: cfg.badgeBg, color: cfg.color, borderRadius: 2 }}
-                >
-                  {cfg.label}
-                </span>
-                <span className="text-[10px] font-semibold" style={{ color: cfg.color }}>
-                  {reply.user?.name ?? "Barangay Office"}
-                </span>
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid #dde3ed" }}
+    >
+      <div
+        className="flex items-center gap-2 px-4 py-2.5"
+        style={{ backgroundColor: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}
+      >
+        <MessageSquare className="h-3.5 w-3.5" style={{ color: NAVY }} />
+        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: NAVY }}>
+          Remarks from Barangay Office
+        </span>
+        <span
+          className="ml-auto text-[9px] font-black px-2 py-0.5 rounded-full"
+          style={{ backgroundColor: NAVY, color: "white" }}
+        >
+          {replies.length}
+        </span>
+      </div>
+      <div className="p-3 space-y-2 bg-white">
+        {replies.map((reply) => {
+          const cfg = REPLY_STATUS_CONFIG[reply.status];
+          const Icon = cfg.icon;
+          const date = new Date(reply.created_at).toLocaleString(undefined, {
+            month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+          });
+          return (
+            <div
+              key={reply.id}
+              className="rounded-lg px-3 py-2.5"
+              style={{
+                backgroundColor: cfg.bg,
+                border: `1px solid ${cfg.border}`,
+                borderLeftWidth: 3,
+                borderLeftColor: cfg.leftBorder,
+              }}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Icon className="h-3 w-3" style={{ color: cfg.color }} />
+                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: cfg.badgeBg, color: cfg.color }}>
+                    {cfg.label}
+                  </span>
+                  <span className="text-[10px] font-semibold" style={{ color: cfg.color }}>
+                    {reply.user?.name ?? "Barangay Office"}
+                  </span>
+                </div>
+                <span className="text-[9px] text-gray-400">{date}</span>
               </div>
-              <span className="text-[9px] text-gray-400 flex-shrink-0">{date}</span>
+              <p className="text-xs leading-relaxed" style={{ color: NAVY }}>{reply.message}</p>
+              {reply.status === "missing" && (
+                <div className="mt-2">
+                  <a
+                    href="/mydocuments"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 text-white rounded"
+                    style={{ backgroundColor: NAVY, textDecoration: "none" }}
+                  >
+                    <Upload className="h-3 w-3" />
+                    Upload Document
+                  </a>
+                </div>
+              )}
             </div>
-            <p className="text-sm leading-relaxed" style={{ color: NAVY }}>{reply.message}</p>
-            {reply.status === "missing" && (
-              <div className="mt-3">
-                <a
-                  href="/mydocuments"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 text-white"
-                  style={{ backgroundColor: NAVY, borderRadius: 2, textDecoration: "none" }}
-                >
-                  <Upload className="h-3 w-3" />
-                  Upload Required Document
-                </a>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <div ref={bottomRef} />
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ─── Schedule card ─────────────────────────────────────────────────────────────
+// ─── Schedule card (compact) ───────────────────────────────────────────────────
 function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
   const dateStr = schedule.schedule_date;
   const timeStr = schedule.schedule_time;
 
   const friendlyDate = (() => {
-    try {
-      return new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, {
-        month: "long", day: "numeric", year: "numeric",
-      });
-    } catch { return dateStr; }
+    try { return new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }); }
+    catch { return dateStr; }
   })();
 
   const friendlyTime = (() => {
     try {
       const [hStr, mStr] = timeStr.split(":");
       const startH = parseInt(hStr, 10);
-      const endH   = startH + 1;
+      const endH = startH + 1;
       const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
       const period = endH >= 12 ? "PM" : "AM";
       return `${fmt(startH)} – ${fmt(endH)} ${period}`;
@@ -753,414 +632,52 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
 
   return (
     <div
-      className="rounded-sm overflow-hidden"
-      style={{ border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb", backgroundColor: "#eff6ff" }}
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid #bfdbfe", borderLeftWidth: 3, borderLeftColor: "#2563eb" }}
     >
       <div
         className="flex items-center gap-2 px-4 py-2"
         style={{ backgroundColor: "#dbeafe", borderBottom: "1px solid #bfdbfe" }}
       >
-        <Calendar className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#1d4ed8" }} />
+        <Calendar className="h-3.5 w-3.5" style={{ color: "#1d4ed8" }} />
         <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: "#1d4ed8" }}>
           Scheduled Pickup
         </span>
-        {schedule.status && (
-          <span
-            className="ml-auto text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5"
-            style={{ backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 2, border: "1px solid #bfdbfe" }}
-          >
-            {schedule.status}
+      </div>
+      <div className="px-4 py-3 flex items-center gap-3 bg-white">
+        <div
+          className="flex flex-col items-center justify-center flex-shrink-0 px-3 py-2 rounded-lg"
+          style={{ backgroundColor: "#2563eb", minWidth: 52 }}
+        >
+          <span className="text-[9px] font-black uppercase text-white opacity-80">
+            {new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, { month: "short" })}
           </span>
-        )}
-      </div>
-
-      <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-3 flex-1">
-          <div
-            className="flex flex-col items-center justify-center flex-shrink-0 px-3 py-2"
-            style={{ backgroundColor: "#2563eb", borderRadius: 2, minWidth: 56 }}
-          >
-            <span className="text-[9px] font-black uppercase tracking-wider text-white opacity-80">
-              {new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, { month: "short" })}
-            </span>
-            <span className="text-xl font-black text-white leading-none">
-              {new Date(dateStr + "T12:00:00").getDate()}
-            </span>
-            <span className="text-[9px] font-bold text-white opacity-80">
-              {new Date(dateStr + "T12:00:00").getFullYear()}
-            </span>
-          </div>
-          <div>
-            <p className="text-sm font-bold" style={{ color: NAVY }}>{friendlyDate}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Clock className="h-3.5 w-3.5" style={{ color: "#2563eb" }} />
-              <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{friendlyTime}</p>
-            </div>
-          </div>
+          <span className="text-lg font-black text-white leading-none">
+            {new Date(dateStr + "T12:00:00").getDate()}
+          </span>
+          <span className="text-[9px] font-bold text-white opacity-80">
+            {new Date(dateStr + "T12:00:00").getFullYear()}
+          </span>
         </div>
-        {schedule.note && (
-          <div
-            className="flex items-start gap-2 px-3 py-2 rounded-sm sm:max-w-xs"
-            style={{ backgroundColor: "#dbeafe", borderRadius: 2 }}
-          >
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#1d4ed8" }} />
-            <p className="text-xs" style={{ color: "#1e40af" }}>{schedule.note}</p>
+        <div>
+          <p className="text-sm font-bold" style={{ color: NAVY }}>{friendlyDate}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <Clock className="h-3 w-3" style={{ color: "#2563eb" }} />
+            <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{friendlyTime}</p>
           </div>
-        )}
+          {schedule.note && (
+            <p className="text-xs mt-1" style={{ color: "#4b5563" }}>{schedule.note}</p>
+          )}
+        </div>
       </div>
-
       <div
         className="px-4 py-2 flex items-center gap-1.5"
-        style={{ borderTop: "1px solid #bfdbfe", backgroundColor: "#dbeafe" }}
+        style={{ borderTop: "1px solid #bfdbfe", backgroundColor: "#eff6ff" }}
       >
         <BadgeCheck className="h-3.5 w-3.5" style={{ color: "#1d4ed8" }} />
         <p className="text-[10px] font-semibold" style={{ color: "#1e40af" }}>
-          Please visit the barangay hall at the scheduled time and bring your original documents.
+          Bring your original documents to the barangay hall.
         </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Shared primitives ─────────────────────────────────────────────────────────
-const DetailLabel = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: PINK }}>{children}</p>
-);
-
-const DetailValue = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-sm font-medium text-foreground">
-    {children || <span className="text-gray-400 italic font-normal text-xs">—</span>}
-  </p>
-);
-
-const DetailGrid = ({ children }: { children: React.ReactNode }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">{children}</div>
-);
-
-const DetailField = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
-  const display =
-    value === true  ? "Yes" :
-    value === false ? "No"  :
-    value != null   ? String(value) : "";
-  return (
-    <div>
-      <DetailLabel>{label}</DetailLabel>
-      <DetailValue>{display}</DetailValue>
-    </div>
-  );
-};
-
-const Section = ({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) => (
-  <div>
-    <div className="flex items-center gap-2 mb-4">
-      <div className="w-6 h-6 flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: "#f0f4ff", borderRadius: 1 }}>
-        <Icon className="h-3.5 w-3.5" style={{ color: NAVY }} />
-      </div>
-      <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: NAVY }}>{title}</p>
-      <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-    </div>
-    {children}
-  </div>
-);
-
-const ResidentFields = ({ r }: { r: any }) => (
-  <>
-    <Section icon={User} title="Personal Information">
-      <DetailGrid>
-        <DetailField label="Resident ID"         value={r.resident_id} />
-        <DetailField label="Prefix"              value={r.prefix} />
-        <DetailField label="First Name"          value={r.first_name} />
-        <DetailField label="Middle Name"         value={r.middle_name} />
-        <DetailField label="Surname"             value={r.surname} />
-        <DetailField label="Ext. Name"           value={r.ext_name} />
-        <DetailField label="Nickname"            value={r.nick_name} />
-        <DetailField label="Sex"                 value={r.sex} />
-        <DetailField label="Date of Birth"       value={r.date_of_birth ? new Date(r.date_of_birth).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : ""} />
-        <DetailField label="Place of Birth"      value={r.place_of_birth} />
-        <DetailField label="Blood Type"          value={r.blood_type} />
-        <DetailField label="Complexion"          value={r.complexion} />
-        <DetailField label="Height (cm)"         value={r.height_cm} />
-        <DetailField label="Weight (kg)"         value={r.weight_kg} />
-        <DetailField label="Religion"            value={r.religion} />
-        <DetailField label="Marital Status"      value={r.marital_status} />
-        <DetailField label="Name of Spouse"      value={r.name_of_spouse} />
-        <DetailField label="PWD"                 value={r.pwd} />
-      </DetailGrid>
-    </Section>
-
-    <Section icon={MapPin} title="Address">
-      <DetailGrid>
-        <DetailField label="House / Block / Lot No." value={r.house_block_lot_no} />
-        <DetailField label="Street"              value={r.street} />
-        <DetailField label="Zone"                value={r.zone} />
-        <DetailField label="House Owner"         value={r.house_owner} />
-        <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
-        <DetailField label="Period of Residency" value={r.period_of_residency ? `${r.period_of_residency} year(s)` : ""} />
-        <DetailField label="Resident Status"     value={r.resident_status} />
-      </DetailGrid>
-    </Section>
-
-    <Section icon={Phone} title="Contact & Employment">
-      <DetailGrid>
-        <DetailField label="Phone Number"        value={r.phone_number} />
-        <DetailField label="Email Address"       value={r.email_address} />
-        <DetailField label="Occupation"          value={r.occupation} />
-        <DetailField label="Employment Status"   value={r.emp_status} />
-        <DetailField label="Position"            value={r.position} />
-      </DetailGrid>
-    </Section>
-
-    <Section icon={ShieldCheck} title="Civil Registration">
-      <DetailGrid>
-        <DetailField label="Voter Status"        value={r.voter_status} />
-        <DetailField label="Precinct No."        value={r.precinct_no} />
-      </DetailGrid>
-    </Section>
-
-    {r.notes && (
-      <Section icon={ClipboardList} title="Notes">
-        <p className="text-sm text-muted-foreground">{r.notes}</p>
-      </Section>
-    )}
-  </>
-);
-
-// ─── Document-type-specific sections ──────────────────────────────────────────
-const CertificateFields = ({ r }: { r: any }) => (
-  <>
-    <Section icon={User} title="Requester Details">
-      <DetailGrid>
-        <DetailField label="Full Name"             value={r.requester_name} />
-        <DetailField label="Age"                   value={r.age} />
-        <DetailField label="Date of Birth"         value={r.date_of_birth} />
-        <DetailField label="Place of Birth"        value={r.place_of_birth} />
-        <DetailField label="Contact No."           value={r.contact_no} />
-      </DetailGrid>
-    </Section>
-    <Section icon={MapPin} title="Address">
-      <DetailGrid>
-        <DetailField label="Address"               value={r.address} />
-        <DetailField label="House Owner"           value={r.house_owner} />
-        <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
-      </DetailGrid>
-    </Section>
-    <Section icon={ClipboardList} title="Certificate Details">
-      <DetailGrid>
-        <DetailField label="Certificate No."       value={r.bcert_number} />
-        <DetailField label="Purpose"               value={r.purpose} />
-        <DetailField label="Purpose Details"       value={r.purpose_details} />
-        <DetailField label="Period of Residency"   value={r.period_of_residency} />
-        <DetailField label="Registered Voter"      value={r.registered_voter} />
-      </DetailGrid>
-    </Section>
-  </>
-);
-
-const ClearanceFields = ({ r }: { r: any }) => (
-  <>
-    <Section icon={User} title="Requester Details">
-      <DetailGrid>
-        <DetailField label="Full Name"             value={r.requester_name} />
-        <DetailField label="Date of Birth"         value={r.dob} />
-        <DetailField label="Place of Birth"        value={r.pob} />
-        <DetailField label="Contact No."           value={r.contact_no} />
-      </DetailGrid>
-    </Section>
-    <Section icon={MapPin} title="Address">
-      <DetailGrid>
-        <DetailField label="Address"               value={r.address} />
-        <DetailField label="House Owner"           value={r.house_owner} />
-        <DetailField label="Relationship to Owner" value={r.relationship_to_owner} />
-      </DetailGrid>
-    </Section>
-    <Section icon={ClipboardList} title="Clearance Details">
-      <DetailGrid>
-        <DetailField label="Clearance No."         value={r.bcert_number} />
-        <DetailField label="Purpose"               value={r.purpose} />
-        <DetailField label="Purpose Details"       value={r.purpose_details} />
-        <DetailField label="Period of Residency"   value={r.period_of_residency} />
-        <DetailField label="Registered Voter"      value={r.registered_voter} />
-      </DetailGrid>
-    </Section>
-    <Section icon={Hash} title="Official Reference">
-      <DetailGrid>
-        <DetailField label="CTC / VRR No."         value={r.ctc_vrr_no} />
-        <DetailField label="Issued At"             value={r.issued_at} />
-        <DetailField label="Issued On"             value={r.issued_on} />
-        <DetailField label="O.R. Number"           value={r.or_no} />
-      </DetailGrid>
-    </Section>
-  </>
-);
-
-const BuildingFields = ({ r }: { r: any }) => (
-  <>
-    <Section icon={User} title="Applicant Details">
-      <DetailGrid><DetailField label="Full Name" value={r.requester_name} /></DetailGrid>
-    </Section>
-    <Section icon={Building2} title="Building Details">
-      <DetailGrid>
-        <DetailField label="Establishment"   value={r.raw?.establishment} />
-        <DetailField label="Purpose"         value={r.purpose} />
-        <DetailField label="Purpose Details" value={r.purpose_details} />
-      </DetailGrid>
-    </Section>
-    <Section icon={MapPin} title="Project Location">
-      <DetailGrid><DetailField label="Address" value={r.address} /></DetailGrid>
-    </Section>
-    <Section icon={ShieldCheck} title="Clearance Info">
-      <DetailGrid>
-        <DetailField label="Clearance No."       value={r.bcert_number} />
-        <DetailField label="O.R. Number"         value={r.raw?.orNo} />
-        <DetailField label="Punong Barangay"     value={r.raw?.punongBarangay} />
-        <DetailField label="Barangay Position"   value={r.raw?.barangayPosition} />
-        {r.updated_by && <DetailField label="Updated By" value={r.updated_by} />}
-      </DetailGrid>
-    </Section>
-  </>
-);
-
-const BusinessFields = ({ r }: { r: any }) => (
-  <>
-    <Section icon={User} title="Owner Details">
-      <DetailGrid><DetailField label="Full Name" value={r.requester_name} /></DetailGrid>
-    </Section>
-    <Section icon={Briefcase} title="Business Information">
-      <DetailGrid>
-        <DetailField label="Business Name"    value={r.raw?.businessName ?? r.purpose} />
-        <DetailField label="Business Type"    value={r.raw?.businessType} />
-        <DetailField label="Business Details" value={r.purpose_details} />
-        <DetailField label="Capital (PHP)"    value={r.capital != null ? `₱${r.capital}` : ""} />
-      </DetailGrid>
-    </Section>
-    <Section icon={MapPin} title="Business Address">
-      <DetailGrid><DetailField label="Address" value={r.address} /></DetailGrid>
-    </Section>
-    <Section icon={ClipboardList} title="Clearance Details">
-      <DetailGrid>
-        <DetailField label="Barangay Business No." value={r.bcert_number} />
-        <DetailField label="O.R. Number"           value={r.raw?.orNo} />
-        {r.updated_by && <DetailField label="Updated By" value={r.updated_by} />}
-      </DetailGrid>
-    </Section>
-    <Section icon={BadgeInfo} title="Inspection Details">
-      <DetailGrid>
-        <DetailField label="Inspected By"        value={r.inspected_by} />
-        <DetailField label="Date of Inspection"  value={r.date_of_inspection} />
-        <DetailField label="Inspection Remarks"  value={r.raw?.inspectionRemarks} />
-        <DetailField label="Additional Notes"    value={r.inspected_notes} />
-      </DetailGrid>
-    </Section>
-  </>
-);
-
-// ─── Requirements Complete Modal ───────────────────────────────────────────────
-function RequirementsCompleteModal({
-  documentType,
-  uploadedTypes,
-  onDismiss,
-  onViewProgress,
-}: {
-  documentType: string;
-  uploadedTypes: Set<string>;
-  onDismiss: () => void;
-  onViewProgress: () => void;
-}) {
-  const key = documentType.replace(/-/g, "_");
-  const service = serviceData[key];
-  const requiredSlots = REQUIRED_SLOTS_BY_DOC[key] ?? [];
-  if (!service) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.48)" }}
-      onClick={(e) => e.target === e.currentTarget && onDismiss()}
-    >
-      <div className="w-full max-w-md overflow-hidden" style={{ backgroundColor: "white", borderRadius: 12, border: "0.5px solid #e5e7eb" }}>
-
-        {/* Top */}
-        <div className="px-6 py-6 text-center" style={{ backgroundColor: "#f0fdf4", borderBottom: "0.5px solid #bbf7d0" }}>
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"
-            style={{ backgroundColor: "#dcfce7", border: "2px solid #86efac" }}>
-            <CheckCircle className="h-8 w-8" style={{ color: "#16a34a" }} />
-          </div>
-          <p className="font-semibold text-base" style={{ color: "#15803d" }}>Requirements submitted!</p>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: "#166534" }}>
-            All required documents have been received.<br />
-            The barangay office will take it from here.
-          </p>
-        </div>
-
-        <div className="px-6 py-5">
-          {/* Uploaded docs */}
-          <div className="space-y-2 mb-5">
-            {requiredSlots.map((slot) => (
-              <div key={slot} className="flex items-center gap-3 px-3 py-2"
-                style={{ backgroundColor: "#f8faff", border: "0.5px solid #e5e7eb", borderRadius: 8 }}>
-                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: "#dcfce7", border: "1.5px solid #86efac" }}>
-                  <CheckCircle className="h-3 w-3" style={{ color: "#16a34a" }} />
-                </div>
-                <span className="text-xs flex-1" style={{ color: NAVY }}>{SLOT_LABELS[slot] ?? slot}</span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: "#dcfce7", color: "#15803d", border: "0.5px solid #86efac" }}>
-                  Uploaded
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ height: "0.5px", backgroundColor: "#e5e7eb", margin: "0 0 18px" }} />
-
-          {/* Awaiting schedule callout */}
-          <div className="p-4 mb-5" style={{ backgroundColor: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 8 }}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <Calendar className="h-4 w-4 flex-shrink-0" style={{ color: "#1d4ed8" }} />
-              <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>Awaiting your pickup schedule</p>
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "#1e40af" }}>
-              Once the barangay assigns a date, it will appear on this page. You can track the full progress below.
-            </p>
-          </div>
-
-          <div style={{ height: "0.5px", backgroundColor: "#e5e7eb", margin: "0 0 18px" }} />
-
-          {/* Action buttons */}
-          <div className="flex flex-col gap-2.5">
-            <button
-              onClick={() => { onDismiss(); onViewProgress(); }}
-              className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-white"
-              style={{ backgroundColor: NAVY, borderRadius: 8, border: "none" }}
-            >
-              <ListChecks className="h-4 w-4" />
-              View Full Progress
-            </button>
-            <button
-              onClick={onDismiss}
-              className="w-full py-2.5 text-xs font-semibold"
-              style={{
-                backgroundColor: "transparent",
-                borderRadius: 8,
-                border: `1px solid #e5e7eb`,
-                color: "#6b7280",
-              }}
-            >
-              Got it, I'll wait for the schedule
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 flex items-center gap-2"
-          style={{ backgroundColor: "#f8faff", borderTop: "0.5px solid #e5e7eb" }}>
-          <Info className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#9ca3af" }} />
-          <p className="text-[11px]" style={{ color: "#6b7280" }}>
-            Check this page anytime to see your current request status.
-          </p>
-        </div>
-
       </div>
     </div>
   );
@@ -1170,9 +687,7 @@ function RequirementsCompleteModal({
 export default function RequestDetail() {
   const navigate = useNavigate();
   const { id, type } = useParams<{ id: string; type: string }>();
-  const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const hasShownModal = useRef(false);
-  const trackerRef = useRef<HTMLDivElement>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
@@ -1212,24 +727,6 @@ export default function RequestDetail() {
     enabled: !!request?.bcert_number,
   });
 
-  useEffect(() => {
-    if (hasShownModal.current || !request) return;
-    const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
-    if (normalizedStatus === "released") return;
-    const key = (request.document_type ?? "").replace(/-/g, "_");
-    const requiredSlots = REQUIRED_SLOTS_BY_DOC[key] ?? [];
-    if (requiredSlots.length === 0) return;
-    const allUploaded = requiredSlots.every((s) => uploadedTypes.has(s));
-    if (allUploaded) {
-      setShowCompleteModal(true);
-      hasShownModal.current = true;
-    }
-  }, [uploadedTypes, request]);
-
-  const scrollToTracker = () => {
-    trackerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1242,14 +739,11 @@ export default function RequestDetail() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
-            style={{ backgroundColor: "#f0f4ff", borderRadius: 2 }}>
-            <FileText className="w-7 h-7" style={{ color: NAVY }} />
-          </div>
-          <p className="text-muted-foreground text-sm mb-4">Request not found.</p>
+          <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: NAVY, opacity: 0.4 }} />
+          <p className="text-sm text-gray-500 mb-4">Request not found.</p>
           <button
             className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white"
-            style={{ backgroundColor: NAVY, borderRadius: 1 }}
+            style={{ backgroundColor: NAVY, borderRadius: 8 }}
             onClick={() => navigate("/myrequest")}
           >
             Back to Requests
@@ -1259,205 +753,256 @@ export default function RequestDetail() {
     );
   }
 
-  const normalizedStatus = request.raw.status?.toLowerCase();
+  const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
   const isReleased = normalizedStatus === "released";
-  const badge = statusStyle[normalizedStatus] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" };
+  const isRejected = normalizedStatus === "rejected";
+  const badge = statusStyle[normalizedStatus] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db", dot: "#374151" };
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
+  const svcMeta = serviceData[docTypeSlug];
+  const statusMsg = STATUS_MESSAGES[normalizedStatus];
+
+  // Requirements
+  const requiredSlots = REQUIRED_SLOTS_BY_DOC[docTypeSlug] ?? [];
+  const allUploaded = requiredSlots.length > 0 && requiredSlots.every((s) => uploadedTypes.has(s));
+  const missingSlots = requiredSlots.filter((s) => !uploadedTypes.has(s));
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      {showCompleteModal && !isReleased && (
-        <RequirementsCompleteModal
-          documentType={request.document_type}
-          uploadedTypes={uploadedTypes}
-          onDismiss={() => setShowCompleteModal(false)}
-          onViewProgress={scrollToTracker}
-        />
+      {showDetails && (
+        <DetailsModal request={request} onClose={() => setShowDetails(false)} />
       )}
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 pb-16">
+      <div className="max-w-lg mx-auto px-4 sm:px-6 pt-28 pb-16">
 
-        {/* Back button */}
+        {/* Back */}
         <button
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-6 transition-colors duration-200 group"
-          style={{ color: "#6b7280" }}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold mb-5 transition-colors"
+          style={{ color: "#9ca3af" }}
           onClick={() => navigate("/myrequest")}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = NAVY)}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#6b7280")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#9ca3af")}
         >
-          <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to Requests
         </button>
 
         {/* ── Main card ── */}
         <div
-          className="bg-card border border-border overflow-hidden"
-          style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: isReleased ? "#16a34a" : PINK }}
+          className="bg-white overflow-hidden"
+          style={{
+            borderRadius: 16,
+            border: "1px solid #e5e7eb",
+            borderTopWidth: 4,
+            borderTopColor: isReleased ? "#16a34a" : isRejected ? "#e11d48" : PINK,
+            boxShadow: "0 1px 12px rgba(15,42,94,0.07)",
+          }}
         >
-          {/* Card header */}
+          {/* ── Header ── */}
           <div
-            className="px-6 py-5"
-            style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: isReleased ? "#f0fdf4" : "#f8faff" }}
+            className="px-5 pt-5 pb-4"
+            style={{ borderBottom: "1px solid #f3f4f6" }}
           >
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-              <div>
-                <div className="inline-flex items-center gap-2 mb-1.5">
-                  <div style={{ width: 16, height: 1, backgroundColor: isReleased ? "#16a34a" : PINK }} />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: isReleased ? "#16a34a" : PINK }}>
-                    Service Request
-                  </p>
-                </div>
-                <h2
-                  className="font-bold text-foreground flex items-center gap-2"
-                  style={{ fontFamily: "'Georgia', serif", fontSize: "1.1rem" }}
-                >
-                  <FileText className="h-5 w-5 flex-shrink-0" style={{ color: NAVY }} />
-                  {DOCUMENT_LABELS[request.document_type]}
+            {/* Document type label */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: PINK }}>
+                  Service Request
+                </p>
+                <h2 className="text-base font-bold leading-snug" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
+                  {DOCUMENT_LABELS[request.document_type] ?? request.document_type}
                 </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  <span className="font-bold" style={{ color: PINK }}>Ref: </span>
-                  {request.id}
-                  {request.bcert_number && (
-                    <span className="ml-3">
-                      <span className="font-bold" style={{ color: PINK }}>Doc No.: </span>
-                      {request.bcert_number}
-                    </span>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  Ref: <span className="font-semibold text-gray-500">{request.id}</span>
+                  {hasValue(request.bcert_number) && (
+                    <> · Doc No.: <span className="font-semibold text-gray-500">{request.bcert_number}</span></>
                   )}
                 </p>
               </div>
 
-              <div className="flex flex-col items-end gap-2">
-                <span
-                  className="self-start text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 border flex-shrink-0"
-                  style={{ backgroundColor: badge.bg, color: badge.text, borderColor: badge.border, borderRadius: 2 }}
-                >
+              {/* Status badge */}
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 flex-shrink-0 rounded-full"
+                style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}` }}
+              >
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: badge.dot }} />
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: badge.text }}>
                   {normalizedStatus}
                 </span>
-
-                {schedule && !isReleased && (
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 flex-shrink-0"
-                    style={{ backgroundColor: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 2 }}
-                  >
-                    <Calendar className="h-3 w-3" />
-                    Pickup scheduled
-                  </span>
-                )}
-
-                <button
-                  onClick={scrollToTracker}
-                  className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 transition-colors flex-shrink-0"
-                  style={{
-                    backgroundColor: "#f0f4ff",
-                    color: NAVY,
-                    border: `1px solid #dde3ed`,
-                    borderRadius: 2,
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#e0e8ff"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#f0f4ff"; }}
-                >
-                  <ListChecks className="h-3 w-3" />
-                  View Progress
-                </button>
               </div>
+            </div>
+
+            {/* Status message + next step */}
+            {statusMsg && (
+              <div
+                className="mt-3 px-3 py-2.5 rounded-lg flex items-start gap-2"
+                style={{
+                  backgroundColor: isReleased ? "#f0fdf4" : isRejected ? "#fff1f2" : normalizedStatus === "incomplete" ? "#fff7ed" : "#f0f4ff",
+                  border: `1px solid ${isReleased ? "#bbf7d0" : isRejected ? "#fecdd3" : normalizedStatus === "incomplete" ? "#fed7aa" : "#dde3ed"}`,
+                }}
+              >
+                {isReleased ? <Mail className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#16a34a" }} />
+                  : isRejected ? <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#e11d48" }} />
+                  : normalizedStatus === "incomplete" ? <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
+                  : <Info className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: NAVY }} />}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs leading-snug" style={{ color: isReleased ? "#15803d" : isRejected ? "#9f1239" : normalizedStatus === "incomplete" ? "#9a3412" : NAVY }}>
+                    {statusMsg.message}
+                  </p>
+                  {statusMsg.nextStep && (
+                    <p className="text-[10px] mt-1 font-semibold" style={{ color: PINK }}>
+                      Next Step: {statusMsg.nextStep}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Progress ── */}
+          <div className="px-5 pt-4 pb-3" style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9ca3af" }}>Progress</p>
+            <ProcessBar status={normalizedStatus} />
+          </div>
+
+          {/* ── Key Info ── */}
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9ca3af" }}>Key Info</p>
+            <div className="grid grid-cols-3 gap-3">
+              {hasValue(request.created_at) && (
+                <div
+                  className="rounded-xl p-3"
+                  style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <Calendar className="h-3 w-3" style={{ color: PINK }} />
+                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: PINK }}>Submitted</p>
+                  </div>
+                  <p className="text-xs font-bold" style={{ color: NAVY }}>
+                    {format(new Date(request.created_at), "MMM d, yyyy")}
+                  </p>
+                </div>
+              )}
+              {svcMeta && (
+                <div
+                  className="rounded-xl p-3"
+                  style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <Clock className="h-3 w-3" style={{ color: PINK }} />
+                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: PINK }}>Processing</p>
+                  </div>
+                  <p className="text-xs font-bold" style={{ color: NAVY }}>{svcMeta.processingTime}</p>
+                </div>
+              )}
+              {svcMeta && (
+                <div
+                  className="rounded-xl p-3"
+                  style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <Banknote className="h-3 w-3" style={{ color: PINK }} />
+                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: PINK }}>Fee</p>
+                  </div>
+                  <p className="text-xs font-bold" style={{ color: NAVY }}>{svcMeta.fee}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* ── Card body ── */}
-          <div className="p-6 space-y-7">
-
-            {/* Released sent banner — shown first when released */}
-            {isReleased && (
-              <ReleasedSentBanner releasedAt={request.raw?.released_at} />
-            )}
-
-            {/* Process Tracker — always visible */}
-            <ProcessTracker
-              status={normalizedStatus}
-              schedule={schedule}
-              trackerRef={trackerRef}
-            />
-
-            {/* Requirements panel — hide when released */}
-            {!isReleased && (
-              <RequirementsPanel documentType={request.document_type} uploadedTypes={uploadedTypes} />
-            )}
-
-            {/* Submission meta */}
-            <div
-              className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pb-5"
-              style={{ borderBottom: "1px solid #e5e7eb" }}
-            >
-              <div>
-                <DetailLabel>Date Submitted</DetailLabel>
-                <DetailValue>{format(new Date(request.created_at), "MMMM d, yyyy")}</DetailValue>
-              </div>
-              {request.updated_at && (
-                <div>
-                  <DetailLabel>Last Updated</DetailLabel>
-                  <DetailValue>{format(new Date(request.updated_at), "MMMM d, yyyy")}</DetailValue>
+          {/* ── Requirements ── */}
+          {!isReleased && requiredSlots.length > 0 && (
+            <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9ca3af" }}>Requirements</p>
+              {allUploaded ? (
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                  style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}
+                >
+                  <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: "#16a34a" }} />
+                  <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
+                    All required documents submitted
+                  </p>
                 </div>
-              )}
-              {request.raw?.released_at && (
+              ) : (
                 <div>
-                  <DetailLabel>Released On</DetailLabel>
-                  <DetailValue>{format(new Date(request.raw.released_at), "MMMM d, yyyy")}</DetailValue>
+                  <div
+                    className="flex items-start gap-2 px-3 py-2.5 rounded-xl mb-2"
+                    style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a" }}
+                  >
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#ca8a04" }} />
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: "#92400e" }}>Missing Documents</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {missingSlots.map((s) => (
+                          <li key={s} className="text-xs" style={{ color: "#92400e" }}>— {SLOT_LABELS[s] ?? s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  <a
+                    href="/mydocuments"
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 text-white rounded-lg"
+                    style={{ backgroundColor: NAVY, textDecoration: "none" }}
+                  >
+                    <Upload className="h-3 w-3" />
+                    Upload Missing Documents
+                  </a>
                 </div>
               )}
             </div>
+          )}
 
-            {/* Document-type-specific fields */}
-            {request.document_type === "barangay_certificate"  && <CertificateFields r={request} />}
-            {request.document_type === "barangay_clearance"    && <ClearanceFields   r={request} />}
-            {request.document_type === "building_clearance"    && <BuildingFields    r={request} />}
-            {request.document_type === "business_clearance"    && <BusinessFields    r={request} />}
-            {request.document_type === "resident_registration" && <ResidentFields    r={request.raw ?? request} />}
-
-            {/* Schedule card — hidden when released */}
-            {schedule && !isReleased && <ScheduleCard schedule={schedule} />}
-
-            {/* Missing items */}
-            {request.missing_items && request.missing_items.length > 0 && (
+          {/* ── Released banner ── */}
+          {isReleased && (
+            <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
               <div
-                className="p-4"
-                style={{ backgroundColor: "#fefce8", borderRadius: 2, border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#ca8a04" }}
+                className="flex items-start gap-3 p-4 rounded-xl"
+                style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac" }}
               >
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0" style={{ color: "#ca8a04" }} />
-                  <p className="font-semibold text-sm" style={{ color: "#92400e" }}>Missing Information Required</p>
+                <div
+                  className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
+                  style={{ backgroundColor: "#dcfce7" }}
+                >
+                  <FileCheck className="h-5 w-5" style={{ color: "#16a34a" }} />
                 </div>
-                <ul className="space-y-1.5 ml-7">
-                  {request.missing_items.map((item: string, i: number) => (
-                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span style={{ color: "#ca8a04", flexShrink: 0 }}>—</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Replies */}
-            <Section icon={MessageSquare} title="Remarks from Barangay Office">
-              <RepliesFeed documentType={docTypeSlug} documentId={request.id} />
-            </Section>
-
-            {/* Legacy remarks */}
-            {request.remarks && (
-              <div
-                className="p-4"
-                style={{ backgroundColor: "#fff1f2", borderRadius: 2, border: "1px solid #fecdd3", borderLeftWidth: 3, borderLeftColor: "#e11d48" }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="h-5 w-5 flex-shrink-0" style={{ color: "#e11d48" }} />
-                  <p className="font-semibold text-sm" style={{ color: "#9f1239" }}>Additional Remarks</p>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#15803d" }}>Document Officially Released</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: "#166534" }}>
+                    Sent to your registered email. Check your inbox and spam folder.
+                    {hasValue(request.raw?.released_at) && (
+                      <> Released on {format(new Date(request.raw.released_at), "MMMM d, yyyy")}.</>
+                    )}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground ml-7">{request.remarks}</p>
               </div>
-            )}
+            </div>
+          )}
 
+          {/* ── Schedule card ── */}
+          {schedule && !isReleased && (
+            <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <ScheduleCard schedule={schedule} />
+            </div>
+          )}
+
+          {/* ── Replies (only shown if there are any) ── */}
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <RepliesFeed documentType={docTypeSlug} documentId={request.id} />
+          </div>
+
+          {/* ── Primary action ── */}
+          <div className="px-5 py-4">
+            <button
+              onClick={() => setShowDetails(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-opacity hover:opacity-90"
+              style={{ backgroundColor: NAVY, color: "white", border: "none" }}
+            >
+              <FileText className="h-4 w-4" />
+              View Full Details
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>

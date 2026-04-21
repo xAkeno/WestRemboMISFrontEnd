@@ -83,22 +83,22 @@ export function PDFPreview({
   const containerRef  = useRef<HTMLDivElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [qrSelected, setQrSelected] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(0);
+
   // The ratio of rendered container size to actual PDF page size.
-  // When maxWidth/maxHeight kicks in and scales the container down,
-  // drag coordinates (screen px) must be divided by this to get PDF points.
   const [scale, setScale] = useState(1);
 
   const pageInfo = templateInfo?.pages[currentPage];
 
-  // Track actual rendered scale whenever container or page changes
+  // Track actual rendered scale AND canvas pixel width whenever container or page changes
   const updateScale = useCallback(() => {
     if (!canvasWrapRef.current || !pageInfo) return;
     const renderedW = canvasWrapRef.current.offsetWidth;
     const renderedH = canvasWrapRef.current.offsetHeight;
     const scaleX = renderedW / pageInfo.width;
     const scaleY = renderedH / pageInfo.height;
-    // Use the smaller axis (the constraining one)
     setScale(Math.min(scaleX, scaleY));
+    setCanvasWidth(renderedW);
   }, [pageInfo]);
 
   useEffect(() => {
@@ -182,8 +182,6 @@ export function PDFPreview({
           ref={canvasWrapRef}
           className="relative shadow-lg"
           style={{
-            // Size to PDF page dims; CSS constrains via maxWidth/maxHeight.
-            // scale tracks how much CSS actually shrinks this.
             width:     pageInfo.width,
             height:    pageInfo.height,
             maxWidth:  '95%',
@@ -196,7 +194,7 @@ export function PDFPreview({
             title="PDF Preview"
           />
 
-          {/* Regular fields — positions scaled to screen px */}
+          {/* Regular fields */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="pointer-events-auto">
               {regularPageFields.map((f) => (
@@ -207,12 +205,13 @@ export function PDFPreview({
                   onSelect={onSelectField}
                   onDrag={handleDrag}
                   onDelete={isAdmin ? onDeleteField : undefined}
+                  canvasWidth={canvasWidth}
                 />
               ))}
             </div>
           </div>
 
-          {/* Concat overlays — same scale treatment */}
+          {/* Concat overlays */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="pointer-events-auto">
               {concatOverlays.map((syntheticField) => (
@@ -223,6 +222,7 @@ export function PDFPreview({
                   onSelect={onSelectField}
                   onDrag={handleDrag}
                   onDelete={undefined}
+                  canvasWidth={canvasWidth}
                 />
               ))}
             </div>
