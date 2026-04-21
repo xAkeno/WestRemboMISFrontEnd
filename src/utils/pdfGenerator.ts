@@ -75,9 +75,24 @@ async function qrToPngBytes(value: string, size: number): Promise<Uint8Array> {
 
 /**
  * @param templateBytes  Original PDF buffer
- * @param fields         Text overlay fields
+ * @param fields         Text overlay fields — x/y are in PDF points (top-left origin)
  * @param qrField        Optional QR position/size data (from state)
  * @param bcertNumber    The string to encode in the QR
+ *
+ * COORDINATE SYSTEM NOTE:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The preview stores field positions as PDF points with a TOP-LEFT origin
+ * (y increases downward), matching DOM/CSS conventions.
+ *
+ * pdf-lib uses a BOTTOM-LEFT origin (y increases upward).
+ *
+ * Conversion:
+ *   pdfY = pageHeight - field.y - fontSize
+ *
+ * This places the text baseline so that the top of the em-box sits at field.y
+ * points from the top of the page — matching what the DraggableTextField
+ * overlay shows on screen.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 export async function generatePDF(
   templateBytes: ArrayBuffer,
@@ -106,8 +121,9 @@ export async function generatePDF(
     const page = pages[field.page];
     if (!page) continue;
 
-    const { width, height } = page.getSize();
-    const font = await getFont(field.fontFamily ?? 'Helvetica');
+    const { height } = page.getSize();
+    const font     = await getFont(field.fontFamily ?? 'Helvetica');
+    const fontSize = field.fontSize ?? 12;
 
     // Parse hex color → rgb(0-1)
     const hex = (field.color ?? '#000000').replace('#', '');
@@ -115,16 +131,21 @@ export async function generatePDF(
     const g   = parseInt(hex.slice(2, 4), 16) / 255;
     const b   = parseInt(hex.slice(4, 6), 16) / 255;
 
-    // DOM coordinate system has y=0 at top; PDF has y=0 at bottom
-    const pdfY = height - field.y - (field.fontSize ?? 12);
+    // field.y = distance from page TOP to the TOP of the text box (PDF points).
+    // pdf-lib y = distance from page BOTTOM to the text BASELINE.
+    //
+    // Standard fonts: baseline ≈ 0.2 * fontSize below the top of the cap-height,
+    // but for layout matching we treat the stored y as the top of the em-square,
+    // so baseline = pageHeight - field.y - fontSize.
+    const pdfY = height - field.y - fontSize;
 
     page.drawText(String(field.value ?? ''), {
-      x:        field.x,
-      y:        pdfY,
-      size:     field.fontSize ?? 12,
+      x:       field.x,
+      y:       pdfY,
+      size:    fontSize,
       font,
-      color:    rgb(r, g, b),
-      opacity:  field.opacity ?? 1,
+      color:   rgb(r, g, b),
+      opacity: field.opacity ?? 1,
     });
   }
 
@@ -145,7 +166,7 @@ export async function generatePDF(
       const pngBytes = await qrToPngBytes(bcertNumber, Math.round(pxSize * 2)); // 2× for crisp print
       const pngImage = await pdfDoc.embedPng(pngBytes);
 
-      // PDF y-axis is flipped vs DOM
+      // qrField.y is % from top → convert to pdf-lib bottom-up coords
       const pdfY = height - pxY - pxSize;
 
       targetPage.drawImage(pngImage, {
