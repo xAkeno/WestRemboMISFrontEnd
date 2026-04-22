@@ -8,12 +8,12 @@ import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Copy, Check, Clock, Calendar, X, AlertTriangle } from "lucide-react";
+import { CheckCircle, Copy, Check, Clock, Calendar, X, FileText, IdCard, Receipt, Camera, Timer, DollarSign } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
 
-interface BarangayCertificateFormProps { }
+interface BarangayCertificateFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 
 // ─── Validation helpers ────────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ const SuccessModal = ({
             className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
             style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
           >
-            Back to Requests
+            Back to Services
           </button>
         </div>
       </div>
@@ -324,7 +324,7 @@ const SuccessModal = ({
 };
 
 // ─── Main Component ────────────────────────────────────────────────────────
-const BarangayCertificateForm = () => {
+const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
@@ -351,6 +351,14 @@ const BarangayCertificateForm = () => {
   });
 
   const { toast } = useToast();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate(-1);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -628,10 +636,10 @@ const BarangayCertificateForm = () => {
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
-  // Success modal display
-  // if (successData) {
-  //   return <SuccessModal successData={successData} onBack={onBack} />;
-  // }
+  // Show success modal when submission is successful
+  if (successData) {
+    return <SuccessModal successData={successData} onBack={handleBack} />;
+  }
 
   return (
     <>
@@ -656,6 +664,71 @@ const BarangayCertificateForm = () => {
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         <div className="p-8 md:p-10">
+          {/* Requirements & Info Section */}
+          <div
+            className="mb-8 p-6 rounded-lg border"
+            style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}
+          >
+            <h3
+              className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2"
+              style={{ color: "#854d0e" }}
+            >
+              📌 Before You Apply
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Requirements */}
+              <div>
+                <h4
+                  className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
+                  style={{ color: "#854d0e" }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Requirements
+                </h4>
+
+                <ul className="space-y-2 text-sm" style={{ color: "#713f12" }}>
+                  <li className="flex items-center gap-2">
+                    <IdCard className="w-4 h-4 opacity-80" />
+                    Valid Government ID
+                  </li>
+                </ul>
+              </div>
+
+              {/* Processing & Fee */}
+              <div className="space-y-5">
+                
+                <div>
+                  <h4
+                    className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2"
+                    style={{ color: "#854d0e" }}
+                  >
+                    <Timer className="w-4 h-4" />
+                    Processing Time
+                  </h4>
+                  <p className="text-sm font-medium pl-2" style={{ color: "#713f12" }}>
+                    1–2 business days
+                  </p>
+                </div>
+
+                <div>
+                  <h4
+                    className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2"
+                    style={{ color: "#854d0e" }}
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    Service Fee
+                  </h4>
+                  <p className="text-base font-bold pl-2" style={{ color: "#713f12" }}>
+                    ₱100.00
+                  </p>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-8">
 
             {/* Section 1 — Personal Information */}
@@ -1203,7 +1276,7 @@ const BarangayCertificateForm = () => {
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
-                // onClick={onBack}
+                onClick={handleBack}
                 className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
                 onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}

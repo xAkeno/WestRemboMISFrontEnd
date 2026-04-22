@@ -8,7 +8,7 @@ import api from "@/components/services/clearanceApi";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Copy, Check, X } from "lucide-react";
+import { CheckCircle, Copy, Check, X, FileText, DollarSign, IdCard, Timer } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
@@ -521,6 +521,70 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         <div className="p-8 md:p-10">
+          <div
+            className="mb-8 p-6 rounded-lg border"
+            style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}
+          >
+            <h3
+              className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2"
+              style={{ color: "#854d0e" }}
+            >
+              📌 Before You Apply
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Requirements */}
+              <div>
+                <h4
+                  className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
+                  style={{ color: "#854d0e" }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Requirements
+                </h4>
+
+                <ul className="space-y-2 text-sm" style={{ color: "#713f12" }}>
+                  <li className="flex items-center gap-2">
+                    <IdCard className="w-4 h-4 opacity-80" />
+                    Valid Government ID
+                  </li>
+                  
+                </ul>
+              </div>
+
+              {/* Processing & Fee */}
+              <div className="space-y-5">
+                
+                <div>
+                  <h4
+                    className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2"
+                    style={{ color: "#854d0e" }}
+                  >
+                    <Timer className="w-4 h-4" />
+                    Processing Time
+                  </h4>
+                  <p className="text-sm font-medium pl-2" style={{ color: "#713f12" }}>
+                    1–2 business days
+                  </p>
+                </div>
+
+                <div>
+                  <h4
+                    className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2"
+                    style={{ color: "#854d0e" }}
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    Service Fee
+                  </h4>
+                  <p className="text-base font-bold pl-2" style={{ color: "#713f12" }}>
+                    ₱100.00
+                  </p>
+                </div>
+
+              </div>
+            </div>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-8">
 
             {/* Section 1 — Personal Information */}
