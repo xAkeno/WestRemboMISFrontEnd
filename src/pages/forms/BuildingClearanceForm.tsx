@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/components/services/clearanceApi";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Copy, Check, X, DollarSign, FileText, IdCard, Timer } from "lucide-react";
+import { CheckCircle, Copy, Check, X, FileText, DollarSign, IdCard, Timer, Calendar, Clock } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
@@ -87,17 +89,6 @@ const parseAddress = (address: string) => {
   };
 };
 
-const calculateAge = (dob: string): number => {
-  const birth = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const monthDiff = now.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-};
-
 // ── Data Privacy Modal ──────────────────────────────────────────────────────
 const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
@@ -165,12 +156,12 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ── Success Modal ──────────────────────────────────────────────────────────
+// ── Success Modal (updated with schedule info) ──────────────────────────────────────────
 const SuccessModal = ({
   successData,
   onBack,
 }: {
-  successData: { id: number; refNo: string } | null;
+  successData: { id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null;
   onBack: () => void;
 }) => {
   const navigate = useNavigate();
@@ -205,7 +196,7 @@ const SuccessModal = ({
           </div>
           <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
-            Building Clearance Application
+            Building Clearance & Appointment Scheduled
           </p>
         </div>
 
@@ -235,9 +226,28 @@ const SuccessModal = ({
             </button>
           </div>
 
+          <div
+            className="px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}
+          >
+            <div className="flex items-start gap-3">
+              <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-600 mb-1">
+                  Appointment Scheduled
+                </p>
+                <p className="text-sm font-semibold text-green-900">
+                  {successData.scheduleDate}
+                </p>
+                <p className="text-sm text-green-700">
+                  {successData.scheduleTime}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
-            Your building clearance request is being reviewed by the barangay office.
-            You'll be notified once it's processed.
+            Your building clearance request and appointment have been submitted. Please arrive 10 minutes early on your scheduled date.
           </p>
 
           <button
@@ -253,7 +263,7 @@ const SuccessModal = ({
             className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
             style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
           >
-            Back to Requests
+            Back to Services
           </button>
         </div>
       </div>
@@ -266,9 +276,11 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
-  const [successData, setSuccessData] = useState<{ id: number; refNo: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null>(null);
   const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<{ morning: any; afternoon: any } | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [errors, setErrors] = useState({
     surname: "",
@@ -282,6 +294,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     house_block_lot_no: "",
     street: "",
     zone: "",
+    schedule_date: "",
+    time_group: "",
   });
 
   const { toast } = useToast();
@@ -290,7 +304,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await api.get("/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) {
         console.error("Failed to fetch streets:", e);
@@ -310,6 +324,9 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     house_block_lot_no: "", street: "", zone: "",
     bcert_number: "", issued_date: "", or_no: "", remarks: "",
     punong_barangay: "", for_the_punong_barangay: "", barangay_position: "",
+    schedule_date: "",
+    time_group: "",
+    document_type: "building_clearance",
   });
 
   const upd = (f: string, v: string) => {
@@ -326,6 +343,17 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     }
   };
 
+  const calculateAge = (dob: string): number => {
+    const birth = new Date(dob);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const monthDiff = now.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   const handleDobChange = (val: string) => {
     upd("dob", val);
     const err = validateDob(val);
@@ -336,6 +364,40 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     } else if (err) {
       upd("age", "");
     }
+  };
+
+  const fetchAvailableSlots = async (date: string) => {
+    if (!date) return;
+    
+    setLoadingSlots(true);
+    try {
+      const res = await axios.get(
+        `http://127.0.0.1:8000/api/schedules/available-slots`,
+        {
+          params: {
+            document_type: formData.document_type,
+            date: date,
+          },
+          withCredentials: true,
+        }
+      );
+      setAvailableSlots(res.data?.data ?? null);
+    } catch (error: any) {
+      console.error("Failed to fetch available slots:", error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleScheduleDateChange = (date: string) => {
+    upd("schedule_date", date);
+    fetchAvailableSlots(date);
+  };
+
+  const getMinScheduleDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
   };
 
   const validateForm = (): boolean => {
@@ -353,6 +415,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
     newErrors.street = validateRequired(formData.street, "Street");
     newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
+    newErrors.schedule_date = validateRequired(formData.schedule_date, "Schedule date");
+    newErrors.time_group = validateRequired(formData.time_group, "Time slot");
 
     if (Object.values(newErrors).some((e) => e !== "")) isValid = false;
 
@@ -399,13 +463,38 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     };
 
     try {
-      const res = await axios.post("http://127.0.0.1:8000/api/building-clearances", payload, { withCredentials: true });
+      const res = await api.post("/building-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
-        setSuccessData({
-          id: newId,
-          refNo: `REF-${String(newId).padStart(4, "0")}`,
-        });
+        const documentNumber = res.data?.data?.service?.bcert_number;
+
+        // Create schedule appointment
+        const scheduleRes = await axios.post(
+          "http://127.0.0.1:8000/api/schedules",
+          {
+            document_type: formData.document_type,
+            document_number: documentNumber,
+            schedule_date: formData.schedule_date,
+            time_group: formData.time_group,
+          },
+          { withCredentials: true }
+        );
+
+        if (scheduleRes.status === 201) {
+          const schedule = scheduleRes.data?.data?.schedule;
+          setSuccessData({
+            id: newId,
+            refNo: `REF-${String(newId).padStart(4, "0")}`,
+            scheduleTime: schedule?.schedule_time,
+            scheduleDate: schedule?.schedule_date,
+          });
+        } else {
+          // Fallback if schedule creation fails but clearance was created
+          setSuccessData({
+            id: newId,
+            refNo: `REF-${String(newId).padStart(4, "0")}`,
+          });
+        }
       }
     } catch (error: any) {
       toast({
@@ -548,18 +637,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     <IdCard className="w-4 h-4 opacity-80" />
                     Valid Government ID
                   </li>
-                  <li className="flex items-center gap-2">
-                    <IdCard className="w-4 h-4 opacity-80" />
-                    Building permit application
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <IdCard className="w-4 h-4 opacity-80" />
-                    Site development plan
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <IdCard className="w-4 h-4 opacity-80" />
-                    Barangay clearance
-                  </li>
                 </ul>
               </div>
 
@@ -575,7 +652,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     Processing Time
                   </h4>
                   <p className="text-sm font-medium pl-2" style={{ color: "#713f12" }}>
-                    5–7 business days
+                    1–2 business days
                   </p>
                 </div>
 
@@ -588,7 +665,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     Service Fee
                   </h4>
                   <p className="text-base font-bold pl-2" style={{ color: "#713f12" }}>
-                    ₱300.00 - ₱1000.00
+                    ₱100.00
                   </p>
                 </div>
 
@@ -912,10 +989,105 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
 
-            {/* Section 5 — Data Privacy */}
+            {/* Section 5 — Schedule Appointment (NEW) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Schedule Appointment</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Select Date *</Label>
+                  <Input
+                    type="date"
+                    min={getMinScheduleDate()}
+                    value={formData.schedule_date}
+                    onChange={(e) => handleScheduleDateChange(e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.schedule_date ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.schedule_date && <p className="mt-1 text-xs text-red-500">{errors.schedule_date}</p>}
+                </div>
+
+                {formData.schedule_date && (
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>Select Time Slot *</Label>
+                    {loadingSlots ? (
+                      <p className="text-sm text-gray-500">Loading available slots...</p>
+                    ) : availableSlots ? (
+                      <RadioGroup
+                        value={formData.time_group}
+                        onValueChange={(v) => {
+                          setFormData((p) => ({ ...p, time_group: v }));
+                          setErrors((prev) => ({ ...prev, time_group: "" }));
+                        }}
+                        className="space-y-3"
+                      >
+                        {/* Morning Slot */}
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "morning" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "morning" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.morning.available && setFormData((p) => ({ ...p, time_group: "morning" }))}
+                        >
+                          <RadioGroupItem value="morning" id="slot-morning" disabled={!availableSlots.morning.available} />
+                          <label htmlFor="slot-morning" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Morning Slot (8:00 AM - 11:50 AM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.morning.available
+                                ? `${availableSlots.morning.remaining} slot${availableSlots.morning.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+
+                        {/* Afternoon Slot */}
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "afternoon" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "afternoon" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.afternoon.available && setFormData((p) => ({ ...p, time_group: "afternoon" }))}
+                        >
+                          <RadioGroupItem value="afternoon" id="slot-afternoon" disabled={!availableSlots.afternoon.available} />
+                          <label htmlFor="slot-afternoon" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Afternoon Slot (1:00 PM - 5:50 PM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.afternoon.available
+                                ? `${availableSlots.afternoon.remaining} slot${availableSlots.afternoon.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+                      </RadioGroup>
+                    ) : null}
+                    {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 6 — Data Privacy (renumbered from 5 to 6) */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>

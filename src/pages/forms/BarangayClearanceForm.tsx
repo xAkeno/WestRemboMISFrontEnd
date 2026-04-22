@@ -3,21 +3,21 @@ import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/components/services/clearanceApi";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Copy, Check, X, FileText, DollarSign, IdCard, Timer } from "lucide-react";
+import { CheckCircle, Copy, Check, Clock, Calendar, X, FileText, IdCard, Timer, DollarSign } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
 
-interface BuildingClearanceFormProps { onBack: () => void; }
+interface BarangayClearanceFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 
-// ── Validation helpers ────────────────────────────────────────────────────────
-const MIN_AGE = 18;
+// ─── Validation helpers ────────────────────────────────────────────────────────
+const MIN_AGE = 15;
 
 const today = () => {
   const d = new Date();
@@ -36,7 +36,7 @@ const validateDob = (dob: string): string => {
   const date = new Date(dob);
   if (isNaN(date.getTime())) return "Invalid date.";
   if (date > today()) return "Date of birth cannot be a future date.";
-  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old to apply for a Building Clearance.`;
+  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old.`;
   return "";
 };
 
@@ -44,17 +44,6 @@ const validateName = (name: string, fieldName: string): string => {
   if (!name || name.trim() === "") return `${fieldName} is required.`;
   if (!/^[A-Za-z\s\-']+$/.test(name)) return `${fieldName} must contain only letters.`;
   if (name.trim().length === 1) return `${fieldName} must be at least 2 characters.`;
-  return "";
-};
-
-const validateRequired = (value: string, fieldName: string): string => {
-  if (!value || value.trim() === "") return `${fieldName} is required.`;
-  return "";
-};
-
-const validatePurposeDetails = (value: string): string => {
-  if (!value || value.trim() === "") return "Purpose details are required.";
-  if (value.trim().length < 10) return "Please provide more details (at least 10 characters).";
   return "";
 };
 
@@ -73,22 +62,53 @@ const validateEmail = (email: string): string => {
   return "";
 };
 
-const toInputMax = (d: Date) => d.toISOString().split("T")[0];
-
-// ── Address parser helper ────────────────────────────────────────────────────
-const parseAddress = (address: string) => {
-  if (!address) {
-    return { house_block_lot_no: "", street: "", zone: "" };
-  }
-  const parts = address.split(",").map((p) => p.trim());
-  return {
-    house_block_lot_no: parts[0] || "",
-    street: parts[1] || "",
-    zone: parts[2] || "",
-  };
+const validateRequired = (value: string, fieldName: string): string => {
+  if (!value || value.trim() === "") return `${fieldName} is required.`;
+  return "";
 };
 
-// ── Data Privacy Modal ──────────────────────────────────────────────────────
+const validatePeriodOfResidency = (value: string): string => {
+  if (!value || value.trim() === "") return "Period of residency is required.";
+  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim()))
+    return "Please enter a valid period (e.g., 5 years, 6 months).";
+  return "";
+};
+
+const validatePurpose = (value: string): string => {
+  if (!value || value.trim() === "") return "Purpose is required.";
+  return "";
+};
+
+const validateStreet = (value: string): string => {
+  if (!value || value.trim() === "") return "Street is required.";
+  return "";
+};
+
+const validateZone = (value: string): string => {
+  if (!value || value.trim() === "") return "Zone/Purok is required.";
+  return "";
+};
+
+const calculateAge = (dob: string): number => {
+  const birth = new Date(dob);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+const parseAddress = (address: string) => {
+  if (!address) return { house_block_lot_no: "", street: "", zone: "" };
+  const parts = address.split(",").map((p) => p.trim());
+  return { house_block_lot_no: parts[0] || "", street: parts[1] || "", zone: parts[2] || "" };
+};
+
+const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+
+// ─── Data Privacy Modal ──────────────────────────────────────────────────────
 const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
   return (
@@ -155,12 +175,12 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ── Success Modal ──────────────────────────────────────────────────────────
+// ─── Success Modal ──────────────────────────────────────────────────────────
 const SuccessModal = ({
   successData,
   onBack,
 }: {
-  successData: { id: number; refNo: string } | null;
+  successData: { id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null;
   onBack: () => void;
 }) => {
   const navigate = useNavigate();
@@ -195,7 +215,7 @@ const SuccessModal = ({
           </div>
           <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
-            Building Clearance Application
+            Barangay Clearance & Appointment Scheduled
           </p>
         </div>
 
@@ -225,13 +245,28 @@ const SuccessModal = ({
             </button>
           </div>
 
+          <div
+            className="px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}
+          >
+            <div className="flex items-start gap-3">
+              <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-600 mb-1">
+                  Appointment Scheduled
+                </p>
+                <p className="text-sm font-semibold text-green-900">{successData.scheduleDate}</p>
+                <p className="text-sm text-green-700">{successData.scheduleTime}</p>
+              </div>
+            </div>
+          </div>
+
           <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
-            Your building clearance request is being reviewed by the barangay office.
-            You'll be notified once it's processed.
+            Your request and appointment have been submitted. Please arrive 10 minutes early on your scheduled date.
           </p>
 
           <button
-            onClick={() => navigate(`/request/building_clearance/${successData.id}`)}
+            onClick={() => navigate(`/request/barangay_clearance/${successData.id}`)}
             className="w-full py-3 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90"
             style={{ backgroundColor: "#0f2a5e" }}
           >
@@ -243,7 +278,7 @@ const SuccessModal = ({
             className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
             style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
           >
-            Back to Requests
+            Back to Services
           </button>
         </div>
       </div>
@@ -251,36 +286,47 @@ const SuccessModal = ({
   );
 };
 
-// ── Main Component ──────────────────────────────────────────────────────────
-const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
+// ─── Main Component ────────────────────────────────────────────────────────
+const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
-  const [successData, setSuccessData] = useState<{ id: number; refNo: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null>(null);
   const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<{ morning: any; afternoon: any } | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const [errors, setErrors] = useState({
     surname: "",
     first_name: "",
-    middle_name: "",
     dob: "",
+    pob: "",
     contact_no: "",
     email: "",
-    establishment: "",
-    purpose_details: "",
     house_block_lot_no: "",
     street: "",
     zone: "",
+    period_of_residency: "",
+    purpose: "",
+    schedule_date: "",
+    time_group: "",
   });
 
   const { toast } = useToast();
 
-  // ── Fetch streets ─────────────────────────────────────────────────────────
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate(-1);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("/streets", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) {
         console.error("Failed to fetch streets:", e);
@@ -293,38 +339,33 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   const [formData, setFormData] = useState({
     requester_type: "Online",
-    prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
-    age: "", dob: "",
+    prefix: "", first_name: "", middle_name: "", surname: "", ext_name: "",
+    age: "", dob: "", pob: "",
     contact_no: "", email: "",
-    establishment: "", purpose: "", purpose_details: "",
     house_block_lot_no: "", street: "", zone: "",
-    bcert_number: "", issued_date: "", or_no: "", remarks: "",
-    punong_barangay: "", for_the_punong_barangay: "", barangay_position: "",
+    house_owner: "", relationship_to_owner: "",
+    bcert_number: "", issued_date: "",
+    period_of_residency: "", registered_voter: "",
+    purpose: "", purpose_details: "",
+    ctc_vrr_no: "", issued_at: "", issued_on: "", or_no: "", remarks: "",
+    punong_barangay: "", for_the_punong_barangay: "",
+    schedule_date: "",
+    time_group: "",
+    document_type: "barangay_clearance",
   });
 
   const upd = (f: string, v: string) => {
     const textFields = [
-      "surname", "first_name", "middle_name", "ext_name",
-      "establishment", "purpose_details", "house_block_lot_no",
-      "bcert_number", "or_no", "remarks", "punong_barangay",
-      "for_the_punong_barangay", "barangay_position", "contact_no", "email",
+      "first_name", "middle_name", "surname", "ext_name", "pob",
+      "house_block_lot_no", "street", "zone", "house_owner",
+      "relationship_to_owner", "bcert_number", "or_no", "remarks",
+      "ctc_vrr_no", "issued_at", "purpose_details", "punong_barangay", "for_the_punong_barangay",
     ];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [f]: "" }));
     }
-  };
-
-  const calculateAge = (dob: string): number => {
-    const birth = new Date(dob);
-    const now = new Date();
-    let age = now.getFullYear() - birth.getFullYear();
-    const monthDiff = now.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
   };
 
   const handleDobChange = (val: string) => {
@@ -339,21 +380,47 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     }
   };
 
+  const fetchAvailableSlots = async (date: string) => {
+    if (!date) return;
+    setLoadingSlots(true);
+    try {
+      const res = await axios.get(
+        "http://127.0.0.1:8000/api/schedules/available-slots",
+        {
+          params: { document_type: formData.document_type, date },
+          withCredentials: true,
+        }
+      );
+      setAvailableSlots(res.data?.data ?? null);
+    } catch (error: any) {
+      console.error("Failed to fetch available slots:", error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleScheduleDateChange = (date: string) => {
+    upd("schedule_date", date);
+    fetchAvailableSlots(date);
+  };
+
   const validateForm = (): boolean => {
     let isValid = true;
     const newErrors = { ...errors };
 
     newErrors.surname = validateName(formData.surname, "Surname");
     newErrors.first_name = validateName(formData.first_name, "First name");
-    newErrors.middle_name = validateRequired(formData.middle_name, "Middle name");
+    newErrors.pob = validateRequired(formData.pob, "Place of birth");
     newErrors.dob = validateDob(formData.dob);
     newErrors.contact_no = validateContact(formData.contact_no);
     newErrors.email = validateEmail(formData.email);
-    newErrors.establishment = validateRequired(formData.establishment, "Establishment/Project name");
-    newErrors.purpose_details = validatePurposeDetails(formData.purpose_details);
     newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
-    newErrors.street = validateRequired(formData.street, "Street");
-    newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
+    newErrors.street = validateStreet(formData.street);
+    newErrors.zone = validateZone(formData.zone);
+    newErrors.period_of_residency = validatePeriodOfResidency(formData.period_of_residency);
+    newErrors.purpose = validatePurpose(formData.purpose);
+    newErrors.schedule_date = validateRequired(formData.schedule_date, "Schedule date");
+    newErrors.time_group = validateRequired(formData.time_group, "Time slot");
 
     if (Object.values(newErrors).some((e) => e !== "")) isValid = false;
 
@@ -373,55 +440,52 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    const payload = {
-      requester_type: formData.requester_type,
-      prefix: formData.prefix,
-      surname: formData.surname,
-      first_name: formData.first_name,
-      middle_name: formData.middle_name,
-      ext_name: formData.ext_name,
-      age: formData.age ? Number(formData.age) : null,
-      dob: formData.dob,
-      contact_no: formData.contact_no,
-      email: formData.email,
-      establishment: formData.establishment,
-      house_block_lot_no: formData.house_block_lot_no,
-      street: formData.street,
-      zone: formData.zone,
-      purpose: formData.purpose,
-      purpose_details: formData.purpose_details,
-      bcert_number: formData.bcert_number,
-      issued_date: formData.issued_date,
-      or_no: formData.or_no,
-      remarks: formData.remarks,
-      punong_barangay: formData.punong_barangay,
-      for_the_punong_barangay: formData.for_the_punong_barangay,
-      barangay_position: formData.barangay_position,
-    };
-
     try {
-      const res = await api.post("/building-clearances", payload, { withCredentials: true });
-      if (res.status === 200 || res.status === 201) {
-        const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
-        setSuccessData({
-          id: newId,
-          refNo: `REF-${String(newId).padStart(4, "0")}`,
-        });
+      const certRes = await axios.post(
+        "http://127.0.0.1:8000/api/barangay-clearances",
+        { ...formData, age: formData.age ? Number(formData.age) : null },
+        { withCredentials: true }
+      );
+
+      if (certRes.status === 201 || certRes.status === 200) {
+        const documentNumber = certRes.data?.data?.service?.bcert_number;
+
+        const scheduleRes = await axios.post(
+          "http://127.0.0.1:8000/api/schedules",
+          {
+            document_type: formData.document_type,
+            document_number: documentNumber,
+            schedule_date: formData.schedule_date,
+            time_group: formData.time_group,
+          },
+          { withCredentials: true }
+        );
+
+        if (scheduleRes.status === 201) {
+          const schedule = scheduleRes.data?.data?.schedule;
+          setSuccessData({
+            id: certRes.data?.data?.service?.id,
+            refNo: `REF-${String(certRes.data?.data?.service?.id).padStart(4, "0")}`,
+            scheduleTime: schedule?.schedule_time,
+            scheduleDate: schedule?.schedule_date,
+          });
+        }
       }
     } catch (error: any) {
+      console.error("Submission error:", error);
       toast({
-        title: error.response?.status === 422 ? "Validation Error" : "Error",
-        description: error.response?.status === 422
-          ? "Please check required fields and try again."
-          : "Something went wrong. Please try again.",
-        variant: "destructive",
+        title: error.response?.status === 422 ? "Validation Error" : "Submission Error",
+        description:
+          error.response?.status === 422
+            ? error.response?.data?.message || "Please check the form. Some fields are invalid."
+            : error.response?.data?.message || "Something went wrong. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ── Auto-fill from authenticated user ─────────────────────────────────────
+  // Auto-fill from authenticated user
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -429,10 +493,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         const user = res.data.data;
         const filledFields: string[] = [];
 
-        const normalizedDob = user.date_of_birth
-          ? user.date_of_birth.split("T")[0]
-          : "";
-
+        const normalizedDob = user.date_of_birth ? user.date_of_birth.split("T")[0] : "";
         const addressParts = parseAddress(user.address || "");
 
         let matchedStreet = "";
@@ -448,26 +509,26 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
           matchedStreet = toUpperCase(addressParts.street);
         }
 
-        const normalizedZone = toUpperCase(addressParts.zone);
-
         const newData = {
           prefix: user.prefix ?? "",
-          surname: user.surname ?? "",
           first_name: user.first_name ?? "",
           middle_name: user.middle_name ?? "",
+          surname: user.surname ?? "",
           ext_name: user.extension_name ?? "",
           dob: normalizedDob,
+          pob: user.place_of_birth ?? "",
           contact_no: user.contact_number ?? "",
           email: user.email ?? "",
           house_block_lot_no: toUpperCase(addressParts.house_block_lot_no),
           street: matchedStreet,
-          zone: normalizedZone,
+          zone: toUpperCase(addressParts.zone),
+          house_owner: toUpperCase(user.house_owner ?? ""),
+          relationship_to_owner: user.relationship_to_owner ?? "",
+          period_of_residency: user.period_of_residency ?? "",
         };
 
         Object.entries(newData).forEach(([key, value]) => {
-          if (value && value !== "") {
-            filledFields.push(key);
-          }
+          if (value && value !== "") filledFields.push(key);
         });
 
         setFormData((prev) => ({
@@ -479,6 +540,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             ])
           ),
           age: user.date_of_birth ? String(calculateAge(normalizedDob)) : "",
+          registered_voter: user.voter_status ? "Yes" : "No",
         }));
 
         setAutoFilledFields(filledFields);
@@ -496,7 +558,18 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     return autoFilledFields.includes(fieldName);
   };
 
+  const getMinScheduleDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
+
+  // Show success modal when submission is successful
+  if (successData) {
+    return <SuccessModal successData={successData} onBack={handleBack} />;
+  }
 
   return (
     <>
@@ -514,13 +587,14 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               Republic of the Philippines · City of Taguig
             </p>
             <h1 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1.15rem" }}>
-              Building Clearance Application
+              Barangay Clearance Application
             </h1>
           </div>
         </div>
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         <div className="p-8 md:p-10">
+          {/* Requirements & Info Section */}
           <div
             className="mb-8 p-6 rounded-lg border"
             style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}
@@ -549,7 +623,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     <IdCard className="w-4 h-4 opacity-80" />
                     Valid Government ID
                   </li>
-                  
                 </ul>
               </div>
 
@@ -585,6 +658,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
           </div>
+
           <form onSubmit={handleSubmit} className="space-y-8">
 
             {/* Section 1 — Personal Information */}
@@ -613,10 +687,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.surname}
                     onChange={(e) => upd("surname", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.surname ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("surname") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: errors.surname ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("surname") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("surname")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.surname ? "#ef4444" : "#dde3ed")}
                     disabled={isFieldDisabled("surname")}
@@ -631,10 +702,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.first_name}
                     onChange={(e) => upd("first_name", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.first_name ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("first_name") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: errors.first_name ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("first_name") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("first_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.first_name ? "#ef4444" : "#dde3ed")}
                     disabled={isFieldDisabled("first_name")}
@@ -642,22 +710,18 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Middle Name *</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Middle Name</Label>
                   <Input
                     type="text"
                     placeholder="Reyes"
                     value={formData.middle_name}
                     onChange={(e) => upd("middle_name", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.middle_name ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("middle_name") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: "#dde3ed", opacity: isFieldDisabled("middle_name") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("middle_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.middle_name ? "#ef4444" : "#dde3ed")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
                     disabled={isFieldDisabled("middle_name")}
                   />
-                  {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
                 </div>
               </div>
 
@@ -669,10 +733,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.ext_name}
                     onChange={(e) => upd("ext_name", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: "#dde3ed",
-                      opacity: isFieldDisabled("ext_name") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: "#dde3ed", opacity: isFieldDisabled("ext_name") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("ext_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
                     disabled={isFieldDisabled("ext_name")}
@@ -703,6 +764,21 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   />
                   {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
+                  <Input
+                    type="text"
+                    placeholder="Manila"
+                    value={formData.pob}
+                    onChange={(e) => upd("pob", e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.pob ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("pob") ? 0.6 : 1 }}
+                    onFocus={(e) => { if (!isFieldDisabled("pob")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.pob ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("pob")}
+                  />
+                  {errors.pob && <p className="mt-1 text-xs text-red-500">{errors.pob}</p>}
+                </div>
               </div>
             </div>
 
@@ -722,10 +798,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.contact_no}
                     onChange={(e) => upd("contact_no", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.contact_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("contact_no") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: errors.contact_no ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("contact_no") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("contact_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.contact_no ? "#ef4444" : "#dde3ed")}
                     disabled={isFieldDisabled("contact_no")}
@@ -740,10 +813,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.email}
                     onChange={(e) => upd("email", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.email ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("email") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: errors.email ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("email") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("email")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.email ? "#ef4444" : "#dde3ed")}
                     disabled={isFieldDisabled("email")}
@@ -753,64 +823,11 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
 
-            {/* Section 3 — Building Details */}
+            {/* Section 3 — Address Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Building Details</h3>
-                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-              </div>
-              <div className="space-y-6">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Establishment / Project Name *</Label>
-                  <Input
-                    placeholder="e.g., Residential Building, Commercial Complex"
-                    value={formData.establishment}
-                    onChange={(e) => upd("establishment", e.target.value)}
-                    className={underlineInput}
-                    style={{ borderBottomColor: errors.establishment ? "#ef4444" : "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.establishment ? "#ef4444" : "#dde3ed")}
-                  />
-                  {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose</Label>
-                  <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
-                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
-                      <SelectValue placeholder="Select purpose" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose Details *</Label>
-                  <textarea
-                    rows={4}
-                    placeholder="Describe the building / construction project in detail..."
-                    value={formData.purpose_details}
-                    onChange={(e) => upd("purpose_details", e.target.value)}
-                    className="rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm w-full"
-                    style={{ borderBottomColor: errors.purpose_details ? "#ef4444" : "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.purpose_details ? "#ef4444" : "#dde3ed")}
-                  />
-                  {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
-                </div>
-              </div>
-            </div>
-
-            {/* Section 4 — Project Location */}
-            <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Project Location</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Address Information</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -821,10 +838,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.house_block_lot_no}
                     onChange={(e) => upd("house_block_lot_no", e.target.value)}
                     className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.house_block_lot_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("house_block_lot_no") ? 0.6 : 1,
-                    }}
+                    style={{ borderBottomColor: errors.house_block_lot_no ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("house_block_lot_no") ? 0.6 : 1 }}
                     onFocus={(e) => { if (!isFieldDisabled("house_block_lot_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.house_block_lot_no ? "#ef4444" : "#dde3ed")}
                     disabled={isFieldDisabled("house_block_lot_no")}
@@ -900,12 +914,215 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House Owner</Label>
+                  <Input
+                    placeholder="Name of house owner"
+                    value={formData.house_owner}
+                    onChange={(e) => upd("house_owner", e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: "#dde3ed", opacity: isFieldDisabled("house_owner") ? 0.6 : 1 }}
+                    onFocus={(e) => { if (!isFieldDisabled("house_owner")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                    disabled={isFieldDisabled("house_owner")}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Relationship to Owner</Label>
+                  <Select
+                    value={formData.relationship_to_owner}
+                    onValueChange={(v) => setFormData((p) => ({ ...p, relationship_to_owner: v }))}
+                    disabled={isFieldDisabled("relationship_to_owner")}
+                  >
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed", opacity: isFieldDisabled("relationship_to_owner") ? 0.6 : 1 }}>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["Owner", "Spouse", "Child", "Parent", "Sibling", "Relative", "Tenant", "Boarder"].map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            {/* Section 5 — Data Privacy */}
+            {/* Section 4 — Clearance Details */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Clearance Details</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Period of Residency *</Label>
+                  <Input
+                    placeholder="e.g., 5 years"
+                    value={formData.period_of_residency}
+                    onChange={(e) => upd("period_of_residency", e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.period_of_residency ? "#ef4444" : "#dde3ed", opacity: isFieldDisabled("period_of_residency") ? 0.6 : 1 }}
+                    onFocus={(e) => { if (!isFieldDisabled("period_of_residency")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.period_of_residency ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("period_of_residency")}
+                  />
+                  {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Registered Voter</Label>
+                  <RadioGroup
+                    value={formData.registered_voter}
+                    onValueChange={(v) => upd("registered_voter", v)}
+                    className="flex gap-6 mt-2.5"
+                  >
+                    {["Yes", "No"].map((opt) => (
+                      <div key={opt} className="flex items-center gap-2">
+                        <RadioGroupItem value={opt} id={`voter-${opt}`} />
+                        <label htmlFor={`voter-${opt}`} className="text-sm cursor-pointer">{opt}</label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose *</Label>
+                <Select
+                  value={formData.purpose}
+                  onValueChange={(v) => {
+                    upd("purpose", v);
+                    setErrors((prev) => ({ ...prev, purpose: "" }));
+                  }}
+                >
+                  <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.purpose ? "#ef4444" : "#dde3ed" }}>
+                    <SelectValue placeholder="Select purpose" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Employment", "Business", "Travel", "Legal Purposes", "School Requirement", "Bank Transaction", "Other"].map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.purpose && <p className="mt-1 text-xs text-red-500">{errors.purpose}</p>}
+              </div>
+
+              <div className="mt-6 space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose Details</Label>
+                <textarea
+                  rows={3}
+                  placeholder="Additional details about the purpose..."
+                  value={formData.purpose_details}
+                  onChange={(e) => upd("purpose_details", e.target.value)}
+                  className="rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm w-full"
+                  style={{ borderBottomColor: "#dde3ed" }}
+                  onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                  onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                />
+              </div>
+            </div>
+
+            {/* Section 5 — Schedule Appointment */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Schedule Appointment</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Select Date *</Label>
+                  <Input
+                    type="date"
+                    min={getMinScheduleDate()}
+                    value={formData.schedule_date}
+                    onChange={(e) => handleScheduleDateChange(e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.schedule_date ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.schedule_date && <p className="mt-1 text-xs text-red-500">{errors.schedule_date}</p>}
+                </div>
+
+                {formData.schedule_date && (
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>Select Time Slot *</Label>
+                    {loadingSlots ? (
+                      <p className="text-sm text-gray-500">Loading available slots...</p>
+                    ) : availableSlots ? (
+                      <RadioGroup
+                        value={formData.time_group}
+                        onValueChange={(v) => {
+                          setFormData((p) => ({ ...p, time_group: v }));
+                          setErrors((prev) => ({ ...prev, time_group: "" }));
+                        }}
+                        className="space-y-3"
+                      >
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "morning" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "morning" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.morning.available && setFormData((p) => ({ ...p, time_group: "morning" }))}
+                        >
+                          <RadioGroupItem value="morning" id="slot-morning" disabled={!availableSlots.morning.available} />
+                          <label htmlFor="slot-morning" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Morning Slot (8:00 AM - 11:50 AM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.morning.available
+                                ? `${availableSlots.morning.remaining} slot${availableSlots.morning.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "afternoon" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "afternoon" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.afternoon.available && setFormData((p) => ({ ...p, time_group: "afternoon" }))}
+                        >
+                          <RadioGroupItem value="afternoon" id="slot-afternoon" disabled={!availableSlots.afternoon.available} />
+                          <label htmlFor="slot-afternoon" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Afternoon Slot (1:00 PM - 5:50 PM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.afternoon.available
+                                ? `${availableSlots.afternoon.remaining} slot${availableSlots.afternoon.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+                      </RadioGroup>
+                    ) : null}
+                    {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 6 — Data Privacy */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
@@ -915,7 +1132,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   Data Privacy Notice
                 </p>
                 <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
-                  Your personal information will be collected and processed solely for the purpose of this building clearance application, in accordance with the{" "}
+                  Your personal information will be collected and processed solely for the purpose of this barangay clearance application, in accordance with the{" "}
                   <button
                     type="button"
                     onClick={() => setShowPrivacyModal(true)}
@@ -953,11 +1170,11 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
-                onClick={onBack}
+                onClick={handleBack}
                 className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
-                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
-                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "transparent")}
               >
                 Back
               </button>
@@ -984,10 +1201,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
           </form>
         </div>
       </div>
-
-      {successData && <SuccessModal successData={successData} onBack={onBack} />}
     </>
   );
 };
 
-export default BuildingClearanceForm;
+export default BarangayClearanceForm;

@@ -3,16 +3,17 @@ import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Copy, Check, X, DollarSign, FileText, IdCard, Timer } from "lucide-react";
+import { CheckCircle, Copy, Check, X, DollarSign, FileText, IdCard, Timer, Calendar, Clock } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
 
-interface BusinessClearanceFormProps { onBack: () => void; }
+interface BusinessClearanceFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -173,12 +174,12 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ── Success Modal ──────────────────────────────────────────────────────────
+// ── Success Modal (updated with schedule info) ──────────────────────────────────────────
 const SuccessModal = ({
   successData,
   onBack,
 }: {
-  successData: { id: number; refNo: string } | null;
+  successData: { id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null;
   onBack: () => void;
 }) => {
   const navigate = useNavigate();
@@ -213,7 +214,7 @@ const SuccessModal = ({
           </div>
           <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
-            Business Clearance Application
+            Business Clearance & Appointment Scheduled
           </p>
         </div>
 
@@ -243,9 +244,24 @@ const SuccessModal = ({
             </button>
           </div>
 
+          <div
+            className="px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}
+          >
+            <div className="flex items-start gap-3">
+              <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-600 mb-1">
+                  Appointment Scheduled
+                </p>
+                <p className="text-sm font-semibold text-green-900">{successData.scheduleDate}</p>
+                <p className="text-sm text-green-700">{successData.scheduleTime}</p>
+              </div>
+            </div>
+          </div>
+
           <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
-            Your business clearance request is being reviewed by the barangay office.
-            You'll be notified once it's processed.
+            Your business clearance request and appointment have been submitted. Please arrive 10 minutes early on your scheduled date.
           </p>
 
           <button
@@ -261,7 +277,7 @@ const SuccessModal = ({
             className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
             style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
           >
-            Back to Requests
+            Back to Services
           </button>
         </div>
       </div>
@@ -274,9 +290,11 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
-  const [successData, setSuccessData] = useState<{ id: number; refNo: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null>(null);
   const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<{ morning: any; afternoon: any } | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [errors, setErrors] = useState({
     surname: "",
@@ -291,9 +309,19 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     house_block_lot_no: "",
     street: "",
     zone: "",
+    schedule_date: "",
+    time_group: "",
   });
 
   const { toast } = useToast();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate(-1);
+    }
+  };
 
   // ── Fetch streets ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -320,6 +348,9 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     brgy_business_no: "", issued_date: "", or_no: "",
     inspected_by: "", date_of_inspection: "", inspection_remarks: "",
     inspected_remarks: "", date_inspected: "", inspected_note: "",
+    schedule_date: "",
+    time_group: "",
+    document_type: "business_clearance",
   });
 
   const upd = (f: string, v: string) => {
@@ -348,6 +379,36 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     }
   };
 
+  const fetchAvailableSlots = async (date: string) => {
+    if (!date) return;
+    setLoadingSlots(true);
+    try {
+      const res = await axios.get(
+        "http://127.0.0.1:8000/api/schedules/available-slots",
+        {
+          params: { document_type: formData.document_type, date },
+          withCredentials: true,
+        }
+      );
+      setAvailableSlots(res.data?.data ?? null);
+    } catch (error: any) {
+      console.error("Failed to fetch available slots:", error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleScheduleDateChange = (date: string) => {
+    upd("schedule_date", date);
+    fetchAvailableSlots(date);
+  };
+
+  const getMinScheduleDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
   const validateForm = (): boolean => {
     let isValid = true;
     const newErrors = { ...errors };
@@ -364,6 +425,8 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
     newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
     newErrors.street = validateRequired(formData.street, "Street");
     newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
+    newErrors.schedule_date = validateRequired(formData.schedule_date, "Schedule date");
+    newErrors.time_group = validateRequired(formData.time_group, "Time slot");
 
     if (Object.values(newErrors).some((e) => e !== "")) isValid = false;
 
@@ -416,10 +479,35 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       const res = await axios.post("http://127.0.0.1:8000/api/business-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
-        setSuccessData({
-          id: newId,
-          refNo: `REF-${String(newId).padStart(4, "0")}`,
-        });
+        const documentNumber = res.data?.data?.service?.bcert_number;
+
+        // Create schedule appointment
+        const scheduleRes = await axios.post(
+          "http://127.0.0.1:8000/api/schedules",
+          {
+            document_type: formData.document_type,
+            document_number: documentNumber,
+            schedule_date: formData.schedule_date,
+            time_group: formData.time_group,
+          },
+          { withCredentials: true }
+        );
+
+        if (scheduleRes.status === 201) {
+          const schedule = scheduleRes.data?.data?.schedule;
+          setSuccessData({
+            id: newId,
+            refNo: `REF-${String(newId).padStart(4, "0")}`,
+            scheduleTime: schedule?.schedule_time,
+            scheduleDate: schedule?.schedule_date,
+          });
+        } else {
+          // Fallback if schedule creation fails
+          setSuccessData({
+            id: newId,
+            refNo: `REF-${String(newId).padStart(4, "0")}`,
+          });
+        }
       }
     } catch (error: any) {
       toast({
@@ -510,6 +598,11 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
   };
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
+
+  // Show success modal when submission is successful
+  if (successData) {
+    return <SuccessModal successData={successData} onBack={handleBack} />;
+  }
 
   return (
     <>
@@ -938,10 +1031,103 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
               </div>
             </div>
 
-            {/* Section 5 — Data Privacy */}
+            {/* Section 5 — Schedule Appointment (NEW) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Schedule Appointment</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Select Date *</Label>
+                  <Input
+                    type="date"
+                    min={getMinScheduleDate()}
+                    value={formData.schedule_date}
+                    onChange={(e) => handleScheduleDateChange(e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.schedule_date ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.schedule_date && <p className="mt-1 text-xs text-red-500">{errors.schedule_date}</p>}
+                </div>
+
+                {formData.schedule_date && (
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>Select Time Slot *</Label>
+                    {loadingSlots ? (
+                      <p className="text-sm text-gray-500">Loading available slots...</p>
+                    ) : availableSlots ? (
+                      <RadioGroup
+                        value={formData.time_group}
+                        onValueChange={(v) => {
+                          setFormData((p) => ({ ...p, time_group: v }));
+                          setErrors((prev) => ({ ...prev, time_group: "" }));
+                        }}
+                        className="space-y-3"
+                      >
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "morning" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "morning" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.morning.available && setFormData((p) => ({ ...p, time_group: "morning" }))}
+                        >
+                          <RadioGroupItem value="morning" id="slot-morning" disabled={!availableSlots.morning.available} />
+                          <label htmlFor="slot-morning" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Morning Slot (8:00 AM - 11:50 AM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.morning.available
+                                ? `${availableSlots.morning.remaining} slot${availableSlots.morning.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+
+                        <div
+                          className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
+                          style={{
+                            borderColor: formData.time_group === "afternoon" ? "#0f2a5e" : "#e5e7eb",
+                            backgroundColor: formData.time_group === "afternoon" ? "rgba(15, 42, 94, 0.05)" : "transparent",
+                          }}
+                          onClick={() => availableSlots.afternoon.available && setFormData((p) => ({ ...p, time_group: "afternoon" }))}
+                        >
+                          <RadioGroupItem value="afternoon" id="slot-afternoon" disabled={!availableSlots.afternoon.available} />
+                          <label htmlFor="slot-afternoon" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
+                              <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>
+                                Afternoon Slot (1:00 PM - 5:50 PM)
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {availableSlots.afternoon.available
+                                ? `${availableSlots.afternoon.remaining} slot${availableSlots.afternoon.remaining !== 1 ? "s" : ""} available`
+                                : "No slots available"}
+                            </p>
+                          </label>
+                        </div>
+                      </RadioGroup>
+                    ) : null}
+                    {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 6 — Data Privacy (renumbered from 5 to 6) */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
@@ -989,7 +1175,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
-                onClick={onBack}
+                onClick={handleBack}
                 className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
                 onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
@@ -1020,8 +1206,6 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
           </form>
         </div>
       </div>
-
-      {successData && <SuccessModal successData={successData} onBack={onBack} />}
     </>
   );
 };
