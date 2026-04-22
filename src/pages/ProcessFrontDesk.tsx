@@ -15,7 +15,7 @@ const ProcessFrontDesk = () => {
             <Building2 className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3 tracking-tight">
-            West Rembo Clearance System
+            West Rembo Document Request System
           </h1>
           <p className="text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
             This platform allows residents to apply for Barangay services such as Barangay Clearance, Building Clearance, Business Clearance, Barangay Certificates, and Resident Forms efficiently and securely.

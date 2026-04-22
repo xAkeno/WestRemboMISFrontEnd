@@ -11,16 +11,12 @@ import Footer from "./forms/Footer";
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
-// ─── Axios instance with cookie auth ──────────────────────────────────────────
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
   withCredentials: true,
-  headers: {
-    Accept: "application/json",
-  },
+  headers: { Accept: "application/json" },
 });
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 interface UploadedFile {
@@ -33,6 +29,9 @@ interface UploadedFile {
   error?: string;
   url?: string;
   filename?: string;
+  /** true when the entry was seeded from the registration id_url / id_url_back
+   *  and has NOT yet been replaced with a proper documents-API upload */
+  fromRegistration?: boolean;
 }
 
 interface DocumentSlot {
@@ -54,7 +53,6 @@ interface DocumentUploadSectionProps {
   categories?: DocumentCategory[];
 }
 
-// ─── Categories ────────────────────────────────────────────────────────────────
 const DEFAULT_CATEGORIES: DocumentCategory[] = [
   {
     key: "personal_id",
@@ -177,7 +175,6 @@ const DEFAULT_CATEGORIES: DocumentCategory[] = [
   },
 ];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 function fileIcon(file: File | null) {
   if (!file) return File;
   if (file.type.startsWith("image/")) return FileImage;
@@ -195,7 +192,6 @@ function isImage(file: File) {
   return file.type.startsWith("image/");
 }
 
-// ─── Single slot dropzone ──────────────────────────────────────────────────────
 function SlotDropzone({
   slot,
   uploaded,
@@ -239,6 +235,8 @@ function SlotDropzone({
 
   if (uploaded) {
     const Icon = fileIcon(uploaded.file);
+    const isFromRegistration = uploaded.fromRegistration === true;
+
     return (
       <div
         className="rounded-sm border overflow-hidden"
@@ -262,7 +260,7 @@ function SlotDropzone({
           className="flex items-center justify-between px-3 py-2"
           style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f8faff" }}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {slot.required && (
               <span
                 className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm"
@@ -274,20 +272,26 @@ function SlotDropzone({
             <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: NAVY }}>
               {slot.label}
             </span>
+            {/* Badge: auto-populated from registration */}
+            {isFromRegistration && (
+              <span
+                className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm"
+                style={{ backgroundColor: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe" }}
+              >
+                From Registration
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
-            {/* Change / Replace button — only visible when successfully uploaded */}
+            {/* Always allow replacing — for "From Registration" files we just
+                re-upload a new one; the old profile URL is just a preview reference */}
             {uploaded.status === "success" && (
               <>
                 <button
                   onClick={() => replaceInputRef.current?.click()}
                   className="flex items-center gap-1 px-2 py-1 rounded-sm text-[9px] font-bold uppercase tracking-widest transition-all duration-150"
-                  style={{
-                    color: NAVY,
-                    backgroundColor: "#e8eef8",
-                    border: "1px solid #c8d4ed",
-                  }}
+                  style={{ color: NAVY, backgroundColor: "#e8eef8", border: "1px solid #c8d4ed" }}
                   title="Replace with a different file"
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.backgroundColor = "#d4e0f5";
@@ -301,17 +305,9 @@ function SlotDropzone({
                   <ImagePlus className="h-3 w-3" />
                   Change
                 </button>
-                <input
-                  ref={replaceInputRef}
-                  type="file"
-                  accept={slot.accept}
-                  className="hidden"
-                  onChange={handleChange}
-                />
+                <input ref={replaceInputRef} type="file" accept={slot.accept} className="hidden" onChange={handleChange} />
               </>
             )}
-
-            {/* Remove button */}
             <button
               onClick={onRemove}
               className="p-1 rounded-sm transition-colors"
@@ -343,7 +339,11 @@ function SlotDropzone({
               {uploaded.file?.name ?? uploaded.filename ?? "File"}
             </p>
             <p className="text-[10px] text-gray-500">
-              {uploaded.file ? formatBytes(uploaded.file.size) : "Previously uploaded"}
+              {uploaded.file
+                ? formatBytes(uploaded.file.size)
+                : isFromRegistration
+                ? "Uploaded during registration"
+                : "Previously uploaded"}
             </p>
             {uploaded.status === "uploading" && (
               <div className="mt-1.5 h-1 rounded-full bg-gray-200 overflow-hidden">
@@ -356,15 +356,9 @@ function SlotDropzone({
           </div>
 
           <div className="flex-shrink-0">
-            {uploaded.status === "uploading" && (
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />
-            )}
-            {uploaded.status === "success" && (
-              <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />
-            )}
-            {uploaded.status === "error" && (
-              <AlertCircle className="h-4 w-4" style={{ color: "#e11d48" }} />
-            )}
+            {uploaded.status === "uploading" && <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />}
+            {uploaded.status === "success" && <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a" }} />}
+            {uploaded.status === "error" && <AlertCircle className="h-4 w-4" style={{ color: "#e11d48" }} />}
           </div>
         </div>
 
@@ -389,7 +383,6 @@ function SlotDropzone({
     );
   }
 
-  // ── Empty dropzone ──
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5">
@@ -447,7 +440,6 @@ function SlotDropzone({
   );
 }
 
-// ─── Tab bar ───────────────────────────────────────────────────────────────────
 function TabBar({
   categories,
   activeKey,
@@ -489,7 +481,7 @@ function TabBar({
               <span
                 className="text-[8px] font-black px-1.5 py-0.5 rounded-sm"
                 style={{
-                  backgroundColor: allDone ? "#dcfce7" : "#fef9c3",
+                  backgroundColor: allDone ? "#dcfce7" : "#fefce8",
                   color: allDone ? "#15803d" : "#92400e",
                 }}
               >
@@ -503,7 +495,6 @@ function TabBar({
   );
 }
 
-// ─── Main export ───────────────────────────────────────────────────────────────
 export default function DocumentUploadSection({
   categories = DEFAULT_CATEGORIES,
 }: DocumentUploadSectionProps) {
@@ -518,24 +509,81 @@ export default function DocumentUploadSection({
   useEffect(() => {
     const fetchExistingDocuments = async () => {
       try {
-        const { data } = await api.get("/api/mydocuments");
         const loadedFiles: Record<string, UploadedFile> = {};
-        const docs = data.data?.documents || {};
 
-        Object.values(docs).forEach((categoryDocs: any[]) => {
-          categoryDocs.forEach((doc) => {
-            loadedFiles[doc.type] = {
-              id: `existing-${doc.id}`,
-              dbId: doc.id,
+        // ── Step 1: Pre-populate ID slots from the user's registration upload ──
+        //
+        // When a resident registers they upload id_url (front) and id_url_back
+        // (back) as part of the registration form. Those are stored on the user
+        // profile, not in the documents table. We seed them here so the user
+        // immediately sees their IDs on first login without having to re-upload.
+        //
+        // These entries are flagged { fromRegistration: true } so the UI can
+        // show the "From Registration" badge. They are treated as "success" for
+        // the progress counter, but uploading a replacement goes through the
+        // normal documents API and will clear the flag.
+        try {
+          const { data: profileResponse } = await api.get("/api/user");
+          const user = profileResponse.data ?? profileResponse;
+
+          const idMappings: { field: string; slotKey: string }[] = [
+            { field: "id_url",      slotKey: "valid_id_front" },
+            { field: "id_url_back", slotKey: "valid_id_back"  },
+          ];
+
+          for (const { field, slotKey } of idMappings) {
+            const rawUrl: string | null = user[field] ?? null;
+            if (!rawUrl) continue;
+
+            // Build the full URL whether the API returns a relative or absolute path
+            const fullUrl = rawUrl.startsWith("http")
+              ? rawUrl
+              : `http://127.0.0.1:8000${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+
+            loadedFiles[slotKey] = {
+              id: `profile-${field}`,
+              dbId: undefined,          // no documents-table row yet
               file: null,
-              preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
+              preview: fullUrl,
               status: "success",
               progress: 100,
-              url: doc.url,
-              filename: doc.original_filename,
+              url: fullUrl,
+              filename: rawUrl.split("/").pop() ?? field,
+              fromRegistration: true,   // ← flag so we know it came from profile
             };
+          }
+        } catch (profileErr) {
+          console.warn("Could not load profile IDs:", profileErr);
+        }
+
+        // ── Step 2: Load documents already uploaded via the documents API ──
+        //
+        // These take precedence over the profile seed above. If the user has
+        // already uploaded a proper document for valid_id_front / valid_id_back
+        // through this page, we want that version (it will have a dbId and will
+        // NOT carry the fromRegistration flag).
+        try {
+          const { data } = await api.get("/api/documents");
+          const docs = data.data?.documents ?? {};
+
+          Object.values(docs).forEach((categoryDocs: any) => {
+            (categoryDocs as any[]).forEach((doc: any) => {
+              loadedFiles[doc.type] = {
+                id: `existing-${doc.id}`,
+                dbId: doc.id,
+                file: null,
+                preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
+                status: "success",
+                progress: 100,
+                url: doc.url,
+                filename: doc.original_filename,
+                fromRegistration: false, // explicitly a documents-API record
+              };
+            });
           });
-        });
+        } catch (docsErr) {
+          console.warn("Could not load documents:", docsErr);
+        }
 
         setFiles(loadedFiles);
       } catch (err) {
@@ -548,21 +596,22 @@ export default function DocumentUploadSection({
     fetchExistingDocuments();
   }, []);
 
-  // ── Upload (also handles replace — deletes old record first if one exists) ──
+  // ── Upload (also handles replace) ─────────────────────────────────────────
   const handleUpload = useCallback(
     async (slotKey: string, file: File) => {
-      // If there's already an uploaded file for this slot, delete it from the
-      // backend before uploading the new one so we don't accumulate orphans.
       const existing = files[slotKey];
+
+      // Only DELETE from the documents API if there is a real dbId.
+      // "From Registration" entries have no dbId — they live on the user profile,
+      // not in the documents table — so we skip the delete call for those.
       if (existing?.dbId && existing.status === "success") {
         try {
           await api.delete(`/api/documents/${existing.dbId}`);
         } catch {
-          // best-effort; proceed with new upload anyway
+          // best-effort; proceed with upload regardless
         }
       }
 
-      // Generate local image preview
       let preview: string | null = null;
       if (isImage(file)) {
         preview = await new Promise<string>((res) => {
@@ -572,6 +621,7 @@ export default function DocumentUploadSection({
         });
       }
 
+      // Immediately show an uploading state (clears fromRegistration flag)
       setFiles((prev) => ({
         ...prev,
         [slotKey]: {
@@ -580,6 +630,7 @@ export default function DocumentUploadSection({
           preview,
           status: "uploading",
           progress: 0,
+          fromRegistration: false,
         },
       }));
 
@@ -588,7 +639,7 @@ export default function DocumentUploadSection({
       formData.append("file", file);
 
       try {
-        const { data } = await api.post("/api/mydocuments/upload", formData, {
+        const { data } = await api.post("/api/documents/upload", formData, {
           headers: { "Content-Type": "multipart/form-data" },
           onUploadProgress: (e) => {
             const pct = Math.round((e.loaded * 100) / (e.total ?? 1));
@@ -607,6 +658,7 @@ export default function DocumentUploadSection({
             preview: preview ?? data.data.url,
             status: "success",
             progress: 100,
+            fromRegistration: false,
           },
         }));
       } catch (err: any) {
@@ -630,6 +682,8 @@ export default function DocumentUploadSection({
       const entry = files[slotKey];
       if (!entry) return;
 
+      // Only call the delete API if the entry has a real documents-table row.
+      // Profile-sourced entries (fromRegistration) have no dbId.
       if (entry.dbId && entry.status === "success") {
         try {
           await api.delete(`/api/documents/${entry.dbId}`);
@@ -669,7 +723,6 @@ export default function DocumentUploadSection({
     }
   }, []);
 
-  // ── Progress counts ────────────────────────────────────────────────────────
   const allRequired = categories.flatMap((c) => c.slots.filter((s) => s.required));
   const allRequiredDone = allRequired.filter((s) => files[s.key]?.status === "success");
   const allComplete = allRequiredDone.length === allRequired.length;
@@ -715,26 +768,33 @@ export default function DocumentUploadSection({
           Please upload clear, legible copies. Files must be under 10 MB each (PNG, JPG, or PDF).
         </div>
 
-        {/* Tab bar */}
-        <TabBar
-          categories={categories}
-          activeKey={activeTab}
-          files={files}
-          onSelect={setActiveTab}
-        />
+        {/* Loading state */}
+        {loadingExisting && (
+          <div className="flex items-center justify-center gap-2 py-6" style={{ backgroundColor: "#f8faff" }}>
+            <Loader2 className="h-4 w-4 animate-spin" style={{ color: NAVY }} />
+            <span className="text-xs" style={{ color: NAVY }}>Loading your documents...</span>
+          </div>
+        )}
 
-        {/* Active tab slots */}
-        <div className="p-4 space-y-5 bg-white">
-          {activeCategory?.slots.map((slot) => (
-            <SlotDropzone
-              key={slot.key}
-              slot={slot}
-              uploaded={files[slot.key] ?? null}
-              onDrop={(file) => handleUpload(slot.key, file)}
-              onRemove={() => handleRemove(slot.key)}
-            />
-          ))}
-        </div>
+        {!loadingExisting && (
+          <>
+            {/* Tab bar */}
+            <TabBar categories={categories} activeKey={activeTab} files={files} onSelect={setActiveTab} />
+
+            {/* Active tab slots */}
+            <div className="p-4 space-y-5 bg-white">
+              {activeCategory?.slots.map((slot) => (
+                <SlotDropzone
+                  key={slot.key}
+                  slot={slot}
+                  uploaded={files[slot.key] ?? null}
+                  onDrop={(file) => handleUpload(slot.key, file)}
+                  onRemove={() => handleRemove(slot.key)}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Submit feedback */}
         {submitError && (
@@ -763,9 +823,25 @@ export default function DocumentUploadSection({
         >
           <p className="text-[10px] text-gray-500">
             {allComplete
-              ? "✓ All required documents uploaded. You may submit your request."
+              ? "All required documents uploaded. You may submit your request."
               : `${allRequired.length - allRequiredDone.length} required document(s) still missing across all categories.`}
           </p>
+          <button
+            type="button"
+            disabled={submitting || !allComplete}
+            onClick={handleSubmit}
+            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ borderRadius: 2, backgroundColor: NAVY }}
+            onMouseEnter={(e) => { if (allComplete && !submitting) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+            onMouseLeave={(e) => { if (allComplete && !submitting) (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
+          >
+            {submitting ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Submitting…
+              </span>
+            ) : "Submit Documents"}
+          </button>
         </div>
       </div>
       <Footer />

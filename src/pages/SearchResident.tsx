@@ -137,7 +137,7 @@ const ProcessFrontDesk = () => {
               className="font-bold text-foreground mb-3"
               style={{ fontFamily: "'Georgia', serif", fontSize: "clamp(1.5rem, 3.5vw, 2.1rem)", color: NAVY }}
             >
-              West Rembo Clearance System
+              West Rembo Document Request System
             </h1>
 
             <div className="flex items-center justify-center gap-3 mb-4">
