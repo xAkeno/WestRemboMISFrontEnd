@@ -88,25 +88,28 @@ const HeroSection = () => {
 
         {/* Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+          {/* 🔥 PRIMARY CTA — APPLY */}
           <button
-            onClick={() => navigate("/calendar")}
-            className="inline-flex items-center justify-center gap-2 px-8 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
+            onClick={() => navigate("/services")}
+            className="inline-flex items-center justify-center gap-2 px-10 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
             style={{
               backgroundColor: "#c2467d",
               borderRadius: 2,
               letterSpacing: "0.08em",
-              boxShadow: "0 4px 20px rgba(194,70,125,0.35)",
+              boxShadow: "0 6px 25px rgba(194,70,125,0.45)",
             }}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#a33568"}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#c2467d"}
           >
-            Calendar of Activities
+            Apply for a Barangay Documents
             <ArrowRight className="w-4 h-4" />
           </button>
 
+          {/* Secondary */}
           <button
-            onClick={() => navigate("/aboutus")}
-            className="inline-flex items-center justify-center gap-2 px-8 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
+            onClick={() => navigate("/calendar")}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 text-white text-sm font-semibold uppercase tracking-wider transition-all duration-200"
             style={{
               borderRadius: 2,
               border: "1px solid rgba(255,255,255,0.30)",
@@ -116,8 +119,10 @@ const HeroSection = () => {
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.12)"}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.06)"}
           >
-            About Our Barangay
+            Event Calendar
           </button>
+
+
         </div>
       </div>
 
