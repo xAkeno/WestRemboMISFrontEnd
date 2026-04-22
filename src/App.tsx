@@ -68,6 +68,11 @@ import QueueDisplay from "./components/queue/QueueDisplay";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { VacationModal } from "@/components/VacationModal";
 import { MaintenanceModal } from "@/components/MaintenanceModal";
+import BarangayCertificateForm from "./pages/forms/BarangayCertificateForm";
+import BarangayClearanceForm from "./pages/forms/BarangayClearanceForm";
+import BuildingClearanceFormGood from "./pages/forms/BuildingClearanceForm";
+import BusinessClearanceForm from "./pages/forms/BusinessClearanceForm";
+import ResidentRegistrationForm from "./pages/forms/ResidentRegistrationForm";
 const App = () => { 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const { showMaintenance, message } = useMaintenance(user);
@@ -117,6 +122,14 @@ const App = () => {
                 <Route path="/myrequest" element={<MyRequest />} />
                 <Route path="/pricing" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicePricing /></ProtectedRoute>} />
                 <Route path="/request/:type/:id" element={<RequestDetail />} />
+
+
+                {/* All of the form */}
+                <Route path="/services/barangay-certificate/apply" element={<BarangayCertificateForm />} />
+                <Route path="/services/barangay-clearance/apply" element={<BarangayClearanceForm />} />
+                <Route path="/services/barangay-business-clearance/apply" element={<BusinessClearanceForm />} />
+                <Route path="/services/barangay-building-clearance/apply" element={<BuildingClearanceFormGood />} />
+                <Route path="/services/barangay-resident-registration/apply" element={<ResidentRegistrationForm />} />
                 
                 <Route path="/clearancehome/bussinessclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BusinessClearance /></ProtectedRoute>} /> 
                 <Route path="/clearancehome/bussinessclearance/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BussinessClearanceForm /></ProtectedRoute>} /> {/*Residents ???*/}

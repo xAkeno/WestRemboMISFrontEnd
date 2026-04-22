@@ -3,28 +3,17 @@ import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import FormProgress from "./FormProgress";
-import FormNavigation from "./FormNavigation";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/components/services/clearanceApi";
-import { CheckCircle, Copy, Check } from "lucide-react";
-import {
-  NAVY, PINK,
-  FieldLabel, FieldInput, FieldTextarea,
-  SectionDivider, ReviewRow, ReviewCard, ReviewHeader, FormCard,
-} from "./LguFormPrimitives";
+import axios from "axios";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CheckCircle, Copy, Check, X } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
+import Header from "@/components/forms/Header";
 
 interface BuildingClearanceFormProps { onBack: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
-
-const stepLabels = ["Applicant Info", "Building Details", "Location", "Review"];
-
-const ST = {
-  className: "border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none",
-  style: { borderBottomWidth: 1, borderColor: "#d1d5db" } as React.CSSProperties,
-};
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const MIN_AGE = 18;
@@ -68,9 +57,24 @@ const validatePurposeDetails = (value: string): string => {
   return "";
 };
 
+const validateContact = (contact: string): string => {
+  if (!contact || contact.trim() === "") return "Contact number is required.";
+  const cleanContact = contact.replace(/\D/g, "");
+  if (cleanContact.length !== 11) return "Contact number must be exactly 11 digits.";
+  if (!/^09\d{9}$/.test(cleanContact)) return "Contact number must start with '09' and contain 11 digits.";
+  return "";
+};
+
+const validateEmail = (email: string): string => {
+  if (!email || email.trim() === "") return "Email address is required.";
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return "Please enter a valid email address (e.g., name@domain.com).";
+  return "";
+};
+
 const toInputMax = (d: Date) => d.toISOString().split("T")[0];
 
-// ── Address parser helper (same as Certificate/Clearance) ────────────────────
+// ── Address parser helper ────────────────────────────────────────────────────
 const parseAddress = (address: string) => {
   if (!address) {
     return { house_block_lot_no: "", street: "", zone: "" };
@@ -83,22 +87,196 @@ const parseAddress = (address: string) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+const calculateAge = (dob: string): number => {
+  const birth = new Date(dob);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
 
+// ── Data Privacy Modal ──────────────────────────────────────────────────────
+const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-lg bg-white overflow-hidden"
+        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+      >
+        <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Legal</p>
+            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>
+              Data Privacy Notice
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div style={{ height: 3, backgroundColor: "#c2467d", flexShrink: 0 }} />
+        <div className="overflow-y-auto p-6 text-xs space-y-4" style={{ color: "#6b7280", lineHeight: 1.7 }}>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>
+            Republic Act No. 10173 — Data Privacy Act of 2012
+          </p>
+          <p>
+            Barangay West Rembo, City of Taguig, is committed to protecting and respecting your privacy. This notice explains how we collect, use, and protect your personal data in compliance with the Data Privacy Act of 2012 (RA 10173).
+          </p>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Purpose of Data Collection</p>
+          <p>
+            The personal information you provide — including your name, address, date of birth, contact details, and government-issued ID — is collected solely for the purpose of resident registration, verification of identity, and delivery of barangay services.
+          </p>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Data Processing & Storage</p>
+          <p>
+            Your data will be stored securely and will only be accessed by authorized barangay personnel. We do not sell, trade, or transfer your personal information to third parties without your consent, except as required by law.
+          </p>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Your Rights</p>
+          <ul className="space-y-1 list-disc pl-4">
+            <li>Right to be informed of the processing of your personal data</li>
+            <li>Right to access your personal data held by the barangay</li>
+            <li>Right to object to processing in certain circumstances</li>
+            <li>Right to erasure or blocking of unlawfully processed data</li>
+            <li>Right to file a complaint with the National Privacy Commission</li>
+          </ul>
+          <p>
+            For questions or concerns about your data, please contact the Barangay West Rembo office directly.
+          </p>
+        </div>
+        <div className="p-4 flex-shrink-0" style={{ borderTop: "1px solid #e5e7eb" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider"
+            style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Success Modal ──────────────────────────────────────────────────────────
+const SuccessModal = ({
+  successData,
+  onBack,
+}: {
+  successData: { id: number; refNo: string } | null;
+  onBack: () => void;
+}) => {
+  const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+
+  if (!successData) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+    >
+      <div
+        className="w-full sm:max-w-lg md:max-w-xl overflow-hidden"
+        style={{
+          borderRadius: "20px",
+          backgroundColor: "white",
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div
+          className="relative overflow-hidden px-6 pt-8 pb-6 text-center"
+          style={{ backgroundColor: "#0f2a5e" }}
+        >
+          <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
+          <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10"
+            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+          >
+            <CheckCircle className="h-8 w-8 text-white" />
+          </div>
+          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
+          <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
+            Building Clearance Application
+          </p>
+        </div>
+
+        <div className="px-6 py-6 space-y-4">
+          <div
+            className="flex items-center justify-between px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>
+                Reference Number
+              </p>
+              <p className="text-lg font-black font-mono" style={{ color: "#0f2a5e" }}>
+                {successData.refNo}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(successData.refNo);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="p-2 rounded-lg transition-colors"
+              style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}
+            >
+              {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+            </button>
+          </div>
+
+          <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
+            Your building clearance request is being reviewed by the barangay office.
+            You'll be notified once it's processed.
+          </p>
+
+          <button
+            onClick={() => navigate(`/request/building_clearance/${successData.id}`)}
+            className="w-full py-3 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "#0f2a5e" }}
+          >
+            View My Request
+          </button>
+
+          <button
+            onClick={onBack}
+            className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
+            style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
+          >
+            Back to Requests
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Main Component ──────────────────────────────────────────────────────────
 const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
-  const [dobError, setDobError] = useState("");
   const [successData, setSuccessData] = useState<{ id: number; refNo: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const [errors, setErrors] = useState({
     surname: "",
     first_name: "",
     middle_name: "",
     dob: "",
+    contact_no: "",
+    email: "",
     establishment: "",
     purpose_details: "",
     house_block_lot_no: "",
@@ -112,7 +290,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("/streets", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) {
         console.error("Failed to fetch streets:", e);
@@ -126,7 +304,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const [formData, setFormData] = useState({
     requester_type: "Online",
     prefix: "", surname: "", first_name: "", middle_name: "", ext_name: "",
-    dob: "",
+    age: "", dob: "",
+    contact_no: "", email: "",
     establishment: "", purpose: "", purpose_details: "",
     house_block_lot_no: "", street: "", zone: "",
     bcert_number: "", issued_date: "", or_no: "", remarks: "",
@@ -138,7 +317,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
       "surname", "first_name", "middle_name", "ext_name",
       "establishment", "purpose_details", "house_block_lot_no",
       "bcert_number", "or_no", "remarks", "punong_barangay",
-      "for_the_punong_barangay", "barangay_position",
+      "for_the_punong_barangay", "barangay_position", "contact_no", "email",
     ];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
@@ -150,82 +329,77 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const handleDobChange = (val: string) => {
     upd("dob", val);
     const err = validateDob(val);
-    setDobError(err);
     setErrors((prev) => ({ ...prev, dob: err }));
+    if (!err && val) {
+      const age = calculateAge(val);
+      upd("age", String(age));
+    } else if (err) {
+      upd("age", "");
+    }
   };
 
-  const validateCurrentStep = (): boolean => {
+  const validateForm = (): boolean => {
     let isValid = true;
     const newErrors = { ...errors };
 
-    switch (currentStep) {
-      case 0: {
-        const surnameError = validateName(formData.surname, "Surname");
-        const firstNameError = validateName(formData.first_name, "First name");
-        const dobValidationError = validateDob(formData.dob);
-        newErrors.surname = surnameError;
-        newErrors.first_name = firstNameError;
-        newErrors.dob = dobValidationError;
-        setDobError(dobValidationError);
-        if (surnameError || firstNameError || dobValidationError) isValid = false;
-        break;
-      }
-      case 1: {
-        const establishmentError = validateRequired(formData.establishment, "Establishment/Project name");
-        const purposeDetailsError = validatePurposeDetails(formData.purpose_details);
-        newErrors.establishment = establishmentError;
-        newErrors.purpose_details = purposeDetailsError;
-        if (establishmentError || purposeDetailsError) isValid = false;
-        break;
-      }
-      case 2: {
-        const houseError = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
-        const streetError = validateRequired(formData.street, "Street");
-        const zoneError = validateRequired(formData.zone, "Zone/Purok");
-        newErrors.house_block_lot_no = houseError;
-        newErrors.street = streetError;
-        newErrors.zone = zoneError;
-        if (houseError || streetError || zoneError) isValid = false;
-        break;
-      }
-    }
+    newErrors.surname = validateName(formData.surname, "Surname");
+    newErrors.first_name = validateName(formData.first_name, "First name");
+    newErrors.middle_name = validateRequired(formData.middle_name, "Middle name");
+    newErrors.dob = validateDob(formData.dob);
+    newErrors.contact_no = validateContact(formData.contact_no);
+    newErrors.email = validateEmail(formData.email);
+    newErrors.establishment = validateRequired(formData.establishment, "Establishment/Project name");
+    newErrors.purpose_details = validatePurposeDetails(formData.purpose_details);
+    newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
+    newErrors.street = validateRequired(formData.street, "Street");
+    newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
+
+    if (Object.values(newErrors).some((e) => e !== "")) isValid = false;
 
     setErrors(newErrors);
     if (!isValid) {
-      toast({ title: "Validation Error", description: "Please fix the errors before proceeding.", variant: "destructive" });
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors before submitting.",
+        variant: "destructive",
+      });
     }
     return isValid;
   };
 
-  const handleNext = () => {
-    if (validateCurrentStep()) {
-      if (currentStep < stepLabels.length - 1) setCurrentStep(currentStep + 1);
-    }
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  const handleBack = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-    else onBack();
-  };
-
-  const handleSubmit = async () => {
     setIsSubmitting(true);
     const payload = {
-      requester_type: formData.requester_type, prefix: formData.prefix,
-      surname: formData.surname, first_name: formData.first_name,
-      middle_name: formData.middle_name, ext_name: formData.ext_name,
+      requester_type: formData.requester_type,
+      prefix: formData.prefix,
+      surname: formData.surname,
+      first_name: formData.first_name,
+      middle_name: formData.middle_name,
+      ext_name: formData.ext_name,
+      age: formData.age ? Number(formData.age) : null,
       dob: formData.dob,
-      establishment: formData.establishment, house_block_lot_no: formData.house_block_lot_no,
-      street: formData.street, zone: formData.zone,
-      purpose: formData.purpose, purpose_details: formData.purpose_details,
-      bcert_number: formData.bcert_number, issued_date: formData.issued_date,
-      or_no: formData.or_no, remarks: formData.remarks,
+      contact_no: formData.contact_no,
+      email: formData.email,
+      establishment: formData.establishment,
+      house_block_lot_no: formData.house_block_lot_no,
+      street: formData.street,
+      zone: formData.zone,
+      purpose: formData.purpose,
+      purpose_details: formData.purpose_details,
+      bcert_number: formData.bcert_number,
+      issued_date: formData.issued_date,
+      or_no: formData.or_no,
+      remarks: formData.remarks,
       punong_barangay: formData.punong_barangay,
       for_the_punong_barangay: formData.for_the_punong_barangay,
       barangay_position: formData.barangay_position,
     };
+
     try {
-      const res = await api.post("/building-clearances", payload, { withCredentials: true });
+      const res = await axios.post("http://127.0.0.1:8000/api/building-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
         setSuccessData({
@@ -246,23 +420,20 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     }
   };
 
-  // ── Auto-fill from authenticated user — depends on [streets] so that
-  //    street-matching runs AFTER the streets list has loaded. ────────────────
+  // ── Auto-fill from authenticated user ─────────────────────────────────────
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await api.get("/details", { withCredentials: true });
+        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
         const user = res.data.data;
+        const filledFields: string[] = [];
 
-        // Normalize date
         const normalizedDob = user.date_of_birth
           ? user.date_of_birth.split("T")[0]
-          : (user.dob ? user.dob.split("T")[0] : "");
+          : "";
 
-        // Parse address from user.address string
         const addressParts = parseAddress(user.address || "");
 
-        // Match street with available options and NORMALIZE to UPPERCASE
         let matchedStreet = "";
         if (addressParts.street && streets.length > 0) {
           const foundStreet = streets.find((s) =>
@@ -276,294 +447,481 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
           matchedStreet = toUpperCase(addressParts.street);
         }
 
-        // Normalize zone to UPPERCASE
         const normalizedZone = toUpperCase(addressParts.zone);
 
-        setFormData((prev) => ({
-          ...prev,
+        const newData = {
           prefix: user.prefix ?? "",
-          surname: toUpperCase(user.surname ?? ""),
-          first_name: toUpperCase(user.first_name ?? ""),
-          middle_name: toUpperCase(user.middle_name ?? ""),
-          ext_name: toUpperCase(user.extension_name ?? ""),
+          surname: user.surname ?? "",
+          first_name: user.first_name ?? "",
+          middle_name: user.middle_name ?? "",
+          ext_name: user.extension_name ?? "",
           dob: normalizedDob,
+          contact_no: user.contact_number ?? "",
+          email: user.email ?? "",
           house_block_lot_no: toUpperCase(addressParts.house_block_lot_no),
           street: matchedStreet,
           zone: normalizedZone,
+        };
+
+        Object.entries(newData).forEach(([key, value]) => {
+          if (value && value !== "") {
+            filledFields.push(key);
+          }
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            Object.entries(newData).map(([k, v]) => [
+              k,
+              k === "dob" ? (v ? v : "") : typeof v === "string" ? toUpperCase(v) : v,
+            ])
+          ),
+          age: user.date_of_birth ? String(calculateAge(normalizedDob)) : "",
         }));
+
+        setAutoFilledFields(filledFields);
       } catch (error) {
         console.error("Failed to load authenticated user:", error);
       }
     };
     loadUser();
-  }, [streets]); // ← depends on streets so street-matching works after streets load
+  }, [streets]);
 
-  const renderStep = () => {
-    switch (currentStep) {
-
-      case 0:
-        return (
-          <div className="space-y-6">
-            <SectionDivider title="Applicant Information" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
-              <div>
-                <FieldLabel htmlFor="prefix">Prefix</FieldLabel>
-                <PrefixCombobox options={PREFIX_OPTIONS} value={formData.prefix} onChange={(v) => upd("prefix", v)} placeholder="Select prefix" />
-              </div>
-              <div>
-                <FieldLabel htmlFor="surname" required>Surname</FieldLabel>
-                <FieldInput id="surname" value={formData.surname} onChange={(e) => upd("surname", e.target.value)} style={{ borderColor: errors.surname ? "#ef4444" : undefined }} />
-                {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
-              </div>
-              <div>
-                <FieldLabel htmlFor="first_name" required>First Name</FieldLabel>
-                <FieldInput id="first_name" value={formData.first_name} onChange={(e) => upd("first_name", e.target.value)} style={{ borderColor: errors.first_name ? "#ef4444" : undefined }} />
-                {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
-              </div>
-              <div>
-                <FieldLabel htmlFor="middle_name" required>Middle Name</FieldLabel>
-                <FieldInput id="middle_name" value={formData.middle_name} onChange={(e) => upd("middle_name", e.target.value)} style={{ borderColor: errors.middle_name ? "#ef4444" : undefined }} />
-                {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-              <div>
-                <FieldLabel htmlFor="ext_name">Extension</FieldLabel>
-                <FieldInput id="ext_name" placeholder="Jr., Sr., III" value={formData.ext_name} onChange={(e) => upd("ext_name", e.target.value)} />
-              </div>
-              <div>
-                <FieldLabel htmlFor="dob" required>Date of Birth</FieldLabel>
-                <FieldInput id="dob" type="date" value={formData.dob} max={toInputMax(maxDob())} onChange={(e) => handleDobChange(e.target.value)} style={{ borderColor: errors.dob ? "#ef4444" : undefined }} />
-                {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 1:
-        return (
-          <div className="space-y-6">
-            <SectionDivider title="Building Details" />
-            <div>
-              <FieldLabel htmlFor="establishment" required>Establishment / Project Name</FieldLabel>
-              <FieldInput id="establishment" placeholder="e.g., Residential Building, Commercial Complex" value={formData.establishment} onChange={(e) => upd("establishment", e.target.value)} style={{ borderColor: errors.establishment ? "#ef4444" : undefined }} />
-              {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
-            </div>
-            <div>
-              <FieldLabel htmlFor="purpose" required>Purpose</FieldLabel>
-              <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
-                <SelectTrigger {...ST}><SelectValue placeholder="Select purpose" /></SelectTrigger>
-                <SelectContent>
-                  {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <FieldLabel htmlFor="purposeDetails" required>Purpose Details</FieldLabel>
-              <FieldTextarea id="purposeDetails" rows={4} placeholder="Describe the building / construction project in detail..." value={formData.purpose_details} onChange={(e) => upd("purpose_details", e.target.value)} style={{ borderColor: errors.purpose_details ? "#ef4444" : undefined }} />
-              {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6">
-            <SectionDivider title="Project Location" />
-            <div>
-              <FieldLabel htmlFor="houseBlockLot" required>House / Block / Lot No.</FieldLabel>
-              <FieldInput id="houseBlockLot" value={formData.house_block_lot_no} onChange={(e) => upd("house_block_lot_no", e.target.value)} style={{ borderColor: errors.house_block_lot_no ? "#ef4444" : undefined }} />
-              {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="street" required>Street</FieldLabel>
-              {streets.length > 0 ? (
-                <>
-                  <Select
-                    value={formData.street}
-                    onValueChange={(v) => {
-                      setFormData((p) => ({ ...p, street: toUpperCase(v) }));
-                      setErrors((prev) => ({ ...prev, street: "" }));
-                    }}
-                  >
-                    <SelectTrigger {...ST} style={{ borderColor: errors.street ? "#ef4444" : undefined }}>
-                      <SelectValue placeholder="Select street" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {streets.map((s) => (
-                        <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                          {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
-                </>
-              ) : (
-                <>
-                  <FieldInput id="street" value={formData.street} onChange={(e) => upd("street", e.target.value)} placeholder="Enter street name" style={{ borderColor: errors.street ? "#ef4444" : undefined }} />
-                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
-                </>
-              )}
-            </div>
-
-            <div>
-              <FieldLabel htmlFor="zone" required>Zone / Purok</FieldLabel>
-              {uniqueZones.length > 0 ? (
-                <>
-                  <Select
-                    value={formData.zone}
-                    onValueChange={(v) => {
-                      setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
-                      setErrors((prev) => ({ ...prev, zone: "" }));
-                    }}
-                  >
-                    <SelectTrigger {...ST} style={{ borderColor: errors.zone ? "#ef4444" : undefined }}>
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {uniqueZones.map((z) => (
-                        <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
-                </>
-              ) : (
-                <>
-                  <FieldInput id="zone" value={formData.zone} onChange={(e) => upd("zone", e.target.value)} placeholder="Enter zone / purok" style={{ borderColor: errors.zone ? "#ef4444" : undefined }} />
-                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
-                </>
-              )}
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-5">
-            <ReviewHeader current={5} total={5} />
-            <ReviewCard title="Applicant Information">
-              <ReviewRow label="Full Name" value={`${formData.prefix} ${formData.first_name} ${formData.middle_name} ${formData.surname} ${formData.ext_name}`.trim()} />
-              <ReviewRow label="Date of Birth" value={formData.dob} />
-            </ReviewCard>
-            <ReviewCard title="Building Details">
-              <ReviewRow label="Establishment" value={formData.establishment} />
-              <ReviewRow label="Purpose" value={formData.purpose} />
-              <ReviewRow label="Details" value={formData.purpose_details} />
-            </ReviewCard>
-            <ReviewCard title="Location">
-              <ReviewRow label="House / Block / Lot" value={formData.house_block_lot_no} />
-              <ReviewRow label="Street" value={formData.street} />
-              <ReviewRow label="Zone / Purok" value={formData.zone} />
-            </ReviewCard>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  const isFieldDisabled = (fieldName: string) => {
+    if (fieldName === "dob") return false;
+    if (fieldName === "street") return false;
+    if (fieldName === "zone") return false;
+    return autoFilledFields.includes(fieldName);
   };
 
-  // ── Success Modal ─────────────────────────────────────────────────────────
-  if (successData) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
-      >
-        <div
-          className="w-full sm:max-w-lg md:max-w-xl overflow-hidden"
-          style={{
-            borderRadius: "20px",
-            backgroundColor: "white",
-            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
-          }}
-        >
-          <div
-            className="relative overflow-hidden px-6 pt-8 pb-6 text-center"
-            style={{ backgroundColor: NAVY }}
-          >
-            <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10 bg-white" />
-            <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10 bg-white" />
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10"
-              style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
-            >
-              <CheckCircle className="h-8 w-8 text-white" />
-            </div>
-            <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
-            <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>
-              Building Clearance
-            </p>
-          </div>
+  const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
-          <div className="px-6 py-6">
-            <div
-              className="flex items-center justify-between px-4 py-3 rounded-xl mb-4"
-              style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
-            >
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>
-                  Reference Number
-                </p>
-                <p className="text-lg font-black font-mono" style={{ color: NAVY }}>
-                  {successData.refNo}
-                </p>
+  return (
+    <>
+      <Header />
+      <DataPrivacyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
+
+      <div
+        className="w-full max-w-4xl bg-white overflow-hidden items-start mx-auto my-24"
+        style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}
+      >
+        {/* Header */}
+        <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>
+              Republic of the Philippines · City of Taguig
+            </p>
+            <h1 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1.15rem" }}>
+              Building Clearance Application
+            </h1>
+          </div>
+        </div>
+        <div style={{ height: 3, backgroundColor: "#c2467d" }} />
+
+        <div className="p-8 md:p-10">
+          <form onSubmit={handleSubmit} className="space-y-8">
+
+            {/* Section 1 — Personal Information */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Personal Information</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Prefix</Label>
+                  <PrefixCombobox
+                    options={PREFIX_OPTIONS}
+                    value={formData.prefix}
+                    onChange={(v) => upd("prefix", v)}
+                    placeholder="Select prefix"
+                    disabled={isFieldDisabled("prefix")}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Surname *</Label>
+                  <Input
+                    type="text"
+                    placeholder="de la Cruz"
+                    value={formData.surname}
+                    onChange={(e) => upd("surname", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.surname ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("surname") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("surname")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.surname ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("surname")}
+                  />
+                  {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>First Name *</Label>
+                  <Input
+                    type="text"
+                    placeholder="Juan"
+                    value={formData.first_name}
+                    onChange={(e) => upd("first_name", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.first_name ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("first_name") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("first_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.first_name ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("first_name")}
+                  />
+                  {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Middle Name *</Label>
+                  <Input
+                    type="text"
+                    placeholder="Reyes"
+                    value={formData.middle_name}
+                    onChange={(e) => upd("middle_name", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.middle_name ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("middle_name") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("middle_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.middle_name ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("middle_name")}
+                  />
+                  {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Extension</Label>
+                  <Input
+                    placeholder="Jr., Sr., III"
+                    value={formData.ext_name}
+                    onChange={(e) => upd("ext_name", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: "#dde3ed",
+                      opacity: isFieldDisabled("ext_name") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("ext_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                    disabled={isFieldDisabled("ext_name")}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Age</Label>
+                  <Input
+                    type="number"
+                    value={formData.age}
+                    readOnly
+                    disabled
+                    className={`${underlineInput} cursor-not-allowed opacity-60`}
+                    style={{ borderBottomColor: "#dde3ed", backgroundColor: "#f3f4f6" }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
+                  <Input
+                    type="date"
+                    value={formData.dob}
+                    max={toInputMax(maxDob())}
+                    onChange={(e) => handleDobChange(e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.dob ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.dob ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2 — Contact Information */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Contact Information</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Contact Number *</Label>
+                  <Input
+                    type="tel"
+                    placeholder="09XX XXX XXXX"
+                    value={formData.contact_no}
+                    onChange={(e) => upd("contact_no", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.contact_no ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("contact_no") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("contact_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.contact_no ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("contact_no")}
+                  />
+                  {errors.contact_no && <p className="mt-1 text-xs text-red-500">{errors.contact_no}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
+                  <Input
+                    type="email"
+                    placeholder="juan@email.com"
+                    value={formData.email}
+                    onChange={(e) => upd("email", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.email ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("email") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("email")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.email ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("email")}
+                  />
+                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3 — Building Details */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Building Details</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+              <div className="space-y-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Establishment / Project Name *</Label>
+                  <Input
+                    placeholder="e.g., Residential Building, Commercial Complex"
+                    value={formData.establishment}
+                    onChange={(e) => upd("establishment", e.target.value)}
+                    className={underlineInput}
+                    style={{ borderBottomColor: errors.establishment ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.establishment ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose</Label>
+                  <Select value={formData.purpose} onValueChange={(v) => upd("purpose", v)}>
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
+                      <SelectValue placeholder="Select purpose" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose Details *</Label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe the building / construction project in detail..."
+                    value={formData.purpose_details}
+                    onChange={(e) => upd("purpose_details", e.target.value)}
+                    className="rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm w-full"
+                    style={{ borderBottomColor: errors.purpose_details ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.purpose_details ? "#ef4444" : "#dde3ed")}
+                  />
+                  {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4 — Project Location */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Project Location</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No. *</Label>
+                  <Input
+                    placeholder="e.g., 123-A, Blk 5"
+                    value={formData.house_block_lot_no}
+                    onChange={(e) => upd("house_block_lot_no", e.target.value)}
+                    className={underlineInput}
+                    style={{ 
+                      borderBottomColor: errors.house_block_lot_no ? "#ef4444" : "#dde3ed",
+                      opacity: isFieldDisabled("house_block_lot_no") ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => { if (!isFieldDisabled("house_block_lot_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.house_block_lot_no ? "#ef4444" : "#dde3ed")}
+                    disabled={isFieldDisabled("house_block_lot_no")}
+                  />
+                  {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
+                  {streets.length > 0 ? (
+                    <Select
+                      value={formData.street}
+                      onValueChange={(v) => {
+                        setFormData((p) => ({ ...p, street: toUpperCase(v) }));
+                        setErrors((prev) => ({ ...prev, street: "" }));
+                      }}
+                    >
+                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}>
+                        <SelectValue placeholder="Select street" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {streets.map((s) => (
+                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
+                            {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="Enter street name"
+                      value={formData.street}
+                      onChange={(e) => upd("street", e.target.value)}
+                      className={underlineInput}
+                      style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.street ? "#ef4444" : "#dde3ed")}
+                    />
+                  )}
+                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
+                  {uniqueZones.length > 0 ? (
+                    <Select
+                      value={formData.zone}
+                      onValueChange={(v) => {
+                        setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
+                        setErrors((prev) => ({ ...prev, zone: "" }));
+                      }}
+                    >
+                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}>
+                        <SelectValue placeholder="Select zone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {uniqueZones.map((z) => (
+                          <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="Enter zone / purok"
+                      value={formData.zone}
+                      onChange={(e) => upd("zone", e.target.value)}
+                      className={underlineInput}
+                      style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.zone ? "#ef4444" : "#dde3ed")}
+                    />
+                  )}
+                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5 — Data Privacy */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+
+              <div className="p-5 space-y-3" style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
+                  Data Privacy Notice
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
+                  Your personal information will be collected and processed solely for the purpose of this building clearance application, in accordance with the{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacyModal(true)}
+                    className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
+                    style={{ color: "#0f2a5e" }}
+                  >
+                    Data Privacy Act of 2012 (RA 10173)
+                  </button>
+                  . It will not be shared with unauthorized third parties.
+                </p>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    required
+                    className="mt-0.5 flex-shrink-0"
+                    style={{ accentColor: "#c2467d", width: 14, height: 14 }}
+                  />
+                  <span className="text-xs" style={{ color: "#374151" }}>
+                    I have read and understood the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
+                      style={{ color: "#0f2a5e" }}
+                    >
+                      Data Privacy Notice
+                    </button>
+                    .
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(successData.refNo);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-                className="p-2 rounded-lg transition-colors"
-                style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}
-                title="Copy reference number"
+                type="button"
+                onClick={onBack}
+                className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
+                style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}
               >
-                {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
+                style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
+                onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                onMouseLeave={(e) => { if (!isSubmitting) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Submitting...
+                  </span>
+                ) : "Submit Application"}
               </button>
             </div>
 
-            <p className="text-sm text-center mb-6 leading-relaxed" style={{ color: "#6b7280" }}>
-              Your building clearance request is being reviewed by the barangay office.
-              You'll be notified once it's processed.
-            </p>
-
-            <button
-              onClick={() => navigate(`/request/building_clearance/${successData.id}`)}
-              className="w-full py-3 text-sm font-bold text-white rounded-lg mb-3 transition-opacity hover:opacity-90"
-              style={{ backgroundColor: NAVY }}
-            >
-              View My Request
-            </button>
-            <button
-              onClick={onBack}
-              className="w-full py-3 text-sm font-semibold rounded-lg transition-colors"
-              style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}
-            >
-              Back to Requests
-            </button>
-          </div>
+          </form>
         </div>
       </div>
-    );
-  }
 
-  // ── Main Form ─────────────────────────────────────────────────────────────
-  return (
-    <FormCard title="Building Clearance" subtitle="Online Application">
-      <FormProgress currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
-      <div className="mt-6">{renderStep()}</div>
-      <FormNavigation
-        currentStep={currentStep} totalSteps={stepLabels.length}
-        onBack={handleBack} onNext={handleNext}
-        onSubmit={handleSubmit} isSubmitting={isSubmitting}
-      />
-    </FormCard>
+      {successData && <SuccessModal successData={successData} onBack={onBack} />}
+    </>
   );
 };
 

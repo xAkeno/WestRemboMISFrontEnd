@@ -8,17 +8,13 @@ import {
   ArrowRight,
   X,
 } from 'lucide-react';
-import BuildingClearanceForm from '../forms/BuildingClearanceForm';
-import BusinessClearanceForm from '../forms/BusinessClearanceForm';
-import BarangayClearanceForm from '../forms/BarangayClearanceForm';
-import BarangayCertificateForm from '../forms/BarangayCertificateForm';
-import ResidentRegistrationForm from '../forms/ResidentRegistrationForm';
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { MaintenanceModal } from '@/components/MaintenanceModal';
 import { VacationModal } from '@/components/VacationModal';
 import { useMaintenance } from '@/hooks/useMaintenance';
+
 // --- Data Models ---
 
 const CATEGORIES = [
@@ -27,14 +23,6 @@ const CATEGORIES = [
   { id: 'business', label: 'Business' },
   { id: 'property', label: 'Property' },
 ];
-
-type RequestType =
-  | 'resident-registration'
-  | 'barangay-certificate'
-  | 'barangay-clearance'
-  | 'business-clearance'
-  | 'building-clearance'
-  | null;
 
 const SERVICES = [
   {
@@ -45,6 +33,7 @@ const SERVICES = [
     icon: Users,
     category: 'personal',
     popular: true,
+    route: '/services/barangay-resident-registration/apply',
   },
   {
     id: 2,
@@ -54,6 +43,7 @@ const SERVICES = [
     icon: FileText,
     category: 'personal',
     popular: true,
+    route: '/services/barangay-certificate/apply',
   },
   {
     id: 3,
@@ -62,6 +52,7 @@ const SERVICES = [
     description: 'Apply for clearance documents.',
     icon: ShieldCheck,
     category: 'personal',
+    route: '/services/barangay-clearance/apply',
   },
   {
     id: 4,
@@ -70,6 +61,7 @@ const SERVICES = [
     description: 'Secure business permits.',
     icon: Briefcase,
     category: 'business',
+    route: '/services/barangay-business-clearance/apply',
   },
   {
     id: 5,
@@ -78,6 +70,7 @@ const SERVICES = [
     description: 'Request construction clearance.',
     icon: HardHat,
     category: 'property',
+    route: '/services/barangay-building-clearance/apply',
   },
 ];
 
@@ -140,49 +133,6 @@ const ServiceCard = ({ service, onClick }) => {
   );
 };
 
-// --- Service Form Modal (Updated - no proceed button, shows form directly) ---
-
-const ServiceModal = ({ service, onClose, renderForm }) => {
-  if (!service) return null;
-  const Icon = service.icon;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(10,20,60,0.65)' }}
-    >
-      <div
-        className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
-        style={{ borderRadius: 2, boxShadow: '0 24px 64px rgba(10,20,60,0.25)', borderTop: '3px solid #c2467d' }}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4" style={{ borderBottom: '1px solid #dde3ed' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center" style={{ backgroundColor: '#f0f4ff', borderRadius: 1 }}>
-              <Icon className="w-4 h-4" style={{ color: '#0f2a5e' }} />
-            </div>
-            <h2 className="text-base font-bold text-foreground" style={{ fontFamily: "'Georgia', serif" }}>
-              {service.title}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center transition-colors duration-200 hover:bg-gray-100"
-            style={{ borderRadius: 1 }}
-          >
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-
-        {/* Body - Show form directly */}
-        <div className="p-6 overflow-y-auto">
-          {renderForm()}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // --- Main ServiceCards ---
 
 export default function ServiceCards() {
@@ -193,8 +143,6 @@ export default function ServiceCards() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const { showMaintenance, message, showVacation, vacationStart, vacationEnd } = useMaintenance(user);
   const [activeCategory, setActiveCategory] = useState('all');
-  const [selectedService, setSelectedService] = useState<any>(null);
-  const [selectedType, setSelectedType] = useState<RequestType>(null);
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(false);
@@ -220,9 +168,8 @@ export default function ServiceCards() {
       setAuthModal(true);
       return;
     }
-    // Logged in → open service modal directly with the form
-    setSelectedService(service);
-    setSelectedType(service.type as RequestType);
+    // Logged in → navigate to the service route
+    navigate(service.route);
   };
 
   // After user signs in via the modal button, we navigate to /login
@@ -230,24 +177,6 @@ export default function ServiceCards() {
   const handleAuthModalClose = () => {
     setAuthModal(false);
     setPendingService(null);
-  };
-
-  const handleBack = () => setSelectedType(null);
-
-  const renderForm = () => {
-    switch (selectedType) {
-      case 'resident-registration':  return <ResidentRegistrationForm onBack={handleBack} />;
-      case 'barangay-certificate':   return <BarangayCertificateForm  onBack={handleBack} />;
-      case 'barangay-clearance':     return <BarangayClearanceForm    onBack={handleBack} />;
-      case 'business-clearance':     return <BusinessClearanceForm    onBack={handleBack} />;
-      case 'building-clearance':     return <BuildingClearanceForm    onBack={handleBack} />;
-      default:                       return null;
-    }
-  };
-
-  const handleModalClose = () => {
-    setSelectedService(null);
-    setSelectedType(null);
   };
 
   return (
@@ -331,15 +260,6 @@ export default function ServiceCards() {
             />
           ))}
         </div>
-
-        {/* Service Form Modal — shows form directly when logged in */}
-        {selectedService && (
-          <ServiceModal
-            service={selectedService}
-            renderForm={renderForm}
-            onClose={handleModalClose}
-          />
-        )}
 
         {/* Auth Required Modal — shown when not logged in and a card is clicked */}
         <AuthRequiredModal

@@ -53,10 +53,7 @@ const Cashier = () => {
     const [servicePrices, setServicePrices] = useState<{ [type: string]: number }>({});
     const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
 
-    // ── TIN is now keyed by OR number, not rowIndex ───────────────────────────
-    // tinByOr: { [or_number]: string } — fetched from OfficialReceipt via OR number
     const [tinByOr, setTinByOr] = useState<{ [or_number: string]: string }>({});
-    // tinInputs: what the cashier is currently typing per row
     const [tinInputs, setTinInputs] = useState<{ [key: number]: string }>({});
 
     const [savingRow, setSavingRow] = useState<Set<number>>(new Set());
@@ -82,10 +79,8 @@ const Cashier = () => {
         fetchPrices();
     }, []);
 
-    // ── Fetch TIN from OfficialReceipt using or_number ────────────────────────
-    // Called automatically when a row has an or_no but no TIN loaded yet
     const fetchTinByOrNumber = async (orNumber: string, rowIndex: number) => {
-        if (!orNumber || tinByOr[orNumber] !== undefined) return; // already loaded or no OR
+        if (!orNumber || tinByOr[orNumber] !== undefined) return;
 
         setFetchingTin((prev) => new Set(prev).add(rowIndex));
         try {
@@ -96,14 +91,12 @@ const Cashier = () => {
             const tin: string = res.data?.data?.tin_no ?? "";
             setTinByOr((prev) => ({ ...prev, [orNumber]: tin }));
         } catch {
-            // OR record not found — just store empty so we don't retry endlessly
             setTinByOr((prev) => ({ ...prev, [orNumber]: "" }));
         } finally {
             setFetchingTin((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
         }
     };
 
-    // ── After table loads, auto-fetch TIN for rows that already have an or_no ─
     useEffect(() => {
         tableData.forEach((row, rowIndex) => {
             if (row.or_no) {
@@ -112,8 +105,6 @@ const Cashier = () => {
         });
     }, [tableData]);
 
-    // ── Resolve what TIN to show in the input for a given row ────────────────
-    // Priority: 1) what the cashier is typing, 2) fetched from OR record, 3) empty
     const getDisplayTin = (row: any, rowIndex: number): string => {
         if (tinInputs[rowIndex] !== undefined) return tinInputs[rowIndex];
         if (row.or_no && tinByOr[row.or_no] !== undefined) return tinByOr[row.or_no];
@@ -211,7 +202,6 @@ const Cashier = () => {
         }
     };
 
-    // ── Auto generate OR — passes TIN, stores it in tinByOr on success ────────
     const handleAutoGenerateOr = async (row: any, rowIndex: number) => {
         const type     = TYPE_MAP[choose];
         const amount   = servicePrices[type] ?? 0;
@@ -234,7 +224,6 @@ const Cashier = () => {
             const generated: string = res.data?.or_number ?? "";
             if (!generated) { toast.error("No OR number returned from server."); return; }
 
-            // Update the OR input + tableData
             setOrInputs((prev) => ({ ...prev, [rowIndex]: generated }));
             setTableData((prev) => {
                 const updated = [...prev];
@@ -242,12 +231,10 @@ const Cashier = () => {
                 return updated;
             });
 
-            // Store the TIN under the new OR number so it shows up immediately
             if (tinValue.trim() !== "") {
                 setTinByOr((prev) => ({ ...prev, [generated]: tinValue.trim() }));
             }
 
-            // Clear the local tinInput for this row — it's now canonical in tinByOr
             setTinInputs((prev) => { const next = { ...prev }; delete next[rowIndex]; return next; });
 
             toast.success(`OR generated: ${generated}`);
@@ -258,9 +245,11 @@ const Cashier = () => {
         }
     };
 
-    // ── Save OR number manually — then fetch TIN for the new OR ──────────────
-    const handleSaveRow = async (row: any, rowIndex: number) => {
+    const handleSaveOrAndTin = async (row: any, rowIndex: number) => {
         const orValue  = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
+        const tinValue = tinInputs[rowIndex] !== undefined
+            ? tinInputs[rowIndex]
+            : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
 
@@ -273,68 +262,31 @@ const Cashier = () => {
             );
             if (res.status === 200) {
                 const newOrNo = orValue.trim() === "" ? null : orValue.trim();
-
                 setTableData((prev) => {
                     const updated = [...prev];
                     updated[rowIndex] = { ...updated[rowIndex], or_no: newOrNo };
                     return updated;
                 });
 
-                // If a new OR number was set, go fetch its TIN from OfficialReceipt
-                if (newOrNo) {
+                const orForTin = newOrNo;
+                if (orForTin && tinValue.trim() !== "") {
+                    await axios.patch(
+                        "http://127.0.0.1:8000/api/official-receipts/by-or",
+                        { or_number: orForTin, tin_no: tinValue.trim() },
+                        { withCredentials: true }
+                    );
+                    setTinByOr((prev) => ({ ...prev, [orForTin]: tinValue.trim() }));
+                    setTinInputs((prev) => { const next = { ...prev }; delete next[rowIndex]; return next; });
+                } else if (newOrNo) {
                     fetchTinByOrNumber(newOrNo, rowIndex);
                 }
 
-                toast.success("OR number saved.");
+                toast.success("OR and TIN saved.");
             }
         } catch (err: any) {
             toast.error(err?.response?.data?.message ?? "Failed to save.");
         } finally {
             setSavingRow((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
-        }
-    };
-
-    // ── Save TIN directly onto the OfficialReceipt via or_number ─────────────
-    const handleSaveTin = async (row: any, rowIndex: number) => {
-        const orNumber = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
-        if (!orNumber) {
-            toast.error("Generate or save an OR number first before setting a TIN.");
-            return;
-        }
-        const tinValue = tinInputs[rowIndex] ?? "";
-
-        setSavingRow((prev) => new Set(prev).add(rowIndex));
-        try {
-            await axios.patch(
-                "http://127.0.0.1:8000/api/official-receipts/by-or",
-                { or_number: orNumber, tin_no: tinValue.trim() === "" ? null : tinValue.trim() },
-                { withCredentials: true }
-            );
-
-            // Update local tinByOr cache
-            setTinByOr((prev) => ({ ...prev, [orNumber]: tinValue.trim() }));
-            // Clear local edit
-            setTinInputs((prev) => { const next = { ...prev }; delete next[rowIndex]; return next; });
-
-            toast.success("TIN saved to OR record.");
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message ?? "Failed to save TIN.");
-        } finally {
-            setSavingRow((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
-        }
-    };
-
-    const handleMarkPaid = async (row: any, rowIndex: number) => {
-        try {
-            await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
-            setTableData((prev) => {
-                const updated = [...prev];
-                updated[rowIndex] = { ...updated[rowIndex], status: "PAID" };
-                return updated;
-            });
-            toast.success("Marked as Paid.");
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message ?? "Failed to update status.");
         }
     };
 
@@ -386,7 +338,7 @@ const Cashier = () => {
                 setTableData(mapData(choose, rows));
                 setOrInputs({});
                 setTinInputs({});
-                setTinByOr({});  // clear TIN cache on entity switch
+                setTinByOr({});
             } catch (err) {
                 console.error("API Error:", err);
             }
@@ -498,13 +450,14 @@ const Cashier = () => {
 
                                         if (col === "Action") return (
                                             <td key={colIndex} className="px-6 py-3">
-                                                <div className="flex flex-col gap-2 min-w-[240px]">
+                                                <div className="flex flex-col gap-2 min-w-[150px]">
 
-                                                    {/* Status dropdown */}
-                                                    <select className="px-2 py-1 border rounded text-sm w-full"
-                                                        value={(row.status ?? "PENDING").toUpperCase()}
+                                                    {/* Paid / Not Paid dropdown only */}
+                                                    <select
+                                                        className="px-2 py-1 border rounded text-sm w-full"
+                                                        value={(row.status ?? "").toUpperCase() === "PAID" ? "PAID" : "NOT_PAID"}
                                                         onChange={async (e) => {
-                                                            const newStatus = e.target.value;
+                                                            const newStatus = e.target.value === "PAID" ? "PAID" : "PENDING";
                                                             try {
                                                                 const ers = await axios.put(getStatusEndpoint(row), { status: newStatus }, { withCredentials: true });
                                                                 if (ers.status === 200) toast.success("Status updated successfully.");
@@ -515,98 +468,122 @@ const Cashier = () => {
                                                                 });
                                                             } catch { toast.error("Failed to update status."); }
                                                         }}>
-                                                        <option value="PENDING">Pending</option>
-                                                        <option value="INCOMPLETE">Incomplete</option>
-                                                        <option value="REJECTED">Rejected</option>
-                                                        <option value="RELEASED">Released</option>
+                                                        <option value="NOT_PAID">Not Paid</option>
                                                         <option value="PAID">Paid</option>
                                                     </select>
 
-                                                    {/* Mark as Paid */}
-                                                    {(row.status ?? "").toUpperCase() !== "PAID" && (
-                                                        <button onClick={() => handleMarkPaid(row, rowIndex)}
-                                                            className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors w-full">
-                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                                <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                                                            </svg>
-                                                            Mark as Paid
-                                                        </button>
-                                                    )}
+                                                    <div className="flex items-end gap-2">
 
-                                                    <div className="border-t pt-2 flex flex-col gap-1.5">
+                                                        {/* TIN Number */}
+                                                        <div className="flex flex-col flex-1">
+                                                            <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-semibold text-gray-500">
+                                                                TIN Number (optional)
+                                                            </span>
 
-                                                        {/* TIN Number — fetched from OfficialReceipt by OR number */}
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-semibold text-gray-500">TIN Number</span>
                                                             {fetchingTin.has(rowIndex) && (
                                                                 <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                    </svg>
-                                                                    Loading...
+                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                                </svg>
+                                                                Loading...
                                                                 </span>
                                                             )}
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <input type="text" placeholder={row.or_no ? "Loading TIN..." : "Set OR first"}
-                                                                className="flex-1 px-2 py-1 border rounded text-sm min-w-0 placeholder:text-gray-400 font-mono"
-                                                                disabled={!row.or_no && !(orInputs[rowIndex] ?? "").trim()}
-                                                                value={getDisplayTin(row, rowIndex)}
-                                                                onChange={(e) => setTinInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))}
-                                                                onKeyDown={(e) => { if (e.key === "Enter") handleSaveTin(row, rowIndex); }}
+                                                            </div>
+
+                                                            <input
+                                                            type="text"
+                                                            placeholder="Enter TIN"
+                                                            className="w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
+                                                            value={getDisplayTin(row, rowIndex)}
+                                                            onChange={(e) =>
+                                                                setTinInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))
+                                                            }
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
+                                                            }}
                                                             />
-                                                            {/* Save TIN button */}
-                                                            <button onClick={() => handleSaveTin(row, rowIndex)}
-                                                                disabled={savingRow.has(rowIndex) || (!row.or_no && !(orInputs[rowIndex] ?? "").trim())}
-                                                                title="Save TIN to OR record"
-                                                                className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 text-white bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 disabled:cursor-not-allowed rounded transition-colors">
-                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                                                                    <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                                                                </svg>
-                                                            </button>
                                                         </div>
 
                                                         {/* OR Number */}
-                                                        <span className="text-xs font-semibold text-gray-500 mt-1">OR Number</span>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <input type="text" placeholder="No OR yet"
-                                                                className="flex-1 px-2 py-1 border rounded text-sm min-w-0 placeholder:text-gray-400 font-mono"
-                                                                value={orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "")}
-                                                                onChange={(e) => setOrInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))}
-                                                                onKeyDown={(e) => { if (e.key === "Enter") handleSaveRow(row, rowIndex); }} />
-                                                            <button onClick={() => handleSaveRow(row, rowIndex)}
-                                                                disabled={savingRow.has(rowIndex)} title="Save OR number"
-                                                                className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed rounded transition-colors">
-                                                                {savingRow.has(rowIndex) ? (
-                                                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                    </svg>
-                                                                ) : (
-                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                                                                        <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                                                                    </svg>
-                                                                )}
-                                                            </button>
-                                                        </div>
+                                                        <div className="flex flex-col flex-1">
+                                                            <span className="text-xs font-semibold text-gray-500">
+                                                            OR Number
+                                                            </span>
 
-                                                        {/* Auto Generate OR */}
-                                                        <button onClick={() => handleAutoGenerateOr(row, rowIndex)}
-                                                            disabled={generatingOr.has(rowIndex)}
-                                                            className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded transition-colors w-full">
-                                                            {generatingOr.has(rowIndex) ? (
-                                                                <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                            <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="No OR yet"
+                                                                className="flex-1 px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
+                                                                value={
+                                                                orInputs[rowIndex] !== undefined
+                                                                    ? orInputs[rowIndex]
+                                                                    : row.or_no ?? ""
+                                                                }
+                                                                onChange={(e) =>
+                                                                setOrInputs((prev) => ({
+                                                                    ...prev,
+                                                                    [rowIndex]: e.target.value,
+                                                                }))
+                                                                }
+                                                                onKeyDown={(e) => {
+                                                                if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
+                                                                }}
+                                                            />
+
+                                                            {/* Generate Button */}
+                                                            <button
+                                                                onClick={() => handleAutoGenerateOr(row, rowIndex)}
+                                                                disabled={generatingOr.has(rowIndex)}
+                                                                className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
+                                                            >
+                                                                {generatingOr.has(rowIndex) ? (
+                                                                <>
+                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                </svg>Generating...</>
+                                                                    </svg>
+                                                                    ...
+                                                                </>
+                                                                ) : (
+                                                                "Generate"
+                                                                )}
+                                                            </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Save Button */}
+                                                        <button
+                                                            onClick={() => handleSaveOrAndTin(row, rowIndex)}
+                                                            disabled={savingRow.has(rowIndex)}
+                                                            className="inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
+                                                        >
+                                                            {savingRow.has(rowIndex) ? (
+                                                            <>
+                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                                </svg>
+                                                                Saving...
+                                                            </>
                                                             ) : (
-                                                                <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                                    <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                                                                </svg>Auto Generate OR</>
+                                                            <>
+                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                                                <path
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="2.5"
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    d="M5 12l5 5L19 7"
+                                                                />
+                                                                </svg>
+                                                            </>
                                                             )}
                                                         </button>
-                                                    </div>
+
+                                                        </div>
                                                 </div>
                                             </td>
                                         );
