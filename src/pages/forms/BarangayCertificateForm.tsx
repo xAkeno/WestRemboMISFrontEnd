@@ -495,37 +495,17 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     let isValid = true;
     const newErrors = { ...errors };
 
-    const surnameError = validateName(formData.surname, "Surname");
-    const firstNameError = validateName(formData.first_name, "First name");
-    const pobError = validateRequired(formData.pob, "Place of birth");
-    const dobValidationError = validateDob(formData.dob);
-    const contactError = validateContact(formData.contact_no);
-    const emailError = validateEmail(formData.email);
-    const houseError = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
-    const streetError = validateStreet(formData.street);
-    const zoneError = validateZone(formData.zone);
     const periodError = validatePeriodOfResidency(formData.period_of_residency);
     const purposeError = validatePurpose(formData.purpose);
     const dateError = validateRequired(formData.schedule_date, "Schedule date");
     const timeError = validateRequired(formData.time_group, "Time slot");
 
-    newErrors.surname = surnameError;
-    newErrors.first_name = firstNameError;
-    newErrors.pob = pobError;
-    newErrors.dob = dobValidationError;
-    newErrors.contact_no = contactError;
-    newErrors.email = emailError;
-    newErrors.house_block_lot_no = houseError;
-    newErrors.street = streetError;
-    newErrors.zone = zoneError;
     newErrors.period_of_residency = periodError;
     newErrors.purpose = purposeError;
     newErrors.schedule_date = dateError;
     newErrors.time_group = timeError;
 
-    if (surnameError || firstNameError || pobError || dobValidationError || contactError || 
-        emailError || houseError || streetError || zoneError || periodError || purposeError || 
-        dateError || timeError) {
+    if (periodError || purposeError || dateError || timeError) {
       isValid = false;
     }
 
@@ -668,13 +648,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     loadUser();
   }, [streets]);
 
-  const isFieldDisabled = (fieldName: string) => {
-    if (fieldName === "dob") return false;
-    if (fieldName === "street") return false;
-    if (fieldName === "zone") return false;
-    return autoFilledFields.includes(fieldName);
-  };
-
   const getMinScheduleDate = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -682,6 +655,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   };
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
+  const readonlyInputStyle = "rounded-none border-0 border-b-2 bg-gray-50 px-0 text-sm cursor-not-allowed opacity-75";
 
   // Show success modal when submission is successful
   if (successData) {
@@ -778,7 +752,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
 
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* Section 1 — Personal Information */}
+            {/* Section 1 — Personal Information (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
@@ -791,9 +765,9 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   <PrefixCombobox
                     options={PREFIX_OPTIONS}
                     value={formData.prefix}
-                    onChange={(v) => upd("prefix", v)}
+                    onChange={() => {}}
                     placeholder="Select prefix"
-                    disabled={isFieldDisabled("prefix")}
+                    disabled={true}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -802,17 +776,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="text"
                     placeholder="de la Cruz"
                     value={formData.surname}
-                    onChange={(e) => upd("surname", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.surname ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("surname") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("surname")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.surname ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("surname")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>First Name *</Label>
@@ -820,17 +789,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="text"
                     placeholder="Juan"
                     value={formData.first_name}
-                    onChange={(e) => upd("first_name", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.first_name ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("first_name") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("first_name")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.first_name ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("first_name")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Middle Name</Label>
@@ -838,15 +802,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="text"
                     placeholder="Reyes"
                     value={formData.middle_name}
-                    onChange={(e) => upd("middle_name", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: "#dde3ed",
-                      opacity: isFieldDisabled("middle_name") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("middle_name")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
-                    disabled={isFieldDisabled("middle_name")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
                 </div>
               </div>
@@ -857,15 +817,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   <Input
                     placeholder="Jr., Sr., III"
                     value={formData.extension}
-                    onChange={(e) => upd("extension", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: "#dde3ed",
-                      opacity: isFieldDisabled("extension") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("extension")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
-                    disabled={isFieldDisabled("extension")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -875,7 +831,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     value={formData.age}
                     readOnly
                     disabled
-                    className={`${underlineInput} cursor-not-allowed opacity-60`}
+                    className={`${readonlyInputStyle} cursor-not-allowed`}
                     style={{ borderBottomColor: "#dde3ed", backgroundColor: "#f3f4f6" }}
                   />
                 </div>
@@ -885,13 +841,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="date"
                     value={formData.dob}
                     max={toInputMax(maxDob())}
-                    onChange={(e) => handleDobChange(e.target.value)}
-                    className={underlineInput}
-                    style={{ borderBottomColor: errors.dob ? "#ef4444" : "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.dob ? "#ef4444" : "#dde3ed")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
@@ -899,22 +854,17 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="text"
                     placeholder="Manila"
                     value={formData.pob}
-                    onChange={(e) => upd("pob", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.pob ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("pob") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("pob")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.pob ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("pob")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.pob && <p className="mt-1 text-xs text-red-500">{errors.pob}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Section 2 — Contact Information */}
+            {/* Section 2 — Contact Information (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
@@ -928,17 +878,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="tel"
                     placeholder="09XX XXX XXXX"
                     value={formData.contact_no}
-                    onChange={(e) => upd("contact_no", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.contact_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("contact_no") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("contact_no")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.contact_no ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("contact_no")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.contact_no && <p className="mt-1 text-xs text-red-500">{errors.contact_no}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
@@ -946,22 +891,17 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     type="email"
                     placeholder="juan@email.com"
                     value={formData.email}
-                    onChange={(e) => upd("email", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.email ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("email") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("email")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.email ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("email")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Section 3 — Address Information */}
+            {/* Section 3 — Address Information (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -974,89 +914,38 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   <Input
                     placeholder="e.g., 123-A, Blk 5"
                     value={formData.house_block_lot_no}
-                    onChange={(e) => upd("house_block_lot_no", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.house_block_lot_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("house_block_lot_no") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("house_block_lot_no")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.house_block_lot_no ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("house_block_lot_no")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
-                  {streets.length > 0 ? (
-                    <Select
-                      value={formData.street}
-                      onValueChange={(v) => {
-                        setFormData((p) => ({ ...p, street: toUpperCase(v) }));
-                        setErrors((prev) => ({ ...prev, street: "" }));
-                      }}
-                      disabled={false}
-                    >
-                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}>
-                        <SelectValue placeholder="Select street" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {streets.map((s) => (
-                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                            {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="Enter street name"
-                      value={formData.street}
-                      onChange={(e) => upd("street", e.target.value)}
-                      className={underlineInput}
-                      style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}
-                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.street ? "#ef4444" : "#dde3ed")}
-                    />
-                  )}
-                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+                  <Select
+                    value={formData.street}
+                    onValueChange={() => {}}
+                    disabled={true}
+                  >
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-gray-50 px-0 focus:ring-0 text-sm cursor-not-allowed opacity-75" style={{ borderBottomColor: "#dde3ed" }}>
+                      <SelectValue placeholder="Select street" />
+                    </SelectTrigger>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
-                  {uniqueZones.length > 0 ? (
-                    <Select
-                      value={formData.zone}
-                      onValueChange={(v) => {
-                        setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
-                        setErrors((prev) => ({ ...prev, zone: "" }));
-                      }}
-                      disabled={false}
-                    >
-                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}>
-                        <SelectValue placeholder="Select zone" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {uniqueZones.map((z) => (
-                          <SelectItem key={z} value={toUpperCase(z)}>
-                            {z}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="Enter zone / purok"
-                      value={formData.zone}
-                      onChange={(e) => upd("zone", e.target.value)}
-                      className={underlineInput}
-                      style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}
-                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.zone ? "#ef4444" : "#dde3ed")}
-                    />
-                  )}
-                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+                  <Select
+                    value={formData.zone}
+                    onValueChange={() => {}}
+                    disabled={true}
+                  >
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-gray-50 px-0 focus:ring-0 text-sm cursor-not-allowed opacity-75" style={{ borderBottomColor: "#dde3ed" }}>
+                      <SelectValue placeholder="Select zone" />
+                    </SelectTrigger>
+                  </Select>
                 </div>
               </div>
 
@@ -1066,38 +955,29 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   <Input
                     placeholder="Name of house owner"
                     value={formData.house_owner}
-                    onChange={(e) => upd("house_owner", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: "#dde3ed",
-                      opacity: isFieldDisabled("house_owner") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("house_owner")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
-                    disabled={isFieldDisabled("house_owner")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Relationship to Owner</Label>
                   <Select
                     value={formData.relationship_to_owner}
-                    onValueChange={(v) => setFormData((p) => ({ ...p, relationship_to_owner: v }))}
-                    disabled={isFieldDisabled("relationship_to_owner")}
+                    onValueChange={() => {}}
+                    disabled={true}
                   >
-                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed", opacity: isFieldDisabled("relationship_to_owner") ? 0.6 : 1 }}>
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-gray-50 px-0 focus:ring-0 text-sm cursor-not-allowed opacity-75" style={{ borderBottomColor: "#dde3ed" }}>
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {["Owner", "Spouse", "Child", "Parent", "Sibling", "Relative", "Tenant", "Boarder"].map((r) => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
 
-            {/* Section 4 — Certificate Details */}
+            {/* Section 4 — Certificate Details (EDITABLE) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
@@ -1115,11 +995,9 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     className={underlineInput}
                     style={{ 
                       borderBottomColor: errors.period_of_residency ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("period_of_residency") ? 0.6 : 1,
                     }}
-                    onFocus={(e) => { if (!isFieldDisabled("period_of_residency")) (e.currentTarget.style.borderBottomColor = "#c2467d"); }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.period_of_residency ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("period_of_residency")}
                   />
                   {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
                 </div>
@@ -1177,7 +1055,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
               </div>
             </div>
 
-            {/* Section 5 — Schedule Appointment */}
+            {/* Section 5 — Schedule Appointment (EDITABLE) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
@@ -1271,53 +1149,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 )}
               </div>
             </div>
-
-            {/* Section 6 — Data Privacy
-            <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
-                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-              </div>
-
-              <div className="p-5 space-y-3" style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
-                  Data Privacy Notice
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
-                  Your personal information will be collected and processed solely for the purpose of this barangay certificate application, in accordance with the{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowPrivacyModal(true)}
-                    className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
-                    style={{ color: "#0f2a5e" }}
-                  >
-                    Data Privacy Act of 2012 (RA 10173)
-                  </button>
-                  . It will not be shared with unauthorized third parties.
-                </p>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    required
-                    className="mt-0.5 flex-shrink-0"
-                    style={{ accentColor: "#c2467d", width: 14, height: 14 }}
-                  />
-                  <span className="text-xs" style={{ color: "#374151" }}>
-                    I have read and understood the{" "}
-                    <button
-                      type="button"
-                      onClick={() => setShowPrivacyModal(true)}
-                      className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
-                      style={{ color: "#0f2a5e" }}
-                    >
-                      Data Privacy Notice
-                    </button>
-                    .
-                  </span>
-                </label>
-              </div>
-            </div> */}
 
             {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
