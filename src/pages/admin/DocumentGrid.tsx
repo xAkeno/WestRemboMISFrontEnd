@@ -30,31 +30,32 @@ export function DocumentGrid() {
   const [replaceIdx, setReplaceIdx] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
-  const API_BASE = "http://127.0.0.1:8000/api"; // adjust as needed
+  const API_BASE = "http://127.0.0.1:8000/api";
 
   // Fetch documents from backend and merge with defaults
   useEffect(() => {
-    axios.get(`${API_BASE}/documents`, { withCredentials: true })
-      .then(res => {
+    axios
+      .get(`${API_BASE}/documents/admin`, { withCredentials: true })
+      .then((res) => {
         console.log("Raw document data:", res.data);
         const dbDocs: DocItem[] = res.data.map((d: any) => ({
           id: d.id,
           name: d.name,
           file_name: d.file_name,
-          file_url: d.file_url ?? null, // use backend's file_url
+          file_url: d.file_url ?? null,
         }));
 
-
-        const merged = DEFAULT_DOCS.map(def => {
-          const found = dbDocs.find(d => d.name === def.name);
+        const merged = DEFAULT_DOCS.map((def) => {
+          const found = dbDocs.find((d) => d.name === def.name);
           return found ? found : def;
         });
 
         setDocs(merged);
         console.log("Fetched documents:", merged);
       })
-      .catch(err => console.error("Failed to fetch documents", err));
+      .catch((err) => console.error("Failed to fetch documents", err));
   }, []);
 
   const handleReplace = (idx: number) => {
@@ -74,18 +75,19 @@ export function DocumentGrid() {
     try {
       let res;
 
-      // If document already has ID → UPDATE
       if (doc.id) {
+        // Existing document → POST /documents/update/{id}  (DocumentController@update)
+        // Using POST so PHP populates $_FILES correctly — no method spoofing needed
+        // because the route itself is defined as POST in api.php.
         res = await axios.post(
-          `${API_BASE}/documents/${doc.id}`,
+          `${API_BASE}/documents/update/${doc.id}`,
           formData,
           { headers: { "Content-Type": "multipart/form-data" }, withCredentials: true }
         );
-      } 
-      // If no ID → CREATE
-      else {
+      } else {
+        // New document → POST /documents/admin  (DocumentController@store)
         res = await axios.post(
-          `${API_BASE}/documents`,
+          `${API_BASE}/documents/admin`,
           formData,
           { headers: { "Content-Type": "multipart/form-data" }, withCredentials: true }
         );
@@ -93,20 +95,18 @@ export function DocumentGrid() {
 
       const updated = res.data;
 
-    setDocs(prev =>
-      prev.map((d, i) =>
-        i === replaceIdx
-          ? {
-              id: updated.id,
-              name: updated.name,
-              file_name: updated.file_name,
-              // just use the file_path as-is
-              file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev${updated.file_path}`,
-            }
-          : d
-      )
-    );
-
+      setDocs((prev) =>
+        prev.map((d, i) =>
+          i === replaceIdx
+            ? {
+                id: updated.id,
+                name: updated.name,
+                file_name: updated.file_name,
+                file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev${updated.file_path}`,
+              }
+            : d
+        )
+      );
     } catch (err) {
       console.error(err);
       alert("Upload failed!");
@@ -115,8 +115,6 @@ export function DocumentGrid() {
     setReplaceIdx(null);
     e.target.value = "";
   };
-
-  const navigate = useNavigate();
 
   return (
     <Layout>
@@ -178,7 +176,7 @@ export function DocumentGrid() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={ () => navigate(`/document-edit/${doc.id}`) }
+                      onClick={() => navigate(`/document-edit/${doc.id}`)}
                     >
                       <Edit className="mr-1.5 h-3.5 w-3.5" /> Edit
                     </Button>
@@ -208,7 +206,10 @@ export function DocumentGrid() {
             <div className="flex-1 mt-2">
               {previewUrl && (
                 <iframe
-                  src={"https://bold-sunset-533d.clarkkentraguhos.workers.dev" + previewUrl}
+                  src={
+                    "https://bold-sunset-533d.clarkkentraguhos.workers.dev" +
+                    previewUrl
+                  }
                   className="w-full h-full rounded-md border"
                   title="PDF Preview"
                 />
