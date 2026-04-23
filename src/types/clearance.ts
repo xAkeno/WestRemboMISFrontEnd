@@ -1,6 +1,7 @@
 // Barangay Clearance
 export interface BarangayClearance {
-  id: string;
+  // id: string;
+  id: number;
   bcert_number: string;
   issued_at: string;
   surname: string;
@@ -16,11 +17,12 @@ export interface BarangayClearance {
   created_by: string;
   remark?: string;
   status?: string;
+  email?: string;
 }
 
 // Business Clearance
 export interface BusinessClearance {
-  id: string;
+  id: number;
   brgy_business_no: string;
   issued_date: string;
   surname: string;
@@ -39,7 +41,7 @@ export interface BusinessClearance {
 
 // Building Clearance
 export interface BuildingClearance {
-  id: string;
+  id: number;
   bcert_number: string;
   created_at: string;
   first_name: string;
@@ -54,11 +56,12 @@ export interface BuildingClearance {
   or_no: string;
   remarks: string;
   status: string;
+
 }
 
 // Certificate
 export interface Certificate {
-  id: string;
+  id: number;
   bcert_number: string;
   issued_date: string;
   surname: string;

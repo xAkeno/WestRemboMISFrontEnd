@@ -25,16 +25,16 @@ const CATEGORIES = [
 ];
 
 const SERVICES = [
-  {
-    id: 1,
-    type: 'resident-registration',
-    title: 'Resident Registration',
-    description: 'Register as a new resident of Barangay West Rembo.',
-    icon: Users,
-    category: 'personal',
-    popular: true,
-    route: '/services/barangay-resident-registration/apply',
-  },
+  // {
+  //   id: 1,
+  //   type: 'resident-registration',
+  //   title: 'Resident Registration',
+  //   description: 'Register as a new resident of Barangay West Rembo.',
+  //   icon: Users,
+  //   category: 'personal',
+  //   popular: true,
+  //   route: '/services/barangay-resident-registration/apply',
+  // },
   {
     id: 2,
     type: 'barangay-certificate',

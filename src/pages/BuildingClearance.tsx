@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, MoreHorizontal, ArrowUpDown, FolderSearch,
-  CalendarCheck, CalendarX, Calendar, RefreshCw, Bell, X, Clock,
-  Filter, ChevronDown, SlidersHorizontal, RotateCcw,
+  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
@@ -10,17 +9,8 @@ import { ClearancePagination } from '@/components/clearance/ClearancePagination'
 import { fetchBuildingClearances, FetchClearanceParams } from '@/components/services/clearanceApi';
 import { BuildingClearance as BuildingClearanceType } from '@/types/clearance';
 import { useToast } from '@/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { deleteBarangayClearance } from '@/components/services/clearanceApi';
-import DocumentInspectModal from './DocumentInspectModal';
 import axios from 'axios';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -32,14 +22,6 @@ interface ScheduleData {
   schedule_time: string;
   note?: string | null;
   status?: string;
-}
-
-interface NewRequestNotification {
-  id: number;
-  bcert_number: string;
-  full_name: string;
-  created_at: string;
-  seen: boolean;
 }
 
 interface Street {
@@ -165,26 +147,25 @@ function countActiveFilters(f: FilterState): number {
 }
 
 // ─── Status badge ──────────────────────────────────────────────────────────────
-const STATUS_STYLES: Record<string, { bg: string; color: string; border: string }> = {
-  pending:    { bg: '#fef9c3', color: '#92400e', border: '#fde68a' },
-  incomplete: { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-  rejected:   { bg: '#fff1f2', color: '#9f1239', border: '#fecdd3' },
-  released:   { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-  scheduled:  { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
-  encoded:    { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
-  approved:   { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+const STATUS_STYLES: Record<string, string> = {
+  pending:    'bg-yellow-100 text-yellow-800 border-yellow-200',
+  incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
+  rejected:   'bg-rose-100 text-rose-800 border-rose-200',
+  released:   'bg-green-100 text-green-800 border-green-200',
+  scheduled:  'bg-blue-100 text-blue-800 border-blue-200',
+  encoded:    'bg-emerald-50 text-emerald-800 border-emerald-200',
+  to_pay:     'bg-purple-100 text-purple-800 border-purple-200',
+  paid:       'bg-teal-100 text-teal-800 border-teal-200',
+  approved:   'bg-green-100 text-green-800 border-green-200',
 };
 
 function StatusBadge({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground text-sm">—</span>;
+  if (!status) return <span className="text-gray-500 text-sm">—</span>;
   const key = status.toLowerCase();
-  const s   = STATUS_STYLES[key] ?? { bg: '#f3f4f6', color: '#374151', border: '#d1d5db' };
+  const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
   return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm"
-      style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}
-    >
-      {status}
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
+      {status === 'to_pay' ? 'TO PAY' : status}
     </span>
   );
 }
@@ -193,7 +174,7 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
 function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
   if (!schedule) {
     return (
-      <span className="not-scheduled-badge">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-sm">
         <CalendarX className="h-3 w-3" />
         Not yet scheduled
       </span>
@@ -203,92 +184,393 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
   return (
     <div className="flex flex-col gap-0.5">
-      <span
-        className="schedule-badge"
-        style={{
-          backgroundColor: isUpcoming ? '#dcfce7' : '#f3f4f6',
-          color:            isUpcoming ? '#15803d' : '#6b7280',
-          border:           `1px solid ${isUpcoming ? '#86efac' : '#d1d5db'}`,
-        }}
-      >
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${
+        isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'
+      }`}>
         <CalendarCheck className="h-3 w-3" />
         {formatDateShort(schedule.schedule_date)}
       </span>
-      <span className="text-[10px] text-muted-foreground pl-0.5">
+      <span className="text-[10px] text-gray-500 pl-0.5">
         {formatTimeRange(schedule.schedule_time)}
       </span>
     </div>
   );
 }
 
-// ─── Notification Panel ────────────────────────────────────────────────────────
-function NotificationPanel({
-  notifications, onDismiss, onDismissAll, onSchedule,
-}: {
-  notifications: NewRequestNotification[];
-  onDismiss: (id: number) => void;
-  onDismissAll: () => void;
-  onSchedule: (n: NewRequestNotification) => void;
+// ─── Editable Detail Modal Component (same as Barangay Clearance) ─────────────────
+function EditableDetailModal({ 
+  record, 
+  onClose, 
+  onUpdate,
+  toast
+}: { 
+  record: BuildingClearanceType | null; 
+  onClose: () => void;
+  onUpdate: () => void;
+  toast: any;
 }) {
-  const unseenCount = notifications.filter(n => !n.seen).length;
-  return (
-    <div className="notification-panel">
-      <div className="notification-panel-header">
-        <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-blue-600" />
-          <span className="font-semibold text-sm text-foreground">New Requests</span>
-          {unseenCount > 0 && <span className="notification-count-badge">{unseenCount}</span>}
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [formData, setFormData] = useState<any>({
+    first_name: '',
+    middle_name: '',
+    surname: '',
+    ext_name: '',
+    prefix: '',
+    establishment: '',
+    purpose: '',
+    purpose_details: '',
+    house_block_lot_no: '',
+    street: '',
+    zone: '',
+    or_no: '',
+    remarks: '',
+    status: '',
+    created_by: '',
+  });
+
+  useEffect(() => {
+    if (record) {
+      const fetchFullRecord = async () => {
+        setIsLoading(true);
+        try {
+          const response = await axios.get(
+            `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+            { withCredentials: true }
+          );
+          const fullRecord = response.data.data.data[0];
+          
+          setFormData({
+            first_name: fullRecord.first_name || '',
+            middle_name: fullRecord.middle_name || '',
+            surname: fullRecord.surname || '',
+            ext_name: fullRecord.ext_name || '',
+            prefix: fullRecord.prefix || '',
+            establishment: fullRecord.establishment || '',
+            purpose: fullRecord.purpose || '',
+            purpose_details: fullRecord.purpose_details || '',
+            house_block_lot_no: fullRecord.house_block_lot_no || '',
+            street: fullRecord.street || '',
+            zone: fullRecord.zone || '',
+            or_no: fullRecord.or_no || '',
+            remarks: fullRecord.remarks || '',
+            status: fullRecord.status || '',
+            created_by: fullRecord.created_by || '',
+          });
+        } catch (error) {
+          console.error('Error fetching full record:', error);
+          toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchFullRecord();
+    }
+  }, [record, toast]);
+
+  if (!record) return null;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleUpdate = async () => {
+    setIsSaving(true);
+    try {
+      const payload = { ...formData };
+      
+      let existingId: number | null = null;
+      try {
+        const checkRes = await axios.get(
+          `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+          { withCredentials: true }
+        );
+        const records = checkRes.data.data.data;
+        if (records?.length > 0) existingId = records[0].id;
+      } catch (error) {
+        console.error("Check existing failed:", error);
+      }
+
+      if (existingId) {
+        await axios.put(
+          `http://127.0.0.1:8000/api/building-clearances/${existingId}`, 
+          payload, 
+          { withCredentials: true }
+        );
+        toast({ title: "Success", description: "Record updated successfully" });
+      } else {
+        toast({ title: "Error", description: "Record not found", variant: "destructive" });
+        return;
+      }
+      
+      setIsEditing(false);
+      onUpdate();
+      
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 422) {
+          const errs = error.response?.data?.errors;
+          if (errs) {
+            Object.values(errs).forEach((m: any) => m[0] && toast({ title: "Validation Error", description: m[0], variant: "destructive" }));
+          }
+        } else if (status === 401) {
+          toast({ title: "Error", description: "You are not authenticated.", variant: "destructive" });
+        } else if (status === 403) {
+          toast({ title: "Error", description: "You are not allowed to perform this action.", variant: "destructive" });
+        } else {
+          toast({ title: "Error", description: "Something went wrong.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Error", description: "Network error.", variant: "destructive" });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const Field = ({ label, name, type = "text", options, isTextArea = false }: any) => {
+    const value = formData[name] || '';
+    
+    if (isEditing) {
+      if (type === "select" && options) {
+        return (
+          <select
+            name={name}
+            value={value}
+            onChange={handleInputChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt: string) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      }
+      
+      if (isTextArea) {
+        return (
+          <textarea
+            name={name}
+            value={value}
+            onChange={handleInputChange}
+            rows={3}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+        );
+      }
+      
+      return (
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={handleInputChange}
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+      );
+    }
+    
+    // Display mode
+    if (type === "select" && options) {
+      return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
+    }
+    
+    if (isTextArea) {
+      return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
+    }
+    
+    return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full p-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          </div>
         </div>
-        {notifications.length > 0 && (
-          <button onClick={onDismissAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Dismiss all
-          </button>
-        )}
       </div>
-      {notifications.length === 0 ? (
-        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No new requests</div>
-      ) : (
-        <div className="notification-list">
-          {notifications.map(n => (
-            <div key={n.id} className={`notification-item ${!n.seen ? 'notification-item--unseen' : ''}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {!n.seen && <span className="notification-new-dot" />}
-                  <span className="text-sm font-medium text-foreground truncate">{n.full_name}</span>
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                  <span className="font-mono">{n.bcert_number}</span>
-                  <span>·</span>
-                  <Clock className="h-2.5 w-2.5" />
-                  <span>{formatCreatedAt(n.created_at)}</span>
-                </div>
-                <div className="flex items-center gap-1 mt-1.5">
-                  <span className="not-scheduled-badge" style={{ fontSize: 9 }}>
-                    <CalendarX className="h-2.5 w-2.5" />
-                    Not yet scheduled
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1 ml-2 shrink-0">
-                <button onClick={() => onDismiss(n.id)} className="text-muted-foreground hover:text-foreground transition-colors" title="Dismiss">
-                  <X className="h-3.5 w-3.5" />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Building Clearance Details</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              >
+                <Edit2 className="h-4 w-4" />
+                Edit
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  Cancel
                 </button>
-                <button onClick={() => onSchedule(n)} className="notification-schedule-btn">Schedule</button>
+                <button
+                  onClick={handleUpdate}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Personal Information */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
+              
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">First Name</label>
+                <Field label="First Name" name="first_name" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Middle Name</label>
+                <Field label="Middle Name" name="middle_name" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Surname</label>
+                <Field label="Surname" name="surname" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Extension Name</label>
+                <Field label="Extension Name" name="ext_name" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
+                <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function NotificationBell({ count, onClick }: { count: number; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="notification-bell-btn" title="New building clearance requests">
-      <Bell className="h-5 w-5" />
-      {count > 0 && <span className="notification-bell-badge">{count > 9 ? '9+' : count}</span>}
-    </button>
+            {/* Property/Establishment Information */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Property Information</h3>
+              
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Establishment</label>
+                <Field label="Establishment" name="establishment" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label>
+                <Field label="House/Block/Lot No." name="house_block_lot_no" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Street</label>
+                <Field label="Street" name="street" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Zone</label>
+                <Field label="Zone" name="zone" type="text" />
+              </div>
+            </div>
+
+            {/* Document Information */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
+              
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
+                <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
+                <Field label="Purpose Details" name="purpose_details" isTextArea />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
+                <Field label="OR No." name="or_no" type="text" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
+                <div className="mt-1">
+                  <StatusBadge status={formData.status} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Remarks</h3>
+              
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
+                <Field label="Remarks" name="remarks" isTextArea />
+              </div>
+
+              {(record as any).schedule && (
+                <>
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
+                    <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                    <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+          {!isEditing && (
+            <Button onClick={() => window.location.href = `/document-edit/3/${record.bcert_number}`}>
+              Full Edit Page
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -309,146 +591,211 @@ function FilterBar({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="filter-bar-wrapper">
+    <div className="relative">
       <div className="flex items-center gap-2 flex-wrap">
         <button
-          className={`filter-toggle-btn ${activeCount > 0 ? 'filter-toggle-btn--active' : ''}`}
+          className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border ${
+            activeCount > 0 
+              ? 'border-blue-500 bg-blue-50 text-blue-700' 
+              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+          } text-sm font-medium transition-all`}
           onClick={() => setOpen(v => !v)}
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span>Filters</span>
-          {activeCount > 0 && <span className="filter-active-badge">{activeCount}</span>}
-          <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          {activeCount > 0 && (
+            <span className="bg-blue-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full inline-flex items-center justify-center px-1">
+              {activeCount}
+            </span>
+          )}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {filters.status && (
-          <span className="filter-pill">Status: <strong>{filters.status}</strong>
-            <button onClick={() => onChange({ status: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Status: <strong>{filters.status}</strong>
+            <button onClick={() => onChange({ status: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.schedule_filter && (
-          <span className="filter-pill">Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
-            <button onClick={() => onChange({ schedule_filter: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
+            <button onClick={() => onChange({ schedule_filter: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.filter_date && filters.filter_date !== 'custom' && (
-          <span className="filter-pill">Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.filter_date === 'custom' && (filters.from || filters.to) && (
-          <span className="filter-pill">Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.zone && (
-          <span className="filter-pill">Zone: <strong>{filters.zone}</strong>
-            <button onClick={() => onChange({ zone: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Zone: <strong>{filters.zone}</strong>
+            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.street && (
-          <span className="filter-pill">Street: <strong>{filters.street}</strong>
-            <button onClick={() => onChange({ street: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Street: <strong>{filters.street}</strong>
+            <button onClick={() => onChange({ street: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {filters.purpose && (
-          <span className="filter-pill">Purpose: <strong>{filters.purpose}</strong>
-            <button onClick={() => onChange({ purpose: '' })}><X className="h-3 w-3" /></button>
+          <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
+            Purpose: <strong>{filters.purpose}</strong>
+            <button onClick={() => onChange({ purpose: '' })} className="text-blue-400 hover:text-blue-600">
+              <X className="h-3 w-3" />
+            </button>
           </span>
         )}
         {activeCount > 0 && (
-          <button className="filter-reset-link" onClick={onReset}>
+          <button className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1" onClick={onReset}>
             <RotateCcw className="h-3 w-3" /> Reset all
           </button>
         )}
       </div>
 
       {open && (
-        <div className="filter-panel">
-          <div className="filter-panel-grid">
-            <div className="filter-group">
-              <label className="filter-label">Status</label>
-              <div className="filter-chip-row">
-                {(['', 'PENDING', 'INCOMPLETE', 'REJECTED', 'RELEASED', 'ENCODED'] as const).map(v => (
-                  <button key={v} className={`filter-chip ${filters.status === v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ status: v })}>
-                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
+        <div className="absolute top-full right-0 mt-2 min-w-[600px] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          <div className="grid grid-cols-2">
+            <div className="p-4 border-r border-b border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
+              <div className="flex flex-wrap gap-1.5">
+                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'APPROVED'] as const).map(v => (
+                  <button
+                    key={v}
+                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
+                      filters.status === v
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => onChange({ status: v })}
+                  >
+                    {v === '' ? 'All' : v === 'TO_PAY' ? 'TO PAY' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="filter-group">
-              <label className="filter-label">Schedule</label>
-              <div className="filter-chip-row">
+            <div className="p-4 border-l border-b border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Schedule</label>
+              <div className="flex flex-wrap gap-1.5">
                 {[
                   { v: '', label: 'All' },
-                  { v: 'scheduled',     label: 'Scheduled',        icon: <CalendarCheck className="h-3 w-3" /> },
+                  { v: 'scheduled', label: 'Scheduled', icon: <CalendarCheck className="h-3 w-3" /> },
                   { v: 'not_scheduled', label: 'Not yet scheduled', icon: <CalendarX className="h-3 w-3" /> },
                 ].map(opt => (
-                  <button key={opt.v} className={`filter-chip ${filters.schedule_filter === opt.v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ schedule_filter: opt.v })}>
-                    {opt.icon ?? null}{opt.label}
+                  <button
+                    key={opt.v}
+                    className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all ${
+                      filters.schedule_filter === opt.v
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => onChange({ schedule_filter: opt.v })}
+                  >
+                    {opt.icon}{opt.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="filter-group">
-              <label className="filter-label">Created At</label>
-              <div className="filter-chip-row">
+            <div className="p-4 border-r border-b border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Created At</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
                 {[
-                  { v: '', label: 'Any time' }, { v: 'this_week', label: 'This week' },
-                  { v: 'this_month', label: 'This month' }, { v: 'this_year', label: 'This year' },
+                  { v: '', label: 'Any time' },
+                  { v: 'this_week', label: 'This week' },
+                  { v: 'this_month', label: 'This month' },
+                  { v: 'this_year', label: 'This year' },
                   { v: 'custom', label: 'Custom range' },
                 ].map(opt => (
-                  <button key={opt.v} className={`filter-chip ${filters.filter_date === opt.v ? 'filter-chip--on' : ''}`}
-                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}>
+                  <button
+                    key={opt.v}
+                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
+                      filters.filter_date === opt.v
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}
+                  >
                     {opt.label}
                   </button>
                 ))}
               </div>
               {filters.filter_date === 'custom' && (
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <input type="date" className="filter-date-input" value={filters.from}
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.from}
                     onChange={e => onChange({ from: e.target.value })} />
-                  <span className="text-xs text-muted-foreground">to</span>
-                  <input type="date" className="filter-date-input" value={filters.to}
+                  <span className="text-xs text-gray-500">to</span>
+                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.to}
                     onChange={e => onChange({ to: e.target.value })} />
                 </div>
               )}
             </div>
 
-            <div className="filter-group">
-              <label className="filter-label">Zone</label>
-              <input type="text" placeholder="e.g. Zone 1, Zone 2…" className="filter-text-input"
-                value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
+            <div className="p-4 border-l border-b border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
+              <input
+                type="text"
+                placeholder="e.g. Zone 1, Zone 2…"
+                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
+                value={filters.zone}
+                onChange={e => onChange({ zone: e.target.value })}
+              />
             </div>
 
-            <div className="filter-group">
-              <label className="filter-label">Street</label>
-              <select className="filter-text-input" style={{ cursor: 'pointer' }} value={filters.street}
-                onChange={e => onChange({ street: e.target.value })}>
+            <div className="p-4 border-r border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Street</label>
+              <select
+                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
+                value={filters.street}
+                onChange={e => onChange({ street: e.target.value })}
+              >
                 <option value="">All streets</option>
                 {streets.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             </div>
 
-            <div className="filter-group">
-              <label className="filter-label">Purpose</label>
-              <select className="filter-text-input" style={{ cursor: 'pointer' }} value={filters.purpose}
-                onChange={e => onChange({ purpose: e.target.value })}>
+            <div className="p-4 border-l border-gray-100">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Purpose</label>
+              <select
+                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
+                value={filters.purpose}
+                onChange={e => onChange({ purpose: e.target.value })}
+              >
                 <option value="">All purposes</option>
                 {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           </div>
 
-          <div className="filter-panel-footer">
-            <button className="filter-reset-btn" onClick={onReset}>
+          <div className="flex items-center justify-end gap-2 p-3 bg-gray-50 border-t border-gray-200">
+            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100" onClick={onReset}>
               <RotateCcw className="h-3.5 w-3.5" /> Reset filters
             </button>
-            <button className="filter-apply-btn" onClick={() => setOpen(false)}>Apply &amp; close</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setOpen(false)}>
+              Apply & close
+            </button>
           </div>
         </div>
       )}
@@ -462,7 +809,6 @@ const BuildingClearance = () => {
   const navigate          = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ── Initialise state from URL params on first render ──────────────────────
   const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
   const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
   const [filters, setFiltersRaw]         = useState<FilterState>(() => filtersFromParams(searchParams));
@@ -474,16 +820,9 @@ const BuildingClearance = () => {
   const [sortField, setSortField]     = useState('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [streets, setStreets]         = useState<Street[]>([]);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<BuildingClearanceType | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
 
-  const [inspectRecord, setInspectRecord] = useState<BuildingClearanceType | null>(null);
-  const [inspectMode, setInspectMode]     = useState<'inspect' | 'reschedule'>('inspect');
-
-  const [notifications, setNotifications] = useState<NewRequestNotification[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const notifRef    = useRef<HTMLDivElement>(null);
-  const knownIdsRef = useRef<Set<number>>(new Set());
-
-  // ── URL sync helpers ───────────────────────────────────────────────────────
   const syncToUrl = useCallback((
     nextSearch: string,
     nextPage: number,
@@ -513,15 +852,12 @@ const BuildingClearance = () => {
     });
   };
 
-  // ── Keep state in sync if the user manually edits the URL or uses back/fwd ─
   useEffect(() => {
     setSearchValueRaw(searchParams.get('search') ?? '');
     setCurrentPageRaw(Number(searchParams.get('page') ?? '1'));
     setFiltersRaw(filtersFromParams(searchParams));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
-  // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
@@ -532,17 +868,6 @@ const BuildingClearance = () => {
     load();
   }, []);
 
-  // ── Close notification panel on outside click ──────────────────────────────
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node))
-        setShowNotifications(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -567,25 +892,6 @@ const BuildingClearance = () => {
       setData(rows);
       setTotal(response.total);
       setTotalPages(response.totalPages);
-
-      // ── Detect new requests (< 24h) for notification bell ────────────────
-      const newItems = rows.filter(
-        item => isNewRequest(item.created_at) && !knownIdsRef.current.has(item.id)
-      );
-      if (newItems.length > 0) {
-        const fresh: NewRequestNotification[] = newItems.map(item => ({
-          id: item.id,
-          bcert_number: item.bcert_number,
-          full_name: `${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim(),
-          created_at: item.created_at,
-          seen: false,
-        }));
-        newItems.forEach(item => knownIdsRef.current.add(item.id));
-        setNotifications(prev => {
-          const existingIds = new Set(prev.map(n => n.id));
-          return [...fresh.filter(n => !existingIds.has(n.id)), ...prev];
-        });
-      }
     } catch {
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
     } finally {
@@ -595,21 +901,68 @@ const BuildingClearance = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Poll every 30 s
-  useEffect(() => {
-    const id = setInterval(loadData, 30_000);
-    return () => clearInterval(id);
-  }, [loadData]);
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this building clearance?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/api/building-clearances/${id}`, { withCredentials: true });
+      toast({ title: 'Deleted', description: 'Building clearance deleted successfully.' });
+      loadData();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete building clearance.', variant: 'destructive' });
+    }
+  };
 
-  // Mark all as seen when panel opens
-  useEffect(() => {
-    if (showNotifications)
-      setNotifications(prev => prev.map(n => ({ ...n, seen: true })));
-  }, [showNotifications]);
+  const handleMarkToPay = async (item: BuildingClearanceType) => {
+    setActionLoading(item.id);
+    try {
+      const res = await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
+        { status: "TO_PAY" },
+        { withCredentials: true }
+      );
+      if (res.status === 200) {
+        toast({ title: "Success", description: "Status set to To Pay successfully." });
+        loadData();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
+    } finally { setActionLoading(null); }
+  };
 
-  const unseenCount = notifications.filter(n => !n.seen).length;
+  const handleMarkAsPaid = async (item: BuildingClearanceType) => {
+    setActionLoading(item.id);
+    try {
+      const res = await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
+        { status: "PAID" },
+        { withCredentials: true }
+      );
+      if (res.status === 200) {
+        toast({ title: "Success", description: "Status set to Paid successfully." });
+        loadData();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
+    } finally { setActionLoading(null); }
+  };
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleRelease = async (item: BuildingClearanceType) => {
+    setActionLoading(item.id);
+    try {
+      const res = await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
+        { status: "RELEASED", released_at: new Date().toISOString() },
+        { withCredentials: true }
+      );
+      if (res.status === 200) {
+        toast({ title: "Success", description: "Document released successfully." });
+        loadData();
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to release document.", variant: "destructive" });
+    } finally { setActionLoading(null); }
+  };
+
   const handleSort = (field: string) => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
@@ -620,229 +973,34 @@ const BuildingClearance = () => {
     toast({ title: 'Refreshed', description: 'Data has been refreshed' });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this clearance?')) return;
-    try {
-      await deleteBarangayClearance(id);
-      toast({ title: 'Deleted', description: 'Clearance deleted successfully.' });
-      loadData();
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete clearance.', variant: 'destructive' });
-    }
-  };
-
-  const handleScheduled = () => { loadData(); };
-
-  const openInspect = (item: BuildingClearanceType) => {
-    setInspectMode('inspect');
-    setInspectRecord(item);
-  };
-
-  const openReschedule = (item: BuildingClearanceType) => {
-    setInspectMode('reschedule');
-    setInspectRecord(item);
-  };
-
-  const handleScheduleFromNotification = (n: NewRequestNotification) => {
-    const record = data.find(d => d.id === n.id);
-    if (record) { openInspect(record); setShowNotifications(false); }
-    else navigate(`/document-edit/3/${n.bcert_number}`);
+  const handleViewDetails = (item: BuildingClearanceType) => {
+    setSelectedDetailRecord(item);
   };
 
   const activeFilterCount = countActiveFilters(filters);
 
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th
-      className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none"
+      className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center gap-1">
         {children}
-        <ArrowUpDown className={`h-3 w-3 ${sortField === field ? 'text-primary' : 'opacity-40'}`} />
+        <ArrowUpDown className={`h-3 w-3 ${sortField === field ? 'text-blue-600' : 'opacity-40'}`} />
       </div>
     </th>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Layout>
-      <style>{`
-        .not-scheduled-badge {
-          display:inline-flex;align-items:center;gap:4px;
-          font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
-          padding:2px 7px;background:#fff7ed;color:#c2410c;
-          border:1px solid #fed7aa;border-radius:3px;
-        }
-        .schedule-badge {
-          display:inline-flex;align-items:center;gap:4px;
-          font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
-          padding:2px 7px;border-radius:3px;width:fit-content;
-        }
-        .new-request-row{background:linear-gradient(90deg,#eff6ff 0%,transparent 100%);}
-        .new-request-row:hover{background:linear-gradient(90deg,#dbeafe 0%,#f8fafc 100%) !important;}
-        .new-dot{
-          display:inline-block;width:6px;height:6px;background:#3b82f6;
-          border-radius:50%;flex-shrink:0;
-          animation:pulse-dot 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
-        .notification-bell-btn{
-          position:relative;display:flex;align-items:center;justify-content:center;
-          width:38px;height:38px;border-radius:8px;
-          border:1px solid hsl(var(--border));background:hsl(var(--card));
-          color:hsl(var(--foreground));cursor:pointer;transition:background .15s;
-        }
-        .notification-bell-btn:hover{background:hsl(var(--muted));}
-        .notification-bell-badge{
-          position:absolute;top:-5px;right:-5px;
-          background:#ef4444;color:#fff;font-size:9px;font-weight:700;
-          min-width:16px;height:16px;border-radius:99px;
-          display:flex;align-items:center;justify-content:center;
-          padding:0 3px;border:1.5px solid hsl(var(--background));
-        }
-        .notification-panel{
-          position:absolute;top:calc(100% + 8px);right:0;width:360px;
-          background:hsl(var(--card));border:1px solid hsl(var(--border));
-          border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06);
-          z-index:50;overflow:hidden;
-        }
-        .notification-panel-header{
-          display:flex;align-items:center;justify-content:space-between;
-          padding:12px 16px;border-bottom:1px solid hsl(var(--border));
-          background:hsl(var(--muted)/.4);
-        }
-        .notification-count-badge{
-          background:#3b82f6;color:#fff;font-size:10px;font-weight:700;
-          min-width:18px;height:18px;border-radius:99px;
-          display:inline-flex;align-items:center;justify-content:center;padding:0 4px;
-        }
-        .notification-list{max-height:380px;overflow-y:auto;}
-        .notification-item{
-          display:flex;align-items:flex-start;gap:8px;padding:12px 16px;
-          border-bottom:1px solid hsl(var(--border)/.5);transition:background .1s;
-        }
-        .notification-item:last-child{border-bottom:none;}
-        .notification-item:hover{background:hsl(var(--muted)/.4);}
-        .notification-item--unseen{background:#eff6ff;}
-        .notification-item--unseen:hover{background:#dbeafe;}
-        .notification-new-dot{display:inline-block;width:6px;height:6px;background:#3b82f6;border-radius:50%;flex-shrink:0;margin-top:2px;}
-        .notification-schedule-btn{
-          font-size:10px;font-weight:600;color:#2563eb;
-          background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;
-          padding:2px 8px;cursor:pointer;transition:background .1s;white-space:nowrap;
-        }
-        .notification-schedule-btn:hover{background:#dbeafe;}
-        .filter-bar-wrapper{display:flex;flex-direction:column;gap:8px;position:relative;}
-        .filter-toggle-btn{
-          display:inline-flex;align-items:center;gap:6px;
-          height:36px;padding:0 14px;border-radius:8px;
-          border:1px solid hsl(var(--border));background:hsl(var(--card));
-          color:hsl(var(--muted-foreground));font-size:13px;font-weight:500;
-          cursor:pointer;transition:all .15s;white-space:nowrap;
-        }
-        .filter-toggle-btn:hover{background:hsl(var(--muted));color:hsl(var(--foreground));}
-        .filter-toggle-btn--active{border-color:#3b82f6;color:#1d4ed8;background:#eff6ff;}
-        .filter-active-badge{
-          background:#3b82f6;color:#fff;font-size:10px;font-weight:700;
-          min-width:18px;height:18px;border-radius:99px;
-          display:inline-flex;align-items:center;justify-content:center;padding:0 4px;
-        }
-        .filter-pill{
-          display:inline-flex;align-items:center;gap:5px;
-          font-size:11px;padding:3px 8px 3px 10px;
-          background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:99px;
-        }
-        .filter-pill button{display:flex;align-items:center;color:#60a5fa;cursor:pointer;}
-        .filter-pill button:hover{color:#1e40af;}
-        .filter-reset-link{
-          display:inline-flex;align-items:center;gap:4px;
-          font-size:11px;color:hsl(var(--muted-foreground));cursor:pointer;
-          padding:3px 6px;border-radius:4px;transition:color .1s;border:none;background:none;
-        }
-        .filter-reset-link:hover{color:hsl(var(--foreground));}
-        .filter-panel{
-          position:absolute;top:calc(100% + 4px);right:0;min-width:600px;
-          border:1px solid hsl(var(--border));border-radius:10px;
-          background:hsl(var(--card));
-          box-shadow:0 8px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06);
-          z-index:50;overflow:hidden;
-        }
-        .filter-panel-grid{display:grid;grid-template-columns:1fr 1fr;}
-        .filter-group{
-          padding:14px 18px;border-bottom:1px solid hsl(var(--border)/.6);
-          border-right:1px solid hsl(var(--border)/.6);
-        }
-        .filter-group:nth-child(2n){border-right:none;}
-        .filter-group:nth-last-child(-n+2):nth-child(odd),.filter-group:last-child{border-bottom:none;}
-        .filter-group:last-child{border-right:none;}
-        .filter-label{
-          display:block;font-size:10px;font-weight:700;text-transform:uppercase;
-          letter-spacing:.07em;color:hsl(var(--muted-foreground));margin-bottom:8px;
-        }
-        .filter-chip-row{display:flex;flex-wrap:wrap;gap:5px;}
-        .filter-chip{
-          display:inline-flex;align-items:center;gap:4px;
-          font-size:11px;font-weight:500;padding:3px 10px;
-          border:1px solid hsl(var(--border));border-radius:99px;
-          background:hsl(var(--background));color:hsl(var(--muted-foreground));
-          cursor:pointer;transition:all .12s;
-        }
-        .filter-chip:hover{border-color:#93c5fd;color:#1e40af;background:#f0f9ff;}
-        .filter-chip--on{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
-        .filter-chip--on:hover{background:#1e40af;}
-        .filter-date-input{
-          height:32px;padding:0 10px;border-radius:6px;
-          border:1px solid hsl(var(--border));background:hsl(var(--background));
-          font-size:12px;color:hsl(var(--foreground));outline:none;transition:border-color .15s;
-        }
-        .filter-date-input:focus{border-color:#3b82f6;}
-        .filter-text-input{
-          width:100%;height:32px;padding:0 10px;border-radius:6px;
-          border:1px solid hsl(var(--border));background:hsl(var(--background));
-          font-size:12px;color:hsl(var(--foreground));outline:none;transition:border-color .15s;
-        }
-        .filter-text-input:focus{border-color:#3b82f6;}
-        .filter-text-input::placeholder{color:hsl(var(--muted-foreground));}
-        .filter-panel-footer{
-          display:flex;align-items:center;justify-content:flex-end;gap:8px;
-          padding:10px 18px;background:hsl(var(--muted)/.3);border-top:1px solid hsl(var(--border));
-        }
-        .filter-reset-btn{
-          display:inline-flex;align-items:center;gap:5px;
-          font-size:12px;font-weight:500;color:hsl(var(--muted-foreground));
-          padding:6px 12px;border-radius:6px;
-          border:1px solid hsl(var(--border));background:hsl(var(--background));
-          cursor:pointer;transition:all .12s;
-        }
-        .filter-reset-btn:hover{color:hsl(var(--foreground));border-color:hsl(var(--foreground)/.3);}
-        .filter-apply-btn{
-          display:inline-flex;align-items:center;gap:5px;
-          font-size:12px;font-weight:600;color:#fff;padding:6px 16px;border-radius:6px;
-          background:#1d4ed8;border:none;cursor:pointer;transition:background .12s;
-        }
-        .filter-apply-btn:hover{background:#1e40af;}
-      `}</style>
-
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto">
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-semibold text-foreground">Building Clearance</h1>
-              <p className="text-sm text-muted-foreground mt-1">Manage building clearance records</p>
+              <h1 className="text-2xl font-semibold text-gray-900">Building Clearance</h1>
+              <p className="text-sm text-gray-500 mt-1">Manage building clearance records</p>
             </div>
             <div className="flex items-center gap-2">
-              {/* ── Notification Bell ── */}
-              <div className="relative" ref={notifRef}>
-                <NotificationBell count={unseenCount} onClick={() => setShowNotifications(v => !v)} />
-                {showNotifications && (
-                  <NotificationPanel
-                    notifications={notifications}
-                    onDismiss={id => setNotifications(prev => prev.filter(n => n.id !== id))}
-                    onDismissAll={() => setNotifications([])}
-                    onSchedule={handleScheduleFromNotification}
-                  />
-                )}
-              </div>
               <Button className="gap-2" onClick={() => navigate('/document-edit/3')}>
                 <Plus className="h-4 w-4" />
                 New Clearance
@@ -850,7 +1008,6 @@ const BuildingClearance = () => {
             </div>
           </div>
 
-          {/* ── Search + Filter row ── */}
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px]">
               <ClearanceSearchBar
@@ -868,28 +1025,28 @@ const BuildingClearance = () => {
             />
           </div>
 
-          {/* Active filter summary line */}
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
-            <p className="text-xs text-muted-foreground mb-3 mt-1">
-              Showing <strong className="text-foreground">{total}</strong> result{total !== 1 ? 's' : ''}
-              {activeFilterCount > 0 && <> with <strong className="text-foreground">{activeFilterCount}</strong> active filter{activeFilterCount !== 1 ? 's' : ''}</>}
-              {searchValue && <> for <strong className="text-foreground">"{searchValue}"</strong></>}
+            <p className="text-xs text-gray-500 mb-3 mt-1">
+              Showing <strong className="text-gray-900">{total}</strong> result{total !== 1 ? 's' : ''}
+              {activeFilterCount > 0 && <> with <strong className="text-gray-900">{activeFilterCount}</strong> active filter{activeFilterCount !== 1 ? 's' : ''}</>}
+              {searchValue && <> for <strong className="text-gray-900">"{searchValue}"</strong></>}
             </p>
           )}
 
-          {/* ── Table card ── */}
-          <div className="bg-card rounded-lg border border-border overflow-hidden mt-4">
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               </div>
             ) : data.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-500">
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
                 {(activeFilterCount > 0 || searchValue) && (
-                  <button className="text-xs text-blue-600 hover:underline"
-                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
+                  <button
+                    className="text-xs text-blue-600 hover:underline"
+                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}
+                  >
                     Clear all filters
                   </button>
                 )}
@@ -897,7 +1054,7 @@ const BuildingClearance = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="border-b border-border bg-muted/30">
+                  <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
                       <th className="w-5 py-3 pl-3" />
                       <SortHeader field="surname">Full Name</SortHeader>
@@ -905,7 +1062,7 @@ const BuildingClearance = () => {
                       <SortHeader field="created_at">Issue Date</SortHeader>
                       <SortHeader field="establishment">Establishment</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           Schedule
@@ -915,113 +1072,106 @@ const BuildingClearance = () => {
                       <SortHeader field="street">Address</SortHeader>
                       <SortHeader field="or_no">OR No.</SortHeader>
                       <SortHeader field="created_by">Created By</SortHeader>
-                      <SortHeader field="remarks">Remarks</SortHeader>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
+                  <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
+                      const status = item.status?.toUpperCase() || '';
+                      const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED' || status === 'APPROVED';
+                      const canMarkAsPaid = status === 'TO_PAY';
+                      const canRelease = status === 'PAID';
+                      const isLoading = actionLoading === item.id;
+                      
                       return (
-                        <tr key={item.id}
-                          className={isNew ? 'new-request-row transition-colors' : 'hover:bg-muted/30 transition-colors'}>
-
-                          {/* New-request dot column */}
+                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors cursor-pointer`} onClick={() => handleViewDetails(item)}>
                           <td className="pl-3 pr-0 py-3">
-                            {isNew && <span className="new-dot" title="New request (< 24h)" />}
+                            {isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}
                           </td>
-
-                          <td className="py-3 px-4 text-sm font-medium text-primary whitespace-nowrap">
+                          <td className="py-3 px-4 text-sm font-medium text-blue-600 whitespace-nowrap">
                             {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim()}
                           </td>
-
-                          <td className="py-3 px-4 text-sm font-mono text-primary">
-                            {item.bcert_number}
-                          </td>
-
-                          {/* Issue Date — formatted with time + "New" label like Barangay */}
-                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
+                          <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.bcert_number}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
                             <div className="flex flex-col gap-0.5">
                               <span>{formatCreatedAt((item as any).created_at)}</span>
-                              {isNew && (
-                                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#3b82f6' }}>New</span>
-                              )}
+                              {isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}
                             </div>
                           </td>
-
-                          <td className="py-3 px-4 text-sm font-medium">
-                            {item.establishment ?? '—'}
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <StatusBadge status={item.status} />
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <ScheduleCell schedule={(item as any).schedule ?? null} />
-                          </td>
-
-                          <td className="py-3 px-4 text-sm text-muted-foreground">
-                            {item.purpose ?? '—'}
-                          </td>
-
-                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                          <td className="py-3 px-4 text-sm font-medium">{item.establishment ?? '—'}</td>
+                          <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
+                          <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{item.purpose ?? '—'}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">
                             {[item.house_block_lot_no, item.street, item.zone].filter(Boolean).join(', ') || '—'}
                           </td>
-
-                          <td className="py-3 px-4 text-sm text-muted-foreground">
-                            {item.or_no ?? '—'}
-                          </td>
-
-                          <td className="py-3 px-4 text-sm text-muted-foreground">
-                            {item.created_by ?? '—'}
-                          </td>
-
-                          <td className="py-3 px-4 text-sm text-muted-foreground max-w-[180px] truncate">
-                            {item.remarks || '—'}
-                          </td>
-
+                          <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
                           <td className="py-3 px-4">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem className="cursor-pointer"
-                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`)}>
-                                  View / Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer"
-                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true } })}>
+                            <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center gap-1.5 ">
+                                <button
+                                  onClick={() => handleViewDetails(item)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  View/Edit
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`)}
+                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  Preview
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
+                                >
                                   Print
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="cursor-pointer flex items-center gap-2 font-medium"
-                                  style={{ color: '#0f2a5e' }}
-                                  onClick={() => openInspect(item)}
-                                >
-                                  <FolderSearch className="h-3.5 w-3.5" />
-                                  Inspect Docs &amp; Schedule
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="cursor-pointer flex items-center gap-2"
-                                  onClick={() => openReschedule(item)}
-                                >
-                                  <RefreshCw className="h-3.5 w-3.5" />
-                                  Reschedule
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive cursor-pointer"
+                                </button>
+                              </div>
+                              
+                              {/* Status action buttons */}
+                              <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-gray-100">
+                                {canMarkToPay && (
+                                  <button
+                                    onClick={() => handleMarkToPay(item)}
+                                    disabled={isLoading}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                  >
+                                    <CreditCard className="h-3 w-3" />
+                                    {isLoading ? '...' : 'Mark to Pay'}
+                                  </button>
+                                )}
+                                {canMarkAsPaid && (
+                                  <button
+                                    onClick={() => handleMarkAsPaid(item)}
+                                    disabled={isLoading}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                  >
+                                    <CreditCard className="h-3 w-3" />
+                                    {isLoading ? '...' : 'Mark Paid'}
+                                  </button>
+                                )}
+                                {canRelease && (
+                                  <button
+                                    onClick={() => handleRelease(item)}
+                                    disabled={isLoading}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                  >
+                                    <Mail className="h-3 w-3" />
+                                    {isLoading ? '...' : 'Release'}
+                                  </button>
+                                )}
+                                <button
                                   onClick={() => handleDelete(Number(item.id))}
+                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
                                 >
                                   Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </button>
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1041,21 +1191,12 @@ const BuildingClearance = () => {
         </div>
       </div>
 
-      {inspectRecord && (
-        <DocumentInspectModal
-          mode={inspectMode}
-          record={{
-            id:             inspectRecord.id,
-            bcert_number:   inspectRecord.bcert_number,
-            first_name:     inspectRecord.first_name,
-            surname:        inspectRecord.surname,
-            document_type:  'building_clearance',
-            scheduled_date: (inspectRecord as any).scheduled_date ?? null,
-            user_id:        (inspectRecord as any).user_id
-                            ?? (inspectRecord as any).created_by,
-          }}
-          onClose={() => setInspectRecord(null)}
-          onScheduled={handleScheduled}
+      {selectedDetailRecord && (
+        <EditableDetailModal
+          record={selectedDetailRecord}
+          onClose={() => setSelectedDetailRecord(null)}
+          onUpdate={loadData}
+          toast={toast}
         />
       )}
     </Layout>

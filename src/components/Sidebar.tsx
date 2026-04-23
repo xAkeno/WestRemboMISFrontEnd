@@ -239,7 +239,7 @@ function NotificationFeed({ collapsed }: { collapsed: boolean }) {
 
 const allMenuItems = [
   { title: "Dashboard",         path: "/dashboard",         icon: Users,        permission: null },
-  { title: "Resident Records",  path: "/residenthome",      icon: Users,        permission: "resident" },
+  // { title: "Resident Records",  path: "/residenthome",      icon: Users,        permission: "resident" },
   { title: "Clearances",        path: "/clearancehome",     icon: FileCheck,    permission: "doc_req" },
   { title: "Certifications",    path: "/certificatehome",   icon: Award,        permission: "certificate" },
   { title: "Cashier",           path: "/cashier",           icon: Coins,        permission: "cashier" },

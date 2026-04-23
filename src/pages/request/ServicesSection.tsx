@@ -7,21 +7,21 @@ import serviceRegistration from "../../assets/service-business.png";
 import serviceBusiness from "../../assets/service-registration.png";
 
 const services = [
-  {
-    image: serviceRegistration,
-    title: "Resident Registration",
-    description:
-      "Register as a resident of Barangay West Rembo to access community services, programs, and benefits. Our registration process is simple and efficient.",
-    href: "/services/resident-registration",
-    number: "01",
-  },
+  // {
+  //   image: serviceRegistration,
+  //   title: "Resident Registration",
+  //   description:
+  //     "Register as a resident of Barangay West Rembo to access community services, programs, and benefits. Our registration process is simple and efficient.",
+  //   href: "/services/resident-registration",
+  //   number: "01",
+  // },
   {
     image: serviceClearance,
     title: "Barangay Clearance",
     description:
       "Apply for barangay clearance for employment, travel, and other official purposes. Fast processing with online tracking available.",
     href: "/services/barangay-clearance",
-    number: "02",
+    number: "01",
   },
   {
     image: serviceBusiness,
@@ -29,7 +29,7 @@ const services = [
     description:
       "Obtain business permits and clearances to operate legally within our barangay. We support local entrepreneurs with streamlined processing.",
     href: "/services/business-clearance",
-    number: "03",
+    number: "02",
   },
   {
     image: serviceBusiness,
@@ -37,7 +37,7 @@ const services = [
     description:
       "Obtain building permits and clearances to ensure compliance with local regulations. We support property owners with streamlined processing.",
     href: "/services/building-clearance",
-    number: "04",
+    number: "03",
   },
 ];
 

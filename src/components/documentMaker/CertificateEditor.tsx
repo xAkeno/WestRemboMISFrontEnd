@@ -286,7 +286,6 @@ export function CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
   const location = useLocation();
   const ticket   = location.state?.ticket;
-  console.log(ticket)
   const autoPrint = location.state?.autoPrint;
 
   const [selectedClearanceType, setSelectedClearanceType] = useState<string | null>(null);
@@ -364,34 +363,12 @@ export function CertificateEditor() {
 
   const getTicketValue = (key: string, tkt: any) => {
     if (!tkt?.serviceable) return null;
-
     const src = tkt.serviceable;
-
-    const map: Record<string, string[]> = {
-      surname: ["surname"],
-      
-      // 👇 support BOTH formats
-      dob: ["dob", "date_of_birth"],
-      date_of_birth: ["date_of_birth", "dob"],
-
-      pob: ["pob", "place_of_birth"],
-      place_of_birth: ["place_of_birth", "pob"],
-
-      relationship_to_owner: ["relationship_to_owner", "relation_to_house_owner"],
-
-      // optional: add more if needed
-      house_owner: ["house_owner"],
+    const map: Record<string, string> = {
+      surname: "surname", dob: "date_of_birth",
+      pob: "place_of_birth", relationship_to_owner: "relation_to_house_owner",
     };
-
-    const keysToCheck = map[key] ?? [key];
-
-    for (const k of keysToCheck) {
-      if (src[k] !== undefined && src[k] !== null) {
-        return src[k];
-      }
-    }
-
-    return null;
+    return src[map[key] ?? key] ?? null;
   };
 
   const buildPayloadFromFields = () => {

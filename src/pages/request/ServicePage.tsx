@@ -11,19 +11,19 @@ const serviceData: Record<string, {
   processingTime: string;
   fee: string;
 }> = {
-  "resident-registration": {
-    icon: Users,
-    title: "Resident Registration",
-    description: "Register as a resident of Barangay West Rembo to access various barangay services and programs.",
-    requirements: [
-      "Valid government ID",
-      "Proof of residence (utility bill, lease contract)",
-      "2x2 ID photos (2 pieces)",
-      "Accomplished registration form",
-    ],
-    processingTime: "1-2 business days",
-    fee: "Free",
-  },
+  // "resident-registration": {
+  //   icon: Users,
+  //   title: "Resident Registration",
+  //   description: "Register as a resident of Barangay West Rembo to access various barangay services and programs.",
+  //   requirements: [
+  //     "Valid government ID",
+  //     "Proof of residence (utility bill, lease contract)",
+  //     "2x2 ID photos (2 pieces)",
+  //     "Accomplished registration form",
+  //   ],
+  //   processingTime: "1-2 business days",
+  //   fee: "Free",
+  // },
   "barangay-certificate": {
     icon: FileText,
     title: "Barangay Certificate",
