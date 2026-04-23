@@ -254,17 +254,9 @@ const Login = () => {
             {/* ── reCAPTCHA — appears after 3 failed attempts ── */}
             {showCaptcha && (
               <div
-                className="p-4"
-                style={{
-                  backgroundColor: "#fff8e1",
-                  border: `1.5px solid ${captchaToken ? "#16a34a" : "#f59e0b"}`,
-                  borderRadius: 2,
-                  transition: "border-color 0.2s",
-                }}
+                
               >
-                <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#78350f" }}>
-                  Please verify you are human
-                </p>
+                
                 <ReCAPTCHA
                   ref={recaptchaRef}
                   sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
