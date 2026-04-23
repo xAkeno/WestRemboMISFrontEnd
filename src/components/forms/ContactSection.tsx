@@ -1,11 +1,12 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { MapPin, Mail, Phone, Facebook, Clock, Send } from "lucide-react";
 import Header from "./Header";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
+import ReCAPTCHA from "react-google-recaptcha";
+
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
-
 
 interface ContactInfo {
   id?: number;
@@ -25,7 +26,9 @@ const defaultContact: ContactInfo = {
   office_days: "Monday–Saturday",
   office_hours: "5:00 AM – 6:00 PM",
 };
+
 const API_BASE = "http://127.0.0.1:8000/api";
+
 const ContactSection = () => {
   const { toast } = useToast();
 
@@ -45,6 +48,10 @@ const ContactSection = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  // ── reCAPTCHA ──
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -53,15 +60,20 @@ const ContactSection = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!captchaToken) {
+      setError("Please complete the CAPTCHA verification before submitting.");
+      return;
+    }
+
     setLoading(true);
     setSuccess("");
     setError("");
 
     try {
-      await axios.post(`${API_BASE}/contacts`, formData);
+      await axios.post(`${API_BASE}/contacts`, { ...formData, recaptcha_token: captchaToken });
 
       setSuccess("Your inquiry has been sent successfully!");
-
       setFormData({
         first_name: "",
         last_name: "",
@@ -71,9 +83,15 @@ const ContactSection = () => {
         topic: "",
         message: "",
       });
+
+      // Reset captcha after successful submission
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
     } catch (err: any) {
       console.error(err);
       setError("Something went wrong. Please try again later.");
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -81,14 +99,9 @@ const ContactSection = () => {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-
     try {
-      const res = await axios.get(`${API_BASE}/contact`, {
-        withCredentials: true,
-      });
-
+      const res = await axios.get(`${API_BASE}/contact`, { withCredentials: true });
       const data = res.data?.data ?? res.data;
-
       if (Array.isArray(data) && data.length > 0) {
         setForm(data[data.length - 1]);
       } else if (data) {
@@ -98,15 +111,10 @@ const ContactSection = () => {
       }
     } catch (err: any) {
       console.error(err);
-
       setForm(defaultContact);
-
       toast({
         title: "Error Loading Contact",
-        description:
-          err.response?.data?.message ??
-          err.message ??
-          "Unable to fetch contact info.",
+        description: err.response?.data?.message ?? err.message ?? "Unable to fetch contact info.",
         variant: "destructive",
       });
     } finally {
@@ -123,11 +131,7 @@ const ContactSection = () => {
     { icon: Mail, title: "Email", content: form.email },
     { icon: Phone, title: "Telephone", content: form.telephone },
     { icon: Facebook, title: "Facebook", content: form.facebook },
-    {
-      icon: Clock,
-      title: "Office Hours",
-      content: `${form.office_days} ${form.office_hours}`,
-    },
+    { icon: Clock, title: "Office Hours", content: `${form.office_days} ${form.office_hours}` },
   ];
 
   const inputBase: React.CSSProperties = {
@@ -144,8 +148,7 @@ const ContactSection = () => {
     transition: "border-color 0.2s",
   };
 
-  const labelCls =
-    "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
+  const labelCls = "block text-[10px] font-bold uppercase tracking-[0.14em] mb-1";
 
   return (
     <section id="contact" className="min-h-screen bg-background">
@@ -221,8 +224,8 @@ const ContactSection = () => {
                 All fields marked are required to process your inquiry.
               </p>
 
-              {success && <p className="mb-4 text-green-600">{success}</p>}
-              {error && <p className="mb-4 text-red-600">{error}</p>}
+              {success && <p className="mb-4 text-green-600 text-sm">{success}</p>}
+              {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
 
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
@@ -299,6 +302,15 @@ const ContactSection = () => {
                     required
                   />
                 </div>
+
+                {/* ── reCAPTCHA — above Submit Inquiry ── */}
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                  onChange={(token) => setCaptchaToken(token)}
+                  onExpired={() => setCaptchaToken(null)}
+                  theme="light"
+                />
 
                 <button
                   type="submit"
