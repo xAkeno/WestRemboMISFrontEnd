@@ -27,17 +27,11 @@ const today = () => {
 };
 const isWeekend = (date: Date) => {
   const day = date.getDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+  return day === 0 || day === 6;
 };
 const PH_HOLIDAYS_2026 = [
-  "2026-01-01", // New Year
-  "2026-04-09", // Araw ng Kagitingan
-  "2026-05-01", // Labor Day
-  "2026-06-12", // Independence Day
-  "2026-08-25", // National Heroes Day (example)
-  "2026-11-30", // Bonifacio Day
-  "2026-12-25", // Christmas
-  "2026-12-30", // Rizal Day
+  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
+  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
 ];
 
 const isHoliday = (dateStr: string) => {
@@ -46,17 +40,9 @@ const isHoliday = (dateStr: string) => {
 
 const validateScheduleDate = (value: string): string => {
   if (!value) return "Schedule date is required.";
-
   const date = new Date(value);
-
-  if (isWeekend(date)) {
-    return "Weekends (Saturday/Sunday) are not allowed.";
-  }
-
-  if (isHoliday(value)) {
-    return "Selected date is a Philippine holiday. Please choose another date.";
-  }
-
+  if (isWeekend(date)) return "Weekends (Saturday/Sunday) are not allowed.";
+  if (isHoliday(value)) return "Selected date is a Philippine holiday. Please choose another date.";
   return "";
 };
 
@@ -64,22 +50,6 @@ const maxDob = () => {
   const d = today();
   d.setFullYear(d.getFullYear() - MIN_AGE);
   return d;
-};
-
-const validateDob = (dob: string): string => {
-  if (!dob) return "Date of birth is required.";
-  const date = new Date(dob);
-  if (isNaN(date.getTime())) return "Invalid date.";
-  if (date > today()) return "Date of birth cannot be a future date.";
-  if (date > maxDob()) return `You must be at least ${MIN_AGE} years old to apply for a Building Clearance.`;
-  return "";
-};
-
-const validateName = (name: string, fieldName: string): string => {
-  if (!name || name.trim() === "") return `${fieldName} is required.`;
-  if (!/^[A-Za-z\s\-']+$/.test(name)) return `${fieldName} must contain only letters.`;
-  if (name.trim().length === 1) return `${fieldName} must be at least 2 characters.`;
-  return "";
 };
 
 const validateRequired = (value: string, fieldName: string): string => {
@@ -93,28 +63,11 @@ const validatePurposeDetails = (value: string): string => {
   return "";
 };
 
-const validateContact = (contact: string): string => {
-  if (!contact || contact.trim() === "") return "Contact number is required.";
-  const cleanContact = contact.replace(/\D/g, "");
-  if (cleanContact.length !== 11) return "Contact number must be exactly 11 digits.";
-  if (!/^09\d{9}$/.test(cleanContact)) return "Contact number must start with '09' and contain 11 digits.";
-  return "";
-};
-
-const validateEmail = (email: string): string => {
-  if (!email || email.trim() === "") return "Email address is required.";
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) return "Please enter a valid email address (e.g., name@domain.com).";
-  return "";
-};
-
 const toInputMax = (d: Date) => d.toISOString().split("T")[0];
 
 // ── Address parser helper ────────────────────────────────────────────────────
 const parseAddress = (address: string) => {
-  if (!address) {
-    return { house_block_lot_no: "", street: "", zone: "" };
-  }
+  if (!address) return { house_block_lot_no: "", street: "", zone: "" };
   const parts = address.split(",").map((p) => p.trim());
   return {
     house_block_lot_no: parts[0] || "",
@@ -190,7 +143,7 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ── Success Modal (updated with schedule info) ──────────────────────────────────────────
+// ── Success Modal ──────────────────────────────────────────────────────────
 const SuccessModal = ({
   successData,
   onBack,
@@ -317,19 +270,10 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [errors, setErrors] = useState({
-    surname: "",
-    first_name: "",
-    middle_name: "",
-    dob: "",
-    contact_no: "",
-    email: "",
-    establishment: "",
-    purpose_details: "",
-    house_block_lot_no: "",
-    street: "",
-    zone: "",
     schedule_date: "",
     time_group: "",
+    establishment: "",
+    purpose_details: "",
   });
 
   const { toast } = useToast();
@@ -347,7 +291,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     load();
   }, []);
 
-   const handleBack = () => {
+  const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
@@ -373,38 +317,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   const upd = (f: string, v: string) => {
     const textFields = [
-      "surname", "first_name", "middle_name", "ext_name",
-      "establishment", "purpose_details", "house_block_lot_no",
-      "bcert_number", "or_no", "remarks", "punong_barangay",
-      "for_the_punong_barangay", "barangay_position", "contact_no", "email",
+      "establishment", "purpose_details",
     ];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [f]: "" }));
-    }
-  };
-
-  const calculateAge = (dob: string): number => {
-    const birth = new Date(dob);
-    const now = new Date();
-    let age = now.getFullYear() - birth.getFullYear();
-    const monthDiff = now.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
-  const handleDobChange = (val: string) => {
-    upd("dob", val);
-    const err = validateDob(val);
-    setErrors((prev) => ({ ...prev, dob: err }));
-    if (!err && val) {
-      const age = calculateAge(val);
-      upd("age", String(age));
-    } else if (err) {
-      upd("age", "");
     }
   };
 
@@ -449,7 +367,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     fetchAvailableSlots(date);
   };
 
-
   const getMinScheduleDate = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -460,17 +377,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     let isValid = true;
     const newErrors = { ...errors };
 
-    newErrors.surname = validateName(formData.surname, "Surname");
-    newErrors.first_name = validateName(formData.first_name, "First name");
-    newErrors.middle_name = validateRequired(formData.middle_name, "Middle name");
-    newErrors.dob = validateDob(formData.dob);
-    newErrors.contact_no = validateContact(formData.contact_no);
-    newErrors.email = validateEmail(formData.email);
     newErrors.establishment = validateRequired(formData.establishment, "Establishment/Project name");
     newErrors.purpose_details = validatePurposeDetails(formData.purpose_details);
-    newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no, "House/Block/Lot number");
-    newErrors.street = validateRequired(formData.street, "Street");
-    newErrors.zone = validateRequired(formData.zone, "Zone/Purok");
     newErrors.schedule_date = validateRequired(formData.schedule_date, "Schedule date");
     newErrors.time_group = validateRequired(formData.time_group, "Time slot");
 
@@ -524,7 +432,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
         const documentNumber = res.data?.data?.service?.bcert_number;
 
-        // Create schedule appointment
         const scheduleRes = await axios.post(
           "http://127.0.0.1:8000/api/schedules",
           {
@@ -545,7 +452,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             scheduleDate: schedule?.schedule_date,
           });
         } else {
-          // Fallback if schedule creation fails but clearance was created
           setSuccessData({
             id: newId,
             refNo: `REF-${String(newId).padStart(4, "0")}`,
@@ -614,6 +520,18 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
           }
         });
 
+        const calculateAge = (dob: string): number => {
+          if (!dob) return 0;
+          const birth = new Date(dob);
+          const now = new Date();
+          let age = now.getFullYear() - birth.getFullYear();
+          const monthDiff = now.getMonth() - birth.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+            age--;
+          }
+          return age;
+        };
+
         setFormData((prev) => ({
           ...prev,
           ...Object.fromEntries(
@@ -633,13 +551,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     loadUser();
   }, [streets]);
 
-  const isFieldDisabled = (fieldName: string) => {
-    if (fieldName === "dob") return false;
-    if (fieldName === "street") return false;
-    if (fieldName === "zone") return false;
-    return autoFilledFields.includes(fieldName);
-  };
-
+  const readonlyInputStyle = "rounded-none border-0 border-b-2 bg-gray-50 px-0 text-sm cursor-not-allowed opacity-75";
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
   return (
@@ -677,8 +589,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
-              {/* Requirements */}
               <div>
                 <h4
                   className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
@@ -687,7 +597,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   <FileText className="w-4 h-4" />
                   Requirements
                 </h4>
-
                 <ul className="space-y-2 text-sm" style={{ color: "#713f12" }}>
                   <li className="flex items-center gap-2">
                     <IdCard className="w-4 h-4 opacity-80" />
@@ -696,9 +605,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                 </ul>
               </div>
 
-              {/* Processing & Fee */}
               <div className="space-y-5">
-                
                 <div>
                   <h4
                     className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2"
@@ -724,13 +631,13 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     ₱100.00
                   </p>
                 </div>
-
               </div>
             </div>
           </div>
+
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* Section 1 — Personal Information */}
+            {/* Section 1 — Personal Information (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
@@ -743,9 +650,9 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   <PrefixCombobox
                     options={PREFIX_OPTIONS}
                     value={formData.prefix}
-                    onChange={(v) => upd("prefix", v)}
+                    onChange={() => {}}
                     placeholder="Select prefix"
-                    disabled={isFieldDisabled("prefix")}
+                    disabled={true}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -754,17 +661,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="text"
                     placeholder="de la Cruz"
                     value={formData.surname}
-                    onChange={(e) => upd("surname", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.surname ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("surname") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("surname")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.surname ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("surname")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.surname && <p className="mt-1 text-xs text-red-500">{errors.surname}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>First Name *</Label>
@@ -772,17 +674,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="text"
                     placeholder="Juan"
                     value={formData.first_name}
-                    onChange={(e) => upd("first_name", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.first_name ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("first_name") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("first_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.first_name ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("first_name")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.first_name && <p className="mt-1 text-xs text-red-500">{errors.first_name}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Middle Name *</Label>
@@ -790,17 +687,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="text"
                     placeholder="Reyes"
                     value={formData.middle_name}
-                    onChange={(e) => upd("middle_name", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.middle_name ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("middle_name") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("middle_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.middle_name ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("middle_name")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.middle_name && <p className="mt-1 text-xs text-red-500">{errors.middle_name}</p>}
                 </div>
               </div>
 
@@ -810,15 +702,11 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   <Input
                     placeholder="Jr., Sr., III"
                     value={formData.ext_name}
-                    onChange={(e) => upd("ext_name", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: "#dde3ed",
-                      opacity: isFieldDisabled("ext_name") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("ext_name")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
-                    disabled={isFieldDisabled("ext_name")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -828,7 +716,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     value={formData.age}
                     readOnly
                     disabled
-                    className={`${underlineInput} cursor-not-allowed opacity-60`}
+                    className={`${readonlyInputStyle} cursor-not-allowed`}
                     style={{ borderBottomColor: "#dde3ed", backgroundColor: "#f3f4f6" }}
                   />
                 </div>
@@ -838,18 +726,17 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="date"
                     value={formData.dob}
                     max={toInputMax(maxDob())}
-                    onChange={(e) => handleDobChange(e.target.value)}
-                    className={underlineInput}
-                    style={{ borderBottomColor: errors.dob ? "#ef4444" : "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.dob ? "#ef4444" : "#dde3ed")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.dob && <p className="mt-1 text-xs text-red-500">{errors.dob}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Section 2 — Contact Information */}
+            {/* Section 2 — Contact Information (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
@@ -863,17 +750,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="tel"
                     placeholder="09XX XXX XXXX"
                     value={formData.contact_no}
-                    onChange={(e) => upd("contact_no", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.contact_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("contact_no") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("contact_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.contact_no ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("contact_no")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.contact_no && <p className="mt-1 text-xs text-red-500">{errors.contact_no}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
@@ -881,22 +763,17 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                     type="email"
                     placeholder="juan@email.com"
                     value={formData.email}
-                    onChange={(e) => upd("email", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.email ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("email") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("email")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.email ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("email")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Section 3 — Building Details */}
+            {/* Section 3 — Building Details (EDITABLE) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -949,7 +826,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
 
-            {/* Section 4 — Project Location */}
+            {/* Section 4 — Project Location (READ-ONLY) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
@@ -962,90 +839,43 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   <Input
                     placeholder="e.g., 123-A, Blk 5"
                     value={formData.house_block_lot_no}
-                    onChange={(e) => upd("house_block_lot_no", e.target.value)}
-                    className={underlineInput}
-                    style={{ 
-                      borderBottomColor: errors.house_block_lot_no ? "#ef4444" : "#dde3ed",
-                      opacity: isFieldDisabled("house_block_lot_no") ? 0.6 : 1,
-                    }}
-                    onFocus={(e) => { if (!isFieldDisabled("house_block_lot_no")) e.currentTarget.style.borderBottomColor = "#c2467d"; }}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.house_block_lot_no ? "#ef4444" : "#dde3ed")}
-                    disabled={isFieldDisabled("house_block_lot_no")}
+                    onChange={() => {}}
+                    className={readonlyInputStyle}
+                    style={{ borderBottomColor: "#dde3ed" }}
+                    readOnly
+                    disabled
                   />
-                  {errors.house_block_lot_no && <p className="mt-1 text-xs text-red-500">{errors.house_block_lot_no}</p>}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
-                  {streets.length > 0 ? (
-                    <Select
-                      value={formData.street}
-                      onValueChange={(v) => {
-                        setFormData((p) => ({ ...p, street: toUpperCase(v) }));
-                        setErrors((prev) => ({ ...prev, street: "" }));
-                      }}
-                    >
-                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}>
-                        <SelectValue placeholder="Select street" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {streets.map((s) => (
-                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                            {s.name}{s.formerly ? ` (formerly ${s.formerly})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="Enter street name"
-                      value={formData.street}
-                      onChange={(e) => upd("street", e.target.value)}
-                      className={underlineInput}
-                      style={{ borderBottomColor: errors.street ? "#ef4444" : "#dde3ed" }}
-                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.street ? "#ef4444" : "#dde3ed")}
-                    />
-                  )}
-                  {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+                  <Select
+                    value={formData.street}
+                    onValueChange={() => {}}
+                    disabled={true}
+                  >
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-gray-50 px-0 focus:ring-0 text-sm cursor-not-allowed opacity-75" style={{ borderBottomColor: "#dde3ed" }}>
+                      <SelectValue placeholder="Select street" />
+                    </SelectTrigger>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
-                  {uniqueZones.length > 0 ? (
-                    <Select
-                      value={formData.zone}
-                      onValueChange={(v) => {
-                        setFormData((p) => ({ ...p, zone: toUpperCase(v) }));
-                        setErrors((prev) => ({ ...prev, zone: "" }));
-                      }}
-                    >
-                      <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}>
-                        <SelectValue placeholder="Select zone" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {uniqueZones.map((z) => (
-                          <SelectItem key={z} value={toUpperCase(z)}>{z}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="Enter zone / purok"
-                      value={formData.zone}
-                      onChange={(e) => upd("zone", e.target.value)}
-                      className={underlineInput}
-                      style={{ borderBottomColor: errors.zone ? "#ef4444" : "#dde3ed" }}
-                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.zone ? "#ef4444" : "#dde3ed")}
-                    />
-                  )}
-                  {errors.zone && <p className="mt-1 text-xs text-red-500">{errors.zone}</p>}
+                  <Select
+                    value={formData.zone}
+                    onValueChange={() => {}}
+                    disabled={true}
+                  >
+                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-gray-50 px-0 focus:ring-0 text-sm cursor-not-allowed opacity-75" style={{ borderBottomColor: "#dde3ed" }}>
+                      <SelectValue placeholder="Select zone" />
+                    </SelectTrigger>
+                  </Select>
                 </div>
               </div>
             </div>
 
-            {/* Section 5 — Schedule Appointment (NEW) */}
+            {/* Section 5 — Schedule Appointment (EDITABLE) */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
@@ -1083,7 +913,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                         }}
                         className="space-y-3"
                       >
-                        {/* Morning Slot */}
                         <div
                           className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
                           style={{
@@ -1108,7 +937,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                           </label>
                         </div>
 
-                        {/* Afternoon Slot */}
                         <div
                           className="flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all"
                           style={{
@@ -1139,53 +967,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                 )}
               </div>
             </div>
-
-            {/* Section 6 — Data Privacy (renumbered from 5 to 6) */}
-            {/* <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
-                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-              </div>
-
-              <div className="p-5 space-y-3" style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
-                  Data Privacy Notice
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
-                  Your personal information will be collected and processed solely for the purpose of this building clearance application, in accordance with the{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowPrivacyModal(true)}
-                    className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
-                    style={{ color: "#0f2a5e" }}
-                  >
-                    Data Privacy Act of 2012 (RA 10173)
-                  </button>
-                  . It will not be shared with unauthorized third parties.
-                </p>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    required
-                    className="mt-0.5 flex-shrink-0"
-                    style={{ accentColor: "#c2467d", width: 14, height: 14 }}
-                  />
-                  <span className="text-xs" style={{ color: "#374151" }}>
-                    I have read and understood the{" "}
-                    <button
-                      type="button"
-                      onClick={() => setShowPrivacyModal(true)}
-                      className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-60"
-                      style={{ color: "#0f2a5e" }}
-                    >
-                      Data Privacy Notice
-                    </button>
-                    .
-                  </span>
-                </label>
-              </div>
-            </div> */}
 
             {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
@@ -1223,7 +1004,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         </div>
       </div>
 
-      {successData && <SuccessModal successData={successData} onBack={onBack} />}
+      {successData && <SuccessModal successData={successData} onBack={handleBack} />}
     </>
   );
 };

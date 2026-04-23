@@ -1026,10 +1026,8 @@ interface PrefixComboboxProps {
 
 const PrefixCombobox = ({ value, onChange, placeholder = "Select prefix…", inputCls, error }: PrefixComboboxProps) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -1038,55 +1036,53 @@ const PrefixCombobox = ({ value, onChange, placeholder = "Select prefix…", inp
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const filtered = query
-    ? PREFIX_OPTIONS.filter((o) => o.toLowerCase().includes(query.toLowerCase()))
-    : PREFIX_OPTIONS;
-
-  const select = (opt: string) => { setQuery(opt); onChange(opt); setOpen(false); };
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    setQuery(v); onChange(v); setOpen(true);
-  };
-  const clear = () => { setQuery(""); onChange(""); setOpen(false); };
+  const select = (opt: string) => { onChange(opt); setOpen(false); };
+  const clear = () => { onChange(""); setOpen(false); };
 
   return (
     <div ref={ref} className="relative">
-      <div className="relative flex items-center">
-        <input
-          value={query}
-          onChange={handleInput}
-          onFocus={() => setOpen(true)}
-          placeholder={placeholder}
-          className={`${inputCls} pr-12`}
-          style={{ borderColor: error ? PINK : open ? PINK : "#d1d5db" }}
-          aria-autocomplete="list"
+      <div
+        className="relative flex items-center"
+        style={{ borderBottom: `1px solid ${error ? PINK : open ? PINK : "#d1d5db"}` }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="w-full py-2.5 text-left bg-transparent focus:outline-none pr-12"
+          style={{
+            color: value ? "var(--color-foreground)" : "#9ca3af",
+            fontSize: "inherit",
+            cursor: "pointer",
+          }}
+          aria-haspopup="listbox"
           aria-expanded={open}
-          role="combobox"
-        />
-        <div className="absolute right-0 flex items-center gap-0.5 pb-1">
-          {query && (
-            <button type="button" onClick={clear} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Clear">
+        >
+          {value || placeholder}
+        </button>
+        <div className="absolute right-0 flex items-center gap-0.5">
+          {value && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); clear(); }}
+              className="p-1 text-gray-400 hover:text-gray-600"
+              aria-label="Clear"
+            >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="p-1 text-gray-400"
-            aria-label="Toggle dropdown"
-          >
+          <span className="p-1 text-gray-400 pointer-events-none">
             <ChevronDown className="h-3.5 w-3.5" />
-          </button>
+          </span>
         </div>
       </div>
       {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
-      {open && filtered.length > 0 && (
+      {open && (
         <ul
           role="listbox"
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
           style={{ borderRadius: 4, fontSize: "inherit" }}
         >
-          {filtered.map((opt) => (
+          {PREFIX_OPTIONS.map((opt) => (
             <li
               key={opt}
               role="option"
@@ -1115,12 +1111,10 @@ interface ComboboxProps {
   error?: string;
 }
 
-const Combobox = ({ value, onChange, options, placeholder = "Select or type…", disabled, inputCls, error }: ComboboxProps) => {
+const Combobox = ({ value, onChange, options, placeholder = "Select…", disabled, inputCls, error }: ComboboxProps) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -1129,57 +1123,55 @@ const Combobox = ({ value, onChange, options, placeholder = "Select or type…",
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const filtered = query
-    ? options.filter((o) => o.toLowerCase().includes(query.toLowerCase()))
-    : options;
-
-  const select = (opt: string) => { setQuery(opt); onChange(opt); setOpen(false); };
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    setQuery(v); onChange(v); setOpen(true);
-  };
-  const clear = () => { setQuery(""); onChange(""); setOpen(false); };
+  const select = (opt: string) => { onChange(opt); setOpen(false); };
+  const clear = () => { onChange(""); setOpen(false); };
 
   return (
     <div ref={ref} className="relative">
-      <div className="relative flex items-center">
-        <input
-          value={query}
-          onChange={handleInput}
-          onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+      <div
+        className="relative flex items-center"
+        style={{ borderBottom: `1px solid ${error ? PINK : open ? PINK : "#d1d5db"}` }}
+      >
+        <button
+          type="button"
+          onClick={() => !disabled && setOpen((o) => !o)}
           disabled={disabled}
-          className={`${inputCls} pr-12`}
-          style={{ borderColor: error ? PINK : open ? PINK : "#d1d5db" }}
-          aria-autocomplete="list"
+          className="w-full py-2.5 text-left bg-transparent focus:outline-none pr-12"
+          style={{
+            color: value ? "var(--color-foreground)" : "#9ca3af",
+            fontSize: "inherit",
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.5 : 1,
+          }}
+          aria-haspopup="listbox"
           aria-expanded={open}
-          role="combobox"
-        />
-        <div className="absolute right-0 flex items-center gap-0.5 pb-1">
-          {query && (
-            <button type="button" onClick={clear} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Clear">
+        >
+          {value || placeholder}
+        </button>
+        <div className="absolute right-0 flex items-center gap-0.5">
+          {value && !disabled && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); clear(); }}
+              className="p-1 text-gray-400 hover:text-gray-600"
+              aria-label="Clear"
+            >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => !disabled && setOpen((o) => !o)}
-            className="p-1 text-gray-400"
-            disabled={disabled}
-            aria-label="Toggle dropdown"
-          >
+          <span className="p-1 text-gray-400 pointer-events-none">
             <ChevronDown className="h-3.5 w-3.5" />
-          </button>
+          </span>
         </div>
       </div>
       {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
-      {open && filtered.length > 0 && (
+      {open && (
         <ul
           role="listbox"
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
           style={{ borderRadius: 4, fontSize: "inherit" }}
         >
-          {filtered.map((opt) => (
+          {options.map((opt) => (
             <li
               key={opt}
               role="option"
@@ -1585,7 +1577,7 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
 
   const validateAndSet = (field: string, value: string) => {
     // Convert to uppercase for address fields
-    const textFields = ["house_block_lot_no", "street", "zone", "house_owner", "resident_status"];
+    const textFields = ["house_block_lot_no", "street", "zone", "house_owner", "resident_status", "precinct_no"];
     let processedValue = value;
     if (textFields.includes(field)) {
       processedValue = toUpperCase(value);
@@ -1734,7 +1726,7 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
  
   const validateAndSet = (field: string, value: string) => {
     // Convert to uppercase for text fields
-    const textFields = ["business_name", "business_type", "establishment", "occupation", "position", "employment_status", "notes", "purpose_details"];
+    const textFields = ["business_name", "business_type", "establishment", "occupation", "position", "employment_status", "notes", "purpose_details", "precinct_no"] ;
     let processedValue = value;
     if (textFields.includes(field)) {
       processedValue = toUpperCase(value);
@@ -1912,13 +1904,22 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
               />
             </Field>
             <Field label={`${tr("field.businessType")}`} error={fieldErrors.business_type} required>
-              <MaskedInput
-                value={formData.business_type || ""}
-                onValueChange={(v) => validateAndSet("business_type", v)}
-                placeholder={tr("ph.businessType")}
-                className={inputCls}
-                style={{ borderColor: fieldErrors.business_type ? PINK : "#d1d5db" }}
-              />
+                <Combobox
+                  value={formData.business_type || ""}
+                  onChange={(v) => validateAndSet("business_type", v)}
+                  options={[
+                    "Retail",
+                    "Food & Beverage",
+                    "Services",
+                    "Manufacturing",
+                    "Construction",
+                    "Transportation",
+                    "Other",
+                  ]}
+                  placeholder={tr("ph.businessType")}
+                  inputCls={inputCls}
+                  error={fieldErrors.business_type}
+                />
             </Field>
             <Field label={tr("field.capital")} error={fieldErrors.capital}>
               <MaskedInput
