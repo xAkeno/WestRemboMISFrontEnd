@@ -1,20 +1,15 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRequestById } from "../services/api";
-import { DOCUMENT_LABELS } from "@/types/types";
 import { format } from "date-fns";
 import {
   ArrowLeft, Calendar, AlertTriangle, FileCheck,
-  FileText, Upload, Loader2, MessageSquare,
-  User, MapPin, Phone, Building2, Briefcase,
-  ClipboardList, ShieldCheck, Hash, BadgeInfo,
-  CheckCircle, Clock, Banknote, Users, Hammer,
-  Info, FileX, BadgeCheck, Mail,
-  ChevronRight, ListChecks, X, ExternalLink,
-  ImagePlus, Eye, CheckCircle2, AlertCircle,
-  Copy, Check,
+  FileText, Loader2, MessageSquare,
+  User, MapPin, ClipboardList,
+  Info, FileX, BadgeCheck,
+  X, Copy, Check, Clock, Home,
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import Header from "../forms/Header";
 
@@ -27,31 +22,15 @@ const api = axios.create({
   headers: { Accept: "application/json" },
 });
 
-type UploadStatus = "idle" | "uploading" | "success" | "error";
-
-interface UploadedFile {
-  id: string;
-  dbId?: number;
-  file: File | null;
-  preview: string | null;
-  status: UploadStatus;
-  progress: number;
-  error?: string;
-  url?: string;
-  filename?: string;
+// ─── Types ─────────────────────────────────────────────────────────────────────
+interface Service {
+  id: number;
+  name: string;
+  description: string;
+  requirements: string;
+  processing_time: string;
+  fee: string;
 }
-
-const statusStyle: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0", dot: "#16a34a" },
-  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
-  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
-  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
-  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
-  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
-  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
-  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
-  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
-};
 
 interface DocReply {
   id: number;
@@ -74,6 +53,27 @@ interface ScheduleData {
   status?: string;
 }
 
+// ─── Constants ─────────────────────────────────────────────────────────────────
+const SERVICE_NAME_TO_SLUG: Record<string, string> = {
+  "Barangay Certificate":  "barangay_certificate",
+  "Barangay Clearance":    "barangay_clearance",
+  "Business Clearance":    "business_clearance",
+  "Building Clearance":    "building_clearance",
+  "Resident Registration": "resident_registration",
+};
+
+const statusStyle: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0", dot: "#16a34a" },
+  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
+  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
+  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
+  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
+  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+};
+
 const REPLY_STATUS_CONFIG = {
   info:     { label: "Info",             icon: Info,          bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8", badgeBg: "#dbeafe", leftBorder: "#3b82f6" },
   warning:  { label: "Warning",          icon: AlertTriangle, bg: "#fffbeb", border: "#fde68a", color: "#b45309", badgeBg: "#fef3c7", leftBorder: "#f59e0b" },
@@ -81,36 +81,6 @@ const REPLY_STATUS_CONFIG = {
   approved: { label: "Approved",         icon: BadgeCheck,    bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d", badgeBg: "#dcfce7", leftBorder: "#16a34a" },
 } as const;
 
-const serviceData: Record<string, { processingTime: string; fee: string }> = {
-  barangay_certificate:  { processingTime: "Same day",          fee: "₱50.00" },
-  barangay_clearance:    { processingTime: "1–2 business days", fee: "₱100.00" },
-  business_clearance:    { processingTime: "3–5 business days", fee: "₱500.00 – ₱2,000.00" },
-  building_clearance:    { processingTime: "5–7 business days", fee: "₱300.00 – ₱1,000.00" },
-  resident_registration: { processingTime: "1–2 business days", fee: "Free" },
-};
-
-const REQUIRED_SLOTS_BY_DOC: Record<string, string[]> = {
-  barangay_certificate:  ["valid_id_front", "proof_of_residency"],
-  barangay_clearance:    ["valid_id_front", "proof_of_residency"],
-  business_clearance:    ["dti_sec_registration", "mayors_permit", "bir_certificate"],
-  building_clearance:    ["title_or_tct", "tax_declaration"],
-  resident_registration: ["valid_id_front", "proof_of_residency"],
-};
-
-const SLOT_LABELS: Record<string, string> = {
-  valid_id_front:        "Valid Government ID (Front)",
-  valid_id_back:         "Valid Government ID (Back)",
-  proof_of_residency:    "Proof of Residency",
-  dti_sec_registration:  "DTI / SEC Registration",
-  mayors_permit:         "Mayor's Business Permit",
-  bir_certificate:       "BIR Certificate of Registration",
-  title_or_tct:          "Transfer Certificate of Title (TCT)",
-  tax_declaration:       "Tax Declaration",
-  building_permit:       "Building Permit",
-  supporting_document:   "Supporting Document",
-};
-
-// Steps matching the screenshots: Applied → Review → Payment → Release
 const PROCESS_STEPS = [
   { key: "applied",  label: "Applied" },
   { key: "review",   label: "Review" },
@@ -118,10 +88,9 @@ const PROCESS_STEPS = [
   { key: "release",  label: "Release" },
 ];
 
-// Map statuses to which step index is "active" (current or past)
 const STATUS_TO_STEP: Record<string, number> = {
-  pending: 1, incomplete: 1, processing: 1, encoded: 1,
-  approved: 1, scheduled: 1,
+  pending: 0, incomplete: 0, processing: 0, encoded: 0,
+  approved: 0, scheduled: 0,
   to_pay: 2,
   released: 3,
 };
@@ -132,7 +101,7 @@ const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null
   processing: { message: "Your request is being reviewed by the barangay office.", nextStep: "Scheduled" },
   incomplete: { message: "Action required — please upload missing documents to continue.", nextStep: null },
   approved:   { message: "Your request has been approved!", nextStep: "To Pay" },
-  scheduled:  { message: "A pickup date has been assigned for your document.", nextStep: "To Pay" },
+  scheduled:  { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
   to_pay:     { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
   released:   { message: "Your document has been sent to your registered email address.", nextStep: null },
   rejected:   { message: "Your request was not approved. See details for more information.", nextStep: null },
@@ -144,7 +113,7 @@ const WHAT_NEXT: Record<string, string> = {
   processing: "Your request is under review. You will be notified once a pickup date is assigned.",
   incomplete: "Please upload the missing documents so we can continue processing your request.",
   approved:   "Your request has been approved. Proceed to the barangay hall to settle the payment.",
-  scheduled:  "Your pickup date is set. Bring your original documents and a valid ID to the barangay hall.",
+  scheduled:  "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
   to_pay:     "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
   released:   "Your document has been officially released and sent to your registered email.",
   rejected:   "Your request was not approved. Please contact the barangay office for more information.",
@@ -152,16 +121,6 @@ const WHAT_NEXT: Record<string, string> = {
 
 const hasValue = (v: any): boolean =>
   v !== null && v !== undefined && String(v).trim() !== "";
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function isImage(file: File) {
-  return file.type.startsWith("image/");
-}
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -178,14 +137,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Progress Bar (screenshot-style) ──────────────────────────────────────────
+// ─── Progress Bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ status }: { status: string }) {
   const isRejected = status === "rejected";
   const currentStep = isRejected ? -1 : (STATUS_TO_STEP[status] ?? 0);
 
   return (
     <div>
-      {/* Bar segments */}
       <div className="flex gap-1 mb-2">
         {PROCESS_STEPS.map((step, i) => {
           const done    = !isRejected && i <= currentStep;
@@ -194,16 +152,11 @@ function ProgressBar({ status }: { status: string }) {
             <div
               key={i}
               className="flex-1 h-1.5 rounded-full transition-all duration-500"
-              style={{
-                backgroundColor: done
-                  ? (current ? NAVY : "#16a34a")
-                  : "#e5e7eb",
-              }}
+              style={{ backgroundColor: done ? (current ? NAVY : "#16a34a") : "#e5e7eb" }}
             />
           );
         })}
       </div>
-      {/* Labels */}
       <div className="flex">
         {PROCESS_STEPS.map((step, i) => {
           const done    = !isRejected && i <= currentStep;
@@ -243,113 +196,56 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-// ─── Requirement Row ──────────────────────────────────────────────────────────
-function RequirementRow({
-  label,
-  uploaded,
-  required,
-  onDrop,
-  onRemove,
-}: {
-  label: string;
-  uploaded: UploadedFile | null;
-  required: boolean;
-  onDrop: (file: File) => void;
-  onRemove: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const isSuccess = uploaded?.status === "success";
-  const isUploading = uploaded?.status === "uploading";
-  const isError = uploaded?.status === "error";
-
+// ─── Copy Button (white variant for dark backgrounds) ─────────────────────────
+function CopyButtonWhite({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-3.5 rounded-xl transition-colors"
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="p-1.5 rounded-lg transition-colors flex-shrink-0"
       style={{
-        backgroundColor: isSuccess ? "#f0fdf4" : isError ? "#fff1f2" : "#f8faff",
-        border: `1px solid ${isSuccess ? "#bbf7d0" : isError ? "#fecdd3" : "#e5e7eb"}`,
+        backgroundColor: "rgba(255,255,255,0.15)",
+        color: copied ? "#86efac" : "rgba(255,255,255,0.7)",
+        border: "1px solid rgba(255,255,255,0.2)",
+      }}
+      title="Copy"
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+// ─── Copy Button (light variant for white/gray backgrounds) ───────────────────
+function CopyButtonLight({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="flex items-center gap-1.5 transition-colors flex-shrink-0"
+      style={{
+        fontSize: 12,
+        fontWeight: 500,
+        padding: "5px 12px",
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: copied ? "#f0fdf4" : "#fff",
+        color: copied ? "#16a34a" : "#6b7280",
+        cursor: "pointer",
       }}
     >
-      {/* Status circle */}
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{
-          backgroundColor: isSuccess ? "#16a34a" : isUploading ? NAVY : "#e5e7eb",
-        }}
-      >
-        {isSuccess && <Check className="h-4 w-4 text-white" />}
-        {isUploading && <Loader2 className="h-4 w-4 text-white animate-spin" />}
-        {!isSuccess && !isUploading && (
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: isError ? "#e11d48" : "#d1d5db" }} />
-        )}
-      </div>
-
-      {/* Label */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate" style={{ color: NAVY }}>{label}</p>
-        {isSuccess && uploaded?.file && (
-          <p className="text-[10px] text-gray-400 truncate">{uploaded.file.name}</p>
-        )}
-        {isSuccess && !uploaded?.file && uploaded?.filename && (
-          <p className="text-[10px] text-gray-400 truncate">{uploaded.filename}</p>
-        )}
-        {isUploading && (
-          <div className="mt-1 h-1 rounded-full bg-gray-200 overflow-hidden w-24">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${uploaded?.progress ?? 0}%`, backgroundColor: NAVY }}
-            />
-          </div>
-        )}
-        {isError && (
-          <p className="text-[10px] text-red-500 truncate">{uploaded?.error ?? "Upload failed"}</p>
-        )}
-      </div>
-
-      {/* Right action */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        {isSuccess ? (
-          <>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#16a34a" }}>Verified</span>
-            <button
-              onClick={onRemove}
-              className="ml-2 p-1 rounded transition-colors"
-              style={{ color: "#9ca3af" }}
-              title="Remove"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </>
-        ) : (
-          <>
-            {required && !isSuccess && (
-              <span className="text-[9px] font-bold uppercase tracking-wider mr-1" style={{ color: "#ea580c" }}>
-                {isError ? "Retry" : "Pending"}
-              </span>
-            )}
-            <button
-              onClick={() => inputRef.current?.click()}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ backgroundColor: NAVY, color: "white" }}
-              title="Upload"
-            >
-              <ImagePlus className="h-3.5 w-3.5" />
-            </button>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onDrop(f);
-                e.target.value = "";
-              }}
-            />
-          </>
-        )}
-      </div>
-    </div>
+      {copied
+        ? <><Check className="h-3 w-3" /> Copied</>
+        : <><Copy className="h-3 w-3" /> Copy</>
+      }
+    </button>
   );
 }
 
@@ -442,10 +338,7 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
   })();
 
   return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{ border: "1px solid #bfdbfe" }}
-    >
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #bfdbfe" }}>
       <div
         className="flex items-center gap-2 px-4 py-2.5"
         style={{ backgroundColor: "#dbeafe", borderBottom: "1px solid #bfdbfe" }}
@@ -473,7 +366,7 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
         <div>
           <p className="text-sm font-bold" style={{ color: NAVY }}>{friendlyDate}</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <Clock className="h-3 w-3" style={{ color: "#2563eb" }} />
+            <Calendar className="h-3 w-3" style={{ color: "#2563eb" }} />
             <p className="text-xs font-semibold" style={{ color: "#1d4ed8" }}>{friendlyTime}</p>
           </div>
           {schedule.note && (
@@ -485,46 +378,195 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
   );
 }
 
+// ─── Doc Type Label map ────────────────────────────────────────────────────────
+const DOC_TYPE_LABELS: Record<string, string> = {
+  barangay_certificate:  "Barangay Certificate",
+  barangay_clearance:    "Barangay Clearance",
+  business_clearance:    "Business Clearance",
+  building_clearance:    "Building Clearance",
+  resident_registration: "Resident Registration",
+};
+
 // ─── Full Details Modal ────────────────────────────────────────────────────────
 function DetailsModal({ request, onClose }: { request: any; onClose: () => void }) {
-  const docType = request.document_type ?? "";
-  const r = request;
+  const docType = (request.document_type ?? "").replace(/-/g, "_");
+  const r = { ...request, ...(request.raw ?? {}) };
 
-  const Field = ({ label, value }: { label: string; value?: any }) => {
+  const Field = ({ label, value, full = false }: { label: string; value?: any; full?: boolean }) => {
     if (!hasValue(value)) return null;
     const display = value === true ? "Yes" : value === false ? "No" : String(value);
     return (
-      <div>
+      <div className={full ? "col-span-2" : ""}>
         <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>{label}</p>
-        <p className="text-sm font-medium" style={{ color: NAVY }}>{display}</p>
+        <p className="text-sm font-medium break-words" style={{ color: NAVY }}>{display}</p>
       </div>
     );
   };
 
+  const fullName = [r.prefix, r.first_name, r.middle_name, r.surname, r.ext_name]
+    .filter(Boolean).join(" ");
+
+  const fmtDate = (d?: string | null) => {
+    if (!d) return null;
+    try { return format(new Date(d), "MMMM d, yyyy"); } catch { return d; }
+  };
+
+  const refNumber = r.bcert_number ?? r.brgy_business_no ?? `REF-${String(r.id).padStart(4, "0")}`;
+  const docLabel  = DOC_TYPE_LABELS[docType] ?? docType.replace(/_/g, " ");
+
   const sections = (() => {
-    if (docType === "barangay_certificate" || docType === "barangay_clearance") {
+    if (docType === "barangay_certificate") {
       return [
-        { title: "Requester Details", icon: User, fields: [
-          { label: "Full Name", value: r.requester_name },
-          { label: "Age", value: r.age },
-          { label: "Date of Birth", value: r.date_of_birth },
-          { label: "Place of Birth", value: r.place_of_birth },
-          { label: "Contact No.", value: r.contact_no },
+        { title: "Personal Information", icon: User, fields: [
+          { label: "Full Name",        value: fullName || r.requester_name, full: true },
+          { label: "Age",              value: r.age },
+          { label: "Date of Birth",    value: fmtDate(r.dob ?? r.date_of_birth) },
+          { label: "Place of Birth",   value: r.pob ?? r.place_of_birth },
+          { label: "Contact No.",      value: r.contact_no },
+          { label: "Email",            value: r.email, full: true },
+          { label: "Registered Voter", value: r.registered_voter },
         ]},
         { title: "Address", icon: MapPin, fields: [
-          { label: "Address", value: r.address },
-          { label: "House Owner", value: r.house_owner },
-          { label: "Relationship to Owner", value: r.relationship_to_owner },
+          { label: "House / Block / Lot No.", value: r.house_block_lot_no },
+          { label: "Street",                  value: r.street },
+          { label: "Zone / Sitio",            value: r.zone },
+          { label: "House Owner",             value: r.house_owner },
+          { label: "Relationship to Owner",   value: r.relationship_to_owner },
+          { label: "Period of Residency",     value: r.period_of_residency ? `${r.period_of_residency} year(s)` : null },
         ]},
-        { title: docType === "barangay_certificate" ? "Certificate Details" : "Clearance Details", icon: ClipboardList, fields: [
-          { label: docType === "barangay_certificate" ? "Certificate No." : "Clearance No.", value: r.bcert_number },
-          { label: "Purpose", value: r.purpose },
-          { label: "Purpose Details", value: r.purpose_details },
-          { label: "Period of Residency", value: r.period_of_residency },
-          { label: "Registered Voter", value: r.registered_voter },
+        { title: "Certificate Details", icon: ClipboardList, fields: [
+          { label: "Certificate No.",   value: r.bcert_number },
+          { label: "Purpose",           value: r.purpose },
+          { label: "Purpose Details",   value: r.purpose_details, full: true },
+          { label: "Issued Date",       value: fmtDate(r.issued_date) },
+          { label: "Expires At",        value: fmtDate(r.expires_at) },
+          { label: "OR No.",            value: r.or_no },
+          { label: "Punong Barangay",   value: r.punong_barangay ?? r.for_the_punong_barangay },
+          { label: "Barangay Position", value: r.barangay_position },
+          { label: "Remarks",           value: r.remarks, full: true },
+          { label: "Released At",       value: fmtDate(r.released_at) },
         ]},
       ];
     }
+
+    if (docType === "barangay_clearance") {
+      return [
+        { title: "Personal Information", icon: User, fields: [
+          { label: "Full Name",        value: fullName || r.requester_name, full: true },
+          { label: "Date of Birth",    value: fmtDate(r.dob ?? r.date_of_birth) },
+          { label: "Place of Birth",   value: r.pob ?? r.place_of_birth },
+          { label: "Contact No.",      value: r.contact_no },
+          { label: "Email",            value: r.email, full: true },
+          { label: "Registered Voter", value: r.registered_voter },
+          { label: "CTC / VRR No.",    value: r.ctc_vrr_no },
+        ]},
+        { title: "Address", icon: MapPin, fields: [
+          { label: "House / Block / Lot No.", value: r.house_block_lot_no },
+          { label: "Street",                  value: r.street },
+          { label: "Zone / Sitio",            value: r.zone },
+          { label: "House Owner",             value: r.house_owner },
+          { label: "Relationship to Owner",   value: r.relationship_to_owner },
+          { label: "Period of Residency",     value: r.period_of_residency ? `${r.period_of_residency} year(s)` : null },
+        ]},
+        { title: "Clearance Details", icon: ClipboardList, fields: [
+          { label: "Clearance No.",   value: r.bcert_number },
+          { label: "Purpose",         value: r.purpose },
+          { label: "Purpose Details", value: r.purpose_details, full: true },
+          { label: "OR No.",          value: r.or_no },
+          { label: "Issued Date",     value: fmtDate(r.issued_date ?? r.issued_on ?? r.issued_at) },
+          { label: "Expires At",      value: fmtDate(r.expires_at) },
+          { label: "Punong Barangay", value: r.punong_barangay ?? r.for_the_punong_barangay },
+          { label: "Remarks",         value: r.remarks, full: true },
+          { label: "Released At",     value: fmtDate(r.released_at) },
+        ]},
+      ];
+    }
+
+    if (docType === "business_clearance") {
+      return [
+        { title: "Applicant Information", icon: User, fields: [
+          { label: "Full Name", value: fullName || r.requester_name, full: true },
+          { label: "Email",     value: r.email, full: true },
+        ]},
+        { title: "Address", icon: MapPin, fields: [
+          { label: "House / Block / Lot No.", value: r.house_block_lot_no },
+          { label: "Street",                  value: r.street },
+          { label: "Zone / Sitio",            value: r.zone },
+        ]},
+        { title: "Business Details", icon: ClipboardList, fields: [
+          { label: "Business No.",       value: r.brgy_business_no },
+          { label: "Business Name",      value: r.business_name },
+          { label: "Business Type",      value: r.business_type },
+          { label: "Capital",            value: r.capital ? `\u20b1${Number(r.capital).toLocaleString()}` : null },
+          { label: "Business Details",   value: r.business_details, full: true },
+          { label: "OR No.",             value: r.or_no },
+          { label: "Issued Date",        value: fmtDate(r.issued_date) },
+          { label: "Expires At",         value: fmtDate(r.expires_at) },
+          { label: "Date of Inspection", value: fmtDate(r.date_of_inspection ?? r.date_inspected) },
+          { label: "Inspected By",       value: r.inspected_by },
+          { label: "Inspection Remarks", value: r.inspection_remarks ?? r.inspected_remarks ?? r.inspected_note, full: true },
+          { label: "Remarks",            value: r.remarks, full: true },
+          { label: "Released At",        value: fmtDate(r.released_at) },
+        ]},
+      ];
+    }
+
+    if (docType === "building_clearance") {
+      return [
+        { title: "Applicant Information", icon: User, fields: [
+          { label: "Full Name", value: fullName || r.requester_name, full: true },
+          { label: "Email",     value: r.email, full: true },
+        ]},
+        { title: "Address", icon: MapPin, fields: [
+          { label: "House / Block / Lot No.", value: r.house_block_lot_no },
+          { label: "Street",                  value: r.street },
+          { label: "Zone / Sitio",            value: r.zone },
+        ]},
+        { title: "Building / Project Details", icon: ClipboardList, fields: [
+          { label: "Building Clearance No.", value: r.bcert_number },
+          { label: "Establishment",          value: r.establishment },
+          { label: "Purpose",                value: r.purpose },
+          { label: "Purpose Details",        value: r.purpose_details, full: true },
+          { label: "OR No.",                 value: r.or_no },
+          { label: "Issued Date",            value: fmtDate(r.issued_date) },
+          { label: "Expires At",             value: fmtDate(r.expires_at) },
+          { label: "Punong Barangay",        value: r.punong_barangay ?? r.for_the_punong_barangay },
+          { label: "Barangay Position",      value: r.barangay_position },
+          { label: "Remarks",               value: r.remarks, full: true },
+          { label: "Released At",            value: fmtDate(r.released_at) },
+        ]},
+      ];
+    }
+
+    if (docType === "resident_registration") {
+      return [
+        { title: "Personal Information", icon: User, fields: [
+          { label: "Full Name",        value: fullName || r.requester_name, full: true },
+          { label: "Date of Birth",    value: fmtDate(r.dob ?? r.date_of_birth) },
+          { label: "Place of Birth",   value: r.pob ?? r.place_of_birth },
+          { label: "Contact No.",      value: r.contact_no },
+          { label: "Email",            value: r.email, full: true },
+          { label: "Registered Voter", value: r.registered_voter },
+        ]},
+        { title: "Address", icon: MapPin, fields: [
+          { label: "House / Block / Lot No.", value: r.house_block_lot_no },
+          { label: "Street",                  value: r.street },
+          { label: "Zone / Sitio",            value: r.zone },
+          { label: "House Owner",             value: r.house_owner },
+          { label: "Relationship to Owner",   value: r.relationship_to_owner },
+          { label: "Period of Residency",     value: r.period_of_residency ? `${r.period_of_residency} year(s)` : null },
+        ]},
+        { title: "Registration Details", icon: ClipboardList, fields: [
+          { label: "Registration No.", value: r.bcert_number },
+          { label: "OR No.",           value: r.or_no },
+          { label: "Issued Date",      value: fmtDate(r.issued_date) },
+          { label: "Expires At",       value: fmtDate(r.expires_at) },
+          { label: "Remarks",          value: r.remarks, full: true },
+          { label: "Released At",      value: fmtDate(r.released_at) },
+        ]},
+      ];
+    }
+
     return [];
   })();
 
@@ -538,58 +580,92 @@ function DetailsModal({ request, onClose }: { request: any; onClose: () => void 
         className="w-full sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: "white", borderRadius: "16px 16px 0 0" }}
       >
+        {/* Modal Header */}
         <div
-          className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: "1px solid #f3f4f6" }}
+          className="flex-shrink-0"
+          style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)` }}
         >
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4" style={{ color: NAVY }} />
-            <p className="text-sm font-bold" style={{ color: NAVY }}>Full Request Details</p>
+          <div className="flex items-start justify-between px-5 pt-5 pb-4">
+            <div className="flex-1 min-w-0 pr-3">
+              <span
+                className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mb-2"
+                style={{ backgroundColor: "rgba(194,70,125,0.3)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.4)" }}
+              >
+                {docLabel}
+              </span>
+              <p className="text-xl font-black text-white leading-tight truncate">{refNumber}</p>
+              {hasValue(r.created_at) && (
+                <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Submitted {format(new Date(r.created_at), "MMMM d, yyyy · hh:mm aa")}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 mt-0.5"
+              style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+            >
+              <X className="h-4 w-4 text-white" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: "#f3f4f6" }}
+
+          <div
+            className="flex items-center justify-between px-5 py-2"
+            style={{ backgroundColor: "rgba(0,0,0,0.2)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
           >
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.5)" }}>Status</span>
+              <span
+                className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "rgba(194,70,125,0.25)", color: "#f9a8d4" }}
+              >
+                {r.status ?? "—"}
+              </span>
+            </div>
+            {hasValue(r.updated_at) && (
+              <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Updated {format(new Date(r.updated_at), "MMM d, yyyy")}
+              </span>
+            )}
+          </div>
         </div>
 
+        {/* Scrollable Body */}
         <div className="overflow-y-auto flex-1 px-5 py-5 space-y-6">
-          <div className="grid grid-cols-2 gap-4 p-4 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
-            {hasValue(request.created_at) && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>Date Submitted</p>
-                <p className="text-sm font-medium" style={{ color: NAVY }}>{format(new Date(request.created_at), "MMMM d, yyyy")}</p>
-              </div>
-            )}
-            {hasValue(request.updated_at) && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: PINK }}>Last Updated</p>
-                <p className="text-sm font-medium" style={{ color: NAVY }}>{format(new Date(request.updated_at), "MMMM d, yyyy")}</p>
-              </div>
-            )}
-          </div>
-
           {sections.map((sec, i) => {
-            const visible = sec.fields.filter(f => hasValue(f.value));
+            const visible = sec.fields.filter((f: any) => hasValue(f.value));
             if (!visible.length) return null;
             const Icon = sec.icon;
             return (
               <div key={i}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Icon className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
+                  <div
+                    className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: "#f0f4ff" }}
+                  >
+                    <Icon className="h-3.5 w-3.5" style={{ color: NAVY }} />
+                  </div>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: NAVY }}>{sec.title}</p>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                  {visible.map((f, j) => <Field key={j} label={f.label} value={f.value} />)}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  {visible.map((f: any, j: number) => (
+                    <Field key={j} label={f.label} value={f.value} full={f.full} />
+                  ))}
                 </div>
               </div>
             );
           })}
+
+          {sections.length === 0 && (
+            <div className="text-center py-8">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: NAVY }} />
+              <p className="text-xs text-gray-400">No additional details available.</p>
+            </div>
+          )}
         </div>
 
+        {/* Footer */}
         <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: "1px solid #f3f4f6" }}>
           <button
             onClick={onClose}
@@ -604,13 +680,219 @@ function DetailsModal({ request, onClose }: { request: any; onClose: () => void 
   );
 }
 
+// ─── Scheduled Visit Card (light theme) ───────────────────────────────────────
+function ScheduledVisitCard({
+  schedule,
+  refNumber,
+  dynamicRequirements,
+  onViewDetails,
+}: {
+  schedule: ScheduleData;
+  refNumber: string;
+  dynamicRequirements: string[];
+  onViewDetails: () => void;
+}) {
+  const dateObj = new Date(schedule.schedule_date + "T12:00:00");
+
+  const monthLabel = dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
+  const dayLabel   = dateObj.getDate();
+  const yearLabel  = dateObj.getFullYear();
+  const fullDateLabel = dateObj.toLocaleDateString(undefined, {
+    weekday: "long", month: "long", day: "numeric",
+  });
+
+  const timeLabel = (() => {
+    try {
+      const [hStr, mStr] = schedule.schedule_time.split(":");
+      const startH = parseInt(hStr, 10);
+      const endH   = startH + 1;
+      const fmt    = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
+      return `${fmt(startH)} – ${fmt(endH)} ${endH >= 12 ? "PM" : "AM"}`;
+    } catch { return schedule.schedule_time; }
+  })();
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: "#fff",
+        border: "1px solid #e5e7eb",
+        boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
+      }}
+    >
+      {/* ── Card Header ── */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ borderBottom: "1px solid #f3f4f6" }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "#eff6ff" }}
+        >
+          <Home className="h-4 w-4" style={{ color: "#2563eb" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-bold" style={{ color: "#111827" }}>
+            Next step: Visit the barangay
+          </p>
+          <p className="text-[11px]" style={{ color: "#9ca3af" }}>
+            Your pickup date is confirmed
+          </p>
+        </div>
+        <span
+          className="text-[11px] font-semibold px-3 py-1 rounded-full"
+          style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
+        >
+          Scheduled
+        </span>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+
+        {/* ── Schedule Block ── */}
+        <div>
+          <p
+            className="text-[10px] font-bold uppercase tracking-wider mb-2"
+            style={{ color: "#9ca3af" }}
+          >
+            Pickup schedule
+          </p>
+          <div
+            className="flex items-center gap-4 rounded-xl px-4 py-4"
+            style={{ background: "#eff6ff" }}
+          >
+            {/* Date badge */}
+            <div
+              className="flex flex-col items-center justify-center rounded-xl flex-shrink-0"
+              style={{ backgroundColor: "#1d4ed8", padding: "10px 12px", minWidth: 52, textAlign: "center" }}
+            >
+              <span className="text-[10px] font-bold text-white" style={{ opacity: 0.75, letterSpacing: "0.04em" }}>
+                {monthLabel}
+              </span>
+              <span className="text-2xl font-black text-white leading-none">
+                {dayLabel}
+              </span>
+              <span className="text-[10px] text-white" style={{ opacity: 0.65 }}>
+                {yearLabel}
+              </span>
+            </div>
+
+            {/* Date + time info */}
+            <div>
+              <p className="text-sm font-bold" style={{ color: "#1e3a8a" }}>
+                {fullDateLabel}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Clock className="h-3 w-3" style={{ color: "#3b82f6" }} />
+                <p className="text-xs font-semibold" style={{ color: "#2563eb" }}>
+                  {timeLabel}
+                </p>
+              </div>
+              {schedule.note && (
+                <p className="text-xs mt-1" style={{ color: "#60a5fa" }}>
+                  {schedule.note}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Reference Number ── */}
+        <div>
+          <p
+            className="text-[10px] font-bold uppercase tracking-wider mb-2"
+            style={{ color: "#9ca3af" }}
+          >
+            Reference number
+          </p>
+          <div
+            className="flex items-center justify-between rounded-xl px-4 py-3"
+            style={{ background: "#f9fafb", border: "1px solid #e5e7eb" }}
+          >
+            <span
+              className="font-mono text-lg font-bold"
+              style={{ color: "#111827", letterSpacing: "0.04em" }}
+            >
+              {refNumber}
+            </span>
+            <CopyButtonLight value={refNumber} />
+          </div>
+          <p className="text-[11px] mt-1.5" style={{ color: "#9ca3af" }}>
+            Show this to the officer on duty at the barangay hall.
+          </p>
+        </div>
+
+        {/* ── Documents Checklist ── */}
+        {dynamicRequirements.length > 0 && (
+          <div>
+            <p
+              className="text-[10px] font-bold uppercase tracking-wider mb-2"
+              style={{ color: "#9ca3af" }}
+            >
+              Bring these documents
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {dynamicRequirements.map((doc, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 rounded-xl px-3.5 py-3"
+                  style={{ border: "1px solid #f3f4f6", background: "#fff" }}
+                >
+                  <div
+                    className="flex items-center justify-center rounded-full flex-shrink-0"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      background: "#eff6ff",
+                    }}
+                  >
+                    <span className="text-[11px] font-bold" style={{ color: "#2563eb" }}>
+                      {idx + 1}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <FileText className="h-3 w-3 flex-shrink-0" style={{ color: "#d1d5db" }} />
+                    <p className="text-xs leading-snug" style={{ color: "#374151" }}>
+                      {doc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── View Full Details ── */}
+        <button
+          onClick={onViewDetails}
+          className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
+          style={{
+            border: "1px solid #e5e7eb",
+            background: "#fff",
+            color: "#6b7280",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb";
+            (e.currentTarget as HTMLButtonElement).style.color = "#374151";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#fff";
+            (e.currentTarget as HTMLButtonElement).style.color = "#6b7280";
+          }}
+        >
+          View full details
+        </button>
+
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function RequestDetail() {
   const navigate = useNavigate();
   const { id, type } = useParams<{ id: string; type: string }>();
   const [showDetails, setShowDetails] = useState(false);
-  const [files, setFiles] = useState<Record<string, UploadedFile>>({});
-  const [loadingExisting, setLoadingExisting] = useState(true);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
@@ -632,79 +914,19 @@ export default function RequestDetail() {
     enabled: !!request?.bcert_number,
   });
 
-  useEffect(() => {
-    const fetchExisting = async () => {
-      try {
-        const { data } = await api.get("/api/mydocuments");
-        const loaded: Record<string, UploadedFile> = {};
-        const docs = data.data?.documents || {};
-        Object.values(docs).forEach((categoryDocs: any[]) => {
-          categoryDocs.forEach((doc) => {
-            loaded[doc.type] = {
-              id: `existing-${doc.id}`,
-              dbId: doc.id,
-              file: null,
-              preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
-              status: "success",
-              progress: 100,
-              url: doc.url,
-              filename: doc.original_filename,
-            };
-          });
-        });
-        setFiles(loaded);
-      } catch { /* silent */ }
-      finally { setLoadingExisting(false); }
-    };
-    fetchExisting();
-  }, []);
+  const { data: services = [] } = useQuery<Service[]>({
+    queryKey: ["services"],
+    queryFn: async () => {
+      const res = await api.get("/api/services");
+      const raw: Service[] = res.data?.data ?? res.data ?? [];
+      const latestMap = new Map<number, Service>();
+      raw.forEach((item) => latestMap.set(item.id, item));
+      return Array.from(latestMap.values());
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const handleUpload = useCallback(async (slotKey: string, file: File) => {
-    const existing = files[slotKey];
-    if (existing?.dbId && existing.status === "success") {
-      try { await api.delete(`/api/documents/${existing.dbId}`); } catch {}
-    }
-
-    let preview: string | null = null;
-    if (isImage(file)) {
-      preview = await new Promise<string>((res) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-    }
-
-    setFiles(prev => ({ ...prev, [slotKey]: { id: `${slotKey}-${Date.now()}`, file, preview, status: "uploading", progress: 0 } }));
-
-    const formData = new FormData();
-    formData.append("type", slotKey);
-    formData.append("file", file);
-
-    try {
-      const { data } = await api.post("/api/mydocuments/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (e) => {
-          const pct = Math.round((e.loaded * 100) / (e.total ?? 1));
-          setFiles(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], progress: pct } }));
-        },
-      });
-      setFiles(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], dbId: data.data.id, preview: preview ?? data.data.url, status: "success", progress: 100 } }));
-    } catch (err: any) {
-      const message = err?.response?.data?.errors?.file?.[0] ?? err?.response?.data?.message ?? "Upload failed.";
-      setFiles(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], status: "error", error: message } }));
-    }
-  }, [files]);
-
-  const handleRemove = useCallback(async (slotKey: string) => {
-    const entry = files[slotKey];
-    if (!entry) return;
-    if (entry.dbId && entry.status === "success") {
-      try { await api.delete(`/api/documents/${entry.dbId}`); } catch {}
-    }
-    setFiles(prev => { const next = { ...prev }; delete next[slotKey]; return next; });
-  }, [files]);
-
-  if (isLoading || loadingExisting) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-7 w-7 animate-spin" style={{ color: NAVY }} />
@@ -731,26 +953,46 @@ export default function RequestDetail() {
   }
 
   const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
-  const isReleased = normalizedStatus === "released";
-  const isRejected = normalizedStatus === "rejected";
+  const isReleased  = normalizedStatus === "released";
+  const isScheduled = normalizedStatus === "scheduled";
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
-  const svcMeta = serviceData[docTypeSlug];
-  const statusMsg = STATUS_MESSAGES[normalizedStatus];
-  const whatNext = WHAT_NEXT[normalizedStatus];
+  const req = { ...request, ...(request.raw ?? {}) };
 
-  const requiredSlots = REQUIRED_SLOTS_BY_DOC[docTypeSlug] ?? [];
-  const allUploaded = requiredSlots.length > 0 && requiredSlots.every(s => files[s]?.status === "success");
-  const uploadedCount = requiredSlots.filter(s => files[s]?.status === "success").length;
+  const matchedService = services.find(
+    (s) => SERVICE_NAME_TO_SLUG[s.name] === docTypeSlug
+  );
+
+  const dynamicRequirements: string[] = matchedService
+    ? matchedService.requirements
+        .split("\n")
+        .map((r) => r.trim())
+        .filter(Boolean)
+    : [];
+
+  const svcMeta = matchedService
+    ? { fee: matchedService.fee, processingTime: matchedService.processing_time }
+    : undefined;
+
+  const statusMsg = STATUS_MESSAGES[normalizedStatus];
+  const whatNext  = WHAT_NEXT[normalizedStatus];
+
+  const refNumber =
+    req.bcert_number ??
+    req.brgy_business_no ??
+    `REF-${String(request.id).padStart(4, "0")}`;
 
   const statusLabel =
-    normalizedStatus === "to_pay" ? "To Pay" :
-    normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
+    normalizedStatus === "to_pay"
+      ? "To Pay"
+      : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#f4f6fb" }}>
       <Header />
 
-      {showDetails && <DetailsModal request={request} onClose={() => setShowDetails(false)} />}
+      {showDetails && (
+        <DetailsModal request={request} onClose={() => setShowDetails(false)} />
+      )}
 
       <div className="max-w-2xl mx-auto px-4 pt-28 pb-16">
 
@@ -759,20 +1001,122 @@ export default function RequestDetail() {
           className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 transition-colors"
           style={{ color: "#9ca3af" }}
           onClick={() => navigate("/myrequest")}
-          onMouseEnter={e => (e.currentTarget.style.color = NAVY)}
-          onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
+          onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Requests
         </button>
 
-        {/* ── Top Status Card ─────────────────────────────────────────────── */}
+        {/* ── Required Documents (hidden when scheduled — shown inside ScheduledVisitCard) ── */}
+        {dynamicRequirements.length > 0 && !isScheduled && (
+          <div
+            className="mb-6 rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, #0f2a5e 0%, #1a3a7a 100%)",
+              border: "2px solid #c2467d",
+              boxShadow: "0 8px 24px rgba(15,42,94,0.2), 0 0 40px rgba(194,70,125,0.15)",
+            }}
+          >
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "rgba(194,70,125,0.2)" }}
+                >
+                  <ClipboardList className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-black text-white">Bring These Documents</h2>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    Required documents for your barangay visit
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+                {dynamicRequirements.map((doc, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl"
+                    style={{
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(194,70,125,0.3)",
+                      backdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                        style={{ backgroundColor: "#c2467d", color: "white" }}
+                      >
+                        {idx + 1}
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold leading-snug text-white">{doc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Document Type + bcert header ── */}
+        <div className="mb-4">
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)`,
+              boxShadow: "0 4px 20px rgba(15,42,94,0.2)",
+            }}
+          >
+            <div className="px-5 py-4">
+              <span
+                className="inline-block text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3"
+                style={{
+                  backgroundColor: "rgba(194,70,125,0.25)",
+                  color: "#f9a8d4",
+                  border: "1px solid rgba(194,70,125,0.35)",
+                }}
+              >
+                {DOC_TYPE_LABELS[docTypeSlug] ?? docTypeSlug.replace(/_/g, " ")}
+              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p
+                    className="text-[9px] font-bold uppercase tracking-wider mb-0.5"
+                    style={{ color: "rgba(255,255,255,0.45)" }}
+                  >
+                    {req.brgy_business_no ? "Business No." : "Reference No."}
+                  </p>
+                  <p className="text-2xl font-black font-mono text-white">{refNumber}</p>
+                </div>
+                <CopyButton value={refNumber} />
+              </div>
+            </div>
+
+            {(hasValue(req.house_block_lot_no) || hasValue(req.street) || hasValue(req.zone)) && (
+              <div
+                className="flex items-start gap-2.5 px-5 py-3"
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  borderTop: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: "#f9a8d4" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  {[req.house_block_lot_no, req.street, req.zone].filter(Boolean).join(", ")}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Top Status Card ── */}
         <div
           className="bg-white rounded-2xl overflow-hidden mb-4"
           style={{ boxShadow: "0 2px 16px rgba(15,42,94,0.08)", border: "1px solid #e5e7eb" }}
         >
           <div className="px-5 pt-5 pb-4">
-            {/* Title row */}
             <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#9ca3af" }}>
               Current Status
             </p>
@@ -782,52 +1126,28 @@ export default function RequestDetail() {
               </h1>
               <StatusBadge status={normalizedStatus} />
             </div>
-
-            {/* Progress bar */}
             <ProgressBar status={normalizedStatus} />
           </div>
 
-          {/* Reference Number */}
-          <div className="mx-5 mb-5">
-            <div
-              className="flex items-center justify-between px-4 py-3 rounded-xl"
-              style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
-            >
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>
-                  Reference Number
-                </p>
-                <p className="text-base font-black font-mono" style={{ color: NAVY }}>
-                  REF-{String(request.id).padStart(4, "0")}
-                </p>
+          {svcMeta && (
+            <div className="grid grid-cols-2 gap-3 mx-5 mb-5">
+              <div
+                className="px-4 py-3 rounded-xl"
+                style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+              >
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Fee Amount</p>
+                <p className="text-base font-black" style={{ color: NAVY }}>{svcMeta.fee}</p>
               </div>
-              <CopyButton value={`REF-${String(request.id).padStart(4, "0")}`} />
+              <div
+                className="px-4 py-3 rounded-xl"
+                style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
+              >
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Est. Time</p>
+                <p className="text-base font-black" style={{ color: NAVY }}>{svcMeta.processingTime}</p>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Fee + Est Time */}
-          <div className="grid grid-cols-2 gap-3 mx-5 mb-5">
-            {svcMeta && (
-              <>
-                <div
-                  className="px-4 py-3 rounded-xl"
-                  style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
-                >
-                  <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Fee Amount</p>
-                  <p className="text-base font-black" style={{ color: NAVY }}>{svcMeta.fee}</p>
-                </div>
-                <div
-                  className="px-4 py-3 rounded-xl"
-                  style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}
-                >
-                  <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Est. Time</p>
-                  <p className="text-base font-black" style={{ color: NAVY }}>{svcMeta.processingTime}</p>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Submission timeline */}
           {hasValue(request.created_at) && (
             <div className="mx-5 mb-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "#9ca3af" }}>
@@ -855,20 +1175,23 @@ export default function RequestDetail() {
           )}
         </div>
 
-        {/* ── Schedule Card ──────────────────────────────────────────────────── */}
-        {schedule && !isReleased && (
+        {/* ── Schedule Card (non-scheduled statuses, not released) ── */}
+        {schedule && !isReleased && !isScheduled && (
           <div className="mb-4">
             <ScheduleCard schedule={schedule} />
           </div>
         )}
 
-        {/* ── Released Banner ────────────────────────────────────────────────── */}
+        {/* ── Released Banner ── */}
         {isReleased && (
           <div
             className="flex items-start gap-3 px-5 py-4 rounded-2xl mb-4"
             style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac" }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#dcfce7" }}>
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: "#dcfce7" }}
+            >
               <FileCheck className="h-5 w-5" style={{ color: "#16a34a" }} />
             </div>
             <div>
@@ -883,42 +1206,7 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* ── Requirements Status ────────────────────────────────────────────── */}
-        {requiredSlots.length > 0 && (
-          <div
-            className="bg-white rounded-2xl overflow-hidden mb-4"
-            style={{ boxShadow: "0 2px 16px rgba(15,42,94,0.08)", border: "1px solid #e5e7eb" }}
-          >
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#9ca3af" }}>
-                Requirements Status
-              </p>
-              <span
-                className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{
-                  backgroundColor: allUploaded ? "#dcfce7" : "#fef3c7",
-                  color: allUploaded ? "#15803d" : "#92400e",
-                }}
-              >
-                {uploadedCount}/{requiredSlots.length} Submitted
-              </span>
-            </div>
-            <div className="p-4 space-y-2.5">
-              {requiredSlots.map((slotKey) => (
-                <RequirementRow
-                  key={slotKey}
-                  label={SLOT_LABELS[slotKey] ?? slotKey}
-                  uploaded={files[slotKey] ?? null}
-                  required={true}
-                  onDrop={(file) => handleUpload(slotKey, file)}
-                  onRemove={() => handleRemove(slotKey)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Remarks from Barangay ──────────────────────────────────────────── */}
+        {/* ── Remarks from Barangay ── */}
         <div
           className="bg-white rounded-2xl overflow-hidden mb-4 px-5 py-4"
           style={{ boxShadow: "0 2px 16px rgba(15,42,94,0.08)", border: "1px solid #e5e7eb" }}
@@ -926,29 +1214,33 @@ export default function RequestDetail() {
           <RepliesFeed documentType={docTypeSlug} documentId={request.id} />
         </div>
 
-        {/* ── What's Next Card ───────────────────────────────────────────────── */}
-        {whatNext && !isReleased && (
+        {/* ── SCHEDULED: Light-theme unified action card ── */}
+        {isScheduled && schedule && (
+          <ScheduledVisitCard
+            schedule={schedule}
+            refNumber={refNumber}
+            dynamicRequirements={dynamicRequirements}
+            onViewDetails={() => setShowDetails(true)}
+          />
+        )}
+
+        {/* ── What's Next Card (hidden when scheduled or released) ── */}
+        {whatNext && !isReleased && !isScheduled && (
           <div
             className="rounded-2xl overflow-hidden mb-4"
             style={{ backgroundColor: NAVY }}
           >
             <div className="px-5 py-5 relative overflow-hidden">
-              {/* Decorative circle */}
-              <div
-                className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10"
-                style={{ backgroundColor: "white" }}
-              />
-              <div
-                className="absolute right-10 bottom-8 w-10 h-10 rounded-full opacity-10"
-                style={{ backgroundColor: "white" }}
-              />
+              {/* Decorative circles */}
+              <div className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
+              <div className="absolute right-10 bottom-8 w-10 h-10 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
 
               <div className="flex items-start gap-3 relative z-10">
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
                 >
-                  <Info className="h-4.5 w-4.5 text-white" />
+                  <Info className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-white mb-1">What's next?</p>
@@ -974,7 +1266,7 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* If released, still show a details button */}
+        {/* If released, show details button */}
         {isReleased && (
           <button
             onClick={() => setShowDetails(true)}

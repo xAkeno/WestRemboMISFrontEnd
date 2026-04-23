@@ -24,6 +24,42 @@ const validateName = (name: string, fieldName: string): string => {
   return "";
 };
 
+const isWeekend = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+};
+const PH_HOLIDAYS_2026 = [
+  "2026-01-01", // New Year
+  "2026-04-09", // Araw ng Kagitingan
+  "2026-05-01", // Labor Day
+  "2026-06-12", // Independence Day
+  "2026-08-25", // National Heroes Day (example)
+  "2026-11-30", // Bonifacio Day
+  "2026-12-25", // Christmas
+  "2026-12-30", // Rizal Day
+];
+
+const isHoliday = (dateStr: string) => {
+  return PH_HOLIDAYS_2026.includes(dateStr);
+};
+
+const validateScheduleDate = (value: string): string => {
+  if (!value) return "Schedule date is required.";
+
+  const date = new Date(value);
+
+  if (isWeekend(date)) {
+    return "Weekends (Saturday/Sunday) are not allowed.";
+  }
+
+  if (isHoliday(value)) {
+    return "Selected date is a Philippine holiday. Please choose another date.";
+  }
+
+  return "";
+};
+
+
 const validateContact = (contact: string): string => {
   if (!contact || contact.trim() === "") return "Phone number is required.";
   const cleanContact = contact.replace(/\D/g, "");
@@ -362,9 +398,23 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   };
 
   const handleScheduleDateChange = (date: string) => {
+    const err = validateScheduleDate(date);
+
+    setErrors((prev) => ({
+      ...prev,
+      schedule_date: err,
+    }));
+
+    if (err) {
+      upd("schedule_date", "");
+      setAvailableSlots(null);
+      return;
+    }
+
     upd("schedule_date", date);
     fetchAvailableSlots(date);
   };
+
 
   const getMinScheduleDate = () => {
     const d = new Date();
