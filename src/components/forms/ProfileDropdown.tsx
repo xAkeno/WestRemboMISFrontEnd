@@ -121,12 +121,12 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
                 My Requests
               </a>
             </li>
-            <li>
+            {/* <li>
               <a onClick={() => navigate("/mydocuments")} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm text-foreground transition-colors duration-150 hover:bg-[#fdf2f8] hover:text-[#d45ea3] group">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#617084" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-file-user-icon lucide-file-user"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M16 22a4 4 0 0 0-8 0"/><circle cx="12" cy="15" r="3"/></svg>
                 My Documents
               </a>
-            </li>
+            </li> */}
 
             {self.role === "ADMIN" && (
               <li>

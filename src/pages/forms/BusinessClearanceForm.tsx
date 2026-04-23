@@ -529,7 +529,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
       const res = await axios.post("http://127.0.0.1:8000/api/business-clearances", payload, { withCredentials: true });
       if (res.status === 200 || res.status === 201) {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
-        const documentNumber = res.data?.data?.service?.bcert_number;
+        const documentNumber = res.data?.data?.service?.brgy_business_no;
 
         // Create schedule appointment
         const scheduleRes = await axios.post(
