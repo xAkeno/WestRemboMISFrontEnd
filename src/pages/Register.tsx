@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, Eye, EyeOff, Check, X, AlertTriangle, ChevronRight } from "lucide-react";
 import axios from "axios";
+import ReCAPTCHA from "react-google-recaptcha";
 
 // ─── ID Upload Modal ────────────────────────────────────────────────────────
 const IDUploadModal = ({
@@ -57,10 +58,7 @@ const IDUploadModal = ({
       >
         {file ? (
           <>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center mb-2"
-              style={{ backgroundColor: "#c2467d" }}
-            >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2" style={{ backgroundColor: "#c2467d" }}>
               <Check className="w-4 h-4 text-white" strokeWidth={3} />
             </div>
             <span className="text-xs font-semibold text-center" style={{ color: "#c2467d" }}>{file.name}</span>
@@ -128,7 +126,6 @@ const IDUploadModal = ({
         <div className="p-6">
           {step === "requirements" ? (
             <>
-              {/* Requirements step */}
               <div className="flex items-start gap-3 mb-5 p-3" style={{ backgroundColor: "#fff8e1", border: "1px solid #ffd54f", borderRadius: 2 }}>
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
                 <p className="text-xs" style={{ color: "#78350f" }}>
@@ -187,20 +184,9 @@ const IDUploadModal = ({
             </>
           ) : (
             <>
-              {/* Upload step */}
               <div className="space-y-4 mb-5">
-                <FileZone
-                  label="Front of ID *"
-                  file={idFront}
-                  setFile={setIdFront}
-                  hint="Clear photo of the front side"
-                />
-                <FileZone
-                  label="Back of ID *"
-                  file={idBack}
-                  setFile={setIdBack}
-                  hint="Clear photo of the back side"
-                />
+                <FileZone label="Front of ID *" file={idFront} setFile={setIdFront} hint="Clear photo of the front side" />
+                <FileZone label="Back of ID *" file={idBack} setFile={setIdBack} hint="Clear photo of the back side" />
               </div>
 
               <div className="flex gap-3">
@@ -256,20 +242,12 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <div style={{ height: 3, backgroundColor: "#c2467d", flexShrink: 0 }} />
         <div className="overflow-y-auto p-6 text-xs space-y-4" style={{ color: "#6b7280", lineHeight: 1.7 }}>
-          <p className="font-semibold" style={{ color: "#0f2a5e" }}>
-            Republic Act No. 10173 — Data Privacy Act of 2012
-          </p>
-          <p>
-            Barangay West Rembo, City of Taguig, is committed to protecting and respecting your privacy. This notice explains how we collect, use, and protect your personal data in compliance with the Data Privacy Act of 2012 (RA 10173).
-          </p>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Republic Act No. 10173 — Data Privacy Act of 2012</p>
+          <p>Barangay West Rembo, City of Taguig, is committed to protecting and respecting your privacy. This notice explains how we collect, use, and protect your personal data in compliance with the Data Privacy Act of 2012 (RA 10173).</p>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Purpose of Data Collection</p>
-          <p>
-            The personal information you provide — including your name, address, date of birth, contact details, and government-issued ID — is collected solely for the purpose of resident registration, verification of identity, and delivery of barangay services.
-          </p>
+          <p>The personal information you provide — including your name, address, date of birth, contact details, and government-issued ID — is collected solely for the purpose of resident registration, verification of identity, and delivery of barangay services.</p>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Data Processing & Storage</p>
-          <p>
-            Your data will be stored securely and will only be accessed by authorized barangay personnel. We do not sell, trade, or transfer your personal information to third parties without your consent, except as required by law.
-          </p>
+          <p>Your data will be stored securely and will only be accessed by authorized barangay personnel. We do not sell, trade, or transfer your personal information to third parties without your consent, except as required by law.</p>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Your Rights</p>
           <ul className="space-y-1 list-disc pl-4">
             <li>Right to be informed of the processing of your personal data</li>
@@ -278,9 +256,7 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
             <li>Right to erasure or blocking of unlawfully processed data</li>
             <li>Right to file a complaint with the National Privacy Commission</li>
           </ul>
-          <p>
-            For questions or concerns about your data, please contact the Barangay West Rembo office directly.
-          </p>
+          <p>For questions or concerns about your data, please contact the Barangay West Rembo office directly.</p>
           <p className="text-xs" style={{ color: "#9ca3af" }}>
             By submitting this registration form, you acknowledge that you have read and understood this Data Privacy Notice and consent to the processing of your personal data for the stated purposes.
           </p>
@@ -300,7 +276,7 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ─── Fallback zones 1–9 (used when API returns no sitio data) ────────────────
+// ─── Fallback zones 1–9 ──────────────────────────────────────────────────────
 const FALLBACK_ZONES = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 // ─── Main Register Component ─────────────────────────────────────────────────
@@ -327,6 +303,11 @@ const Register = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [streets, setStreets] = useState<any[]>([]);
+
+  // ── Google reCAPTCHA state ──
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -345,8 +326,6 @@ const Register = () => {
   const updateField = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
-  // Sort zones numerically if they look like numbers, otherwise alphabetically.
-  // Falls back to zones 1–9 when the API returns no sitio data.
   const rawZones = Array.from(new Set(streets.map((s) => s.sitio).filter(Boolean)));
   const uniqueZones: string[] =
     rawZones.length > 0
@@ -358,7 +337,6 @@ const Register = () => {
         })
       : FALLBACK_ZONES;
 
-  // Password rules: max 10 chars, capital, lowercase, number, special
   const passwordRules = [
     { label: "Maximum 10 characters", valid: formData.password.length >= 1 && formData.password.length <= 10 },
     { label: "Contains an uppercase letter", valid: /[A-Z]/.test(formData.password) },
@@ -371,6 +349,7 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.firstName || !formData.surname || !formData.email || !formData.password || !formData.confirmPassword || !formData.dateOfBirth || !formData.gender) {
       toast({ title: "Error", description: "Please fill in all required fields including Sex", variant: "destructive" });
       return;
@@ -387,6 +366,11 @@ const Register = () => {
       toast({ title: "Error", description: "Please upload both the front and back of your government ID", variant: "destructive" });
       return;
     }
+    if (!captchaToken) {
+      toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const form = new FormData();
@@ -404,10 +388,15 @@ const Register = () => {
       form.append("password_confirmation", formData.confirmPassword);
       form.append("id_url", idFront as File);
       form.append("id_url_back", idBack as File);
+      form.append("recaptcha_token", captchaToken);
+
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
       toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
       navigate("/email-verification", { state: { email: formData.email } });
     } catch (error: any) {
+      // Reset reCAPTCHA on failure so user can try again
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
       toast({ title: "Error", description: error.response?.data?.message || "Registration failed.", variant: "destructive" });
     } finally {
       setIsLoading(false);
@@ -418,15 +407,15 @@ const Register = () => {
     setFormData({ firstName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "", zonePurok: "", password: "", confirmPassword: "" });
     setIdFront(null);
     setIdBack(null);
+    recaptchaRef.current?.reset();
+    setCaptchaToken(null);
   };
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
-
   const idUploaded = idFront && idBack;
 
   return (
     <AuthLayout>
-      {/* Modals */}
       <IDUploadModal
         open={showIDModal}
         onClose={() => setShowIDModal(false)}
@@ -602,8 +591,6 @@ const Register = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Station</Label>
-                  {/* Always show a Select — populated from API sitio values (sorted)
-                      or falls back to stations 1–9 in order */}
                   <Select value={formData.zonePurok} onValueChange={(v) => updateField("zonePurok", v)}>
                     <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
                       <SelectValue placeholder="Select zone / station" />
@@ -611,7 +598,6 @@ const Register = () => {
                     <SelectContent>
                       {uniqueZones.map((z) => (
                         <SelectItem key={z} value={z}>
-                          {/* If it's purely numeric, prefix with "Station" for clarity */}
                           {/^\d+$/.test(z) ? `Station ${z}` : z}
                         </SelectItem>
                       ))}
@@ -635,8 +621,6 @@ const Register = () => {
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                     Government-Issued ID with Address *
                   </Label>
-
-                  {/* Upload trigger button */}
                   <button
                     type="button"
                     onClick={() => setShowIDModal(true)}
@@ -669,15 +653,13 @@ const Register = () => {
                       </>
                     )}
                   </button>
-
                   <p className="text-xs" style={{ color: "#9ca3af" }}>
                     Accepted IDs: PhilSys, Driver's License, Passport, Voter's ID, NBI, SSS, PRC License, etc.
                   </p>
                 </div>
 
-                {/* Right: Password fields + requirements + privacy */}
+                {/* Right: Password fields */}
                 <div className="space-y-4">
-                  {/* Password row */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Password *</Label>
@@ -716,7 +698,6 @@ const Register = () => {
                           {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      {/* Match indicator */}
                       {formData.confirmPassword.length > 0 && (
                         <p className="text-xs flex items-center gap-1" style={{ color: formData.password === formData.confirmPassword ? "#16a34a" : "#ef4444" }}>
                           {formData.password === formData.confirmPassword
@@ -764,7 +745,7 @@ const Register = () => {
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
 
-              <div className="p-5 space-y-3" style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
+              <div className="p-5 space-y-4" style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
                   Data Privacy Notice
                 </p>
@@ -802,40 +783,55 @@ const Register = () => {
                 </label>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
-              <p className="text-xs" style={{ color: "#9ca3af" }}>
-                Already registered?{" "}
-                <Link to="/login" className="font-semibold hover:underline" style={{ color: "#0f2a5e" }}>Sign in here</Link>
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
-                  style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
-                  onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
-                  onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}
-                >
-                  Clear Form
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
-                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
-                  onMouseEnter={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
-                  onMouseLeave={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                      Submitting...
-                    </span>
-                  ) : "Submit Registration"}
-                </button>
+
+            {/* Footer */}
+            <div className="space-y-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
+              {/* ── reCAPTCHA — sits above the submit buttons ── */}
+              <div className="flex justify-end">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                  onChange={(token) => setCaptchaToken(token)}
+                  onExpired={() => setCaptchaToken(null)}
+                  theme="light"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-xs" style={{ color: "#9ca3af" }}>
+                  Already registered?{" "}
+                  <Link to="/login" className="font-semibold hover:underline" style={{ color: "#0f2a5e" }}>Sign in here</Link>
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
+                    style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
+                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
+                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}
+                  >
+                    Clear Form
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
+                    style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
+                    onMouseEnter={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                    onMouseLeave={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Submitting...
+                      </span>
+                    ) : "Submit Registration"}
+                  </button>
+                </div>
               </div>
             </div>
 

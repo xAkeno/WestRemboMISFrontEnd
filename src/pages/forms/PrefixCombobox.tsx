@@ -105,7 +105,7 @@ export const PrefixCombobox = ({
           )}
           {!disabled && (
             <ChevronDown
-              className={`w-4 h-4 text-gray-500 transition-transform ${
+                className={`w-4 h-4 text-gray-500 transition-transform absolute right-1 top-1/2 -translate-y-1/2 ${
                 open ? "rotate-180" : ""
               }`}
             />

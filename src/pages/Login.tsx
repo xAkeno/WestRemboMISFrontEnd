@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import api from "@/lib/api";
@@ -8,82 +8,84 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/West_Rembo_Logo.png";
-// ✅ IMPORT SUPABASE CLIENT
 import { supabase } from "@/utils/supabase";
+import ReCAPTCHA from "react-google-recaptcha";
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // ── Track failed attempts ──
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Show captcha once the user has failed 3 or more times
+  const showCaptcha = failedAttempts >= 3;
+
+  const handleSupabaseLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!email || !password) {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
       return;
     }
+
+    // If captcha is visible, require it to be completed
+    if (showCaptcha && !captchaToken) {
+      toast({ title: "CAPTCHA Required", description: "Please complete the verification before signing in.", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
+
     try {
-      const response = await api.post("/api/login", { email, password }, { withCredentials: true });
-      if (response.status === 200) {
-        toast({ title: "Success!", description: "You've been logged in successfully." });
-        navigate("/home");
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) throw error;
+
+      await api.post(
+        "/api/login",
+        { token: data.session.access_token },
+        { withCredentials: true }
+      );
+
+      // Reset on success
+      setFailedAttempts(0);
+      setCaptchaToken(null);
+
+      toast({ title: "Success!", description: "You've been logged in successfully." });
+      navigate("/home");
+
     } catch (error: any) {
+      const newCount = failedAttempts + 1;
+      setFailedAttempts(newCount);
+
+      // Reset captcha widget so user can re-verify on next attempt
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
+
       let errorMessage = "Login failed. Please try again.";
-      if (axios.isAxiosError(error)) errorMessage = error.response?.data?.message || errorMessage;
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      if (error.message) errorMessage = error.message;
+
+      // Give a hint once the captcha threshold is hit
+      if (newCount === 3) {
+        toast({
+          title: "Too Many Failed Attempts",
+          description: "Please complete the CAPTCHA verification before trying again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      }
     } finally {
       setIsLoading(false);
     }
   };
-  const handleSupabaseLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (!email || !password) {
-    toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
-    return;
-  }
-
-  setIsLoading(true);
-
-  try {
-    // 1. Login via Supabase
-    console.log("Attempting Supabase login with:", { email, password });
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error; 
-
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
-
-    // 2. Send Supabase token to Laravel
-    await api.post(
-      "/api/login",
-      {
-        token: data.session.access_token,
-      },
-      { withCredentials: true }
-    );
-
-    toast({ title: "Success!", description: "You've been logged in successfully." });
-    navigate("/home");
-
-  } catch (error: any) {
-    let errorMessage = "Login failed. Please try again.";
-
-    if (error.message) errorMessage = error.message;
-
-    toast({ title: "Error", description: errorMessage, variant: "destructive" });
-  } finally {
-    setIsLoading(false);
-  }
-};
 
   return (
     <AuthLayout>
@@ -100,7 +102,6 @@ const Login = () => {
           className="relative flex flex-col justify-between p-10 overflow-hidden"
           style={{ backgroundColor: "#0f2a5e" }}
         >
-          {/* Subtle diagonal rule lines */}
           <div
             className="absolute inset-0 pointer-events-none opacity-[0.04]"
             style={{
@@ -113,14 +114,11 @@ const Login = () => {
               )`,
             }}
           />
-
-          {/* Thin top accent bar in pink */}
           <div
             className="absolute top-0 left-0 right-0"
             style={{ height: 3, backgroundColor: "#c2467d" }}
           />
 
-          {/* Logo + name */}
           <div className="relative">
             <div className="flex items-center gap-4 mb-8">
               <div
@@ -167,7 +165,6 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Footer note */}
           <div
             className="relative pt-6"
             style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}
@@ -180,7 +177,6 @@ const Login = () => {
 
         {/* ── Right panel: login form ── */}
         <div className="bg-white p-10 flex flex-col justify-center">
-          {/* Section heading */}
           <div className="mb-8">
             <p
               className="text-xs font-semibold uppercase tracking-[0.18em] mb-2"
@@ -254,6 +250,30 @@ const Login = () => {
                 Forgot your password?
               </Link>
             </div>
+
+            {/* ── reCAPTCHA — appears after 3 failed attempts ── */}
+            {showCaptcha && (
+              <div
+                className="p-4"
+                style={{
+                  backgroundColor: "#fff8e1",
+                  border: `1.5px solid ${captchaToken ? "#16a34a" : "#f59e0b"}`,
+                  borderRadius: 2,
+                  transition: "border-color 0.2s",
+                }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#78350f" }}>
+                  Please verify you are human
+                </p>
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                  onChange={(token) => setCaptchaToken(token)}
+                  onExpired={() => setCaptchaToken(null)}
+                  theme="light"
+                />
+              </div>
+            )}
 
             <button
               type="submit"
