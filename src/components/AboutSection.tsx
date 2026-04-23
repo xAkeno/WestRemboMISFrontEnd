@@ -1,4 +1,5 @@
 import { Megaphone, CalendarDays, PhoneCall } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const features = [
   {
@@ -24,40 +25,92 @@ const features = [
   },
 ];
 
+// ── Reusable scroll-reveal hook ──────────────────────────────────────────────
+const useScrollReveal = (threshold = 0.15) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, visible };
+};
+
 const AboutSection = () => {
+  const { ref: headerRef, visible: headerVisible } = useScrollReveal(0.2);
+  const cardRefs = features.map(() => useScrollReveal(0.15));
+
   return (
-    <section id="about" className="py-20 sm:py-28 bg-background">
+    <section id="about" className="py-20 sm:py-28 bg-background overflow-hidden">
+      <style>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(40px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeSlideLeft {
+          from { opacity: 0; transform: translateX(-30px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes widthGrow {
+          from { width: 0; }
+          to   { width: 56px; }
+        }
+        .reveal-up {
+          opacity: 0;
+          transform: translateY(40px);
+        }
+        .reveal-up.visible {
+          animation: fadeSlideUp 0.75s ease forwards;
+        }
+        .reveal-card {
+          opacity: 0;
+          transform: translateY(48px);
+        }
+        .reveal-card.visible {
+          animation: fadeSlideUp 0.8s ease forwards;
+        }
+      `}</style>
+
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
 
         {/* Section Header */}
-        <div className="text-center mb-14 sm:mb-16">
-          {/* Eyebrow — same style as HeroSection */}
-          <div className="inline-flex items-center gap-2 mb-5">
+        <div ref={headerRef} className="text-center mb-14 sm:mb-16">
+          <div
+            className={`inline-flex items-center gap-2 mb-5 reveal-up ${headerVisible ? "visible" : ""}`}
+            style={{ animationDelay: "0s" }}
+          >
             <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
-            <span
-              className="text-xs font-bold uppercase tracking-[0.2em]"
-              style={{ color: "#d45ea3" }}
-            >
+            <span className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: "#d45ea3" }}>
               About this Website
             </span>
             <div className="h-px w-8" style={{ backgroundColor: "#d45ea3" }} />
           </div>
 
           <h2
-            className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight"
-            style={{ fontFamily: "'Georgia', serif" }}
+            className={`text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight reveal-up ${headerVisible ? "visible" : ""}`}
+            style={{ fontFamily: "'Georgia', serif", animationDelay: "0.12s" }}
           >
             Your Digital{" "}
             <span style={{ color: "#fa43ae" }}>Barangay Hub</span>
           </h2>
 
-          {/* Underline accent */}
           <div
-            className="mx-auto mt-3 mb-5 rounded-full"
-            style={{ width: 56, height: 3, backgroundColor: "#d45ea3" }}
+            className={`mx-auto mt-3 mb-5 rounded-full reveal-up ${headerVisible ? "visible" : ""}`}
+            style={{ width: 56, height: 3, backgroundColor: "#d45ea3", animationDelay: "0.22s" }}
           />
 
-          <p className="text-muted-foreground max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
+          <p
+            className={`text-muted-foreground max-w-2xl mx-auto text-base sm:text-lg leading-relaxed reveal-up ${headerVisible ? "visible" : ""}`}
+            style={{ animationDelay: "0.32s" }}
+          >
             This website is dedicated to sharing official announcements, events, and updates for the
             community of West Rembo. It serves as an information hub to keep residents connected and
             informed.
@@ -67,12 +120,14 @@ const AboutSection = () => {
         {/* Feature Cards */}
         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
           {features.map((feature, index) => {
+            const { ref, visible } = cardRefs[index];
             const Icon = feature.icon;
             return (
               <div
                 key={feature.number}
-                className="group relative bg-card rounded-2xl p-8 border border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl overflow-hidden"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                ref={ref}
+                className={`group relative bg-card rounded-2xl p-8 border border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl overflow-hidden reveal-card ${visible ? "visible" : ""}`}
+                style={{ animationDelay: `${index * 0.15}s` }}
               >
                 {/* Large watermark number */}
                 <span
