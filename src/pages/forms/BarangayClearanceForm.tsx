@@ -1168,7 +1168,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
             </div>
 
             {/* Section 6 — Data Privacy */}
-            <div>
+            {/* <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
@@ -1212,7 +1212,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   </span>
                 </label>
               </div>
-            </div>
+            </div> */}
 
             {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>

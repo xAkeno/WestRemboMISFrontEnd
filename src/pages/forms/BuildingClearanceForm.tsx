@@ -347,6 +347,14 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     load();
   }, []);
 
+   const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate(-1);
+    }
+  };
+
   const uniqueZones = Array.from(new Set(streets.map((s) => s.sitio).filter(Boolean)));
 
   const [formData, setFormData] = useState({
@@ -1133,7 +1141,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             </div>
 
             {/* Section 6 — Data Privacy (renumbered from 5 to 6) */}
-            <div>
+            {/* <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>6</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Data Privacy</h3>
@@ -1177,13 +1185,13 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   </span>
                 </label>
               </div>
-            </div>
+            </div> */}
 
             {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
-                onClick={onBack}
+                onClick={handleBack}
                 className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
                 onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
