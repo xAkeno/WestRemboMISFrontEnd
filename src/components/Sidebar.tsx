@@ -249,10 +249,12 @@ const allMenuItems = [
   { title: "Document Settings", path: "/document-setting",  icon: FileCheck,    permission: "settings" },
   { title: "Pricing",           path: "/pricing",           icon: LayoutList,   permission: "settings" },
   { title: "Contact Cms",       path: "/contactCms",        icon: NotebookTabs, permission: "settings" },
+  { title: "Service Cms",       path: "/serviceCms",        icon: NotebookTabs, permission: "settings" },
   { title: "Reports",           path: "/reports",           icon: BarChart3,    permission: "reports" },
   { title: "Account Manage",    path: "/AccountManage",     icon: UserRoundPen, permission: "settings" },
   { title: "Backup Recovery",   path: "/backup-recovery",   icon: Database,     permission: "settings" },
   { title: "Activity Log",      path: "/activity-log",      icon: Activity,     permission: "settings" },
+
   { title: "Settings",          path: "/settings",          icon: Settings,     permission: "settings" }
 ];
   
