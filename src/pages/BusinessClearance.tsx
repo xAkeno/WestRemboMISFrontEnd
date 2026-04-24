@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
+  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -161,7 +161,7 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
-      {status === 'to_pay' ? 'TO PAY' : status}
+      {status === 'to_pay' || status === 'TO_PAY' ? 'TO PAY' : status}
     </span>
   );
 }
@@ -193,21 +193,23 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
 }
 
 // ─── Editable Detail Modal Component ──────────────────────────────────────────
-function EditableDetailModal({ 
-  record, 
-  onClose, 
+function EditableDetailModal({
+  record,
+  onClose,
   onUpdate,
-  toast
-}: { 
-  record: BusinessClearanceType | null; 
+  toast,
+}: {
+  record: BusinessClearanceType | null;
   onClose: () => void;
   onUpdate: () => void;
   toast: any;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
+  const [isEditing, setIsEditing]     = useState(false);
+  const [isSaving, setIsSaving]       = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<string>('');
+
   const [formData, setFormData] = useState<any>({
     first_name: '',
     middle_name: '',
@@ -232,62 +234,114 @@ function EditableDetailModal({
   });
 
   useEffect(() => {
-    if (record) {
-      const fetchFullRecord = async () => {
-        setIsLoading(true);
-        try {
-          const response = await axios.get(
-            `http://127.0.0.1:8000/api/business-clearances?search=${record.brgy_business_no}`,
-            { withCredentials: true }
-          );
-          const fullRecord = response.data.data.data[0];
-          
-          setFormData({
-            first_name: fullRecord.first_name || '',
-            middle_name: fullRecord.middle_name || '',
-            surname: fullRecord.surname || '',
-            ext_name: fullRecord.ext_name || '',
-            prefix: fullRecord.prefix || '',
-            business_name: fullRecord.business_name || '',
-            business_type: fullRecord.business_type || '',
-            brgy_business_no: fullRecord.brgy_business_no || '',
-            issued_date: fullRecord.issued_date || '',
-            capital: fullRecord.capital || '',
-            house_block_lot_no: fullRecord.house_block_lot_no || '',
-            street: fullRecord.street || '',
-            zone: fullRecord.zone || '',
-            or_no: fullRecord.or_no || '',
-            inspected_by: fullRecord.inspected_by || '',
-            inspected_remarks: fullRecord.inspected_remarks || '',
-            date_inspected: fullRecord.date_inspected || '',
-            inspected_note: fullRecord.inspected_note || '',
-            status: fullRecord.status || '',
-            created_by: fullRecord.created_by || '',
-          });
-        } catch (error) {
-          console.error('Error fetching full record:', error);
-          toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      fetchFullRecord();
-    }
+    if (!record) return;
+    const fetchFullRecord = async () => {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(
+          `http://127.0.0.1:8000/api/business-clearances?search=${record.brgy_business_no}`,
+          { withCredentials: true }
+        );
+        const fullRecord = response.data.data.data[0];
+        setCurrentStatus(fullRecord.status ?? '');
+        setFormData({
+          first_name:         fullRecord.first_name         || '',
+          middle_name:        fullRecord.middle_name        || '',
+          surname:            fullRecord.surname            || '',
+          ext_name:           fullRecord.ext_name           || '',
+          prefix:             fullRecord.prefix             || '',
+          business_name:      fullRecord.business_name      || '',
+          business_type:      fullRecord.business_type      || '',
+          brgy_business_no:   fullRecord.brgy_business_no   || '',
+          issued_date:        fullRecord.issued_date        || '',
+          capital:            fullRecord.capital            || '',
+          house_block_lot_no: fullRecord.house_block_lot_no || '',
+          street:             fullRecord.street             || '',
+          zone:               fullRecord.zone               || '',
+          or_no:              fullRecord.or_no              || '',
+          inspected_by:       fullRecord.inspected_by       || '',
+          inspected_remarks:  fullRecord.inspected_remarks  || '',
+          date_inspected:     fullRecord.date_inspected     || '',
+          inspected_note:     fullRecord.inspected_note     || '',
+          status:             fullRecord.status             || '',
+          created_by:         fullRecord.created_by         || '',
+        });
+      } catch (error) {
+        console.error('Error fetching full record:', error);
+        toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchFullRecord();
   }, [record, toast]);
 
   if (!record) return null;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  // ── Derived action visibility ──────────────────────────────────────────────
+  const status       = currentStatus.toUpperCase();
+  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED';
+  const canMarkAsPaid = status === 'TO_PAY';
+  const canRelease   = status === 'PAID';
+
+  // ── Status action handlers ─────────────────────────────────────────────────
+  const handleMarkToPay = async () => {
+    setActionLoading('to_pay');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        { status: 'TO_PAY' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('TO_PAY');
+      setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
+      toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
   };
 
+  const handleMarkAsPaid = async () => {
+    setActionLoading('paid');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        { status: 'PAID' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  const handleRelease = async () => {
+    setActionLoading('release');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        { status: 'RELEASED', released_at: new Date().toISOString() },
+        { withCredentials: true }
+      );
+      setCurrentStatus('RELEASED');
+      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
+      toast({ title: 'Success', description: 'Document released successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  // ── Save edits ─────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     setIsSaving(true);
     try {
       const payload = { ...formData };
-      
+
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
@@ -297,132 +351,87 @@ function EditableDetailModal({
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) {
-        console.error("Check existing failed:", error);
+        console.error('Check existing failed:', error);
       }
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/business-clearances/${existingId}`, 
-          payload, 
+          `http://127.0.0.1:8000/api/business-clearances/${existingId}`,
+          payload,
           { withCredentials: true }
         );
-        toast({ title: "Success", description: "Record updated successfully" });
+        toast({ title: 'Success', description: 'Record updated successfully' });
+        setIsEditing(false);
+        onUpdate();
       } else {
-        toast({ title: "Error", description: "Record not found", variant: "destructive" });
-        return;
+        toast({ title: 'Error', description: 'Record not found', variant: 'destructive' });
       }
-      
-      setIsEditing(false);
-      onUpdate();
-      
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        if (status === 422) {
+        const s = error.response?.status;
+        if (s === 422) {
           const errs = error.response?.data?.errors;
-          if (errs) {
-            Object.values(errs).forEach((m: any) => m[0] && toast({ title: "Validation Error", description: m[0], variant: "destructive" }));
-          }
-        } else if (status === 401) {
-          toast({ title: "Error", description: "You are not authenticated.", variant: "destructive" });
-        } else if (status === 403) {
-          toast({ title: "Error", description: "You are not allowed to perform this action.", variant: "destructive" });
+          if (errs) Object.values(errs).forEach((m: any) => m[0] && toast({ title: 'Validation Error', description: m[0], variant: 'destructive' }));
+        } else if (s === 401) {
+          toast({ title: 'Error', description: 'You are not authenticated.', variant: 'destructive' });
+        } else if (s === 403) {
+          toast({ title: 'Error', description: 'You are not allowed to perform this action.', variant: 'destructive' });
         } else {
-          toast({ title: "Error", description: "Something went wrong.", variant: "destructive" });
+          toast({ title: 'Error', description: 'Something went wrong.', variant: 'destructive' });
         }
       } else {
-        toast({ title: "Error", description: "Network error.", variant: "destructive" });
+        toast({ title: 'Error', description: 'Network error.', variant: 'destructive' });
       }
-    } finally {
-      setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   };
 
-  const Field = ({ label, name, type = "text", options, isTextArea = false }: any) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  // ── Field renderer ─────────────────────────────────────────────────────────
+  const Field = ({ label, name, type = 'text', options, isTextArea = false }: any) => {
     const value = formData[name] || '';
-    
+
     if (isEditing) {
-      if (type === "select" && options) {
+      if (type === 'select' && options) {
         return (
-          <select
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          >
+          <select name={name} value={value} onChange={handleInputChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             <option value="">Select {label}</option>
-            {options.map((opt: string) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
+            {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         );
       }
-      
       if (isTextArea) {
         return (
-          <textarea
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            rows={3}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <textarea name={name} value={value} onChange={handleInputChange} rows={3}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
         );
       }
-      
-      if (type === "date") {
+      if (type === 'date') {
         return (
-          <input
-            type="date"
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <input type="date" name={name} value={value} onChange={handleInputChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
         );
       }
-      
-      if (type === "number") {
+      if (type === 'number') {
         return (
-          <input
-            type="number"
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <input type="number" name={name} value={value} onChange={handleInputChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
         );
       }
-      
       return (
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={handleInputChange}
-          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
+        <input type={type} name={name} value={value} onChange={handleInputChange}
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
       );
     }
-    
+
     // Display mode
-    if (type === "select" && options) {
-      return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
-    }
-    
-    if (isTextArea) {
-      return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
-    }
-    
-    if (type === "date" && value) {
-      return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
-    }
-    
-    if (type === "number" && value) {
-      return <p className="text-sm text-gray-700 mt-1">{formatCurrency(Number(value))}</p>;
-    }
-    
-    return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
+    if (type === 'date' && value) return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
+    if (type === 'number' && value) return <p className="text-sm text-gray-700 mt-1">{formatCurrency(Number(value))}</p>;
+    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
   };
 
   if (isLoading) {
@@ -440,6 +449,8 @@ function EditableDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+
+        {/* ── Modal Header ── */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Business Clearance Details</h2>
@@ -447,66 +458,40 @@ function EditableDetailModal({
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              >
-                <Edit2 className="h-4 w-4" />
-                Edit
+              <button onClick={() => setIsEditing(true)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                <Edit2 className="h-4 w-4" /> Edit
               </button>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                >
+                <button onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={handleUpdate}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
-                >
+                <button onClick={handleUpdate} disabled={isSaving}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
                   <Save className="h-4 w-4" />
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </>
             )}
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-md transition-colors"
-            >
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
+        {/* ── Modal Body ── */}
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Personal Information */}
+
+            {/* Owner Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Owner Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">First Name</label>
-                <Field label="First Name" name="first_name" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Middle Name</label>
-                <Field label="Middle Name" name="middle_name" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Surname</label>
-                <Field label="Surname" name="surname" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Extension Name</label>
-                <Field label="Extension Name" name="ext_name" type="text" />
-              </div>
-
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">First Name</label><Field label="First Name" name="first_name" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Middle Name</label><Field label="Middle Name" name="middle_name" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Surname</label><Field label="Surname" name="surname" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Extension Name</label><Field label="Extension Name" name="ext_name" /></div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
                 <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
@@ -516,94 +501,41 @@ function EditableDetailModal({
             {/* Business Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Business Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Business No.</label>
-                <Field label="Business No." name="brgy_business_no" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Business Name</label>
-                <Field label="Business Name" name="business_name" type="text" />
-              </div>
-
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Business No.</label><Field label="Business No." name="brgy_business_no" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Business Name</label><Field label="Business Name" name="business_name" /></div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Business Type</label>
                 <Field label="Business Type" name="business_type" type="select" options={BUSINESS_TYPE_OPTIONS} />
               </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Issue Date</label>
-                <Field label="Issue Date" name="issued_date" type="date" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Capital</label>
-                <Field label="Capital" name="capital" type="number" />
-              </div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Issue Date</label><Field label="Issue Date" name="issued_date" type="date" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Capital</label><Field label="Capital" name="capital" type="number" /></div>
             </div>
 
             {/* Address Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label>
-                <Field label="House/Block/Lot No." name="house_block_lot_no" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Street</label>
-                <Field label="Street" name="street" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Zone</label>
-                <Field label="Zone" name="zone" type="text" />
-              </div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label><Field label="House/Block/Lot No." name="house_block_lot_no" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Street</label><Field label="Street" name="street" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Zone</label><Field label="Zone" name="zone" /></div>
             </div>
 
             {/* Inspection Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Inspection Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Inspected By</label>
-                <Field label="Inspected By" name="inspected_by" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Date Inspected</label>
-                <Field label="Date Inspected" name="date_inspected" type="date" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Inspected Remarks</label>
-                <Field label="Inspected Remarks" name="inspected_remarks" isTextArea />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Inspected Note</label>
-                <Field label="Inspected Note" name="inspected_note" isTextArea />
-              </div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Inspected By</label><Field label="Inspected By" name="inspected_by" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Date Inspected</label><Field label="Date Inspected" name="date_inspected" type="date" /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Inspected Remarks</label><Field label="Inspected Remarks" name="inspected_remarks" isTextArea /></div>
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">Inspected Note</label><Field label="Inspected Note" name="inspected_note" isTextArea /></div>
             </div>
 
             {/* Document Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
-                <Field label="OR No." name="or_no" type="text" />
-              </div>
-
+              <div><label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label><Field label="OR No." name="or_no" /></div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                <div className="mt-1">
-                  <StatusBadge status={formData.status} />
-                </div>
+                <div className="mt-1"><StatusBadge status={currentStatus} /></div>
               </div>
-
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
                 <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
@@ -613,19 +545,16 @@ function EditableDetailModal({
             {/* Schedule Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule Information</h3>
-              
-              {(record as any).schedule && (
+              {(record as any).schedule ? (
                 <>
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
                     <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
                   </div>
-                  
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
                     <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
                   </div>
-
                   {(record as any).schedule.note && (
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
@@ -633,65 +562,66 @@ function EditableDetailModal({
                     </div>
                   )}
                 </>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No schedule assigned.</p>
               )}
             </div>
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-          {!isEditing && (
-            <Button onClick={() => window.location.href = `/document-edit/4/${record.brgy_business_no}`}>
-              Full Edit Page
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+        {/* ── Modal Footer — action buttons live here ── */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
 
-// ─── Confirmation Modal Component ──────────────────────────────────────────────
-function ConfirmationModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
-  isLoading = false,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  isLoading?: boolean;
-}) {
-  if (!isOpen) return null;
+            {/* Status action buttons (left side) */}
+            <div className="flex items-center gap-2">
+              {canMarkToPay && (
+                <button
+                  onClick={handleMarkToPay}
+                  disabled={actionLoading === 'to_pay'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                </button>
+              )}
+              {canMarkAsPaid && (
+                <button
+                  onClick={handleMarkAsPaid}
+                  disabled={actionLoading === 'paid'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
+                </button>
+              )}
+              {canRelease && (
+                <button
+                  onClick={handleRelease}
+                  disabled={actionLoading === 'release'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  <Mail className="h-4 w-4" />
+                  {actionLoading === 'release' ? 'Releasing...' : 'Release Document'}
+                </button>
+              )}
+              {!canMarkToPay && !canMarkAsPaid && !canRelease && (
+                <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
+              )}
+            </div>
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-lg border border-gray-200 max-w-md w-full shadow-2xl">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            {/* Right side */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={onClose}>Close</Button>
+              {!isEditing && (
+                <Button onClick={() => window.location.href = `/document-edit/4/${record.brgy_business_no}`}>
+                  Full Edit Page
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="px-6 py-4">
-          <p className="text-sm text-gray-600">{message}</p>
-        </div>
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            {cancelText}
-          </Button>
-          <Button onClick={onConfirm} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
-            {isLoading ? 'Processing...' : confirmText}
-          </Button>
-        </div>
+
       </div>
     </div>
   );
@@ -718,8 +648,8 @@ function FilterBar({
       <div className="flex items-center gap-2 flex-wrap">
         <button
           className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border ${
-            activeCount > 0 
-              ? 'border-blue-500 bg-blue-50 text-blue-700' 
+            activeCount > 0
+              ? 'border-blue-500 bg-blue-50 text-blue-700'
               : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
           } text-sm font-medium transition-all`}
           onClick={() => setOpen(v => !v)}
@@ -737,57 +667,43 @@ function FilterBar({
         {filters.status && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Status: <strong>{filters.status}</strong>
-            <button onClick={() => onChange({ status: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ status: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.schedule_filter && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
-            <button onClick={() => onChange({ schedule_filter: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ schedule_filter: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date && filters.filter_date !== 'custom' && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date === 'custom' && (filters.from || filters.to) && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.zone && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Zone: <strong>{filters.zone}</strong>
-            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.street && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Street: <strong>{filters.street}</strong>
-            <button onClick={() => onChange({ street: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ street: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.business_type && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Type: <strong>{filters.business_type}</strong>
-            <button onClick={() => onChange({ business_type: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ business_type: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {activeCount > 0 && (
@@ -804,12 +720,9 @@ function FilterBar({
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
                 {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE'] as const).map(v => (
-                  <button
-                    key={v}
+                  <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.status === v
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ status: v })}
                   >
@@ -827,12 +740,9 @@ function FilterBar({
                   { v: 'scheduled', label: 'Scheduled', icon: <CalendarCheck className="h-3 w-3" /> },
                   { v: 'not_scheduled', label: 'Not yet scheduled', icon: <CalendarX className="h-3 w-3" /> },
                 ].map(opt => (
-                  <button
-                    key={opt.v}
+                  <button key={opt.v}
                     className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.schedule_filter === opt.v
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      filters.schedule_filter === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ schedule_filter: opt.v })}
                   >
@@ -852,12 +762,9 @@ function FilterBar({
                   { v: 'this_year', label: 'This year' },
                   { v: 'custom', label: 'Custom range' },
                 ].map(opt => (
-                  <button
-                    key={opt.v}
+                  <button key={opt.v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.filter_date === opt.v
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      filters.filter_date === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}
                   >
@@ -867,11 +774,9 @@ function FilterBar({
               </div>
               {filters.filter_date === 'custom' && (
                 <div className="flex items-center gap-2 mt-2">
-                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.from}
-                    onChange={e => onChange({ from: e.target.value })} />
+                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.from} onChange={e => onChange({ from: e.target.value })} />
                   <span className="text-xs text-gray-500">to</span>
-                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.to}
-                    onChange={e => onChange({ to: e.target.value })} />
+                  <input type="date" className="flex-1 h-8 px-2 text-sm border border-gray-200 rounded-md" value={filters.to} onChange={e => onChange({ to: e.target.value })} />
                 </div>
               )}
             </div>
@@ -880,8 +785,7 @@ function FilterBar({
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Business Type</label>
               <select
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
-                value={filters.business_type}
-                onChange={e => onChange({ business_type: e.target.value })}
+                value={filters.business_type} onChange={e => onChange({ business_type: e.target.value })}
               >
                 <option value="">All types</option>
                 {BUSINESS_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -890,21 +794,16 @@ function FilterBar({
 
             <div className="p-4 border-r border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
-              <input
-                type="text"
-                placeholder="e.g. Zone 1, Zone 2…"
+              <input type="text" placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
-                value={filters.zone}
-                onChange={e => onChange({ zone: e.target.value })}
-              />
+                value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
             </div>
 
             <div className="p-4 border-l border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Street</label>
               <select
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
-                value={filters.street}
-                onChange={e => onChange({ street: e.target.value })}
+                value={filters.street} onChange={e => onChange({ street: e.target.value })}
               >
                 <option value="">All streets</option>
                 {streets.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -944,43 +843,13 @@ const BusinessClearance = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [streets, setStreets]         = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BusinessClearanceType | null>(null);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-  
-  // Confirmation modal state
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    confirmText: string;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    confirmText: 'Confirm',
-  });
 
-  const syncToUrl = useCallback((
-    nextSearch: string,
-    nextPage: number,
-    nextFilters: FilterState,
-  ) => {
-    const p = buildParams(nextFilters, nextSearch, nextPage);
-    setSearchParams(p, { replace: true });
+  const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
+    setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
   }, [setSearchParams]);
 
-  const setSearchValue = (val: string) => {
-    setSearchValueRaw(val);
-    setCurrentPageRaw(1);
-    syncToUrl(val, 1, filters);
-  };
-
-  const setCurrentPage = (page: number) => {
-    setCurrentPageRaw(page);
-    syncToUrl(searchValue, page, filters);
-  };
-
+  const setSearchValue = (val: string) => { setSearchValueRaw(val); setCurrentPageRaw(1); syncToUrl(val, 1, filters); };
+  const setCurrentPage = (page: number) => { setCurrentPageRaw(page); syncToUrl(searchValue, page, filters); };
   const setFilters = (next: FilterState | ((prev: FilterState) => FilterState)) => {
     setFiltersRaw(prev => {
       const resolved = typeof next === 'function' ? next(prev) : next;
@@ -994,16 +863,13 @@ const BusinessClearance = () => {
     setSearchValueRaw(searchParams.get('search') ?? '');
     setCurrentPageRaw(Number(searchParams.get('page') ?? '1'));
     setFiltersRaw(filtersFromParams(searchParams));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get('api/streets', { withCredentials: true });
-        setStreets(res.data?.data ?? res.data ?? []);
-      } catch (e) { console.error('Failed to fetch streets:', e); }
-    };
-    load();
+    api.get('api/streets', { withCredentials: true })
+      .then(res => setStreets(res.data?.data ?? res.data ?? []))
+      .catch(e => console.error('Failed to fetch streets:', e));
   }, []);
 
   const loadData = useCallback(async () => {
@@ -1015,19 +881,17 @@ const BusinessClearance = () => {
         search:       searchValue || undefined,
         sortField,
         sortDirection,
-        ...(filters.status                                           ? { status:        filters.status }        : {}),
-        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:   filters.filter_date }   : {}),
-        ...(filters.filter_date === 'custom' && filters.from        ? { from:          filters.from }          : {}),
-        ...(filters.filter_date === 'custom' && filters.to          ? { to:            filters.to }            : {}),
-        ...(filters.zone                                            ? { zone:          filters.zone }          : {}),
-        ...(filters.street                                          ? { street:        filters.street }        : {}),
-        ...(filters.business_type                                   ? { business_type: filters.business_type } : {}),
-        ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
+        ...(filters.status                                           ? { status:          filters.status }          : {}),
+        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:      filters.filter_date }     : {}),
+        ...(filters.filter_date === 'custom' && filters.from        ? { from:             filters.from }            : {}),
+        ...(filters.filter_date === 'custom' && filters.to          ? { to:               filters.to }              : {}),
+        ...(filters.zone                                            ? { zone:             filters.zone }            : {}),
+        ...(filters.street                                          ? { street:           filters.street }          : {}),
+        ...(filters.business_type                                   ? { business_type:    filters.business_type }   : {}),
+        ...(filters.schedule_filter                                 ? { schedule_filter:  filters.schedule_filter } : {}),
       };
-
       const response = await fetchBusinessClearances(params);
-      const rows = response.data as any[];
-      setData(rows);
+      setData(response.data as any[]);
       setTotal(response.total);
       setTotalPages(response.totalPages);
     } catch {
@@ -1040,109 +904,14 @@ const BusinessClearance = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleDelete = async (id: number) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Delete Business Clearance',
-      message: 'Are you sure you want to delete this business clearance? This action cannot be undone.',
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        setActionLoading(id);
-        try {
-          await axios.delete(`http://127.0.0.1:8000/api/business-clearances/${id}`, { withCredentials: true });
-          toast({ title: 'Deleted', description: 'Business clearance deleted successfully.' });
-          loadData();
-        } catch {
-          toast({ title: 'Error', description: 'Failed to delete business clearance.', variant: 'destructive' });
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      },
-    });
-  };
-
-  const handleMarkToPay = async (item: BusinessClearanceType) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Mark as To Pay',
-      message: `Are you sure you want to mark "${item.business_name}" as "To Pay"? This will notify the applicant that payment is required.`,
-      confirmText: 'Yes, Mark to Pay',
-      onConfirm: async () => {
-        setActionLoading(item.id);
-        try {
-          const res = await axios.put(
-            `http://127.0.0.1:8000/api/business-clearances/${item.id}`,
-            { status: "TO_PAY" },
-            { withCredentials: true }
-          );
-          if (res.status === 200) {
-            toast({ title: "Success", description: "Status set to To Pay successfully." });
-            loadData();
-          }
-        } catch (err: any) {
-          toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      },
-    });
-  };
-
-  const handleMarkAsPaid = async (item: BusinessClearanceType) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Mark as Paid',
-      message: `Are you sure you want to mark "${item.business_name}" as "Paid"? This confirms that payment has been received.`,
-      confirmText: 'Yes, Mark as Paid',
-      onConfirm: async () => {
-        setActionLoading(item.id);
-        try {
-          const res = await axios.put(
-            `http://127.0.0.1:8000/api/business-clearances/${item.id}`,
-            { status: "PAID" },
-            { withCredentials: true }
-          );
-          if (res.status === 200) {
-            toast({ title: "Success", description: "Status set to Paid successfully." });
-            loadData();
-          }
-        } catch (err: any) {
-          toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      },
-    });
-  };
-
-  const handleRelease = async (item: BusinessClearanceType) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Release Document',
-      message: `Are you sure you want to release "${item.business_name}"? This will mark it as "Released" and notify the applicant via email.`,
-      confirmText: 'Yes, Release',
-      onConfirm: async () => {
-        setActionLoading(item.id);
-        try {
-          const res = await axios.put(
-            `http://127.0.0.1:8000/api/business-clearances/${item.id}`,
-            { status: "RELEASED", released_at: new Date().toISOString() },
-            { withCredentials: true }
-          );
-          if (res.status === 200) {
-            toast({ title: "Success", description: "Document released successfully." });
-            loadData();
-          }
-        } catch (err: any) {
-          toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to release document.", variant: "destructive" });
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      },
-    });
+    if (!window.confirm('Are you sure you want to delete this business clearance?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/api/business-clearances/${id}`, { withCredentials: true });
+      toast({ title: 'Deleted', description: 'Business clearance deleted successfully.' });
+      loadData();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete business clearance.', variant: 'destructive' });
+    }
   };
 
   const handleSort = (field: string) => {
@@ -1153,10 +922,6 @@ const BusinessClearance = () => {
   const handleRefresh = () => {
     loadData();
     toast({ title: 'Refreshed', description: 'Data has been refreshed' });
-  };
-
-  const handleViewDetails = (item: BusinessClearanceType) => {
-    setSelectedDetailRecord(item);
   };
 
   const activeFilterCount = countActiveFilters(filters);
@@ -1182,21 +947,14 @@ const BusinessClearance = () => {
               <h1 className="text-2xl font-semibold text-gray-900">Business Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage business clearance records</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button className="gap-2" onClick={() => navigate('/document-edit/4')}>
-                <Plus className="h-4 w-4" />
-                New Clearance
-              </Button>
-            </div>
+            <Button className="gap-2" onClick={() => navigate('/document-edit/4')}>
+              <Plus className="h-4 w-4" /> New Clearance
+            </Button>
           </div>
 
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px]">
-              <ClearanceSearchBar
-                searchValue={searchValue}
-                onSearchChange={setSearchValue}
-                onRefresh={handleRefresh}
-              />
+              <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
             </div>
             <FilterBar
               filters={filters}
@@ -1225,10 +983,8 @@ const BusinessClearance = () => {
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
                 {(activeFilterCount > 0 || searchValue) && (
-                  <button
-                    className="text-xs text-blue-600 hover:underline"
-                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}
-                  >
+                  <button className="text-xs text-blue-600 hover:underline"
+                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
                     Clear all filters
                   </button>
                 )}
@@ -1246,10 +1002,7 @@ const BusinessClearance = () => {
                       <SortHeader field="business_type">Type</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Schedule
-                        </div>
+                        <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div>
                       </th>
                       <SortHeader field="street">Address</SortHeader>
                       <SortHeader field="capital">Capital</SortHeader>
@@ -1261,14 +1014,8 @@ const BusinessClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
-                      const status = item.status?.toUpperCase() || '';
-                      const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED';
-                      const canMarkAsPaid = status === 'TO_PAY';
-                      const canRelease = status === 'PAID';
-                      const isLoading = actionLoading === item.id;
-                      
                       return (
-                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors cursor-pointer`} onClick={() => handleViewDetails(item)}>
+                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
                             {isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}
                           </td>
@@ -1295,68 +1042,31 @@ const BusinessClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4">
-                            <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
-                              <div className="flex items-center gap-1.5 ">
-                                <button
-                                  onClick={() => handleViewDetails(item)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                  View/Edit
-                                </button>
-                                <button
-                                  onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`)}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Preview
-                                </button>
-                                <button
-                                  onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true } })}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Print
-                                </button>
-                              </div>
-                              
-                              {/* Status action buttons */}
-                              <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-gray-100">
-                                {canMarkToPay && (
-                                  <button
-                                    onClick={() => handleMarkToPay(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <CreditCard className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Mark to Pay'}
-                                  </button>
-                                )}
-                                {canMarkAsPaid && (
-                                  <button
-                                    onClick={() => handleMarkAsPaid(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <CreditCard className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Mark Paid'}
-                                  </button>
-                                )}
-                                {canRelease && (
-                                  <button
-                                    onClick={() => handleRelease(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <Mail className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Release'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDelete(item.id)}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => setSelectedDetailRecord(item)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                              >
+                                <Eye className="h-3 w-3" /> View/Edit
+                              </button>
+                              <button
+                                onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`)}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
+                              >
+                                Preview
+                              </button>
+                              <button
+                                onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true } })}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                              >
+                                Print
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1385,16 +1095,6 @@ const BusinessClearance = () => {
           toast={toast}
         />
       )}
-
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmModal.onConfirm}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmText={confirmModal.confirmText}
-        isLoading={actionLoading !== null}
-      />
     </Layout>
   );
 };

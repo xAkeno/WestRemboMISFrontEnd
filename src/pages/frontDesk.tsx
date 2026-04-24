@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   FileText, Building2, Briefcase, Users, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
-  Shield, ArrowRight,
+  Shield, ArrowRight, Clock, Calendar,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
@@ -31,10 +31,43 @@ const SERVICE_TYPE_MAP: Record<string, string> = {
   "resident-registration": "Resident Registration",
 };
 
+// ─── Document-type → backend document_type string ─────────────────────────────
+const DOC_TYPE_TO_SCHEDULE_TYPE: Record<string, string> = {
+  "clearance":             "barangay_clearance",
+  "building-clearance":    "building_clearance",
+  "business-clearance":    "business_clearance",
+  "barangay-certificate":  "barangay_certificate",
+  "resident-registration": "barangay_clearance",
+};
+
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
 
 // Prefix options for the combobox
 const PREFIX_OPTIONS = ["Mr.", "Ms.", "Mrs.", "Dr.", "Atty.", "Engr.", "Prof."];
+
+// ─── PH Holidays 2026 ─────────────────────────────────────────────────────────
+const PH_HOLIDAYS_2026 = [
+  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
+  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
+];
+
+const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+const isHoliday = (s: string) => PH_HOLIDAYS_2026.includes(s);
+
+const validateScheduleDate = (value: string): string => {
+  if (!value) return "Schedule date is required.";
+  const date = new Date(value);
+  if (isWeekend(date)) return "Weekends (Saturday/Sunday) are not allowed.";
+  if (isHoliday(value)) return "Selected date is a Philippine holiday. Please choose another date.";
+  return "";
+};
+
+// ─── Auto-detect current time slot ────────────────────────────────────────────
+const getAutoTimeGroup = (): "morning" | "afternoon" => {
+  const hour = new Date().getHours();
+  // Morning: before 12:00; Afternoon: 12:00 onwards
+  return hour < 12 ? "morning" : "afternoon";
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSLATIONS
@@ -110,6 +143,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Address",
     "step.details":           "Details",
+    "step.schedule":          "Schedule",
     "step.review":            "Review",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "General purpose clearance",
@@ -121,21 +155,24 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Official barangay certificate",
     "doc.resident.label":     "Resident Registration",
     "doc.resident.sub":       "Register as a barangay resident",
-    "step1.eyebrow":          "Step 1 of 5",
+    "step1.eyebrow":          "Step 1 of 6",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
-    "step2.eyebrow":          "Step 2 of 5",
+    "step2.eyebrow":          "Step 2 of 6",
     "step2.title":            "Personal information",
     "step2.subtitle":         "Please fill in your complete name and birth details",
-    "step3.eyebrow":          "Step 3 of 5",
+    "step3.eyebrow":          "Step 3 of 6",
     "step3.title":            "Address & residency",
     "step3.subtitle":         "Provide your current address and residency information",
-    "step4.eyebrow":          "Step 4 of 5",
+    "step4.eyebrow":          "Step 4 of 6",
     "step4.title":            "Contact & purpose",
     "step4.subtitle":         "Your contact number and the reason for this request",
-    "step5.eyebrow":          "Step 5 of 5",
-    "step5.title":            "Review your information",
-    "step5.subtitle":         "Please verify all details before submitting",
+    "step5.eyebrow":          "Step 5 of 6",
+    "step5.title":            "Schedule appointment",
+    "step5.subtitle":         "Pick a date to claim your document at the barangay hall",
+    "step6.eyebrow":          "Step 6 of 6",
+    "step6.title":            "Review your information",
+    "step6.subtitle":         "Please verify all details before submitting",
     "field.prefix":           "Prefix",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name (Optional)",
@@ -189,6 +226,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
+    "review.schedule":        "Appointment schedule",
     "review.firstName":       "First name",
     "review.middleName":      "Middle name",
     "review.Surname":         "Last name",
@@ -205,6 +243,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
+    "review.scheduleDate":    "Appointment date",
+    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
@@ -220,8 +260,9 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
+    "err.scheduleDate":       "Please select a valid appointment date.",
     "success.title":          "Request submitted!",
-    "success.sub":            "Your document request has been received. Please wait for processing.",
+    "success.sub":            "Your request has been successfully received. Kindly wait for your turn to be served.",
     "addr.preview":           "Full address:",
     "field.spouse":           "Name of spouse (Optional)",
     "field.bloodType":        "Blood type (Optional)",
@@ -311,6 +352,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Tirahan",
     "step.details":           "Detalye",
+    "step.schedule":          "Iskedyul",
     "step.review":            "Suriin",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Pangkalahatang layunin na clearance",
@@ -322,21 +364,24 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Opisyal na sertipiko ng barangay",
     "doc.resident.label":     "Pagpaparehistro ng Residente",
     "doc.resident.sub":       "Magparehistro bilang residente ng barangay",
-    "step1.eyebrow":          "Hakbang 1 ng 5",
+    "step1.eyebrow":          "Hakbang 1 ng 6",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
-    "step2.eyebrow":          "Hakbang 2 ng 5",
+    "step2.eyebrow":          "Hakbang 2 ng 6",
     "step2.title":            "Personal na impormasyon",
     "step2.subtitle":         "Punan ang iyong kumpletong pangalan at mga detalye ng kapanganakan",
-    "step3.eyebrow":          "Hakbang 3 ng 5",
+    "step3.eyebrow":          "Hakbang 3 ng 6",
     "step3.title":            "Tirahan at paninirahan",
     "step3.subtitle":         "Ibigay ang iyong kasalukuyang tirahan at impormasyon sa paninirahan",
-    "step4.eyebrow":          "Hakbang 4 ng 5",
+    "step4.eyebrow":          "Hakbang 4 ng 6",
     "step4.title":            "Pakikipag-ugnayan at layunin",
     "step4.subtitle":         "Ang iyong numero sa pakikipag-ugnayan at dahilan ng kahilingang ito",
-    "step5.eyebrow":          "Hakbang 5 ng 5",
-    "step5.title":            "Suriin ang iyong impormasyon",
-    "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
+    "step5.eyebrow":          "Hakbang 5 ng 6",
+    "step5.title":            "Iskedyul ng appointment",
+    "step5.subtitle":         "Pumili ng petsa para kunin ang iyong dokumento sa barangay hall",
+    "step6.eyebrow":          "Hakbang 6 ng 6",
+    "step6.title":            "Suriin ang iyong impormasyon",
+    "step6.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan (Opsyonal)",
@@ -390,6 +435,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal na impormasyon",
     "review.address":         "Tirahan at paninirahan",
     "review.contact":         "Pakikipag-ugnayan at layunin",
+    "review.schedule":        "Iskedyul ng appointment",
     "review.firstName":       "Unang pangalan",
     "review.middleName":      "Gitnang pangalan",
     "review.Surname":         "Apelyido",
@@ -406,6 +452,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa may-ari",
     "review.contact":         "Numero sa pakikipag-ugnayan",
     "review.purpose":         "Layunin",
+    "review.scheduleDate":    "Petsa ng appointment",
+    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy ng Data",
     "consent.text":           "Ang iyong personal na impormasyon ay kokolektahin at ipoproseso lamang para sa layunin ng kahilingang ito ng dokumento ng barangay, alinsunod sa Batas sa Privacy ng Data ng 2012 (RA 10173). Hindi ito ibabahagi sa mga hindi awtorisadong third party.",
     "consent.checkbox":       "Nauunawaan ko at pumapayag ako sa pagkolekta at pagproseso ng aking personal na impormasyon para sa kahilingang ito.",
@@ -421,6 +469,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Mangyaring punan ang lahat ng kinakailangang field.",
     "err.fillAddress":        "Mangyaring punan ang lahat ng kinakailangang field kasama ang kalye at zone.",
     "err.consent":            "Mangyaring tanggapin ang pahintulot sa privacy ng data upang magpatuloy.",
+    "err.scheduleDate":       "Mangyaring pumili ng wastong petsa ng appointment.",
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "addr.preview":           "Buong tirahan:",
@@ -512,6 +561,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Adres",
     "step.details":           "Detalye",
+    "step.schedule":          "Iskedyul",
     "step.review":            "Susihon",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Kinatibuk-ang katuyoan nga clearance",
@@ -523,21 +573,24 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Opisyal nga sertipiko sa barangay",
     "doc.resident.label":     "Rehistrasyon sa Residente",
     "doc.resident.sub":       "Magparehistro isip residente sa barangay",
-    "step1.eyebrow":          "Lakang 1 sa 5",
+    "step1.eyebrow":          "Lakang 1 sa 6",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
-    "step2.eyebrow":          "Lakang 2 sa 5",
+    "step2.eyebrow":          "Lakang 2 sa 6",
     "step2.title":            "Personal nga impormasyon",
     "step2.subtitle":         "Palihug pun-a ang imong tibuok ngalan ug mga detalye sa pagkatawo",
-    "step3.eyebrow":          "Lakang 3 sa 5",
+    "step3.eyebrow":          "Lakang 3 sa 6",
     "step3.title":            "Adres ug pagpuyo",
     "step3.subtitle":         "Ihatag ang imong kasamtangang adres ug impormasyon sa pagpuyo",
-    "step4.eyebrow":          "Lakang 4 sa 5",
+    "step4.eyebrow":          "Lakang 4 sa 6",
     "step4.title":            "Kontak ug katuyoan",
     "step4.subtitle":         "Ang imong numero sa kontak ug rason niini nga hangyo",
-    "step5.eyebrow":          "Lakang 5 sa 5",
-    "step5.title":            "Susihon ang imong impormasyon",
-    "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
+    "step5.eyebrow":          "Lakang 5 sa 6",
+    "step5.title":            "Iskedyul sa appointment",
+    "step5.subtitle":         "Pilia ang petsa aron makuha ang imong dokumento sa barangay hall",
+    "step6.eyebrow":          "Lakang 6 sa 6",
+    "step6.title":            "Susihon ang imong impormasyon",
+    "step6.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan (Opsyonal)",
@@ -591,6 +644,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal nga impormasyon",
     "review.address":         "Adres ug pagpuyo",
     "review.contact":         "Kontak ug katuyoan",
+    "review.schedule":        "Iskedyul sa appointment",
     "review.firstName":       "Una nga ngalan",
     "review.middleName":      "Tungatunga nga ngalan",
     "review.Surname":         "Apelyido",
@@ -607,6 +661,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa tag-iya",
     "review.contact":         "Numero sa kontak",
     "review.purpose":         "Katuyoan",
+    "review.scheduleDate":    "Petsa sa appointment",
+    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy sa Data",
     "consent.text":           "Ang imong personal nga impormasyon makolekta ug maproseso lamang alang sa katuyoan niini nga hangyo sa dokumento sa barangay, subay sa Data Privacy Act of 2012 (RA 10173). Dili kini ibahin sa mga wala'y awtorisasyon nga ikatulo nga partido.",
     "consent.checkbox":       "Nasabtan nako ug nagkauyon ako sa pagkolekta ug pagproseso sa akong personal nga impormasyon alang niini nga hangyo.",
@@ -622,6 +678,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
+    "err.scheduleDate":       "Palihug pilia og balido nga petsa sa appointment.",
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "addr.preview":           "Tibuok adres:",
@@ -661,9 +718,7 @@ const LS_FONT = "fd_font";
 // ═══════════════════════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
-const toUpperCase = (value: string): string => {
-  return value.toUpperCase();
-};
+const toUpperCase = (value: string): string => value.toUpperCase();
 
 const validateName = (name: string, fieldName: string, tr: (k: string) => string): string => {
   if (!name || name.trim() === "") return `${fieldName} is required.`;
@@ -846,10 +901,7 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
   const [privacyError, setPrivacyError] = useState(false);
 
   const handleProceed = () => {
-    if (!privacyChecked) {
-      setPrivacyError(true);
-      return;
-    }
+    if (!privacyChecked) { setPrivacyError(true); return; }
     onProceed();
   };
 
@@ -861,10 +913,7 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
           style={{ borderRadius: 2, borderTopWidth: 4, borderTopColor: NAVY }}
         >
           <div style={{ background: NAVY, padding: "32px 40px 28px" }}>
-            <p
-              className="font-bold uppercase tracking-[0.22em] mb-3"
-              style={{ color: "#ffffffaa", fontSize: "0.62em" }}
-            >
+            <p className="font-bold uppercase tracking-[0.22em] mb-3" style={{ color: "#ffffffaa", fontSize: "0.62em" }}>
               Republic of the Philippines · Barangay West Rembo · Makati City
             </p>
             <h1
@@ -904,10 +953,7 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
           </div>
 
           <div className="px-8 py-6">
-            <div
-              className="p-5 mb-5"
-              style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 6 }}
-            >
+            <div className="p-5 mb-5" style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 6 }}>
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="h-4 w-4 flex-shrink-0" style={{ color: NAVY }} />
                 <p className="font-bold uppercase tracking-[0.14em]" style={{ color: NAVY, fontSize: "0.65em" }}>
@@ -1049,11 +1095,7 @@ const PrefixCombobox = ({ value, onChange, placeholder = "Select prefix…", inp
           type="button"
           onClick={() => setOpen((o) => !o)}
           className="w-full py-2.5 text-left bg-transparent focus:outline-none pr-12"
-          style={{
-            color: value ? "var(--color-foreground)" : "#9ca3af",
-            fontSize: "inherit",
-            cursor: "pointer",
-          }}
+          style={{ color: value ? "var(--color-foreground)" : "#9ca3af", fontSize: "inherit", cursor: "pointer" }}
           aria-haspopup="listbox"
           aria-expanded={open}
         >
@@ -1061,32 +1103,19 @@ const PrefixCombobox = ({ value, onChange, placeholder = "Select prefix…", inp
         </button>
         <div className="absolute right-0 flex items-center gap-0.5">
           {value && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); clear(); }}
-              className="p-1 text-gray-400 hover:text-gray-600"
-              aria-label="Clear"
-            >
+            <button type="button" onClick={(e) => { e.stopPropagation(); clear(); }} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Clear">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
-          <span className="p-1 text-gray-400 pointer-events-none">
-            <ChevronDown className="h-3.5 w-3.5" />
-          </span>
+          <span className="p-1 text-gray-400 pointer-events-none"><ChevronDown className="h-3.5 w-3.5" /></span>
         </div>
       </div>
       {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
       {open && (
-        <ul
-          role="listbox"
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
-          style={{ borderRadius: 4, fontSize: "inherit" }}
-        >
+        <ul role="listbox" className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto" style={{ borderRadius: 4, fontSize: "inherit" }}>
           {PREFIX_OPTIONS.map((opt) => (
             <li
-              key={opt}
-              role="option"
-              aria-selected={opt === value}
+              key={opt} role="option" aria-selected={opt === value}
               onMouseDown={() => select(opt)}
               className="px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
               style={{ color: opt === value ? NAVY : undefined, fontWeight: opt === value ? 500 : 400 }}
@@ -1137,12 +1166,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select…", disable
           onClick={() => !disabled && setOpen((o) => !o)}
           disabled={disabled}
           className="w-full py-2.5 text-left bg-transparent focus:outline-none pr-12"
-          style={{
-            color: value ? "var(--color-foreground)" : "#9ca3af",
-            fontSize: "inherit",
-            cursor: disabled ? "not-allowed" : "pointer",
-            opacity: disabled ? 0.5 : 1,
-          }}
+          style={{ color: value ? "var(--color-foreground)" : "#9ca3af", fontSize: "inherit", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
           aria-haspopup="listbox"
           aria-expanded={open}
         >
@@ -1150,32 +1174,19 @@ const Combobox = ({ value, onChange, options, placeholder = "Select…", disable
         </button>
         <div className="absolute right-0 flex items-center gap-0.5">
           {value && !disabled && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); clear(); }}
-              className="p-1 text-gray-400 hover:text-gray-600"
-              aria-label="Clear"
-            >
+            <button type="button" onClick={(e) => { e.stopPropagation(); clear(); }} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Clear">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
-          <span className="p-1 text-gray-400 pointer-events-none">
-            <ChevronDown className="h-3.5 w-3.5" />
-          </span>
+          <span className="p-1 text-gray-400 pointer-events-none"><ChevronDown className="h-3.5 w-3.5" /></span>
         </div>
       </div>
       {error && <p className="mt-1 text-xs" style={{ color: PINK }}>{error}</p>}
       {open && (
-        <ul
-          role="listbox"
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto"
-          style={{ borderRadius: 4, fontSize: "inherit" }}
-        >
+        <ul role="listbox" className="absolute z-50 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto" style={{ borderRadius: 4, fontSize: "inherit" }}>
           {options.map((opt) => (
             <li
-              key={opt}
-              role="option"
-              aria-selected={opt === value}
+              key={opt} role="option" aria-selected={opt === value}
               onMouseDown={() => select(opt)}
               className="px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
               style={{ color: opt === value ? NAVY : undefined, fontWeight: opt === value ? 500 : 400 }}
@@ -1193,10 +1204,7 @@ const Combobox = ({ value, onChange, options, placeholder = "Select…", disable
 const Card = ({ eyebrow, title, subtitle, children }: {
   eyebrow: string; title: string; subtitle?: string; children: React.ReactNode;
 }) => (
-  <div
-    className="bg-card border border-border overflow-hidden"
-    style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
-  >
+  <div className="bg-card border border-border overflow-hidden" style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}>
     <div className="px-8 pt-6 pb-5" style={{ borderBottom: "1px solid #e5e7eb" }}>
       <p className="font-bold uppercase tracking-[0.16em] mb-1" style={{ color: PINK, fontSize: "0.65em" }}>{eyebrow}</p>
       <h2 className="font-bold text-foreground" style={{ fontFamily: "'Georgia', serif", fontSize: "1.25em" }}>{title}</h2>
@@ -1206,12 +1214,13 @@ const Card = ({ eyebrow, title, subtitle, children }: {
   </div>
 );
 
-const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back", extraLeft }: {
+const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back", extraLeft, disabled }: {
   onBack?: () => void;
   onNext?: () => void;
   nextLabel?: string;
   backLabel?: string;
   extraLeft?: React.ReactNode;
+  disabled?: boolean;
 }) => (
   <div className="mt-8 pt-5 flex flex-wrap justify-between items-center gap-3" style={{ borderTop: "1px solid #e5e7eb" }}>
     <div className="flex gap-2">{extraLeft}</div>
@@ -1228,10 +1237,11 @@ const Actions = ({ onBack, onNext, nextLabel = "Continue", backLabel = "← Back
       {onNext && (
         <button
           onClick={onNext}
-          className="inline-flex items-center gap-2 px-6 py-2.5 font-bold uppercase tracking-wider text-white transition-all duration-200"
+          disabled={disabled}
+          className="inline-flex items-center gap-2 px-6 py-2.5 font-bold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-60"
           style={{ backgroundColor: NAVY, borderRadius: 1, fontSize: "0.75em" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+          onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+          onMouseLeave={(e) => { if (!disabled) (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
         >
           {nextLabel}
           <ChevronRight className="h-3.5 w-3.5" />
@@ -1336,135 +1346,89 @@ interface CommonStepProps {
 
 const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
   const isResident = docType === "resident-registration";
-  
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateAndSet = (field: string, value: string) => {
-    // Convert to uppercase for text fields (except prefix and email)
     const textFields = ["first_name", "middle_name", "surname", "ext_name", "place_of_birth", "nickname", "religion", "name_of_spouse"];
     let processedValue = value;
-    if (textFields.includes(field)) {
-      processedValue = toUpperCase(value);
-    }
-    
+    if (textFields.includes(field)) processedValue = toUpperCase(value);
     set(field, processedValue);
-    
+
     let errorMsg = "";
     switch (field) {
-      case "first_name":
-        errorMsg = validateName(processedValue, tr("field.firstName"), tr);
-        break;
-      case "surname":
-        errorMsg = validateName(processedValue, tr("field.Surname"), tr);
-        break;
+      case "first_name":  errorMsg = validateName(processedValue, tr("field.firstName"), tr); break;
+      case "surname":     errorMsg = validateName(processedValue, tr("field.Surname"), tr); break;
       case "date_of_birth":
         errorMsg = validateDob(processedValue, tr);
         if (!errorMsg && processedValue) {
-          const dob = new Date(processedValue);
-          const today = new Date();
+          const dob = new Date(processedValue); const today = new Date();
           let age = today.getFullYear() - dob.getFullYear();
           const m = today.getMonth() - dob.getMonth();
           if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
           if (age >= 0) set("age", String(age));
         }
         break;
-      case "place_of_birth":
-        errorMsg = validateRequired(processedValue, "Place of birth");
-        break;
-      case "sex":
-        errorMsg = validateRequired(processedValue, "Sex");
-        break;
-      case "marital_status":
-        errorMsg = validateRequired(processedValue, "Marital status");
-        break;
-      case "height_cm":
-        errorMsg = validatePositiveNumber(processedValue, "Height", tr, false);
-        break;
-      case "weight_kg":
-        errorMsg = validatePositiveNumber(processedValue, "Weight", tr, false);
-        break;
+      case "place_of_birth": errorMsg = validateRequired(processedValue, "Place of birth"); break;
+      case "sex":            errorMsg = validateRequired(processedValue, "Sex"); break;
+      case "marital_status": errorMsg = validateRequired(processedValue, "Marital status"); break;
+      case "height_cm":      errorMsg = validatePositiveNumber(processedValue, "Height", tr, false); break;
+      case "weight_kg":      errorMsg = validatePositiveNumber(processedValue, "Weight", tr, false); break;
     }
-    
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
   };
 
   const validateStep = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
-    newErrors.first_name = validateName(formData.first_name || "", tr("field.firstName"), tr);
-    newErrors.surname = validateName(formData.surname || "", tr("field.Surname"), tr);
-    newErrors.date_of_birth = validateDob(formData.date_of_birth || "", tr);
+    newErrors.first_name     = validateName(formData.first_name || "", tr("field.firstName"), tr);
+    newErrors.surname        = validateName(formData.surname || "", tr("field.Surname"), tr);
+    newErrors.date_of_birth  = validateDob(formData.date_of_birth || "", tr);
     newErrors.place_of_birth = validateRequired(formData.place_of_birth || "", "Place of birth");
-    
     if (isResident) {
-      newErrors.sex = validateRequired(formData.sex || "", "Sex");
+      newErrors.sex          = validateRequired(formData.sex || "", "Sex");
       newErrors.marital_status = validateRequired(formData.marital_status || "", "Marital status");
-      // Height and weight are optional, only validate if provided
-      if (formData.height_cm && formData.height_cm.trim()) {
-        newErrors.height_cm = validatePositiveNumber(formData.height_cm, "Height", tr, false);
-      }
-      if (formData.weight_kg && formData.weight_kg.trim()) {
-        newErrors.weight_kg = validatePositiveNumber(formData.weight_kg, "Weight", tr, false);
-      }
+      if (formData.height_cm?.trim()) newErrors.height_cm = validatePositiveNumber(formData.height_cm, "Height", tr, false);
+      if (formData.weight_kg?.trim()) newErrors.weight_kg = validatePositiveNumber(formData.weight_kg, "Weight", tr, false);
     }
-    
     setFieldErrors(newErrors);
     return !Object.values(newErrors).some(err => err);
   };
 
   const handleNext = () => {
-    if (validateStep()) {
-      onNext();
-    } else {
-      // Show toast for validation errors
-      toast.error(tr("err.fillRequired"));
-    }
+    if (validateStep()) onNext();
+    else toast.error(tr("err.fillRequired"));
   };
 
   return (
     <Card eyebrow={tr("step2.eyebrow")} title={tr("step2.title")} subtitle={tr("step2.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         <Field label={tr("field.prefix")}>
-          <PrefixCombobox
-            value={formData.prefix || ""}
-            onChange={(v) => validateAndSet("prefix", v)}
-            placeholder={tr("ph.prefix")}
-            inputCls={inputCls}
-          />
+          <PrefixCombobox value={formData.prefix || ""} onChange={(v) => validateAndSet("prefix", v)} placeholder={tr("ph.prefix")} inputCls={inputCls} />
         </Field>
         <Field label={tr("field.extName")}>
-          <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => validateAndSet("ext_name", v)}
-            placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: fieldErrors.ext_name ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.ext_name || ""} onValueChange={(v) => validateAndSet("ext_name", v)} placeholder={tr("ph.extName")} className={inputCls} style={{ borderColor: fieldErrors.ext_name ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.firstName")}`} error={fieldErrors.first_name} required>
-          <MaskedInput value={formData.first_name || ""} onValueChange={(v) => validateAndSet("first_name", v)}
-            placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: fieldErrors.first_name ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.first_name || ""} onValueChange={(v) => validateAndSet("first_name", v)} placeholder={tr("ph.firstName")} className={inputCls} style={{ borderColor: fieldErrors.first_name ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={tr("field.middleName")}>
-          <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => validateAndSet("middle_name", v)}
-            placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: fieldErrors.middle_name ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.middle_name || ""} onValueChange={(v) => validateAndSet("middle_name", v)} placeholder={tr("ph.middleName")} className={inputCls} style={{ borderColor: fieldErrors.middle_name ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.Surname")}`} error={fieldErrors.surname} required>
-          <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)}
-            placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)} placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.dob")}`} error={fieldErrors.date_of_birth} required>
-          <MaskedInput type="date" value={formData.date_of_birth || ""}
-            onValueChange={(v) => validateAndSet("date_of_birth", v)}
-            placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }} />
+          <MaskedInput type="date" value={formData.date_of_birth || ""} onValueChange={(v) => validateAndSet("date_of_birth", v)} placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }} />
         </Field>
         <div className="md:col-span-2">
           <Field label={`${tr("field.pob")}`} error={fieldErrors.place_of_birth} required>
-            <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => validateAndSet("place_of_birth", v)}
-              placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: fieldErrors.place_of_birth ? PINK : "#d1d5db" }} />
+            <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => validateAndSet("place_of_birth", v)} placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: fieldErrors.place_of_birth ? PINK : "#d1d5db" }} />
           </Field>
         </div>
 
         {isResident && (
           <>
             <Field label={tr("field.nickname")}>
-              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => validateAndSet("nickname", v)}
-                placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: fieldErrors.nickname ? PINK : "#d1d5db" }} />
+              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => validateAndSet("nickname", v)} placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
             <Field label={`${tr("field.sex")}`} error={fieldErrors.sex} required>
               <SelectField value={formData.sex || ""} onChange={(v) => validateAndSet("sex", v)} inputCls={inputCls} error={fieldErrors.sex}>
@@ -1485,8 +1449,7 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
             {formData.marital_status === "Married" && (
               <div className="md:col-span-2">
                 <Field label={tr("field.spouse")}>
-                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => validateAndSet("name_of_spouse", v)}
-                    placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: fieldErrors.name_of_spouse ? PINK : "#d1d5db" }} />
+                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => validateAndSet("name_of_spouse", v)} placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
                 </Field>
               </div>
             )}
@@ -1500,42 +1463,29 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
                   return age >= 0 ? String(age) : "";
                 })() : ""}
                 placeholder={tr("ph.agePlaceholder")} className={inputCls}
-                style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }}
-                aria-label={tr("field.age")} />
+                style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }} />
             </Field>
             <Field label={tr("field.bloodType")}>
               <SelectField value={formData.blood_type || ""} onChange={(v) => validateAndSet("blood_type", v)} inputCls={inputCls}>
                 <option value="">{tr("opt.select")}</option>
-                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => (
-                  <option key={bt} value={bt}>{bt}</option>
-                ))}
+                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
               </SelectField>
             </Field>
             <Field label={tr("field.complexion")}>
-              <Combobox
-                value={formData.complexion || ""}
-                onChange={(v) => validateAndSet("complexion", v)}
+              <Combobox value={formData.complexion || ""} onChange={(v) => validateAndSet("complexion", v)}
                 options={[tr("opt.veryFair"), tr("opt.fair"), tr("opt.morena"), tr("opt.brown"), tr("opt.dark"), tr("opt.veryDark")]}
-                placeholder={tr("ph.complexion")}
-                inputCls={inputCls}
-              />
+                placeholder={tr("ph.complexion")} inputCls={inputCls} />
             </Field>
-            <Field label={tr("field.height")}>
-              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => validateAndSet("height_cm", v)}
-                placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: fieldErrors.height_cm ? PINK : "#d1d5db" }} />
+            <Field label={tr("field.height")} error={fieldErrors.height_cm}>
+              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => validateAndSet("height_cm", v)} placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: fieldErrors.height_cm ? PINK : "#d1d5db" }} />
             </Field>
-            <Field label={tr("field.weight")}>
-              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => validateAndSet("weight_kg", v)}
-                placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: fieldErrors.weight_kg ? PINK : "#d1d5db" }} />
+            <Field label={tr("field.weight")} error={fieldErrors.weight_kg}>
+              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => validateAndSet("weight_kg", v)} placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: fieldErrors.weight_kg ? PINK : "#d1d5db" }} />
             </Field>
             <Field label={tr("field.religion")}>
-              <Combobox
-                value={formData.religion || ""}
-                onChange={(v) => validateAndSet("religion", v)}
+              <Combobox value={formData.religion || ""} onChange={(v) => validateAndSet("religion", v)}
                 options={["Roman Catholic", "Iglesia Ni Cristo", "Born Again Christian", "Muslim", "Buddhist", "Other"]}
-                placeholder={tr("ph.religion")}
-                inputCls={inputCls}
-              />
+                placeholder={tr("ph.religion")} inputCls={inputCls} />
             </Field>
             <Field label={tr("field.pwd")}>
               <SelectField value={formData.pwd ?? ""} onChange={(v) => validateAndSet("pwd", v)} inputCls={inputCls}>
@@ -1576,40 +1526,21 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateAndSet = (field: string, value: string) => {
-    // Convert to uppercase for address fields
     const textFields = ["house_block_lot_no", "street", "zone", "house_owner", "resident_status", "precinct_no"];
     let processedValue = value;
-    if (textFields.includes(field)) {
-      processedValue = toUpperCase(value);
-    }
-    
+    if (textFields.includes(field)) processedValue = toUpperCase(value);
     set(field, processedValue);
-    
+
     let errorMsg = "";
     switch (field) {
-      case "street":
-        errorMsg = validateRequired(processedValue, "Street");
-        break;
-      case "zone":
-        errorMsg = validateRequired(processedValue, "Zone/Purok");
-        break;
-      case "period_of_residency":
-        errorMsg = validatePeriodOfResidency(processedValue, tr);
-        break;
-      case "registered_voter":
-        errorMsg = validateRequired(processedValue, "Voter status");
-        break;
-      case "house_owner":
-        errorMsg = validateRequired(processedValue, "House owner");
-        break;
-      case "relationship_to_owner":
-        errorMsg = validateRequired(processedValue, "Relationship to owner");
-        break;
-      case "house_block_lot_no":
-        errorMsg = validateRequired(processedValue, "House/Block/Lot number");
-        break;
+      case "street":                 errorMsg = validateRequired(processedValue, "Street"); break;
+      case "zone":                   errorMsg = validateRequired(processedValue, "Zone/Purok"); break;
+      case "period_of_residency":    errorMsg = validatePeriodOfResidency(processedValue, tr); break;
+      case "registered_voter":       errorMsg = validateRequired(processedValue, "Voter status"); break;
+      case "house_owner":            errorMsg = validateRequired(processedValue, "House owner"); break;
+      case "relationship_to_owner":  errorMsg = validateRequired(processedValue, "Relationship to owner"); break;
+      case "house_block_lot_no":     errorMsg = validateRequired(processedValue, "House/Block/Lot number"); break;
     }
-    
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
   };
 
@@ -1618,25 +1549,20 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
 
   const validateStep = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
-    newErrors.house_block_lot_no = validateRequired(formData.house_block_lot_no || "", "House/Block/Lot number");
-    newErrors.street = validateRequired(formData.street || "", "Street");
-    newErrors.zone = validateRequired(formData.zone || "", "Zone/Purok");
-    newErrors.period_of_residency = validatePeriodOfResidency(formData.period_of_residency || "", tr);
-    newErrors.registered_voter = validateRequired(formData.registered_voter || "", "Voter status");
-    newErrors.house_owner = validateRequired(formData.house_owner || "", "House owner");
+    newErrors.house_block_lot_no    = validateRequired(formData.house_block_lot_no || "", "House/Block/Lot number");
+    newErrors.street                = validateRequired(formData.street || "", "Street");
+    newErrors.zone                  = validateRequired(formData.zone || "", "Zone/Purok");
+    newErrors.period_of_residency   = validatePeriodOfResidency(formData.period_of_residency || "", tr);
+    newErrors.registered_voter      = validateRequired(formData.registered_voter || "", "Voter status");
+    newErrors.house_owner           = validateRequired(formData.house_owner || "", "House owner");
     newErrors.relationship_to_owner = validateRequired(formData.relationship_to_owner || "", "Relationship to owner");
-    
     setFieldErrors(newErrors);
     return !Object.values(newErrors).some(err => err);
   };
 
   const handleNext = () => {
-    if (validateStep()) {
-      onNext();
-    } else {
-      toast.error(tr("err.fillAddress"));
-    }
+    if (validateStep()) onNext();
+    else toast.error(tr("err.fillAddress"));
   };
 
   return (
@@ -1644,30 +1570,25 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         <div className="md:col-span-2">
           <Field label={tr("field.houseUnit")} error={fieldErrors.house_block_lot_no} required>
-            <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => validateAndSet("house_block_lot_no", v)}
-              placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: fieldErrors.house_block_lot_no ? PINK : "#d1d5db" }} />
+            <MaskedInput value={formData.house_block_lot_no || ""} onValueChange={(v) => validateAndSet("house_block_lot_no", v)} placeholder={tr("ph.houseUnit")} className={inputCls} style={{ borderColor: fieldErrors.house_block_lot_no ? PINK : "#d1d5db" }} />
           </Field>
         </div>
         <Field label={`${tr("field.street")}`} error={fieldErrors.street} required>
-          <Combobox value={formData.street || ""} onChange={handleStreetChange}
-            options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} error={fieldErrors.street} />
+          <Combobox value={formData.street || ""} onChange={handleStreetChange} options={streetNames} placeholder={tr("ph.street")} inputCls={inputCls} error={fieldErrors.street} />
         </Field>
         <Field label={`${tr("field.zone")}`} error={fieldErrors.zone} required>
           <Combobox value={formData.zone || ""} onChange={(v) => validateAndSet("zone", v)}
-            options={zoneOptions}
-            placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
+            options={zoneOptions} placeholder={formData.street ? tr("ph.zone") : tr("ph.zoneFirst")}
             disabled={!formData.street} inputCls={inputCls} error={fieldErrors.zone} />
         </Field>
         {addressPreview && (
-          <div className="md:col-span-2 p-3 text-muted-foreground"
-            style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}>
+          <div className="md:col-span-2 p-3 text-muted-foreground" style={{ background: "#f8faff", borderRadius: 4, border: "1px solid #dde3ed", fontSize: "0.82em" }}>
             <span className="font-bold uppercase tracking-wider" style={{ color: NAVY }}>{tr("addr.preview")} </span>
             {addressPreview}
           </div>
         )}
         <Field label={`${tr("field.residency")}`} error={fieldErrors.period_of_residency} required>
-          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => validateAndSet("period_of_residency", v)}
-            placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: fieldErrors.period_of_residency ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.period_of_residency || ""} onValueChange={(v) => validateAndSet("period_of_residency", v)} placeholder={tr("ph.residency")} className={inputCls} style={{ borderColor: fieldErrors.period_of_residency ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.voter")}`} error={fieldErrors.registered_voter} required>
           <SelectField value={formData.registered_voter || ""} onChange={(v) => validateAndSet("registered_voter", v)} inputCls={inputCls} error={fieldErrors.registered_voter}>
@@ -1676,24 +1597,18 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             <option value="No">{tr("opt.no")}</option>
           </SelectField>
         </Field>
-
         {formData.registered_voter === "Yes" && (
           <Field label={tr("field.precinctNo")}>
-            <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => validateAndSet("precinct_no", v)}
-              placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: fieldErrors.precinct_no ? PINK : "#d1d5db" }} />
+            <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => validateAndSet("precinct_no", v)} placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
-
         {isResident && (
           <Field label={tr("field.residentStatus")}>
-            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => validateAndSet("resident_status", v)}
-              placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: fieldErrors.resident_status ? PINK : "#d1d5db" }} />
+            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => validateAndSet("resident_status", v)} placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
-
         <Field label={`${tr("field.houseOwner")}`} error={fieldErrors.house_owner} required>
-          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => validateAndSet("house_owner", v)}
-            placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: fieldErrors.house_owner ? PINK : "#d1d5db" }} />
+          <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => validateAndSet("house_owner", v)} placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: fieldErrors.house_owner ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.relation")}`} error={fieldErrors.relationship_to_owner} required>
           <Select value={formData.relationship_to_owner || ""} onValueChange={(v) => validateAndSet("relationship_to_owner", v)}>
@@ -1721,100 +1636,54 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
   const isResident = docType === "resident-registration";
- 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
- 
+
   const validateAndSet = (field: string, value: string) => {
-    // Convert to uppercase for text fields
-    const textFields = ["business_name", "business_type", "establishment", "occupation", "position", "employment_status", "notes", "purpose_details", "precinct_no"] ;
+    const textFields = ["business_name", "business_type", "establishment", "occupation", "position", "employment_status", "notes", "purpose_details"];
     let processedValue = value;
-    if (textFields.includes(field)) {
-      processedValue = toUpperCase(value);
-    }
- 
+    if (textFields.includes(field)) processedValue = toUpperCase(value);
     set(field, processedValue);
- 
+
     let errorMsg = "";
     switch (field) {
-      case "contact_number":
-        errorMsg = validateContact(processedValue, tr);
-        break;
-      case "email": // ← was "email", now consistent with API key
-        errorMsg = validateEmail(processedValue, tr);
-        break;
-      case "purpose":
-        errorMsg = validateRequired(processedValue, "Purpose");
-        break;
-      case "business_name":
-        if (isBusiness) errorMsg = validateRequired(processedValue, "Business name");
-        break;
-      case "business_type":
-        if (isBusiness) errorMsg = validateRequired(processedValue, "Business type");
-        break;
-      case "capital":
-        if (isBusiness) errorMsg = validatePositiveNumber(processedValue, "Capital", tr, false);
-        break;
+      case "contact_number": errorMsg = validateContact(processedValue, tr); break;
+      case "email":          errorMsg = validateEmail(processedValue, tr); break;
+      case "purpose":        errorMsg = validateRequired(processedValue, "Purpose"); break;
+      case "business_name":  if (isBusiness) errorMsg = validateRequired(processedValue, "Business name"); break;
+      case "business_type":  if (isBusiness) errorMsg = validateRequired(processedValue, "Business type"); break;
+      case "capital":        if (isBusiness) errorMsg = validatePositiveNumber(processedValue, "Capital", tr, false); break;
     }
- 
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
   };
- 
+
   const validateStep = (): boolean => {
     const newErrors: Record<string, string> = {};
- 
     newErrors.contact_number = validateContact(formData.contact_number || "", tr);
-    if (formData.email && formData.email.trim()) {
-      newErrors.email = validateEmail(formData.email, tr);
-    }
+    if (formData.email?.trim()) newErrors.email = validateEmail(formData.email, tr);
     newErrors.purpose = validateRequired(formData.purpose || "", "Purpose");
- 
     if (isBusiness) {
       newErrors.business_name = validateRequired(formData.business_name || "", "Business name");
       newErrors.business_type = validateRequired(formData.business_type || "", "Business type");
-      if (formData.capital && formData.capital.trim()) {
-        newErrors.capital = validatePositiveNumber(formData.capital, "Capital", tr, false);
-      }
+      if (formData.capital?.trim()) newErrors.capital = validatePositiveNumber(formData.capital, "Capital", tr, false);
     }
- 
     setFieldErrors(newErrors);
     return !Object.values(newErrors).some(err => err);
   };
- 
+
   const handleNext = () => {
-    if (validateStep()) {
-      onNext();
-    } else {
-      toast.error(tr("err.fillRequired"));
-    }
+    if (validateStep()) onNext();
+    else toast.error(tr("err.fillRequired"));
   };
- 
+
   return (
     <Card eyebrow={tr("step4.eyebrow")} title={tr("step4.title")} subtitle={tr("step4.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
- 
-        {/* Contact number */}
         <Field label={`${tr("field.contact")}`} error={fieldErrors.contact_number} required>
-          <MaskedInput
-            value={formData.contact_number || ""}
-            onValueChange={(v) => validateAndSet("contact_number", v)}
-            placeholder={tr("ph.contact")}
-            className={inputCls}
-            style={{ borderColor: fieldErrors.contact_number ? PINK : "#d1d5db" }}
-          />
+          <MaskedInput value={formData.contact_number || ""} onValueChange={(v) => validateAndSet("contact_number", v)} placeholder={tr("ph.contact")} className={inputCls} style={{ borderColor: fieldErrors.contact_number ? PINK : "#d1d5db" }} />
         </Field>
- 
-        {/* Email — key is now "email" everywhere */}
         <Field label={tr("field.email")} error={fieldErrors.email}>
-          <MaskedInput
-            value={formData.email || ""}
-            onValueChange={(v) => validateAndSet("email", v)}
-            placeholder={tr("ph.email")}
-            className={inputCls}
-            style={{ borderColor: fieldErrors.email ? PINK : "#d1d5db" }}
-          />
+          <MaskedInput value={formData.email || ""} onValueChange={(v) => validateAndSet("email", v)} placeholder={tr("ph.email")} className={inputCls} style={{ borderColor: fieldErrors.email ? PINK : "#d1d5db" }} />
         </Field>
- 
-        {/* Purpose */}
         <div className="md:col-span-2">
           <Field label={`${tr("field.purpose")}`} error={fieldErrors.purpose} required>
             <Select value={formData.purpose || ""} onValueChange={(v) => validateAndSet("purpose", v)}>
@@ -1829,135 +1698,225 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
             </Select>
           </Field>
         </div>
- 
-        {/* ── FIX 1: purpose_details textarea (was missing entirely) ── */}
         <div className="md:col-span-2">
           <Field label="Purpose Details (Optional)">
-            <textarea
-              value={formData.purpose_details || ""}
-              onChange={(e) => set("purpose_details", e.target.value)}
-              placeholder="Provide additional details about your purpose (e.g. company name, school, etc.)…"
-              rows={3}
-              className={inputCls}
-              style={{ resize: "vertical", fontSize: "inherit" }}
-            />
+            <textarea value={formData.purpose_details || ""} onChange={(e) => set("purpose_details", e.target.value)}
+              placeholder="Provide additional details about your purpose…" rows={3}
+              className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
           </Field>
         </div>
- 
-        {/* Resident-specific fields */}
         {isResident && (
           <>
             <Field label={tr("field.occupation")}>
-              <MaskedInput
-                value={formData.occupation || ""}
-                onValueChange={(v) => validateAndSet("occupation", v)}
-                placeholder={tr("ph.occupation")}
-                className={inputCls}
-                style={{ borderColor: fieldErrors.occupation ? PINK : "#d1d5db" }}
-              />
+              <MaskedInput value={formData.occupation || ""} onValueChange={(v) => validateAndSet("occupation", v)} placeholder={tr("ph.occupation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
             <Field label={tr("field.position")}>
-              <MaskedInput
-                value={formData.position || ""}
-                onValueChange={(v) => validateAndSet("position", v)}
-                placeholder={tr("ph.position")}
-                className={inputCls}
-                style={{ borderColor: fieldErrors.position ? PINK : "#d1d5db" }}
-              />
+              <MaskedInput value={formData.position || ""} onValueChange={(v) => validateAndSet("position", v)} placeholder={tr("ph.position")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
             </Field>
             <div className="md:col-span-2">
               <Field label={tr("field.employmentStatus")}>
-                <MaskedInput
-                  value={formData.employment_status || ""}
-                  onValueChange={(v) => validateAndSet("employment_status", v)}
-                  placeholder={tr("ph.employmentStatus")}
-                  className={inputCls}
-                  style={{ borderColor: fieldErrors.employment_status ? PINK : "#d1d5db" }}
-                />
+                <MaskedInput value={formData.employment_status || ""} onValueChange={(v) => validateAndSet("employment_status", v)} placeholder={tr("ph.employmentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
               </Field>
             </div>
             <div className="md:col-span-2">
               <Field label={tr("field.notes")}>
-                <textarea
-                  value={formData.notes || ""}
-                  onChange={(e) => validateAndSet("notes", e.target.value)}
-                  placeholder={tr("ph.notes")}
-                  rows={3}
-                  className={inputCls}
-                  style={{ borderColor: fieldErrors.notes ? PINK : "#d1d5db", resize: "vertical", fontSize: "inherit" }}
-                />
+                <textarea value={formData.notes || ""} onChange={(e) => validateAndSet("notes", e.target.value)}
+                  placeholder={tr("ph.notes")} rows={3} className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
               </Field>
             </div>
           </>
         )}
- 
-        {/* Business-specific fields */}
         {isBusiness && (
           <>
             <Field label={`${tr("field.businessName")}`} error={fieldErrors.business_name} required>
-              <MaskedInput
-                value={formData.business_name || ""}
-                onValueChange={(v) => validateAndSet("business_name", v)}
-                placeholder={tr("ph.businessName")}
-                className={inputCls}
-                style={{ borderColor: fieldErrors.business_name ? PINK : "#d1d5db" }}
-              />
+              <MaskedInput value={formData.business_name || ""} onValueChange={(v) => validateAndSet("business_name", v)} placeholder={tr("ph.businessName")} className={inputCls} style={{ borderColor: fieldErrors.business_name ? PINK : "#d1d5db" }} />
             </Field>
             <Field label={`${tr("field.businessType")}`} error={fieldErrors.business_type} required>
-                <Combobox
-                  value={formData.business_type || ""}
-                  onChange={(v) => validateAndSet("business_type", v)}
-                  options={[
-                    "Retail",
-                    "Food & Beverage",
-                    "Services",
-                    "Manufacturing",
-                    "Construction",
-                    "Transportation",
-                    "Other",
-                  ]}
-                  placeholder={tr("ph.businessType")}
-                  inputCls={inputCls}
-                  error={fieldErrors.business_type}
-                />
+              <Combobox value={formData.business_type || ""} onChange={(v) => validateAndSet("business_type", v)}
+                options={["Retail","Food & Beverage","Services","Manufacturing","Construction","Transportation","Other"]}
+                placeholder={tr("ph.businessType")} inputCls={inputCls} error={fieldErrors.business_type} />
             </Field>
             <Field label={tr("field.capital")} error={fieldErrors.capital}>
-              <MaskedInput
-                value={formData.capital || ""}
-                onValueChange={(v) => validateAndSet("capital", v)}
-                placeholder={tr("ph.capital")}
-                className={inputCls}
-                style={{ borderColor: fieldErrors.capital ? PINK : "#d1d5db" }}
-              />
+              <MaskedInput value={formData.capital || ""} onValueChange={(v) => validateAndSet("capital", v)} placeholder={tr("ph.capital")} className={inputCls} style={{ borderColor: fieldErrors.capital ? PINK : "#d1d5db" }} />
             </Field>
           </>
         )}
- 
-        {/* Building-specific fields */}
         {isBuilding && (
           <Field label={tr("field.establishment")}>
-            <MaskedInput
-              value={formData.establishment || ""}
-              onValueChange={(v) => validateAndSet("establishment", v)}
-              placeholder={tr("ph.establishment")}
-              className={inputCls}
-              style={{ borderColor: fieldErrors.establishment ? PINK : "#d1d5db" }}
-            />
+            <MaskedInput value={formData.establishment || ""} onValueChange={(v) => validateAndSet("establishment", v)} placeholder={tr("ph.establishment")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
- 
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
+      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
+    </Card>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 4: SCHEDULE APPOINTMENT  (NEW)
+// ═══════════════════════════════════════════════════════════════════════════════
+interface SlotInfo { available: boolean; remaining: number; }
+interface AvailableSlots { morning: SlotInfo; afternoon: SlotInfo; }
+
+interface StepScheduleProps extends CommonStepProps {
+  scheduleDate: string;
+  setScheduleDate: (d: string) => void;
+  timeGroup: "morning" | "afternoon";
+  setTimeGroup: (t: "morning" | "afternoon") => void;
+  availableSlots: AvailableSlots | null;
+  loadingSlots: boolean;
+  onDateChange: (d: string) => void;
+}
+
+const StepSchedule = ({
+  onBack, onNext, tr, scheduleDate, timeGroup, setTimeGroup,
+  availableSlots, loadingSlots, onDateChange,
+}: StepScheduleProps) => {
+  const [dateError, setDateError] = useState("");
+
+  const getMinDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
+  const handleDateChange = (value: string) => {
+    const err = validateScheduleDate(value);
+    setDateError(err);
+    if (!err) onDateChange(value);
+    else onDateChange("");
+  };
+
+  const handleNext = () => {
+    if (!scheduleDate) { setDateError(tr("err.scheduleDate")); toast.error(tr("err.scheduleDate")); return; }
+    const err = validateScheduleDate(scheduleDate);
+    if (err) { setDateError(err); toast.error(err); return; }
+    onNext();
+  };
+
+  const slotCard = (
+    id: "morning" | "afternoon",
+    label: string,
+    hours: string,
+    slot: SlotInfo | undefined,
+  ) => {
+    const isSelected = timeGroup === id;
+    const isDisabled = slot ? !slot.available : false;
+    return (
+      <button
+        type="button"
+        disabled={isDisabled}
+        onClick={() => !isDisabled && setTimeGroup(id)}
+        className="w-full flex items-center gap-4 p-4 text-left transition-all duration-150"
+        style={{
+          borderRadius: 6,
+          border: isSelected ? `2px solid ${NAVY}` : "1.5px solid #e5e7eb",
+          background: isSelected ? "#f0f4ff" : isDisabled ? "#f9fafb" : "transparent",
+          opacity: isDisabled ? 0.5 : 1,
+          cursor: isDisabled ? "not-allowed" : "pointer",
+        }}
+        aria-pressed={isSelected}
+      >
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: isSelected ? NAVY : "#f0f4ff", color: isSelected ? "#fff" : NAVY }}
+        >
+          <Clock className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <div className="font-bold" style={{ fontSize: "0.9em", color: NAVY }}>{label}</div>
+          <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{hours}</div>
+          {slot && (
+            <div className="mt-1 text-xs font-medium" style={{ color: slot.available ? "#16a34a" : "#ef4444" }}>
+              {slot.available ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available` : "No slots available"}
+            </div>
+          )}
+        </div>
+        {isSelected && (
+          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
+            <Check className="h-3 w-3 text-white" />
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // Auto-highlight which slot is current based on time of day
+  const autoSlot = getAutoTimeGroup();
+
+  return (
+    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
+      <div className="space-y-6">
+        {/* Date picker */}
+        <Field label="Appointment date" error={dateError} required>
+          <div className="relative">
+            <MaskedInput
+              type="date"
+              value={scheduleDate}
+              onValueChange={handleDateChange}
+              className="w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200"
+              style={{ borderColor: dateError ? PINK : "#d1d5db" }}
+              // @ts-ignore – min attribute passthrough
+              min={getMinDate()}
+            />
+          </div>
+        </Field>
+
+        {/* Auto-selection notice */}
+        <div className="p-4 rounded-lg flex items-start gap-3" style={{ background: "#f0f4ff", border: `1px solid #dde3ed` }}>
+          <Calendar className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: NAVY }} />
+          <p style={{ color: NAVY, fontSize: "0.82em" }}>
+            Based on the current time, your appointment has been automatically set to the{" "}
+            <strong>{autoSlot === "morning" ? "Morning" : "Afternoon"} slot</strong>.
+            You may change it below if slots are available.
+          </p>
+        </div>
+
+        {/* Time slot selection */}
+        {scheduleDate ? (
+          loadingSlots ? (
+            <div className="flex items-center gap-2 text-muted-foreground py-4">
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span style={{ fontSize: "0.85em" }}>Loading available slots…</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
+                Select time slot
+              </p>
+              {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", availableSlots?.morning)}
+              {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  availableSlots?.afternoon)}
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
+              Select time slot
+            </p>
+            {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", undefined)}
+            {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  undefined)}
+            <p className="text-muted-foreground text-xs mt-1">Select a date first to check slot availability.</p>
+          </div>
+        )}
+      </div>
+
       <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
     </Card>
   );
 };
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 4: REVIEW
+// STEP 5: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
   docType: string;
   formData: Record<string, string>;
+  scheduleDate: string;
+  timeGroup: "morning" | "afternoon";
   consentChecked: boolean;
   setConsentChecked: (v: boolean) => void;
   error: string;
@@ -1965,10 +1924,12 @@ interface StepReviewProps {
   onSubmit: () => void;
   onEdit: () => void;
   tr: (k: string) => string;
+  isSubmitting: boolean;
 }
 
 const StepReview = ({
-  docType, formData, consentChecked, setConsentChecked, error, onBack, onSubmit, onEdit, tr,
+  docType, formData, scheduleDate, timeGroup,
+  consentChecked, setConsentChecked, error, onBack, onSubmit, onEdit, tr, isSubmitting,
 }: StepReviewProps) => {
   const docKeys   = docType ? DOC_TR_KEYS[docType] : null;
   const docConfig = DOC_TYPE_KEYS.find((d) => d.type === docType);
@@ -1979,20 +1940,17 @@ const StepReview = ({
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
   const handleSubmitWithValidation = () => {
-    if (!consentChecked) {
-      toast.error(tr("err.consent"));
-      return;
-    }
+    if (!consentChecked) { toast.error(tr("err.consent")); return; }
     onSubmit();
   };
 
+  const timeLabel = timeGroup === "morning" ? "Morning (8:00 AM – 11:50 AM)" : "Afternoon (1:00 PM – 5:50 PM)";
+
   return (
-    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
+    <Card eyebrow={tr("step6.eyebrow")} title={tr("step6.title")} subtitle={tr("step6.subtitle")}>
       {docKeys && (
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
-          style={{ background: "#f0f4ff", border: "1px solid #dde3ed", borderRadius: 4, color: NAVY, fontSize: "0.75em" }}
-        >
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
+          style={{ background: "#f0f4ff", border: "1px solid #dde3ed", borderRadius: 4, color: NAVY, fontSize: "0.75em" }}>
           {docConfig?.icon("h-4 w-4")}
           {tr(docKeys.label)}
         </div>
@@ -2003,43 +1961,33 @@ const StepReview = ({
         <ReviewRow label={tr("review.middleName")} value={formData.middle_name || "N/A"} />
         <ReviewRow label={tr("review.Surname")}    value={formData.surname} />
         <ReviewRow label={tr("review.dob")}        value={formData.date_of_birth} />
-        <div className="col-span-2">
-          <ReviewRow label={tr("review.pob")} value={formData.place_of_birth} />
-        </div>
+        <div className="col-span-2"><ReviewRow label={tr("review.pob")} value={formData.place_of_birth} /></div>
         {isResident && (
           <>
-            <ReviewRow label={tr("review.sex")}            value={formData.sex} />
-            <ReviewRow label={tr("review.civilStatus")}    value={formData.marital_status} />
+            <ReviewRow label={tr("review.sex")}         value={formData.sex} />
+            <ReviewRow label={tr("review.civilStatus")}  value={formData.marital_status} />
             {formData.name_of_spouse && (
-              <div className="col-span-2">
-                <ReviewRow label={tr("review.spouse")}     value={formData.name_of_spouse} />
-              </div>
+              <div className="col-span-2"><ReviewRow label={tr("review.spouse")} value={formData.name_of_spouse} /></div>
             )}
-            <ReviewRow label={tr("review.nickname")}       value={formData.nickname} />
-            <ReviewRow label={tr("review.bloodType")}      value={formData.blood_type} />
-            <ReviewRow label={tr("review.height")}         value={formData.height_cm} />
-            <ReviewRow label={tr("review.weight")}         value={formData.weight_kg} />
-            <ReviewRow label={tr("review.complexion")}     value={formData.complexion} />
-            <ReviewRow label={tr("review.religion")}       value={formData.religion} />
-            <ReviewRow label={tr("review.pwd")}            value={formData.pwd === "true" ? "PWD" : formData.pwd === "false" ? "Not PWD" : formData.pwd} />
+            <ReviewRow label={tr("review.nickname")}    value={formData.nickname} />
+            <ReviewRow label={tr("review.bloodType")}   value={formData.blood_type} />
+            <ReviewRow label={tr("review.height")}      value={formData.height_cm} />
+            <ReviewRow label={tr("review.weight")}      value={formData.weight_kg} />
+            <ReviewRow label={tr("review.complexion")}  value={formData.complexion} />
+            <ReviewRow label={tr("review.religion")}    value={formData.religion} />
+            <ReviewRow label={tr("review.pwd")}         value={formData.pwd === "true" ? "PWD" : formData.pwd === "false" ? "Not PWD" : formData.pwd} />
           </>
         )}
       </ReviewSection>
 
       <ReviewSection title={tr("review.address")}>
-        <div className="col-span-2">
-          <ReviewRow label="Full address" value={addressPreview} />
-        </div>
+        <div className="col-span-2"><ReviewRow label="Full address" value={addressPreview} /></div>
         <ReviewRow label={tr("review.street")}    value={formData.street} />
         <ReviewRow label={tr("review.zone")}      value={formData.zone} />
         <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
         <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
-        {formData.precinct_no && (
-          <ReviewRow label={tr("review.precinctNo")} value={formData.precinct_no} />
-        )}
-        {isResident && (
-          <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />
-        )}
+        {formData.precinct_no && <ReviewRow label={tr("review.precinctNo")} value={formData.precinct_no} />}
+        {isResident && <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />}
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
         <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
@@ -2054,35 +2002,28 @@ const StepReview = ({
             <ReviewRow label={tr("field.capital")}      value={formData.capital} />
           </>
         )}
-        {isBuilding && (
-          <>
-            <ReviewRow label={tr("field.establishment")} value={formData.establishment} />
-            <ReviewRow label={tr("field.bcertNumber")}   value={formData.bcert_number} />
-          </>
-        )}
-        {isBCert && (
-          <ReviewRow label={tr("field.bcertNumber")} value={formData.bcert_number} />
-        )}
+        {isBuilding && <ReviewRow label={tr("field.establishment")} value={formData.establishment} />}
+        {isBCert    && <ReviewRow label={tr("field.bcertNumber")}   value={formData.bcert_number} />}
         <ReviewRow label={tr("review.email")} value={formData.email} />
         {isResident && (
           <>
             <ReviewRow label={tr("review.occupation")}       value={formData.occupation} />
             <ReviewRow label={tr("review.position")}         value={formData.position} />
             <ReviewRow label={tr("review.employmentStatus")} value={formData.employment_status} />
-            {formData.notes && (
-              <div className="col-span-2">
-                <ReviewRow label={tr("review.notes")} value={formData.notes} />
-              </div>
-            )}
+            {formData.notes && <div className="col-span-2"><ReviewRow label={tr("review.notes")} value={formData.notes} /></div>}
           </>
         )}
       </ReviewSection>
 
+      {/* ── Schedule summary ── */}
+      <ReviewSection title={tr("review.schedule")}>
+        <ReviewRow label={tr("review.scheduleDate")} value={scheduleDate} />
+        <ReviewRow label={tr("review.scheduleTime")} value={timeLabel} />
+      </ReviewSection>
+
       {/* Consent */}
       <div className="mb-4 p-5" style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 4 }}>
-        <p className="font-bold uppercase tracking-[0.15em] mb-2" style={{ color: NAVY, fontSize: "0.65em" }}>
-          {tr("consent.heading")}
-        </p>
+        <p className="font-bold uppercase tracking-[0.15em] mb-2" style={{ color: NAVY, fontSize: "0.65em" }}>{tr("consent.heading")}</p>
         <p className="text-muted-foreground leading-relaxed mb-3" style={{ fontSize: "0.85em" }}>{tr("consent.text")}</p>
         <div className="flex items-start gap-3">
           <Checkbox id="consent" checked={consentChecked} onCheckedChange={(v) => setConsentChecked(v as boolean)} />
@@ -2097,8 +2038,9 @@ const StepReview = ({
       <Actions
         onBack={onBack}
         onNext={handleSubmitWithValidation}
-        nextLabel={tr("btn.submit")}
+        nextLabel={isSubmitting ? "Submitting…" : tr("btn.submit")}
         backLabel={tr("btn.back")}
+        disabled={isSubmitting}
         extraLeft={
           <button
             onClick={onEdit}
@@ -2139,10 +2081,10 @@ const SuccessScreen = ({ onReset, tr }: { onReset: () => void; tr: (k: string) =
     >
       {tr("btn.newRequest")}
     </button>
-  </div>
+  </div>  
 );
 
-// ─── Step Bar ──────────────────────────────────────────────────────────────────
+// ─── Step Bar (now 6 steps) ────────────────────────────────────────────────────
 interface StepBarProps { currentStep: number; steps: string[]; }
 const StepBar = ({ currentStep, steps }: StepBarProps) => (
   <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
@@ -2195,15 +2137,17 @@ const FrontDesk = () => {
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
+  // 6 steps now
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
     tr("step.address"),
     tr("step.details"),
+    tr("step.schedule"),
     tr("step.review"),
   ], [tr]);
 
-  // ── App stage: "welcome" | "form" ──────────────────────────────────────────
+  // ── App stage ──────────────────────────────────────────────────────────────
   const [stage, setStage]                   = useState<"welcome" | "form">("welcome");
 
   // ── Form state ─────────────────────────────────────────────────────────────
@@ -2213,9 +2157,17 @@ const FrontDesk = () => {
   const [consentChecked, setConsentChecked] = useState(false);
   const [errors, setErrors]                 = useState("");
   const [submitted, setSubmitted]           = useState(false);
+  const [isSubmitting, setIsSubmitting]     = useState(false);
   const [streets, setStreets]               = useState<StreetRecord[]>([]);
 
-  // ── Fetch streets once ─────────────────────────────────────────────────────
+  // ── Schedule state ─────────────────────────────────────────────────────────
+  // Default time group auto-detected from current wall-clock time
+  const [scheduleDate, setScheduleDate]     = useState("");
+  const [timeGroup, setTimeGroup]           = useState<"morning" | "afternoon">(getAutoTimeGroup);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlots | null>(null);
+  const [loadingSlots, setLoadingSlots]     = useState(false);
+
+  // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
@@ -2226,108 +2178,192 @@ const FrontDesk = () => {
     load();
   }, []);
 
-  // ── Stable setters ─────────────────────────────────────────────────────────
+  // ── Stable field setter ────────────────────────────────────────────────────
   const set = useCallback((field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── Validation per step ────────────────────────────────────────────────────
-  const goNext = useCallback(() => {
-    setErrors("");
-    setCurrentStep((s) => s + 1);
-  }, []);
+  // ── Fetch available slots when date changes ────────────────────────────────
+  const fetchSlots = useCallback(async (date: string) => {
+    if (!date || !docType) return;
+    setLoadingSlots(true);
+    try {
+      const documentType = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
+      const res = await api.get("api/schedules/available-slots", {
+        params: { document_type: documentType, date },
+        withCredentials: true,
+      });
+      const slots: AvailableSlots = res.data?.data ?? null;
+      setAvailableSlots(slots);
 
+      // Auto-select the current time's slot if available; otherwise fall back
+      const auto = getAutoTimeGroup();
+      if (slots) {
+        if (slots[auto].available) {
+          setTimeGroup(auto);
+        } else {
+          // Try the other slot
+          const other: "morning" | "afternoon" = auto === "morning" ? "afternoon" : "morning";
+          if (slots[other].available) setTimeGroup(other);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch slots:", e);
+      setAvailableSlots(null);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [docType]);
+
+  const handleDateChange = useCallback((date: string) => {
+    setScheduleDate(date);
+    setAvailableSlots(null);
+    if (date) fetchSlots(date);
+  }, [fetchSlots]);
+
+  // ── Step navigation ────────────────────────────────────────────────────────
+  const goNext = useCallback(() => { setErrors(""); setCurrentStep((s) => s + 1); }, []);
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit (mirrors BarangayClearanceForm logic exactly) ───────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-  
+    if (!scheduleDate)   { setErrors(tr("err.scheduleDate")); return; }
+
+    setIsSubmitting(true);
+
+    // ── Build base payload ──────────────────────────────────────────────────
+    const base = {
+      requester_type:        "Walk-in",
+      prefix:                formData.prefix         || null,
+      surname:               formData.surname        || "",
+      first_name:            formData.first_name     || "",
+      middle_name:           formData.middle_name    || null,
+      ext_name:              formData.ext_name       || null,
+      extension:             formData.ext_name       || null,
+      dob:                   formData.date_of_birth  || null,
+      pob:                   formData.place_of_birth || null,
+      age:                   formData.age ? Number(formData.age) : null,
+      contact_no:            formData.contact_number || "",
+      email:                 formData.email          || null,
+      house_block_lot_no:    formData.house_block_lot_no    || null,
+      street:                formData.street                || "",
+      zone:                  formData.zone                  || "",
+      period_of_residency:   formData.period_of_residency   || null,
+      registered_voter:      formData.registered_voter      || null,
+      house_owner:           formData.house_owner           || null,
+      relationship_to_owner: formData.relationship_to_owner || null,
+      purpose:               formData.purpose               || "",
+      purpose_details:       formData.purpose_details       || null,
+    };
+
+    // ── Pick endpoint per document type ────────────────────────────────────
+    type EndpointCfg = { url: string; payload: Record<string, unknown> };
+    let cfg: EndpointCfg;
+
+    switch (docType) {
+      case "clearance":
+        cfg = {
+          url: "api/barangay-clearances",
+          payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
+        };
+        break;
+      case "building-clearance":
+        cfg = {
+          url: "api/building-clearances",
+          payload: {
+            ...base,
+            establishment:           formData.establishment || null,
+            purpose:                 formData.purpose       || "New Construction",
+            purpose_details:         formData.purpose_details || null,
+            or_no: null, remarks: null, punong_barangay: null,
+            for_the_punong_barangay: null, barangay_position: null,
+          },
+        };
+        break;
+      case "business-clearance":
+        cfg = {
+          url: "api/business-clearances",
+          payload: {
+            ...base,
+            ext:              formData.ext_name      || null,
+            business_name:    formData.business_name || null,
+            business_type:    formData.business_type || null,
+            business_details: formData.purpose_details || null,
+            capital:          formData.capital ? Number(formData.capital) : null,
+            or_no: null, inspected_by: null, date_of_inspection: null,
+            inspection_remarks: null, inspected_remarks: null,
+            date_inspected: null, inspected_note: null,
+          },
+        };
+        break;
+      case "barangay-certificate":
+        cfg = {
+          url: "api/barangay-certificates",
+          payload: {
+            ...base,
+            extension:               formData.ext_name || null,
+            punong_barangay:         null,
+            for_the_punong_barangay: null,
+            bcert_number:            "Example",
+            issued_date:             null,
+          },
+        };
+        break;
+      case "resident-registration":
+      default:
+        cfg = {
+          url: "api/barangay-clearances",
+          payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
+        };
+        break;
+    }
+
     try {
-      const response = await api.post(
-        "api/kiosk/submit",
-        {
-          service_type:  getServiceType(docType),
-          priority:      "Normal",
-          type:          "walk_in",
-  
-          // ── Personal ──────────────────────────────────────────────
-          prefix:        formData.prefix        || null,
-          first_name:    formData.first_name    || "",
-          middle_name:   formData.middle_name   || null,
-          surname:       formData.surname       || "",
-          ext_name:      formData.ext_name      || null,
-  
-          // ── Demographics ──────────────────────────────────────────
-          sex:             formData.sex             || null,
-          marital_status:  formData.marital_status  || null,
-          name_of_spouse:  formData.name_of_spouse  || null,
-          age:             formData.age             || null,
-          blood_type:      formData.blood_type      || null,
-          height_cm:       formData.height_cm       || null,
-          weight_kg:       formData.weight_kg       || null,
-          complexion:      formData.complexion      || null,
-          religion:        formData.religion        || null,
-          date_of_birth:   formData.date_of_birth   || "",
-          place_of_birth:  formData.place_of_birth  || "",
-  
-          // ── Address ───────────────────────────────────────────────
-          house_block_lot_no:    formData.house_block_lot_no    || null,
-          street:                formData.street                || "",
-          zone:                  formData.zone                  || "",
-          period_of_residency:   formData.period_of_residency   || "",
-          registered_voter:      formData.registered_voter      || "",
-          house_owner:           formData.house_owner           || "",
-          relationship_to_owner: formData.relationship_to_owner || "",
-  
-          // ── Contact ───────────────────────────────────────────────
-          contact_number: formData.contact_number || "",
-          email:  formData.email  || null,  // ← was formData.email (bug)
-  
-          // ── Purpose ───────────────────────────────────────────────
-          purpose:         formData.purpose         || "",
-          purpose_details: formData.purpose_details || null, // ← now populated from textarea
-  
-          // ── Business ──────────────────────────────────────────────
-          business_name: formData.business_name || null,
-          business_type: formData.business_type || null,
-          capital:       formData.capital       || null,
-          establishment: formData.establishment || null,
-  
-          // ── Clearance numbers ──────────────────────────────────────
-          bcert_number:      formData.bcert_number      || null,
-          brgy_business_no:  formData.brgy_business_no  || null,
-  
-          // ── Resident-specific ──────────────────────────────────────
-          nick_name:         formData.nickname          || null,
-          pwd:               formData.pwd === "true" ? true : formData.pwd === "false" ? false : null,
-          resident_status:   formData.resident_status   || null,
-          precinct_no:       formData.precinct_no       || null,
-          occupation:        formData.occupation        || null,
-          position:          formData.position          || null,
-          emp_status:        formData.employment_status || null,
-          notes:             formData.notes             || null,
-          authorized_person: formData.authorized_person || null,
-        },
-        { withCredentials: true }
-      );
-  
-      console.log("Submission response:", response);
-      toast.success(tr("success.title"));
-      setSubmitted(true);
+      // ── Step 1: Submit the document ────────────────────────────────────────
+      const docRes = await api.post(cfg.url, cfg.payload, { withCredentials: true });
+
+      if (docRes.status === 201 || docRes.status === 200) {
+        // Extract the document number (bcert_number) from the response
+        const documentNumber = docRes.data?.data?.service?.bcert_number ?? null;
+        const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
+
+        // ── Step 2: Create the schedule appointment ─────────────────────────
+        try {
+          await api.post(
+            "api/schedules",
+            {
+              document_type:   documentType,
+              document_number: documentNumber,
+              schedule_date:   scheduleDate,
+              time_group:      timeGroup,
+            },
+            { withCredentials: true }
+          );
+        } catch (schedErr) {
+          // Schedule creation failure should not block document success
+          console.error("Schedule creation failed:", schedErr);
+        }
+
+        toast.success(tr("success.title"));
+        setSubmitted(true);
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || tr("err.fillRequired"));
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [consentChecked, docType, formData, tr]);
+  }, [consentChecked, docType, formData, scheduleDate, timeGroup, tr]);
 
+  // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
+    setScheduleDate(""); setTimeGroup(getAutoTimeGroup()); setAvailableSlots(null);
     setStage("welcome");
   }, []);
 
   // ── Render ─────────────────────────────────────────────────────────────────
-
   if (stage === "welcome") {
     return (
       <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
@@ -2393,13 +2429,29 @@ const FrontDesk = () => {
               tr={tr} inputCls={inputCls} docType={docType}
             />
 
+          ) : currentStep === 4 ? (
+            <StepSchedule
+              formData={formData} set={set} error={errors}
+              onBack={goBack} onNext={goNext}
+              tr={tr} inputCls={inputCls} docType={docType}
+              scheduleDate={scheduleDate}
+              setScheduleDate={setScheduleDate}
+              timeGroup={timeGroup}
+              setTimeGroup={setTimeGroup}
+              availableSlots={availableSlots}
+              loadingSlots={loadingSlots}
+              onDateChange={handleDateChange}
+            />
+
           ) : (
             <StepReview
               docType={docType} formData={formData}
+              scheduleDate={scheduleDate} timeGroup={timeGroup}
               consentChecked={consentChecked} setConsentChecked={setConsentChecked}
               error={errors} onBack={goBack} onSubmit={handleSubmit}
               onEdit={() => { setCurrentStep(0); setErrors(""); }}
               tr={tr}
+              isSubmitting={isSubmitting}
             />
           )}
         </div>

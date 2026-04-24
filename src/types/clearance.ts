@@ -37,6 +37,8 @@ export interface BusinessClearance {
   or_no: string;
   inspected_by?: string;
   status?: string;
+  house_block_lot_no?: string;
+  email?: string;
 }
 
 // Building Clearance

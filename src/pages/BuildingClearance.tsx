@@ -197,14 +197,14 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   );
 }
 
-// ─── Editable Detail Modal Component (same as Barangay Clearance) ─────────────────
-function EditableDetailModal({ 
-  record, 
-  onClose, 
+// ─── Editable Detail Modal Component ──────────────────────────────────────────
+function EditableDetailModal({
+  record,
+  onClose,
   onUpdate,
-  toast
-}: { 
-  record: BuildingClearanceType | null; 
+  toast,
+}: {
+  record: BuildingClearanceType | null;
   onClose: () => void;
   onUpdate: () => void;
   toast: any;
@@ -212,7 +212,9 @@ function EditableDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<string>('');
+
   const [formData, setFormData] = useState<any>({
     first_name: '',
     middle_name: '',
@@ -232,57 +234,107 @@ function EditableDetailModal({
   });
 
   useEffect(() => {
-    if (record) {
-      const fetchFullRecord = async () => {
-        setIsLoading(true);
-        try {
-          const response = await axios.get(
-            `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
-            { withCredentials: true }
-          );
-          const fullRecord = response.data.data.data[0];
-          
-          setFormData({
-            first_name: fullRecord.first_name || '',
-            middle_name: fullRecord.middle_name || '',
-            surname: fullRecord.surname || '',
-            ext_name: fullRecord.ext_name || '',
-            prefix: fullRecord.prefix || '',
-            establishment: fullRecord.establishment || '',
-            purpose: fullRecord.purpose || '',
-            purpose_details: fullRecord.purpose_details || '',
-            house_block_lot_no: fullRecord.house_block_lot_no || '',
-            street: fullRecord.street || '',
-            zone: fullRecord.zone || '',
-            or_no: fullRecord.or_no || '',
-            remarks: fullRecord.remarks || '',
-            status: fullRecord.status || '',
-            created_by: fullRecord.created_by || '',
-          });
-        } catch (error) {
-          console.error('Error fetching full record:', error);
-          toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      fetchFullRecord();
-    }
+    if (!record) return;
+    const fetchFullRecord = async () => {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(
+          `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+          { withCredentials: true }
+        );
+        const full = response.data.data.data[0];
+        setCurrentStatus(full.status ?? '');
+        setFormData({
+          first_name: full.first_name || '',
+          middle_name: full.middle_name || '',
+          surname: full.surname || '',
+          ext_name: full.ext_name || '',
+          prefix: full.prefix || '',
+          establishment: full.establishment || '',
+          purpose: full.purpose || '',
+          purpose_details: full.purpose_details || '',
+          house_block_lot_no: full.house_block_lot_no || '',
+          street: full.street || '',
+          zone: full.zone || '',
+          or_no: full.or_no || '',
+          remarks: full.remarks || '',
+          status: full.status || '',
+          created_by: full.created_by || '',
+        });
+      } catch (error) {
+        console.error('Error fetching full record:', error);
+        toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchFullRecord();
   }, [record, toast]);
 
   if (!record) return null;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  // ── Derived action visibility ──────────────────────────────────────────────
+  const status = currentStatus.toUpperCase();
+  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED' || status === 'APPROVED';
+  const canMarkAsPaid = status === 'TO_PAY';
+  const canRelease = status === 'PAID';
+
+  // ── Status action handlers ─────────────────────────────────────────────────
+  const handleMarkToPay = async () => {
+    setActionLoading('to_pay');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        { status: 'TO_PAY' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('TO_PAY');
+      setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
+      toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
   };
 
+  const handleMarkAsPaid = async () => {
+    setActionLoading('paid');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        { status: 'PAID' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  const handleRelease = async () => {
+    setActionLoading('release');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        { status: 'RELEASED', released_at: new Date().toISOString() },
+        { withCredentials: true }
+      );
+      setCurrentStatus('RELEASED');
+      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
+      toast({ title: 'Success', description: 'Document released successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  // ── Save edits ─────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     setIsSaving(true);
     try {
-      const payload = { ...formData };
-      
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
@@ -291,101 +343,69 @@ function EditableDetailModal({
         );
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
-      } catch (error) {
-        console.error("Check existing failed:", error);
-      }
+      } catch (error) { console.error('Check existing failed:', error); }
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/building-clearances/${existingId}`, 
-          payload, 
+          `http://127.0.0.1:8000/api/building-clearances/${existingId}`,
+          { ...formData },
           { withCredentials: true }
         );
-        toast({ title: "Success", description: "Record updated successfully" });
+        toast({ title: 'Success', description: 'Record updated successfully' });
+        setIsEditing(false);
+        onUpdate();
       } else {
-        toast({ title: "Error", description: "Record not found", variant: "destructive" });
-        return;
+        toast({ title: 'Error', description: 'Record not found', variant: 'destructive' });
       }
-      
-      setIsEditing(false);
-      onUpdate();
-      
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        if (status === 422) {
+        const s = error.response?.status;
+        if (s === 422) {
           const errs = error.response?.data?.errors;
-          if (errs) {
-            Object.values(errs).forEach((m: any) => m[0] && toast({ title: "Validation Error", description: m[0], variant: "destructive" }));
-          }
-        } else if (status === 401) {
-          toast({ title: "Error", description: "You are not authenticated.", variant: "destructive" });
-        } else if (status === 403) {
-          toast({ title: "Error", description: "You are not allowed to perform this action.", variant: "destructive" });
+          if (errs) Object.values(errs).forEach((m: any) => m[0] && toast({ title: 'Validation Error', description: m[0], variant: 'destructive' }));
+        } else if (s === 401) {
+          toast({ title: 'Error', description: 'You are not authenticated.', variant: 'destructive' });
+        } else if (s === 403) {
+          toast({ title: 'Error', description: 'You are not allowed to perform this action.', variant: 'destructive' });
         } else {
-          toast({ title: "Error", description: "Something went wrong.", variant: "destructive" });
+          toast({ title: 'Error', description: 'Something went wrong.', variant: 'destructive' });
         }
       } else {
-        toast({ title: "Error", description: "Network error.", variant: "destructive" });
+        toast({ title: 'Error', description: 'Network error.', variant: 'destructive' });
       }
-    } finally {
-      setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   };
 
-  const Field = ({ label, name, type = "text", options, isTextArea = false }: any) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  // ── Field renderer ─────────────────────────────────────────────────────────
+  const Field = ({ label, name, type = 'text', options, isTextArea = false }: any) => {
     const value = formData[name] || '';
-    
     if (isEditing) {
-      if (type === "select" && options) {
+      if (type === 'select' && options) {
         return (
-          <select
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          >
+          <select name={name} value={value} onChange={handleInputChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             <option value="">Select {label}</option>
-            {options.map((opt: string) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
+            {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         );
       }
-      
       if (isTextArea) {
         return (
-          <textarea
-            name={name}
-            value={value}
-            onChange={handleInputChange}
-            rows={3}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <textarea name={name} value={value} onChange={handleInputChange} rows={3}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
         );
       }
-      
       return (
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={handleInputChange}
-          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
+        <input type={type} name={name} value={value} onChange={handleInputChange}
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
       );
     }
-    
-    // Display mode
-    if (type === "select" && options) {
-      return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
-    }
-    
-    if (isTextArea) {
-      return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
-    }
-    
-    return <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>;
+    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
   };
 
   if (isLoading) {
@@ -403,6 +423,8 @@ function EditableDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+
+        {/* ── Modal Header ── */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Building Clearance Details</h2>
@@ -414,62 +436,45 @@ function EditableDetailModal({
                 onClick={() => setIsEditing(true)}
                 className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
               >
-                <Edit2 className="h-4 w-4" />
-                Edit
+                <Edit2 className="h-4 w-4" /> Edit
               </button>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                >
+                <button onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={handleUpdate}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
-                >
+                <button onClick={handleUpdate} disabled={isSaving}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
                   <Save className="h-4 w-4" />
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </>
             )}
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-md transition-colors"
-            >
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
+        {/* ── Modal Body ── */}
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
             {/* Personal Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">First Name</label>
-                <Field label="First Name" name="first_name" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Middle Name</label>
-                <Field label="Middle Name" name="middle_name" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Surname</label>
-                <Field label="Surname" name="surname" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Extension Name</label>
-                <Field label="Extension Name" name="ext_name" type="text" />
-              </div>
-
+              {[
+                { label: 'First Name', name: 'first_name' },
+                { label: 'Middle Name', name: 'middle_name' },
+                { label: 'Surname', name: 'surname' },
+                { label: 'Extension Name', name: 'ext_name' },
+              ].map(f => (
+                <div key={f.name}>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                  <Field {...f} />
+                </div>
+              ))}
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
                 <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
@@ -479,96 +484,119 @@ function EditableDetailModal({
             {/* Property/Establishment Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Property Information</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Establishment</label>
-                <Field label="Establishment" name="establishment" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label>
-                <Field label="House/Block/Lot No." name="house_block_lot_no" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Street</label>
-                <Field label="Street" name="street" type="text" />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Zone</label>
-                <Field label="Zone" name="zone" type="text" />
-              </div>
+              {[
+                { label: 'Establishment', name: 'establishment' },
+                { label: 'House/Block/Lot No.', name: 'house_block_lot_no' },
+                { label: 'Street', name: 'street' },
+                { label: 'Zone', name: 'zone' },
+              ].map(f => (
+                <div key={f.name}>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                  <Field {...f} />
+                </div>
+              ))}
             </div>
 
             {/* Document Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-              
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
                 <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
               </div>
-
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
                 <Field label="Purpose Details" name="purpose_details" isTextArea />
               </div>
-
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
-                <Field label="OR No." name="or_no" type="text" />
+                <Field label="OR No." name="or_no" />
               </div>
-
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                <div className="mt-1">
-                  <StatusBadge status={formData.status} />
-                </div>
+                <div className="mt-1"><StatusBadge status={currentStatus} /></div>
               </div>
-
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
                 <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
               </div>
             </div>
 
-            {/* Remarks */}
+            {/* Schedule & Remarks */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Remarks</h3>
-              
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
-                <Field label="Remarks" name="remarks" isTextArea />
-              </div>
-
+              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
               {(record as any).schedule && (
                 <>
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
                     <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
                   </div>
-                  
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
                     <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
                   </div>
+                  {(record as any).schedule.note && (
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
+                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
+                    </div>
+                  )}
                 </>
               )}
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
+                <Field label="Remarks" name="remarks" isTextArea />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-          {!isEditing && (
-            <Button onClick={() => window.location.href = `/document-edit/3/${record.bcert_number}`}>
-              Full Edit Page
-            </Button>
-          )}
+        {/* ── Modal Footer — action buttons live here ── */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+
+            {/* Status action buttons (left side) */}
+            <div className="flex items-center gap-2">
+              {canMarkToPay && (
+                <button
+                  onClick={handleMarkToPay}
+                  disabled={actionLoading === 'to_pay'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                </button>
+              )}
+              {canMarkAsPaid && (
+                <button
+                  onClick={handleMarkAsPaid}
+                  disabled={actionLoading === 'paid'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
+                </button>
+              )}
+              {canRelease && (
+                <button
+                  onClick={handleRelease}
+                  disabled={actionLoading === 'release'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  <Mail className="h-4 w-4" />
+                  {actionLoading === 'release' ? 'Releasing...' : 'Release Document'}
+                </button>
+              )}
+              {!canMarkToPay && !canMarkAsPaid && !canRelease && (
+                <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
+              )}
+            </div>
+
+            {/* Close button (right side) */}
+            <Button variant="outline" onClick={onClose}>Close</Button>
+          </div>
         </div>
+
       </div>
     </div>
   );
@@ -821,7 +849,6 @@ const BuildingClearance = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [streets, setStreets]         = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BuildingClearanceType | null>(null);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   const syncToUrl = useCallback((
     nextSearch: string,
@@ -912,57 +939,6 @@ const BuildingClearance = () => {
     }
   };
 
-  const handleMarkToPay = async (item: BuildingClearanceType) => {
-    setActionLoading(item.id);
-    try {
-      const res = await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
-        { status: "TO_PAY" },
-        { withCredentials: true }
-      );
-      if (res.status === 200) {
-        toast({ title: "Success", description: "Status set to To Pay successfully." });
-        loadData();
-      }
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
-    } finally { setActionLoading(null); }
-  };
-
-  const handleMarkAsPaid = async (item: BuildingClearanceType) => {
-    setActionLoading(item.id);
-    try {
-      const res = await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
-        { status: "PAID" },
-        { withCredentials: true }
-      );
-      if (res.status === 200) {
-        toast({ title: "Success", description: "Status set to Paid successfully." });
-        loadData();
-      }
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update status.", variant: "destructive" });
-    } finally { setActionLoading(null); }
-  };
-
-  const handleRelease = async (item: BuildingClearanceType) => {
-    setActionLoading(item.id);
-    try {
-      const res = await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${item.id}`,
-        { status: "RELEASED", released_at: new Date().toISOString() },
-        { withCredentials: true }
-      );
-      if (res.status === 200) {
-        toast({ title: "Success", description: "Document released successfully." });
-        loadData();
-      }
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.response?.data?.message ?? "Failed to release document.", variant: "destructive" });
-    } finally { setActionLoading(null); }
-  };
-
   const handleSort = (field: string) => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
@@ -971,10 +947,6 @@ const BuildingClearance = () => {
   const handleRefresh = () => {
     loadData();
     toast({ title: 'Refreshed', description: 'Data has been refreshed' });
-  };
-
-  const handleViewDetails = (item: BuildingClearanceType) => {
-    setSelectedDetailRecord(item);
   };
 
   const activeFilterCount = countActiveFilters(filters);
@@ -1078,14 +1050,8 @@ const BuildingClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
-                      const status = item.status?.toUpperCase() || '';
-                      const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED' || status === 'APPROVED';
-                      const canMarkAsPaid = status === 'TO_PAY';
-                      const canRelease = status === 'PAID';
-                      const isLoading = actionLoading === item.id;
-                      
                       return (
-                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors cursor-pointer`} onClick={() => handleViewDetails(item)}>
+                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
                             {isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}
                           </td>
@@ -1109,68 +1075,31 @@ const BuildingClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
                           <td className="py-3 px-4">
-                            <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
-                              <div className="flex items-center gap-1.5 ">
-                                <button
-                                  onClick={() => handleViewDetails(item)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                  View/Edit
-                                </button>
-                                <button
-                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`)}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Preview
-                                </button>
-                                <button
-                                  onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true } })}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Print
-                                </button>
-                              </div>
-                              
-                              {/* Status action buttons */}
-                              <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-gray-100">
-                                {canMarkToPay && (
-                                  <button
-                                    onClick={() => handleMarkToPay(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <CreditCard className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Mark to Pay'}
-                                  </button>
-                                )}
-                                {canMarkAsPaid && (
-                                  <button
-                                    onClick={() => handleMarkAsPaid(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <CreditCard className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Mark Paid'}
-                                  </button>
-                                )}
-                                {canRelease && (
-                                  <button
-                                    onClick={() => handleRelease(item)}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                  >
-                                    <Mail className="h-3 w-3" />
-                                    {isLoading ? '...' : 'Release'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDelete(Number(item.id))}
-                                  className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => setSelectedDetailRecord(item)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                              >
+                                <Eye className="h-3 w-3" /> View/Edit
+                              </button>
+                              <button
+                                onClick={() => navigate(`/document-edit/3/${item.bcert_number}`)}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
+                              >
+                                Preview
+                              </button>
+                              <button
+                                onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                              >
+                                Print
+                              </button>
+                              <button
+                                onClick={() => handleDelete(Number(item.id))}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>

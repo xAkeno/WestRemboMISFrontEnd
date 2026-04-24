@@ -73,6 +73,7 @@ import BarangayClearanceForm from "./pages/forms/BarangayClearanceForm";
 import BuildingClearanceFormGood from "./pages/forms/BuildingClearanceForm";
 import BusinessClearanceForm from "./pages/forms/BusinessClearanceForm";
 import ResidentRegistrationForm from "./pages/forms/ResidentRegistrationForm";
+import StreetCms from "./pages/admin/StreetCms";
 const App = () => { 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const { showMaintenance, message } = useMaintenance(user);
@@ -116,7 +117,7 @@ const App = () => {
                 <Route path="/document-edit/:id" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
                 <Route path="/certificatehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certificate /></ProtectedRoute>} /> 
                 <Route path="/certificatehome/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certifications/></ProtectedRoute>} /> {/*Certificate home*/}
-
+                <Route path="/street-cms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><StreetCms /></ProtectedRoute>} /> {/*Street CMS*/}
                 <Route path="/clearancehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ClearanceForm/></ProtectedRoute>} /> {/*Clearance home */}
 
                 <Route path="/myrequest" element={<MyRequest />} />
