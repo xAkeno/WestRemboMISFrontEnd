@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
-  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera,
 } from 'lucide-react';
+import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
@@ -12,6 +14,100 @@ import { useToast } from '@/hooks/use-toast';
 import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { generatePDF } from '@/utils/pdfGenerator';
+import type { TextField } from '@/types/certificate';
+
+// ─── LABEL_TO_KEY map (mirrors CertificateEditor) ─────────────────────────────
+const LABEL_TO_KEY: Record<string, string> = {
+  'First Name': 'first_name',
+  'Middle Name': 'middle_name',
+  'M.I.': 'middle_name',
+  'Last Name': 'surname',
+  'Prefix': 'prefix',
+  'Ext Name': 'ext_name',
+  'Nickname': 'nick_name',
+  'Sex': 'sex',
+  'Marital Status': 'marital_status',
+  'Name of Spouse': 'name_of_spouse',
+  'Age': 'age',
+  'Date of Birth': 'dob',
+  'Place of Birth': 'pob',
+  'Date': 'created_at',
+  'House Block Lot No': 'house_block_lot_no',
+  'Street': 'street',
+  'Zone': 'zone',
+  'Resident Status': 'resident_status',
+  'Period of Residency': 'period_of_residency',
+  'House Owner': 'house_owner',
+  'Relationship to House Owner': 'relationship_to_owner',
+  'Contact No': 'contact_no',
+  'Phone Number': 'phone_number',
+  'Email Address': 'email_address',
+  'Business Name': 'business_name',
+  'Business Type': 'business_type',
+  'Business Details': 'business_details',
+  'Capital': 'capital',
+  'Establishment': 'establishment',
+  'Inspected By': 'inspected_by',
+  'Date of Inspection': 'date_of_inspection',
+  'Inspection Remarks': 'inspection_remarks',
+  'Inspected Remarks': 'inspected_remarks',
+  'Date Inspected': 'date_inspected',
+  'Inspected Note': 'inspected_note',
+  'OR No': 'or_no',
+  'OR No Alt': 'orNo',
+  'CTC/VRR No': 'ctc_vrr_no',
+  // ── FIX: these three were missing from formData ────────────────────────────
+  'Issued At': 'issued_at',
+  'Issued On': 'issued_on',
+  'Issued Date': 'issued_date',
+  // ──────────────────────────────────────────────────────────────────────────
+  'Purpose': 'purpose',
+  'Purpose Details': 'purpose_details',
+  'Remarks': 'remarks',
+  'Barangay Clearance No': 'bcert_number',
+  'Brgy Business No': 'brgy_business_no',
+  'Punong Barangay': 'punong_barangay',
+  'For The Punong Barangay': 'for_the_punong_barangay',
+  'Barangay Position': 'barangay_position',
+  'Status': 'status',
+  'Registered Voter': 'registered_voter',
+  'Photo': 'photo',
+  'Notes': 'notes',
+  'Position': 'position',
+  'Occupation': 'occupation',
+  'Employment Status': 'emp_status',
+  'Blood Type': 'blood_type',
+  'Complexion': 'complexion',
+  'PWD': 'pwd',
+  'Precinct No': 'precinct_no',
+  'Religion': 'religion',
+  'Voter Status': 'voter_status',
+  'Height (cm)': 'height_cm',
+  'Weight (kg)': 'weight_kg',
+  'ID': 'id',
+  'Resident ID': 'resident_id',
+  'Requester ID': 'requester_id',
+  'Requester Type': 'requester_type',
+  'Created At': 'created_at',
+  'Updated At': 'updated_at',
+  'Created By': 'created_by',
+};
+
+const NON_DATE_KEYS = new Set([
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
+  'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
+  'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
+  'inspected_note', 'or_no', 'orNo', 'ctc_vrr_no', 'issued_at', 'purpose',
+  'purpose_details', 'remarks', 'bcert_number', 'brgy_business_no',
+  'punong_barangay', 'for_the_punong_barangay', 'barangay_position', 'status',
+  'registered_voter', 'notes', 'position', 'occupation', 'emp_status',
+  'blood_type', 'complexion', 'pwd', 'precinct_no', 'religion', 'voter_status',
+  'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
+  'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
+  'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
+]);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
@@ -50,16 +146,9 @@ const PURPOSE_OPTIONS = [
   'School Requirement', 'Bank Transaction', 'Other', 'Government Transaction',
 ];
 
-// ─── URL param key map ─────────────────────────────────────────────────────────
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
-  status:          'status',
-  filter_date:     'date',
-  from:            'from',
-  to:              'to',
-  zone:            'zone',
-  street:          'street',
-  purpose:         'purpose',
-  schedule_filter: 'schedule',
+  status: 'status', filter_date: 'date', from: 'from', to: 'to',
+  zone: 'zone', street: 'street', purpose: 'purpose', schedule_filter: 'schedule',
 };
 
 function filtersFromParams(params: URLSearchParams): FilterState {
@@ -86,7 +175,6 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
   return p;
 }
 
-// ─── API instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
@@ -185,6 +273,278 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   );
 }
 
+// ─── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full"
+        style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
+        onClick={onClose}
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <img
+        src={url}
+        alt="ID preview"
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+// ─── Single ID image card (view-only) ─────────────────────────────────────────
+function IdImageCard({ label, url, onZoom }: { label: string; url: string | null; onZoom: (u: string) => void }) {
+  if (!url) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-2 py-8">
+        <FileQuestion className="h-7 w-7 text-gray-300" />
+        <p className="text-xs font-medium text-gray-400">{label}</p>
+        <p className="text-[10px] text-gray-300">Not uploaded</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-green-200 bg-green-50 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-gray-100">
+        <div className="flex items-center gap-1.5">
+          <IdCard className="h-3.5 w-3.5 text-blue-600" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">
+          ✓ On file
+        </span>
+      </div>
+      <div
+        className="relative group overflow-hidden bg-gray-100"
+        style={{ height: 160, cursor: 'zoom-in' }}
+        onClick={() => onZoom(url)}
+      >
+        <img src={url} alt={label} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+          <ZoomIn className="h-6 w-6 text-white" />
+          <span className="text-[10px] font-bold text-white uppercase tracking-wider">Click to enlarge</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-gray-100">
+        <span className="text-[9px] text-gray-400 uppercase tracking-wider">View only · From documents</span>
+        <button
+          onClick={() => onZoom(url)}
+          className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+        >
+          <Eye className="h-3 w-3" /> View full
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── User ID Viewer ────────────────────────────────────────────────────────────
+function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (url: string) => void }) {
+  const [idFront, setIdFront] = useState<string | null>(null);
+  const [idBack,  setIdBack]  = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) { setLoading(false); return; }
+    const run = async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/api/mydocuments', { params: { user_id: userId } });
+        const documents = data.data?.documents || {};
+        let front: string | null = null;
+        let back:  string | null = null;
+        Object.values(documents).forEach((categoryDocs: any) => {
+          (categoryDocs as any[]).forEach((doc: any) => {
+            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            if (doc.type === 'valid_id_front') front = url;
+            if (doc.type === 'valid_id_back')  back  = url;
+          });
+        });
+        setIdFront(front);
+        setIdBack(back);
+      } catch (err) {
+        console.error('Could not load user ID documents:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [userId]);
+
+  return (
+    <div className="col-span-1 md:col-span-2 space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+        <IdCard className="h-4 w-4 text-blue-600" />
+        <h3 className="text-sm font-semibold text-gray-900">Applicant's Registered ID</h3>
+        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
+          View Only · From Documents
+        </span>
+      </div>
+      {loading && (
+        <div className="flex items-center gap-2 py-4 text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-xs">Loading ID images…</span>
+        </div>
+      )}
+      {!loading && !idFront && !idBack && (
+        <div className="flex items-center gap-2 py-4 text-gray-400">
+          <FileQuestion className="h-4 w-4" />
+          <span className="text-xs">No ID images found for this applicant.</span>
+        </div>
+      )}
+      {!loading && (idFront || idBack) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <IdImageCard label="Government ID — Front" url={idFront} onZoom={onZoom} />
+          <IdImageCard label="Government ID — Back"  url={idBack}  onZoom={onZoom} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── QR Scanner Modal ──────────────────────────────────────────────────────────
+function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (result: string) => void }) {
+  const scannerRef   = useRef<Html5Qrcode | null>(null);
+  const containerId  = "qr-scanner-container";
+  const [error, setError]       = useState<string | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [scanned, setScanned]   = useState<string | null>(null);
+
+  const startScanner = async () => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode(containerId);
+      }
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          setScanned(decodedText);
+          setScanning(false);
+        },
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message ?? "Camera access denied or not available.");
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    startScanner();
+    return () => {
+      stopScanner();
+    };
+  }, []);
+
+  const handleScanAgain = async () => {
+    setScanned(null);
+    setScanning(true);
+    setError(null);
+    await stopScanner();
+    // Small delay so html5-qrcode fully releases the DOM element
+    setTimeout(() => startScanner(), 300);
+  };
+
+  const handleConfirm = () => {
+    if (scanned) {
+      stopScanner();
+      onScan(scanned);
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl overflow-hidden w-full max-w-sm mx-4 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-semibold text-gray-900">Scan QR Code</span>
+          </div>
+          <button
+            onClick={() => { stopScanner(); onClose(); }}
+            className="p-1 hover:bg-gray-100 rounded-md"
+          >
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Scanner area */}
+        <div className="relative bg-black" style={{ minHeight: 300 }}>
+          {/* html5-qrcode mounts its own video + viewfinder here */}
+          <div id={containerId} className="w-full" />
+
+          {/* Error state */}
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 px-6">
+              <Camera className="h-8 w-8 text-gray-400" />
+              <p className="text-xs text-gray-300 text-center">{error}</p>
+            </div>
+          )}
+
+          {/* Success overlay */}
+          {scanned && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-900/80">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-xs font-bold text-white uppercase tracking-wider">QR Detected</p>
+              <p className="text-sm font-mono text-green-200 px-4 text-center break-all">{scanned}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-100">
+          {scanned ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleScanAgain}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Scan Again
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors"
+                style={{ backgroundColor: "#0f2a5e" }}
+              >
+                Search This QR
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400 text-center">
+              {error
+                ? "Camera access was denied. Please allow camera permissions and try again."
+                : "Point your camera at the resident's QR code."}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
   record,
@@ -197,12 +557,15 @@ function EditableDetailModal({
   onUpdate: () => void;
   toast: any;
 }) {
-  const [isEditing, setIsEditing]   = useState(false);
-  const [isSaving, setIsSaving]     = useState(false);
-  const [isLoading, setIsLoading]   = useState(false);
+  const [isEditing, setIsEditing]         = useState(false);
+  const [isSaving, setIsSaving]           = useState(false);
+  const [isLoading, setIsLoading]         = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
+  const [lightboxUrl, setLightboxUrl]     = useState<string | null>(null);
+  const [initialReleasedPath, setInitialReleasedPath] = useState<string | null>(null);
 
+  // ── FIX: added issued_on, issued_at, issued_date to formData ──────────────
   const [formData, setFormData] = useState<any>({
     first_name: '', middle_name: '', surname: '', ext_name: '',
     dob: '', pob: '', contact_no: '', email: '', prefix: '',
@@ -210,6 +573,15 @@ function EditableDetailModal({
     period_of_residency: '', house_owner: '', relationship_to_owner: '',
     registered_voter: '', purpose: '', purpose_details: '',
     status: '', requester_type: '', remarks: '',
+    bcert_number: '', created_by: '',
+    issued_on: '',   // ← FIX
+    issued_at: '',   // ← FIX
+    issued_date: '', // ← FIX
+    ctc_vrr_no: '',  // ← FIX (also used in clearance layout)
+    or_no: '',       // ← FIX
+    punong_barangay: '',          // ← FIX
+    for_the_punong_barangay: '',  // ← FIX
+    barangay_position: '',        // ← FIX
   });
 
   useEffect(() => {
@@ -223,28 +595,40 @@ function EditableDetailModal({
         );
         const full = response.data.data.data[0];
         setCurrentStatus(full.status ?? '');
+        setInitialReleasedPath(full.released_document_path ?? null);
         setFormData({
-          first_name:            full.first_name            || '',
-          middle_name:           full.middle_name           || '',
-          surname:               full.surname               || '',
-          ext_name:              full.ext_name              || '',
-          dob:                   full.dob ? full.dob.split('T')[0] : '',
-          pob:                   full.pob                   || '',
-          contact_no:            full.contact_no            || '',
-          email:                 full.email                 || '',
-          prefix:                full.prefix                || '',
-          zone:                  full.zone                  || '',
-          street:                full.street                || '',
-          house_block_lot_no:    full.house_block_lot_no    || '',
-          period_of_residency:   full.period_of_residency   || '',
-          house_owner:           full.house_owner           || '',
-          relationship_to_owner: full.relationship_to_owner || '',
-          registered_voter:      full.registered_voter      || '',
-          purpose:               full.purpose               || '',
-          purpose_details:       full.purpose_details       || '',
-          status:                full.status                || '',
-          requester_type:        full.requester_type        || '',
-          remarks:               full.remarks               || '',
+          first_name:               full.first_name               || '',
+          middle_name:              full.middle_name              || '',
+          surname:                  full.surname                  || '',
+          ext_name:                 full.ext_name                 || '',
+          dob:                      full.dob ? full.dob.split('T')[0] : '',
+          pob:                      full.pob                      || '',
+          contact_no:               full.contact_no               || '',
+          email:                    full.email                    || '',
+          prefix:                   full.prefix                   || '',
+          zone:                     full.zone                     || '',
+          street:                   full.street                   || '',
+          house_block_lot_no:       full.house_block_lot_no       || '',
+          period_of_residency:      full.period_of_residency      || '',
+          house_owner:              full.house_owner              || '',
+          relationship_to_owner:    full.relationship_to_owner    || '',
+          registered_voter:         full.registered_voter         || '',
+          purpose:                  full.purpose                  || '',
+          purpose_details:          full.purpose_details          || '',
+          status:                   full.status                   || '',
+          requester_type:           full.requester_type           || '',
+          remarks:                  full.remarks                  || '',
+          bcert_number:             full.bcert_number             || '',
+          created_by:               full.created_by               || '',
+          // ── FIX: populate the date fields that go onto the PDF ─────────────
+          issued_on:                full.issued_on                || '',
+          issued_at:                full.issued_at                || '',
+          issued_date:              full.issued_date              || '',
+          ctc_vrr_no:               full.ctc_vrr_no               || '',
+          or_no:                    full.or_no                    || '',
+          punong_barangay:          full.punong_barangay          || '',
+          for_the_punong_barangay:  full.for_the_punong_barangay  || '',
+          barangay_position:        full.barangay_position        || '',
         });
       } catch (error) {
         console.error('Error fetching full record:', error);
@@ -256,14 +640,138 @@ function EditableDetailModal({
     fetchFullRecord();
   }, [record, toast]);
 
+  const [isReleasing,   setIsReleasing]   = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [releasedPath,  setReleasedPath]  = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialReleasedPath) setReleasedPath(initialReleasedPath);
+  }, [initialReleasedPath]);
+
+  const hasReleasedDocument = !!releasedPath;
+
+  const handleReleaseAndSave = async () => {
+    if (!record?.id) {
+      toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
+      return;
+    }
+    setIsReleasing(true);
+    try {
+      const metaRes = await axios.get(
+        `http://127.0.0.1:8000/api/documents/single/2`,
+        { withCredentials: true }
+      );
+      const fileUrl = metaRes.data?.file_url;
+      if (!fileUrl) throw new Error('Template file URL missing.');
+
+      const resolvedUrl = fileUrl.startsWith('http')
+        ? fileUrl
+        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
+
+      const pdfRes = await axios.get(resolvedUrl, {
+        responseType: 'arraybuffer',
+        withCredentials: true,
+      });
+      const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
+
+      let savedLayout: TextField[] = [];
+      if (metaRes.data?.layout) {
+        try {
+          savedLayout = Array.isArray(metaRes.data.layout)
+            ? metaRes.data.layout
+            : JSON.parse(metaRes.data.layout);
+        } catch {
+          console.error('Could not parse template layout JSON');
+        }
+      }
+
+      // ── FIX: map ALL formData keys (including issued_on / issued_at / issued_date)
+      //         into the layout fields ─────────────────────────────────────────
+      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return { ...field, value: field.value ?? '' };
+
+        let value: any = (formData as any)[key] ?? '';
+
+        // Only normalise ISO timestamps for actual date fields
+        if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
+          const d = new Date(value);
+          if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
+        }
+
+        return { ...field, value: value ?? '' };
+      });
+
+      const renderedBytes = await generatePDF(
+        templateBytes,
+        fieldsWithValues,
+        null,
+        record.bcert_number ?? null
+      );
+
+      const filename = `barangay-clearances-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
+      const blob = new Blob(
+        [new Uint8Array(renderedBytes).buffer],
+        { type: "application/pdf" }
+      );
+      const fd = new FormData();
+      fd.append('file', blob, filename);
+
+      const res = await axios.post(
+        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}`,
+        fd,
+        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      const path = res.data?.data?.released_document_path;
+      if (path) setReleasedPath(path);
+      setCurrentStatus('RELEASED');
+      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
+      toast({ title: 'Success', description: 'Document released successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to release document.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsReleasing(false);
+    }
+  };
+
+  const downloadReleased = async () => {
+    if (!record?.id) {
+      toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' });
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const res = await axios.get(
+        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}/download`,
+        { withCredentials: true }
+      );
+      const url = res.data?.data?.url;
+      if (!url) throw new Error('No download URL returned.');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to get download link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (!record) return null;
 
-  // ── Derived action visibility ──────────────────────────────────────────────
-  const status = currentStatus.toUpperCase();
-  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED';
-  const canRelease   = status === 'TO_PAY';
+  const status       = currentStatus.toUpperCase();
+  const canMarkToPay  = status === 'ENCODED' || status === 'SCHEDULED';
+  const canMarkAsPaid = status === 'TO_PAY';
+  const canRelease    = status === 'PAID';
 
-  // ── Status action handlers ─────────────────────────────────────────────────
   const handleMarkToPay = async () => {
     setActionLoading('to_pay');
     try {
@@ -281,42 +789,23 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
-  const handleRelease = async () => {
-    setActionLoading('release');
+  const handleMarkAsPaid = async () => {
+    setActionLoading('paid');
     try {
       await axios.put(
         `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
-        { status: 'RELEASED', released_at: new Date().toISOString() },
+        { status: 'PAID' },
         { withCredentials: true }
       );
-      setCurrentStatus('RELEASED');
-      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
-      toast({ title: 'Success', description: 'Document released successfully.' });
-
-      if (record.email) {
-        try {
-          await axios.post(
-            'http://127.0.0.1:8000/api/send-release-email',
-            {
-              email:           record.email,
-              name:            `${record.first_name} ${record.surname}`,
-              document_type:   'Barangay Clearance',
-              document_number: record.bcert_number,
-            },
-            { withCredentials: true }
-          );
-          toast({ title: 'Email Sent', description: 'Release notification sent to the recipient.' });
-        } catch (emailError) {
-          console.error('Failed to send email:', emailError);
-        }
-      }
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
       onUpdate();
     } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
     } finally { setActionLoading(null); }
   };
 
-  // ── Save edits ─────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     setIsSaving(true);
     try {
@@ -366,7 +855,6 @@ function EditableDetailModal({
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  // ── Field renderer ─────────────────────────────────────────────────────────
   const Field = ({ label, name, type = 'text', options, isTextArea = false }: any) => {
     const value = formData[name] || '';
     if (isEditing) {
@@ -407,198 +895,249 @@ function EditableDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-
-        {/* ── Modal Header ── */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              >
-                <Edit2 className="h-4 w-4" /> Edit
-              </button>
-            ) : (
-              <>
-                <button onClick={() => setIsEditing(false)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
-                  Cancel
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+        <div
+          className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* ── Modal Header ── */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isEditing ? (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                >
+                  <Edit2 className="h-4 w-4" /> Edit
                 </button>
-                <button onClick={handleUpdate} disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
-                  <Save className="h-4 w-4" />
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </>
-            )}
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Modal Body ── */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            {/* Personal Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-              {[
-                { label: 'First Name',  name: 'first_name' },
-                { label: 'Middle Name', name: 'middle_name' },
-                { label: 'Surname',     name: 'surname' },
-                { label: 'Extension Name', name: 'ext_name' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                  <Field {...f} />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
-                <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Date of Birth</label>
-                <Field label="Date of Birth" name="dob" type="date" />
-              </div>
-              {[
-                { label: 'Place of Birth',   name: 'pob' },
-                { label: 'Contact Number',   name: 'contact_no', type: 'tel' },
-                { label: 'Email',            name: 'email',      type: 'email' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                  <Field {...f} />
-                </div>
-              ))}
-            </div>
-
-            {/* Address Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-              {[
-                { label: 'Zone',                name: 'zone' },
-                { label: 'Street',              name: 'street' },
-                { label: 'House/Block/Lot No.', name: 'house_block_lot_no' },
-                { label: 'Period of Residency', name: 'period_of_residency' },
-                { label: 'House Owner',         name: 'house_owner' },
-                { label: 'Relationship to Owner', name: 'relationship_to_owner' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                  <Field {...f} />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Registered Voter</label>
-                <Field label="Registered Voter" name="registered_voter" type="select" options={['Yes', 'No']} />
-              </div>
-            </div>
-
-            {/* Document Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
-                <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
-                <Field label="Purpose Details" name="purpose_details" isTextArea />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                <div className="mt-1"><StatusBadge status={currentStatus} /></div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
-                <Field label="Requester Type" name="requester_type" type="select" options={['Online', 'Walk-in']} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
-                <p className="text-sm text-gray-700 mt-1">{formatCreatedAt((record as any).created_at)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                <p className="text-sm text-gray-700 mt-1">{record.created_by || '—'}</p>
-              </div>
-            </div>
-
-            {/* Schedule & Remarks */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
-              {(record as any).schedule && (
+              ) : (
                 <>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                    <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
-                    <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
-                  </div>
-                  {(record as any).schedule.note && (
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
-                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
-                    </div>
-                  )}
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdate}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
                 </>
               )}
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
-                <Field label="Remarks" name="remarks" isTextArea />
+              <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* ── Modal Body ── */}
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <UserIdViewer
+                userId={record?.schedule?.user_id}
+                onZoom={url => setLightboxUrl(url)}
+              />
+
+              {/* Personal Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
+                {[
+                  { label: 'First Name',     name: 'first_name' },
+                  { label: 'Middle Name',    name: 'middle_name' },
+                  { label: 'Surname',        name: 'surname' },
+                  { label: 'Extension Name', name: 'ext_name' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                    <Field {...f} />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
+                  <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Date of Birth</label>
+                  <Field label="Date of Birth" name="dob" type="date" />
+                </div>
+                {[
+                  { label: 'Place of Birth', name: 'pob' },
+                  { label: 'Contact Number', name: 'contact_no', type: 'tel' },
+                  { label: 'Email',          name: 'email',      type: 'email' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                    <Field {...f} />
+                  </div>
+                ))}
               </div>
+
+              {/* Address Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
+                {[
+                  { label: 'Zone',                  name: 'zone' },
+                  { label: 'Street',                name: 'street' },
+                  { label: 'House/Block/Lot No.',   name: 'house_block_lot_no' },
+                  { label: 'Period of Residency',   name: 'period_of_residency' },
+                  { label: 'House Owner',           name: 'house_owner' },
+                  { label: 'Relationship to Owner', name: 'relationship_to_owner' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                    <Field {...f} />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Registered Voter</label>
+                  <Field label="Registered Voter" name="registered_voter" type="select" options={['Yes', 'No']} />
+                </div>
+              </div>
+
+              {/* Document Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
+                  <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
+                  <Field label="Purpose Details" name="purpose_details" isTextArea />
+                </div>
+                {/* ── FIX: show issued date fields in the modal ── */}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued On</label>
+                  <Field label="Issued On" name="issued_on" type="date" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued At</label>
+                  <Field label="Issued At" name="issued_at" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
+                  <Field label="OR No" name="or_no" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">CTC/VRR No.</label>
+                  <Field label="CTC/VRR No" name="ctc_vrr_no" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
+                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
+                  <Field label="Requester Type" name="requester_type" type="select" options={['Online', 'Walk-in']} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
+                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt((record as any).created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                  <p className="text-sm text-gray-700 mt-1">{record.created_by || '—'}</p>
+                </div>
+              </div>
+
+              {/* Schedule & Remarks */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
+                {(record as any).schedule && (
+                  <>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
+                      <p className="text-sm text-gray-700 mt-1">
+                        {new Date((record as any).schedule.schedule_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
+                    </div>
+                    {(record as any).schedule.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
+                        <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
+                  <Field label="Remarks" name="remarks" isTextArea />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* ── Modal Footer ── */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                {canMarkToPay && (
+                  <button
+                    onClick={handleMarkToPay}
+                    disabled={actionLoading === 'to_pay'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                  </button>
+                )}
+                {canMarkAsPaid && (
+                  <button
+                    onClick={handleMarkAsPaid}
+                    disabled={actionLoading === 'paid'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
+                  </button>
+                )}
+                {canRelease && (
+                  <button
+                    onClick={handleReleaseAndSave}
+                    disabled={isReleasing}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {isReleasing ? 'Releasing...' : 'Release Document'}
+                  </button>
+                )}
+                {hasReleasedDocument && (
+                  <button
+                    onClick={downloadReleased}
+                    disabled={isDownloading}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    {isDownloading ? 'Downloading...' : 'Download Released'}
+                  </button>
+                )}
+                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument && (
+                  <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
+                )}
+              </div>
+              <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
           </div>
         </div>
-
-        {/* ── Modal Footer — action buttons live here ── */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between gap-3">
-
-            {/* Status action buttons (left side) */}
-            <div className="flex items-center gap-2">
-              {canMarkToPay && (
-                <button
-                  onClick={handleMarkToPay}
-                  disabled={actionLoading === 'to_pay'}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
-                </button>
-              )}
-              {canRelease && (
-                <button
-                  onClick={handleRelease}
-                  disabled={actionLoading === 'release'}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                >
-                  <Mail className="h-4 w-4" />
-                  {actionLoading === 'release' ? 'Releasing...' : 'Release Document'}
-                </button>
-              )}
-              {!canMarkToPay && !canRelease && (
-                <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
-              )}
-            </div>
-
-            {/* Close button (right side) */}
-            <Button variant="outline" onClick={onClose}>Close</Button>
-          </div>
-        </div>
-
       </div>
-    </div>
+
+      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+    </>
   );
 }
 
@@ -815,7 +1354,9 @@ const BarangayClearance = () => {
   const [streets, setStreets]       = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BarangayClearanceType | null>(null);
 
-  // ── URL sync ───────────────────────────────────────────────────────────────
+  // ── QR Scanner state ─────────────────────────────────────────────────────────
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
   }, [setSearchParams]);
@@ -838,14 +1379,12 @@ const BarangayClearance = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
-  // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
     api.get('api/streets', { withCredentials: true })
       .then(res => setStreets(res.data?.data ?? res.data ?? []))
       .catch(e => console.error('Failed to fetch streets:', e));
   }, []);
 
-  // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -853,13 +1392,13 @@ const BarangayClearance = () => {
         page: currentPage, pageSize: 15,
         search: searchValue || undefined,
         sortField, sortDirection,
-        ...(filters.status                                           ? { status:      filters.status }      : {}),
-        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date: filters.filter_date } : {}),
-        ...(filters.filter_date === 'custom' && filters.from        ? { from:        filters.from }        : {}),
-        ...(filters.filter_date === 'custom' && filters.to          ? { to:          filters.to }          : {}),
-        ...(filters.zone                                            ? { zone:        filters.zone }        : {}),
-        ...(filters.street                                          ? { street:      filters.street }      : {}),
-        ...(filters.purpose                                         ? { purpose:     filters.purpose }     : {}),
+        ...(filters.status                                           ? { status:         filters.status }          : {}),
+        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:     filters.filter_date }     : {}),
+        ...(filters.filter_date === 'custom' && filters.from        ? { from:            filters.from }            : {}),
+        ...(filters.filter_date === 'custom' && filters.to          ? { to:              filters.to }              : {}),
+        ...(filters.zone                                            ? { zone:            filters.zone }            : {}),
+        ...(filters.street                                          ? { street:          filters.street }          : {}),
+        ...(filters.purpose                                         ? { purpose:         filters.purpose }         : {}),
         ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
       };
       const response = await fetchBarangayClearances(params);
@@ -875,13 +1414,15 @@ const BarangayClearance = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Table handlers ─────────────────────────────────────────────────────────
   const handleSort = (field: string) => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
   };
 
-  const handleRefresh = () => { loadData(); toast({ title: 'Refreshed', description: 'Data has been refreshed' }); };
+  const handleRefresh = () => {
+    loadData();
+    toast({ title: 'Refreshed', description: 'Data has been refreshed' });
+  };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this clearance?')) return;
@@ -894,11 +1435,20 @@ const BarangayClearance = () => {
     }
   };
 
+  // ── QR scan handler: set search value and auto-open the matching record ──────
+  const handleQRScan = useCallback((scannedValue: string) => {
+    const trimmed = scannedValue.trim();
+    setSearchValue(trimmed);
+    toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
+  }, []);
+
   const activeFilterCount = countActiveFilters(filters);
 
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
-    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
-      onClick={() => handleSort(field)}>
+    <th
+      className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
+      onClick={() => handleSort(field)}
+    >
       <div className="flex items-center gap-1">
         {children}
         <ArrowUpDown className={`h-3 w-3 ${sortField === field ? 'text-blue-600' : 'opacity-40'}`} />
@@ -906,11 +1456,11 @@ const BarangayClearance = () => {
     </th>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Layout>
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto">
+
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Barangay Clearance</h1>
@@ -922,8 +1472,17 @@ const BarangayClearance = () => {
           </div>
 
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
+              {/* ── QR Scanner button ── */}
+              <button
+                onClick={() => setShowQRScanner(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-all flex-shrink-0"
+                title="Scan QR code to search"
+              >
+                <QrCode className="h-4 w-4" />
+                <span className="hidden sm:inline">Scan QR</span>
+              </button>
             </div>
             <FilterBar
               filters={filters}
@@ -937,7 +1496,9 @@ const BarangayClearance = () => {
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
             <p className="text-xs text-gray-500 mb-3 mt-1">
               Showing <strong className="text-gray-900">{total}</strong> result{total !== 1 ? 's' : ''}
-              {activeFilterCount > 0 && <> with <strong className="text-gray-900">{activeFilterCount}</strong> active filter{activeFilterCount !== 1 ? 's' : ''}</>}
+              {activeFilterCount > 0 && (
+                <> with <strong className="text-gray-900">{activeFilterCount}</strong> active filter{activeFilterCount !== 1 ? 's' : ''}</>
+              )}
               {searchValue && <> for <strong className="text-gray-900">"{searchValue}"</strong></>}
             </p>
           )}
@@ -952,8 +1513,10 @@ const BarangayClearance = () => {
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
                 {(activeFilterCount > 0 || searchValue) && (
-                  <button className="text-xs text-blue-600 hover:underline"
-                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
+                  <button
+                    className="text-xs text-blue-600 hover:underline"
+                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}
+                  >
                     Clear all filters
                   </button>
                 )}
@@ -985,7 +1548,12 @@ const BarangayClearance = () => {
                       return (
                         <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
-                            {isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}
+                            {isNew && (
+                              <span
+                                className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"
+                                title="New request (< 24h)"
+                              />
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium text-blue-600 whitespace-nowrap">
                             {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}${item.ext_name ? ` ${item.ext_name}` : ''}`.trim()}
@@ -1009,7 +1577,6 @@ const BarangayClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
                           <td className="py-3 px-4">
-                            {/* Only View/Edit, Preview, Print, Delete remain in the table row */}
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <button
                                 onClick={() => setSelectedDetailRecord(item)}
@@ -1052,6 +1619,7 @@ const BarangayClearance = () => {
             total={total}
             onPageChange={setCurrentPage}
           />
+
         </div>
       </div>
 
@@ -1061,6 +1629,14 @@ const BarangayClearance = () => {
           onClose={() => setSelectedDetailRecord(null)}
           onUpdate={loadData}
           toast={toast}
+        />
+      )}
+
+      {/* ── QR Scanner Modal ── */}
+      {showQRScanner && (
+        <QRScannerModal
+          onClose={() => setShowQRScanner(false)}
+          onScan={handleQRScan}
         />
       )}
     </Layout>

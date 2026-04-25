@@ -18,7 +18,9 @@ export interface BarangayClearance {
   remark?: string;
   status?: string;
   email?: string;
+  schedule?: Schedule;
 }
+
 
 // Business Clearance
 export interface BusinessClearance {
@@ -39,6 +41,7 @@ export interface BusinessClearance {
   status?: string;
   house_block_lot_no?: string;
   email?: string;
+  schedule?: Schedule;
 }
 
 // Building Clearance
@@ -58,6 +61,7 @@ export interface BuildingClearance {
   or_no: string;
   remarks: string;
   status: string;
+  schedule?: Schedule;
 
 }
 
@@ -80,6 +84,7 @@ export interface Certificate {
   purpose: string;
   status: string;
   created_by: string;
+  schedule?: Schedule;
 }
 
 export interface Resident {
@@ -135,4 +140,13 @@ export interface ClearanceResponse<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+export interface Schedule {
+  id: number;
+  document_type: string;
+  document_number: string;
+  schedule_date: string;
+  schedule_time: string;
+  user_id: number;
 }

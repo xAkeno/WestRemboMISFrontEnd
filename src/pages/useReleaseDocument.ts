@@ -51,7 +51,9 @@ export function useReleaseDocument({
     try {
       const pdfBytes = await generatePDF(templateBytes, fields, qrField ?? null, bcertNumber ?? null);
 
-      const blob     = new Blob([pdfBytes], { type: "application/pdf" });
+      const blob = new Blob([pdfBytes as BlobPart], {
+        type: "application/pdf",
+      });
       const filename = `${documentType}-${recordId}-${bcertNumber ?? "doc"}.pdf`;
       const formData = new FormData();
       formData.append("file", blob, filename);

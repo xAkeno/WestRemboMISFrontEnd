@@ -37,7 +37,10 @@ export async function loadPDFTemplate(
 // ─── Blob URL helper ──────────────────────────────────────────────────────────
 
 export function pdfBytesToBlobUrl(bytes: Uint8Array): string {
-  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const blob = new Blob([new Uint8Array(bytes).buffer], {
+    type: "application/pdf",
+  });
+
   return URL.createObjectURL(blob);
 }
 

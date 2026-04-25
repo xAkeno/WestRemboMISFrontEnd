@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X,
-  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera,
 } from 'lucide-react';
+import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
@@ -12,6 +14,101 @@ import { useToast } from '@/hooks/use-toast';
 import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { generatePDF } from '@/utils/pdfGenerator';
+import type { TextField } from '@/types/certificate';
+
+// ─── LABEL_TO_KEY map (mirrors CertificateEditor) ─────────────────────────────
+const LABEL_TO_KEY: Record<string, string> = {
+  'First Name': 'first_name',
+  'Middle Name': 'middle_name',
+  'M.I.': 'middle_name',
+  'Last Name': 'surname',
+  'Prefix': 'prefix',
+  'Ext Name': 'ext_name',
+  'Nickname': 'nick_name',
+  'Sex': 'sex',
+  'Marital Status': 'marital_status',
+  'Name of Spouse': 'name_of_spouse',
+  'Age': 'age',
+  'Date of Birth': 'dob',
+  'Place of Birth': 'pob',
+  'Date': 'created_at',
+  'House Block Lot No': 'house_block_lot_no',
+  'Street': 'street',
+  'Zone': 'zone',
+  'Resident Status': 'resident_status',
+  'Period of Residency': 'period_of_residency',
+  'House Owner': 'house_owner',
+  'Relationship to House Owner': 'relationship_to_owner',
+  'Contact No': 'contact_no',
+  'Phone Number': 'phone_number',
+  'Email Address': 'email_address',
+  'Business Name': 'business_name',
+  'Business Type': 'business_type',
+  'Business Details': 'business_details',
+  'Capital': 'capital',
+  'Establishment': 'establishment',
+  'Inspected By': 'inspected_by',
+  'Date of Inspection': 'date_of_inspection',
+  'Inspection Remarks': 'inspection_remarks',
+  'Inspected Remarks': 'inspected_remarks',
+  'Date Inspected': 'date_inspected',
+  'Inspected Note': 'inspected_note',
+  'OR No': 'or_no',
+  'OR No Alt': 'orNo',
+  'CTC/VRR No': 'ctc_vrr_no',
+  'Issued At': 'issued_at',
+  'Issued On': 'issued_on',
+  'Issued Date': 'issued_date',
+  'Purpose': 'purpose',
+  'Purpose Details': 'purpose_details',
+  'Remarks': 'remarks',
+  'Barangay Clearance No': 'bcert_number',
+  'Brgy Business No': 'brgy_business_no',
+  'Punong Barangay': 'punong_barangay',
+  'For The Punong Barangay': 'for_the_punong_barangay',
+  'Barangay Position': 'barangay_position',
+  'Status': 'status',
+  'Registered Voter': 'registered_voter',
+  'Photo': 'photo',
+  'Notes': 'notes',
+  'Position': 'position',
+  'Occupation': 'occupation',
+  'Employment Status': 'emp_status',
+  'Blood Type': 'blood_type',
+  'Complexion': 'complexion',
+  'PWD': 'pwd',
+  'Precinct No': 'precinct_no',
+  'Religion': 'religion',
+  'Voter Status': 'voter_status',
+  'Height (cm)': 'height_cm',
+  'Weight (kg)': 'weight_kg',
+  'ID': 'id',
+  'Resident ID': 'resident_id',
+  'Requester ID': 'requester_id',
+  'Requester Type': 'requester_type',
+  'Created At': 'created_at',
+  'Updated At': 'updated_at',
+  'Created By': 'created_by',
+  'Block No': 'block_no',
+  'Extension': 'extension',
+};
+
+const NON_DATE_KEYS = new Set([
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
+  'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
+  'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
+  'inspected_note', 'or_no', 'orNo', 'ctc_vrr_no', 'issued_at', 'purpose',
+  'purpose_details', 'remarks', 'bcert_number', 'brgy_business_no',
+  'punong_barangay', 'for_the_punong_barangay', 'barangay_position', 'status',
+  'registered_voter', 'notes', 'position', 'occupation', 'emp_status',
+  'blood_type', 'complexion', 'pwd', 'precinct_no', 'religion', 'voter_status',
+  'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
+  'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
+  'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
+  'block_no', 'extension',
+]);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
@@ -179,6 +276,272 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   );
 }
 
+// ─── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full"
+        style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
+        onClick={onClose}
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <img
+        src={url}
+        alt="ID preview"
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+// ─── Single ID image card (view-only) ─────────────────────────────────────────
+function IdImageCard({ label, url, onZoom }: { label: string; url: string | null; onZoom: (u: string) => void }) {
+  if (!url) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-2 py-8">
+        <FileQuestion className="h-7 w-7 text-gray-300" />
+        <p className="text-xs font-medium text-gray-400">{label}</p>
+        <p className="text-[10px] text-gray-300">Not uploaded</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-green-200 bg-green-50 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-gray-100">
+        <div className="flex items-center gap-1.5">
+          <IdCard className="h-3.5 w-3.5 text-blue-600" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">
+          ✓ On file
+        </span>
+      </div>
+      <div
+        className="relative group overflow-hidden bg-gray-100"
+        style={{ height: 160, cursor: 'zoom-in' }}
+        onClick={() => onZoom(url)}
+      >
+        <img src={url} alt={label} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+          <ZoomIn className="h-6 w-6 text-white" />
+          <span className="text-[10px] font-bold text-white uppercase tracking-wider">Click to enlarge</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-gray-100">
+        <span className="text-[9px] text-gray-400 uppercase tracking-wider">View only · From documents</span>
+        <button
+          onClick={() => onZoom(url)}
+          className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+        >
+          <Eye className="h-3 w-3" /> View full
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── User ID Viewer ────────────────────────────────────────────────────────────
+function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (url: string) => void }) {
+  const [idFront, setIdFront] = useState<string | null>(null);
+  const [idBack,  setIdBack]  = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) { setLoading(false); return; }
+    const run = async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/api/mydocuments', { params: { user_id: userId } });
+        const documents = data.data?.documents || {};
+        let front: string | null = null;
+        let back:  string | null = null;
+        Object.values(documents).forEach((categoryDocs: any) => {
+          (categoryDocs as any[]).forEach((doc: any) => {
+            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            if (doc.type === 'valid_id_front') front = url;
+            if (doc.type === 'valid_id_back')  back  = url;
+          });
+        });
+        setIdFront(front);
+        setIdBack(back);
+      } catch (err) {
+        console.error('Could not load user ID documents:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [userId]);
+
+  return (
+    <div className="col-span-1 md:col-span-2 space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+        <IdCard className="h-4 w-4 text-blue-600" />
+        <h3 className="text-sm font-semibold text-gray-900">Applicant's Registered ID</h3>
+        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
+          View Only · From Documents
+        </span>
+      </div>
+      {loading && (
+        <div className="flex items-center gap-2 py-4 text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-xs">Loading ID images…</span>
+        </div>
+      )}
+      {!loading && !idFront && !idBack && (
+        <div className="flex items-center gap-2 py-4 text-gray-400">
+          <FileQuestion className="h-4 w-4" />
+          <span className="text-xs">No ID images found for this applicant.</span>
+        </div>
+      )}
+      {!loading && (idFront || idBack) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <IdImageCard label="Government ID — Front" url={idFront} onZoom={onZoom} />
+          <IdImageCard label="Government ID — Back"  url={idBack}  onZoom={onZoom} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── QR Scanner Modal ──────────────────────────────────────────────────────────
+function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (result: string) => void }) {
+  const scannerRef   = useRef<Html5Qrcode | null>(null);
+  const containerId  = "qr-scanner-container-certificate";
+  const [error, setError]       = useState<string | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [scanned, setScanned]   = useState<string | null>(null);
+
+  const startScanner = async () => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode(containerId);
+      }
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          setScanned(decodedText);
+          setScanning(false);
+        },
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message ?? "Camera access denied or not available.");
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    startScanner();
+    return () => { stopScanner(); };
+  }, []);
+
+  const handleScanAgain = async () => {
+    setScanned(null);
+    setScanning(true);
+    setError(null);
+    await stopScanner();
+    setTimeout(() => startScanner(), 300);
+  };
+
+  const handleConfirm = () => {
+    if (scanned) {
+      stopScanner();
+      onScan(scanned);
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl overflow-hidden w-full max-w-sm mx-4 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-semibold text-gray-900">Scan QR Code</span>
+          </div>
+          <button
+            onClick={() => { stopScanner(); onClose(); }}
+            className="p-1 hover:bg-gray-100 rounded-md"
+          >
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Scanner area */}
+        <div className="relative bg-black" style={{ minHeight: 300 }}>
+          <div id={containerId} className="w-full" />
+
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 px-6">
+              <Camera className="h-8 w-8 text-gray-400" />
+              <p className="text-xs text-gray-300 text-center">{error}</p>
+            </div>
+          )}
+
+          {scanned && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-900/80">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-xs font-bold text-white uppercase tracking-wider">QR Detected</p>
+              <p className="text-sm font-mono text-green-200 px-4 text-center break-all">{scanned}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-100">
+          {scanned ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleScanAgain}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Scan Again
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors"
+                style={{ backgroundColor: "#0f2a5e" }}
+              >
+                Search This QR
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400 text-center">
+              {error
+                ? "Camera access was denied. Please allow camera permissions and try again."
+                : "Point your camera at the resident's QR code."}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
   record,
@@ -196,6 +559,11 @@ function EditableDetailModal({
   const [isLoading, setIsLoading]         = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [initialReleasedPath, setInitialReleasedPath] = useState<string | null>(null);
+  const [isReleasing, setIsReleasing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [releasedPath, setReleasedPath] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<any>({
     bcert_number: '',
@@ -213,6 +581,17 @@ function EditableDetailModal({
     purpose: '',
     status: '',
     created_by: '',
+    issued_date: '',
+    issued_at: '',
+    issued_on: '',
+    or_no: '',
+    ctc_vrr_no: '',
+    punong_barangay: '',
+    for_the_punong_barangay: '',
+    barangay_position: '',
+    requester_type: '',
+    email: '',
+    remarks: '',
   });
 
   useEffect(() => {
@@ -226,6 +605,7 @@ function EditableDetailModal({
         );
         const full = response.data.data.data[0];
         setCurrentStatus(full.status ?? '');
+        setInitialReleasedPath(full.released_document_path ?? null);
         setFormData({
           bcert_number:        full.bcert_number        || '',
           first_name:          full.first_name          || '',
@@ -242,6 +622,17 @@ function EditableDetailModal({
           purpose:             full.purpose             || '',
           status:              full.status              || '',
           created_by:          full.created_by          || '',
+          issued_date:         full.issued_date ? full.issued_date.split('T')[0] : '',
+          issued_at:           full.issued_at           || '',
+          issued_on:           full.issued_on           || '',
+          or_no:               full.or_no               || '',
+          ctc_vrr_no:          full.ctc_vrr_no          || '',
+          punong_barangay:     full.punong_barangay     || '',
+          for_the_punong_barangay: full.for_the_punong_barangay || '',
+          barangay_position:   full.barangay_position   || '',
+          requester_type:      full.requester_type      || '',
+          email:               full.email               || '',
+          remarks:             full.remarks             || '',
         });
       } catch (error) {
         console.error('Error fetching full record:', error);
@@ -252,6 +643,12 @@ function EditableDetailModal({
     };
     fetchFullRecord();
   }, [record, toast]);
+
+  useEffect(() => {
+    if (initialReleasedPath) setReleasedPath(initialReleasedPath);
+  }, [initialReleasedPath]);
+
+  const hasReleasedDocument = !!releasedPath;
 
   if (!record) return null;
 
@@ -296,21 +693,116 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
-  const handleRelease = async () => {
-    setActionLoading('release');
+  const handleReleaseAndSave = async () => {
+    if (!record?.id) {
+      toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
+      return;
+    }
+    setIsReleasing(true);
     try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/barangay-certificates/${record.id}`,
-        { status: 'RELEASED', released_at: new Date().toISOString() },
+      const metaRes = await axios.get(
+        `http://127.0.0.1:8000/api/documents/single/1`,
         { withCredentials: true }
       );
+      const fileUrl = metaRes.data?.file_url;
+      if (!fileUrl) throw new Error('Template file URL missing.');
+
+      const resolvedUrl = fileUrl.startsWith('http')
+        ? fileUrl
+        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
+
+      const pdfRes = await axios.get(resolvedUrl, {
+        responseType: 'arraybuffer',
+        withCredentials: true,
+      });
+      const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
+
+      let savedLayout: TextField[] = [];
+      if (metaRes.data?.layout) {
+        try {
+          savedLayout = Array.isArray(metaRes.data.layout)
+            ? metaRes.data.layout
+            : JSON.parse(metaRes.data.layout);
+        } catch {
+          console.error('Could not parse template layout JSON');
+        }
+      }
+
+      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+        const key = LABEL_TO_KEY[field.label];
+        if (!key) return { ...field, value: field.value ?? '' };
+
+        let value: any = (formData as any)[key] ?? '';
+
+        if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
+          const d = new Date(value);
+          if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
+        }
+
+        return { ...field, value: value ?? '' };
+      });
+
+      const renderedBytes = await generatePDF(
+        templateBytes,
+        fieldsWithValues,
+        null,
+        record.bcert_number ?? null
+      );
+
+      const filename = `barangay-certificates-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
+      const blob = new Blob(
+        [new Uint8Array(renderedBytes).buffer],
+        { type: "application/pdf" }
+      );
+      const fd = new FormData();
+      fd.append('file', blob, filename);
+
+      const res = await axios.post(
+        `http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}`,
+        fd,
+        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      const path = res.data?.data?.released_document_path;
+      if (path) setReleasedPath(path);
       setCurrentStatus('RELEASED');
       setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
       toast({ title: 'Success', description: 'Document released successfully.' });
       onUpdate();
     } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
-    } finally { setActionLoading(null); }
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to release document.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsReleasing(false);
+    }
+  };
+
+  const downloadReleased = async () => {
+    if (!record?.id) {
+      toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' });
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const res = await axios.get(
+        `http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}/download`,
+        { withCredentials: true }
+      );
+      const url = res.data?.data?.url;
+      if (!url) throw new Error('No download URL returned.');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to get download link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   // ── Save edits ─────────────────────────────────────────────────────────────
@@ -404,180 +896,236 @@ function EditableDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
-        {/* ── Modal Header ── */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Certificate Details</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              >
-                <Edit2 className="h-4 w-4" /> Edit
-              </button>
-            ) : (
-              <>
-                <button onClick={() => setIsEditing(false)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
-                  Cancel
-                </button>
-                <button onClick={handleUpdate} disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
-                  <Save className="h-4 w-4" />
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </>
-            )}
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Modal Body ── */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            {/* Personal Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-              {[
-                { label: 'BCert Number', name: 'bcert_number' },
-                { label: 'First Name',   name: 'first_name' },
-                { label: 'Middle Name',  name: 'middle_name' },
-                { label: 'Surname',      name: 'surname' },
-                { label: 'Extension',    name: 'extension' },
-                { label: 'Age',          name: 'age', type: 'number' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                  <Field {...f} />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Date of Birth</label>
-                <Field label="Date of Birth" name="dob" type="date" />
-              </div>
+          {/* ── Modal Header ── */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Certificate Details</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
             </div>
-
-            {/* Address Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-              {[
-                { label: 'Block No.',            name: 'block_no' },
-                { label: 'Street',               name: 'street' },
-                { label: 'Zone',                 name: 'zone' },
-                { label: 'Period of Residency',  name: 'period_of_residency' },
-              ].map(f => (
-                <div key={f.name}>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                  <Field {...f} />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Registered Voter</label>
-                <Field label="Registered Voter" name="registered_voter" type="select" options={['Yes', 'No']} />
-              </div>
-            </div>
-
-            {/* Document Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
-                <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                <div className="mt-1"><StatusBadge status={currentStatus} /></div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
-              </div>
-            </div>
-
-            {/* Schedule Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule Information</h3>
-              {(record as any).schedule ? (
-                <>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                    <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
-                    <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
-                  </div>
-                  {(record as any).schedule.note && (
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
-                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-gray-400 italic">No schedule assigned.</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Modal Footer — action buttons live here ── */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between gap-3">
-
-            {/* Status action buttons (left side) */}
             <div className="flex items-center gap-2">
-              {canMarkToPay && (
+              {!isEditing ? (
                 <button
-                  onClick={handleMarkToPay}
-                  disabled={actionLoading === 'to_pay'}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                 >
-                  <CreditCard className="h-4 w-4" />
-                  {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                  <Edit2 className="h-4 w-4" /> Edit
                 </button>
+              ) : (
+                <>
+                  <button onClick={() => setIsEditing(false)}
+                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleUpdate} disabled={isSaving}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                    <Save className="h-4 w-4" />
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </>
               )}
-              {canMarkAsPaid && (
-                <button
-                  onClick={handleMarkAsPaid}
-                  disabled={actionLoading === 'paid'}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
-                </button>
-              )}
-              {canRelease && (
-                <button
-                  onClick={handleRelease}
-                  disabled={actionLoading === 'release'}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                >
-                  <Mail className="h-4 w-4" />
-                  {actionLoading === 'release' ? 'Releasing...' : 'Release Document'}
-                </button>
-              )}
-              {!canMarkToPay && !canMarkAsPaid && !canRelease && (
-                <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
-              )}
+              <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
+                <X className="h-5 w-5" />
+              </button>
             </div>
-
-            {/* Close button (right side) */}
-            <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
-        </div>
 
+          {/* ── Modal Body ── */}
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <UserIdViewer
+                userId={record?.schedule?.user_id}
+                onZoom={url => setLightboxUrl(url)}
+              />
+
+              {/* Personal Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
+                {[
+                  { label: 'BCert Number', name: 'bcert_number' },
+                  { label: 'First Name',   name: 'first_name' },
+                  { label: 'Middle Name',  name: 'middle_name' },
+                  { label: 'Surname',      name: 'surname' },
+                  { label: 'Extension',    name: 'extension' },
+                  { label: 'Age',          name: 'age', type: 'number' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                    <Field {...f} />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Date of Birth</label>
+                  <Field label="Date of Birth" name="dob" type="date" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Email</label>
+                  <Field label="Email" name="email" type="email" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
+                  <Field label="Requester Type" name="requester_type" type="select" options={['Online', 'Walk-in']} />
+                </div>
+              </div>
+
+              {/* Address Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
+                {[
+                  { label: 'Block No.',            name: 'block_no' },
+                  { label: 'Street',               name: 'street' },
+                  { label: 'Zone',                 name: 'zone' },
+                  { label: 'Period of Residency',  name: 'period_of_residency' },
+                ].map(f => (
+                  <div key={f.name}>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
+                    <Field {...f} />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Registered Voter</label>
+                  <Field label="Registered Voter" name="registered_voter" type="select" options={['Yes', 'No']} />
+                </div>
+              </div>
+
+              {/* Document Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
+                  <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued Date</label>
+                  <Field label="Issued Date" name="issued_date" type="date" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued On</label>
+                  <Field label="Issued On" name="issued_on" type="date" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued At</label>
+                  <Field label="Issued At" name="issued_at" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
+                  <Field label="OR No." name="or_no" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">CTC/VRR No.</label>
+                  <Field label="CTC/VRR No" name="ctc_vrr_no" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
+                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+                </div>
+              </div>
+
+              {/* Schedule & Remarks */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
+                {(record as any).schedule ? (
+                  <>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
+                      <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                      <p className="text-sm text-gray-700 mt-1">{formatTimeRange((record as any).schedule.schedule_time)}</p>
+                    </div>
+                    {(record as any).schedule.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
+                        <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No schedule assigned.</p>
+                )}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
+                  <Field label="Remarks" name="remarks" isTextArea />
+                </div>
+              </div>
+
+              {/* Barangay Official Information */}
+              {/* <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Barangay Official Information</h3>
+                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Punong Barangay</label><Field label="Punong Barangay" name="punong_barangay" /></div>
+                <div><label className="text-xs text-gray-500 uppercase tracking-wider">For The Punong Barangay</label><Field label="For The Punong Barangay" name="for_the_punong_barangay" /></div>
+                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Barangay Position</label><Field label="Barangay Position" name="barangay_position" /></div>
+              </div> */}
+
+            </div>
+          </div>
+
+          {/* ── Modal Footer — action buttons live here ── */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                {canMarkToPay && (
+                  <button
+                    onClick={handleMarkToPay}
+                    disabled={actionLoading === 'to_pay'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                  </button>
+                )}
+                {canMarkAsPaid && (
+                  <button
+                    onClick={handleMarkAsPaid}
+                    disabled={actionLoading === 'paid'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
+                  </button>
+                )}
+                {canRelease && (
+                  <button
+                    onClick={handleReleaseAndSave}
+                    disabled={isReleasing}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {isReleasing ? 'Releasing...' : 'Release Document'}
+                  </button>
+                )}
+                {hasReleasedDocument && (
+                  <button
+                    onClick={downloadReleased}
+                    disabled={isDownloading}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    {isDownloading ? 'Downloading...' : 'Download Released'}
+                  </button>
+                )}
+                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument && (
+                  <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
+                )}
+              </div>
+              <Button variant="outline" onClick={onClose}>Close</Button>
+            </div>
+          </div>
+
+        </div>
       </div>
-    </div>
+
+      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+    </>
   );
 }
 
@@ -763,6 +1311,7 @@ const Certificate = () => {
   const [sortField, setSortField]   = useState('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<CertificateType | null>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   // ── URL sync ───────────────────────────────────────────────────────────────
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
@@ -834,6 +1383,12 @@ const Certificate = () => {
     }
   };
 
+  const handleQRScan = useCallback((scannedValue: string) => {
+    const trimmed = scannedValue.trim();
+    setSearchValue(trimmed);
+    toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
+  }, []);
+
   const activeFilterCount = countActiveFilters(filters);
 
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
@@ -862,8 +1417,16 @@ const Certificate = () => {
           </div>
 
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
+              <button
+                onClick={() => setShowQRScanner(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-all flex-shrink-0"
+                title="Scan QR code to search"
+              >
+                <QrCode className="h-4 w-4" />
+                <span className="hidden sm:inline">Scan QR</span>
+              </button>
             </div>
             <FilterBar
               filters={filters}
@@ -995,6 +1558,13 @@ const Certificate = () => {
           onClose={() => setSelectedDetailRecord(null)}
           onUpdate={loadData}
           toast={toast}
+        />
+      )}
+
+      {showQRScanner && (
+        <QRScannerModal
+          onClose={() => setShowQRScanner(false)}
+          onScan={handleQRScan}
         />
       )}
     </Layout>

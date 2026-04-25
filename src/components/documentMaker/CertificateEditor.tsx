@@ -687,7 +687,11 @@ export function CertificateEditor() {
       const bytes = await generatePDF(
         templateBytesRef.current, buildPDFFields(fields), qrField, resolvedBcert
       );
-      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      const url = URL.createObjectURL(
+        new Blob([new Uint8Array(bytes).buffer], {
+          type: "application/pdf",
+        })
+      );
       Object.assign(document.createElement("a"), { href: url, download: "certificate.pdf" }).click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded");

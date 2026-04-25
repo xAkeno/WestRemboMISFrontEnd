@@ -8,10 +8,12 @@ import {
   User, MapPin, ClipboardList,
   Info, FileX, BadgeCheck,
   X, Copy, Check, Clock, Home, RefreshCw, ChevronRight,
+  QrCode,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Header from "../forms/Header";
+import QRCodeLib from "qrcode";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -313,6 +315,133 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   resident_registration: "Resident Registration",
 };
 
+// ─── QR Present Card ──────────────────────────────────────────────────────────
+function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !refNumber) return;
+    QRCodeLib.toCanvas(canvasRef.current, refNumber, {
+      width: 152,
+      margin: 1,
+      color: { dark: "#0f2a5e", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    }).catch(console.error);
+  }, [refNumber]);
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)`,
+        boxShadow: "0 4px 20px rgba(15,42,94,0.2)",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "rgba(194,70,125,0.25)" }}
+        >
+          <QrCode className="h-4 w-4" style={{ color: "#f9a8d4" }} />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-white">Present this at the counter</p>
+          <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Show to barangay staff for faster service
+          </p>
+        </div>
+      </div>
+
+      {/* QR Block */}
+      <div className="flex flex-col items-center gap-3 px-5 py-5">
+        <span
+          className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
+          style={{
+            backgroundColor: "rgba(194,70,125,0.2)",
+            color: "#f9a8d4",
+            border: "1px solid rgba(194,70,125,0.35)",
+          }}
+        >
+          {docLabel}
+        </span>
+
+        <div
+          className="p-2.5 rounded-xl"
+          style={{ backgroundColor: "#fff", border: `2px dashed ${NAVY}` }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={152}
+            height={152}
+            style={{ display: "block", borderRadius: 4 }}
+          />
+        </div>
+
+        <p className="font-mono text-lg font-black text-white tracking-widest">{refNumber}</p>
+
+        <p
+          className="text-[11px] text-center leading-relaxed"
+          style={{ color: "rgba(255,255,255,0.6)" }}
+        >
+          Staff will scan this to instantly pull up your request
+        </p>
+      </div>
+
+      {/* Screenshot tip */}
+      <div
+        className="flex items-start gap-3 mx-4 mb-4 px-4 py-3 rounded-xl"
+        style={{
+          backgroundColor: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.15)",
+        }}
+      >
+        <div
+          className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+          style={{ backgroundColor: PINK }}
+        >
+          <BadgeCheck className="h-3.5 w-3.5 text-white" />
+        </div>
+        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+          <span className="font-bold text-white">Screenshot or keep this page open</span> — no
+          printing needed. Just show your screen to the staff.
+        </p>
+      </div>
+
+      {/* Steps */}
+      {/* <div className="px-4 pb-5 space-y-2">
+        {[
+          { n: 1, text: "Approach the counter and tell the officer you have an online request." },
+          { n: 2, text: "Show this QR code on your screen — the officer will scan it directly." },
+          { n: 3, text: "Your request appears instantly — no need to fill out a new form." },
+        ].map(({ n, text }) => (
+          <div
+            key={n}
+            className="flex items-start gap-3 px-3 py-3 rounded-xl"
+            style={{
+              backgroundColor: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black text-white"
+              style={{ backgroundColor: PINK, flexShrink: 0 }}
+            >
+              {n}
+            </div>
+            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.8)" }}>
+              {text}
+            </p>
+          </div>
+        ))}
+      </div> */}
+    </div>
+  );
+}
+
 // ─── Full Details Modal ────────────────────────────────────────────────────────
 function DetailsModal({ request, onClose }: { request: any; onClose: () => void }) {
   const docType = (request.document_type ?? "").replace(/-/g, "_");
@@ -612,7 +741,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
     setDateError(validationError);
   };
 
-  // Fetch slots when date changes and passes validation
   useEffect(() => {
     if (!selectedDate || dateError) { setSlots(null); return; }
     const fetchSlots = async () => {
@@ -716,7 +844,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
         className="w-full sm:max-w-md flex flex-col overflow-hidden"
         style={{ backgroundColor: "white", borderRadius: "20px 20px 0 0", maxHeight: "90vh" }}
       >
-        {/* Header */}
         <div style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)` }}>
           <div className="flex items-start justify-between px-5 pt-5 pb-5">
             <div>
@@ -749,10 +876,7 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
           </div>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
-
-          {/* Missed notice */}
           <div
             className="flex items-start gap-3 px-4 py-3 rounded-xl"
             style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
@@ -766,7 +890,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
             </div>
           </div>
 
-          {/* Date picker */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
               Select New Date
@@ -785,7 +908,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
                 }}
               />
             </div>
-            {/* Inline date validation error */}
             {dateError && (
               <div className="flex items-center gap-1.5 mt-2">
                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#e11d48" }} />
@@ -794,7 +916,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
             )}
           </div>
 
-          {/* Time Group Selector — only shown when date is valid */}
           {selectedDate && !dateError && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
@@ -816,7 +937,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
             </div>
           )}
 
-          {/* Summary */}
           {selectedDate && !dateError && timeGroup && (
             <div
               className="px-4 py-3 rounded-xl"
@@ -842,7 +962,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
             </div>
           )}
 
-          {/* API / network error */}
           {error && (
             <div
               className="flex items-start gap-2 px-4 py-3 rounded-xl"
@@ -854,7 +973,6 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-4 flex gap-3 flex-shrink-0" style={{ borderTop: "1px solid #f3f4f6" }}>
           <button
             onClick={onClose}
@@ -1169,6 +1287,8 @@ export default function RequestDetail() {
   const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
   const isReleased  = normalizedStatus === "released";
   const isScheduled = normalizedStatus === "scheduled";
+  const isApproved  = normalizedStatus === "approved";
+  const isToPay     = normalizedStatus === "to_pay";
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
   const req = { ...request, ...(request.raw ?? {}) };
 
@@ -1198,6 +1318,9 @@ export default function RequestDetail() {
       : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
   const missed = isScheduled && schedule ? isMissedSchedule(schedule.schedule_date) : false;
+
+  // Show QR card when the resident needs to physically visit the barangay
+  const showQRCard = isScheduled || isApproved || isToPay;
 
   const handleRescheduleSuccess = () => {
     setShowReschedule(false);
@@ -1236,7 +1359,6 @@ export default function RequestDetail() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Requests
         </button>
-
 
         {/* Document Type + bcert header */}
         <div className="mb-4">
@@ -1335,7 +1457,7 @@ export default function RequestDetail() {
           </div>
         )}
 
-                {/* Required Documents (hidden when scheduled) */}
+        {/* Required Documents (hidden when scheduled) */}
         {dynamicRequirements.length > 0 && !isScheduled && (
           <div
             className="mb-6 rounded-2xl overflow-hidden"
@@ -1407,6 +1529,14 @@ export default function RequestDetail() {
             onViewDetails={() => setShowDetails(true)}
             onReschedule={() => setShowReschedule(true)}
             isMissed={missed}
+          />
+        )}
+
+        {/* ── QR Present Card — shown when a barangay visit is needed ── */}
+        {showQRCard && (
+          <QRPresentCard
+            refNumber={refNumber}
+            docLabel={DOC_TYPE_LABELS[docTypeSlug] ?? docTypeSlug.replace(/_/g, " ")}
           />
         )}
 

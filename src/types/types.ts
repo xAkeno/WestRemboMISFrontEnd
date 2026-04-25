@@ -10,6 +10,7 @@ export type RequestStatus = "pending" | "released" | "rejected" | "incomplete" |
 export interface DocumentRequest {
   id: number;
   bcert_number?: string;
+  brgy_business_no?: string;
   first_name?: string;
   last_name?: string;
   surname?: string;
@@ -77,12 +78,13 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   barangay_certificate: "Barangay Certificate",
   resident_registration: "Resident Registration",  // ← was resident_certificate
 };
-
 export const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string }> = {
   pending:    { label: "Pending",    color: "bg-warning/15 text-warning" },
-  released:   { label: "Released",  color: "bg-success/15 text-success" },
-  rejected:   { label: "Rejected",  color: "bg-destructive/15 text-destructive" },
+  released:   { label: "Released",   color: "bg-success/15 text-success" },
+  rejected:   { label: "Rejected",   color: "bg-destructive/15 text-destructive" },
   incomplete: { label: "Incomplete", color: "bg-info/15 text-info" },
   scheduled:  { label: "Scheduled",  color: "bg-primary/15 text-primary" },
-  processing: { label: "Processing", color: "bg-blue-500/15 text-blue-600" },  // ← was missing
+  processing: { label: "Processing", color: "bg-blue-500/15 text-blue-600" },
+
+  rescheduled:{ label: "Rescheduled", color: "bg-yellow-500/15 text-yellow-600" },
 };
