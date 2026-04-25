@@ -575,7 +575,10 @@ function EditableDetailModal({
   const [isReleasing, setIsReleasing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [releasedPath, setReleasedPath] = useState<string | null>(null);
-
+  const [showDispositionModal, setShowDispositionModal] = useState(false);
+  const [dispositionType, setDispositionType]           = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
+  const [dispositionReason, setDispositionReason]       = useState('');
+  const [isDisposing, setIsDisposing]                   = useState(false);
   const [formData, setFormData] = useState<any>({
     first_name: '',
     middle_name: '',
@@ -605,6 +608,7 @@ function EditableDetailModal({
     punong_barangay: '',
     for_the_punong_barangay: '',
     barangay_position: '',
+    rejection_reason: ''
   });
 
   useEffect(() => {
@@ -648,6 +652,7 @@ function EditableDetailModal({
           punong_barangay:    fullRecord.punong_barangay    || '',
           for_the_punong_barangay: fullRecord.for_the_punong_barangay || '',
           barangay_position:  fullRecord.barangay_position  || '',
+          rejection_reason:   fullRecord.rejection_reason   || '',
         });
       } catch (error) {
         console.error('Error fetching full record:', error);
@@ -669,7 +674,7 @@ function EditableDetailModal({
 
   // ── Derived action visibility ──────────────────────────────────────────────
   const status       = currentStatus.toUpperCase();
-  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED';
+  const canMarkToPay  = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
   const canMarkAsPaid = status === 'TO_PAY';
   const canRelease   = status === 'PAID';
 
@@ -707,6 +712,44 @@ function EditableDetailModal({
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
     } finally { setActionLoading(null); }
   };
+
+  const handleDisposition = async () => {
+    if (!record?.id || !dispositionType) return;
+    if (!dispositionReason.trim()) {
+      toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' });
+      return;
+    }
+    setIsDisposing(true);
+    try {
+      await axios.post(
+        `http://127.0.0.1:8000/api/barangay-business-clearances/${record.id}/disposition`,
+        { status: dispositionType, reason: dispositionReason.trim() },
+        { withCredentials: true }
+      );
+      const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
+      setCurrentStatus(dispositionType);
+      setFormData((p: any) => ({ ...p, status: dispositionType }));
+      toast({ title: 'Success', description: `Record ${label} successfully.` });
+      setShowDispositionModal(false);
+      setDispositionReason('');
+      setDispositionType(null);
+      onUpdate();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to update disposition.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDisposing(false); }
+  };
+
+  const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
+    setDispositionType(type);
+    setDispositionReason('');
+    setShowDispositionModal(true);
+  };
+
 
   const handleReleaseAndSave = async () => {
     if (!record?.id) {
@@ -918,6 +961,29 @@ function EditableDetailModal({
     return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
   };
 
+    // condition (add alongside the other can* variables)
+  const canMarkToInspection = status === 'WHATEVER_YOUR_TRIGGER_STATUS_IS';
+
+  // handler (add alongside handleMarkToPay)
+  const handleMarkToInspection = async () => {
+    setActionLoading('inspection');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        { status: 'INSPECTING' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('INSPECTING');
+      setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
+      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -933,7 +999,7 @@ function EditableDetailModal({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white rounded-lg border border-gray-200 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
           {/* ── Modal Header ── */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -1037,6 +1103,12 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>
                 </div>
+                {formData.rejection_reason && (
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Reason of rejection</label>
+                    <Field label="Reason of rejection" name="rejection_reason" isTextArea />
+                  </div>
+                )}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
                   <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
@@ -1083,6 +1155,60 @@ function EditableDetailModal({
             </div>
           </div>
 
+          {/* ── Disposition Inline Modal ── */}
+          {showDispositionModal && (
+            <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${
+                    dispositionType === 'REJECTED'
+                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                      : 'bg-orange-50 text-orange-700 border-orange-200'
+                  }`}>
+                    {dispositionType === 'REJECTED' ? 'Reject' : 'Mark as Incomplete'}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800">Provide a reason</span>
+                </div>
+                <button
+                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
+                  className="p-1 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              <textarea
+                rows={3}
+                placeholder={
+                  dispositionType === 'REJECTED'
+                    ? 'e.g. Insufficient documents, unverifiable information…'
+                    : 'e.g. Missing birth certificate, incomplete address…'
+                }
+                value={dispositionReason}
+                onChange={e => setDispositionReason(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDisposition}
+                  disabled={isDisposing || !dispositionReason.trim()}
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${
+                    dispositionType === 'REJECTED'
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-orange-500 hover:bg-orange-600'
+                  }`}
+                >
+                  {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Modal Footer — action buttons live here ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3">
@@ -1126,6 +1252,43 @@ function EditableDetailModal({
                     <Download className="h-4 w-4" />
                     {isDownloading ? 'Downloading...' : 'Download Released'}
                   </button>
+                )}
+
+                {/* ── Disposition buttons — always visible unless already rejected/incomplete ── */}
+                <>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+                  <button
+                    onClick={() => openDisposition('INCOMPLETE')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                    Mark as Incomplete
+                  </button>
+                  <button
+                    onClick={() => openDisposition('REJECTED')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                    Reject
+                  </button>
+                </>
+
+                {true && (
+                  <button
+                    onClick={handleMarkToInspection}
+                    disabled={actionLoading === 'inspection'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                  >
+                    <Eye className="h-4 w-4" />
+                    {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
+                  </button>
+                )}
+
+                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument
+                  && (status === 'REJECTED' || status === 'INCOMPLETE') && (
+                  <p className="text-xs text-gray-400 italic">
+                    This record has been {status === 'REJECTED' ? 'rejected' : 'marked as incomplete'}.
+                  </p>
                 )}
                 {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument && (
                   <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
