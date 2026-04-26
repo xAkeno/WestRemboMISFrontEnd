@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileCheck, Clock, ArrowRight, Play } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Input } from "@/components/ui/input";
+import { Clock, ArrowRight, Play, Search, Sun, Cloud } from "lucide-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import { Layout } from "../components/Layout";
-import { PendingClearancesModal } from "@/components/PendingClearancesModal";
 import axios from "axios";
 import { startOfWeek, startOfMonth, format } from "date-fns";
 
@@ -15,26 +17,11 @@ const BASE = "http://127.0.0.1:8000/api";
 const statuses    = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
 
-interface PendingRequest {
-  type: string;
-  count: number;
-  icon: any;
-  color: string;
-}
-
-interface Notification {
-  id: number;
-  message: string;
-  time: string;
-  type: "info" | "warning" | "success";
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const toTitleCase = (value: string) => {
   if (!value) return "";
-  return value
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return value.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 const serviceColors: Record<string, string> = {
@@ -53,31 +40,88 @@ const serviceChartColors: Record<string, string> = {
   Certificate: serviceColors["Barangay Certificate"],
 };
 
-const pathMap: Record<string, string> = {
-  "Barangay Clearance":    "/document-edit/2",
-  "Business Clearance":    "/document-edit/4",
-  "Building Clearance":    "/document-edit/3",
-  "Barangay Certificate":  "/document-edit/1",
-  "Resident Registration": "/document-edit/5",
+/**
+ * Parse "HH:MM:SS" or "HH:MM" string → hour integer, or null.
+ */
+const parseHour = (timeStr?: string | null): number | null => {
+  if (!timeStr) return null;
+  const h = parseInt(timeStr.split(":")[0], 10);
+  return isNaN(h) ? null : h;
 };
+
+/**
+ * 0 = Morning  (07:00 – 11:59)
+ * 1 = Afternoon (12:00+)
+ * 2 = Unknown / no schedule
+ */
+const getTimeSlot = (hour: number | null): 0 | 1 | 2 => {
+  if (hour === null) return 2;
+  if (hour >= 7 && hour < 12) return 0;
+  return 1;
+};
+
+/** "08:00:00" → "8:00 AM" */
+const formatTime = (timeStr?: string | null): string => {
+  if (!timeStr) return "—";
+  const [hStr, mStr = "00"] = timeStr.split(":");
+  const h = parseInt(hStr, 10);
+  if (isNaN(h)) return timeStr;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12  = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr} ${ampm}`;
+};
+
+/** ISO → "Apr 22, 2026" */
+const formatDate = (iso?: string | null): string => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-PH", {
+      month: "short", day: "numeric", year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ClearanceRecord {
+  id:            number;
+  docNumber:     string;
+  firstName:     string;
+  middleName?:   string | null;
+  surname:       string;
+  status:        string;
+  zone?:         string;
+  street?:       string;
+  /** ISO datetime – when the record was created/submitted */
+  createdAt?:    string;
+  /** "HH:MM:SS" – from schedule_time field on the clearance record itself */
+  scheduleTime?: string | null;
+  /** "YYYY-MM-DD" – from schedule_date field on the clearance record itself */
+  scheduleDate?: string | null;
+  serviceType:   string;
+  raw:           any;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const navigate = useNavigate();
 
-  const [chartData, setChartData]                         = useState<any[]>([]);
-  const [timeFilter, setTimeFilter]                       = useState("month");
-  const [statusFilter, setStatusFilter]                   = useState("All");
-  const [fromDate, setFromDate]                           = useState("");
-  const [toDate, setToDate]                               = useState("");
-  const [tickets, setTickets]                             = useState<any[]>([]);
-  const [nowServing, setNowServing]                       = useState<string | null>(null);
-  const [notifications, setNotifications]                 = useState<Notification[]>([]);
-  const [latestActivities, setLatestActivities]           = useState<any[]>([]);
-  const [totalEncodedToday, setTotalEncodedToday]         = useState(0);
-  const [pendingRequests, setPendingRequests]             = useState<PendingRequest[]>([]);
-  const [modalOpen, setModalOpen]                         = useState(false);
-  const [selectedClearanceType, setSelectedClearanceType] = useState("");
-  const [processingId, setProcessingId]                   = useState<number | null>(null);
+  const [chartData,          setChartData]          = useState<any[]>([]);
+  const [timeFilter,         setTimeFilter]          = useState("month");
+  const [statusFilter,       setStatusFilter]        = useState("All");
+  const [fromDate,           setFromDate]            = useState("");
+  const [toDate,             setToDate]              = useState("");
+  const [allRecords,         setAllRecords]          = useState<ClearanceRecord[]>([]);
+  const [latestActivities,   setLatestActivities]    = useState<any[]>([]);
+  const [totalReleasedToday, setTotalReleasedToday]  = useState(0);
+
+  const [queueSearch,        setQueueSearch]         = useState("");
+  const [queueTypeFilter,    setQueueTypeFilter]     = useState("All");
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────
 
   const fetchDashboard = async () => {
     try {
@@ -86,13 +130,13 @@ const Dashboard = () => {
         status:      statusFilter === "All" ? undefined : statusFilter,
         from:        fromDate || undefined,
         to:          toDate   || undefined,
-        _:           new Date().getTime(),
+        _:           Date.now(),
       };
 
       const res  = await axios.get(`${BASE}/dashboard`, { params, withCredentials: true });
       const data = res.data.data;
 
-      // ── Chart ──────────────────────────────────────────────────
+      // ── Chart ──────────────────────────────────────────────────────────────
       const businessData    = data.business_clearances?.data   || [];
       const buildingData    = data.building_clearances?.data   || [];
       const barangayData    = data.barangay_clearances?.data   || [];
@@ -116,28 +160,45 @@ const Dashboard = () => {
         Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
       })));
 
-      // ── Tickets ────────────────────────────────────────────────
-      setTickets(data.tickets ?? []);
-      setNowServing(data.now_serving?.ticket_number ?? null);
+      // ── Merge clearance lists using schedule_time + created_at directly ────
+      const merged: ClearanceRecord[] = [];
 
-      // ── Pending Requests ───────────────────────────────────────
-      const counts: Record<string, number> = data.pending_counts ?? {};
-      setPendingRequests(Object.entries(counts).map(([type, count]) => ({
-        type, count, icon: FileCheck,
-        color:
-          type === "Barangay Clearance"   ? "bg-[hsl(var(--warning))]"
-        : type === "Business Clearance"   ? "bg-[hsl(var(--secondary))]"
-        : type === "Building Clearance"   ? "bg-[hsl(var(--primary))]"
-        : type === "Barangay Certificate" ? "bg-[hsl(var(--success))]"
-        : "bg-[hsl(var(--accent))]",
-      })));
+      const push = (r: any, serviceType: string, docNumber: string) =>
+        merged.push({
+          id:           r.id,
+          docNumber,
+          firstName:    r.first_name  ?? "",
+          middleName:   r.middle_name ?? null,
+          surname:      r.surname     ?? "",
+          status:       r.status      ?? "",
+          zone:         r.zone        ?? null,
+          street:       r.street      ?? null,
+          createdAt:    r.created_at  ?? null,   // ISO – submission date
+          scheduleTime: r.schedule_time ?? null,  // "HH:MM:SS"
+          scheduleDate: r.schedule_date ?? null,  // "YYYY-MM-DD"
+          serviceType,
+          raw: r,
+        });
 
-      // ── Notifications ──────────────────────────────────────────
-      setNotifications((data.notifications ?? []).map((n: any) => ({
-        id: n.id, message: n.message, time: n.created_at, type: n.type,
-      })));
+      (data.barangay_clearances_list   ?? []).forEach((r: any) => push(r, "Barangay Clearance",    r.bcert_number));
+      (data.business_clearances_list   ?? []).forEach((r: any) => push(r, "Business Clearance",    r.brgy_business_no));
+      (data.building_clearances_list   ?? []).forEach((r: any) => push(r, "Building Clearance",    r.bcert_number));
+      (data.barangay_certificates_list ?? []).forEach((r: any) => push(r, "Barangay Certificate",  r.bcert_number));
+      (data.residents_list             ?? []).forEach((r: any) => push(r, "Resident Registration", r.resident_no ?? `RES-${r.id}`));
 
-      // ── Latest Activities ──────────────────────────────────────
+      // ── Sort: Morning (slot 0) first, then Afternoon (slot 1), then Unknown.
+      //          Within each slot, sort by schedule_time ascending.
+      merged.sort((a, b) => {
+        const slotA = getTimeSlot(parseHour(a.scheduleTime));
+        const slotB = getTimeSlot(parseHour(b.scheduleTime));
+        if (slotA !== slotB) return slotA - slotB;
+        const tA = a.scheduleTime ?? "99:99:99";
+        const tB = b.scheduleTime ?? "99:99:99";
+        return tA.localeCompare(tB);
+      });
+
+      setAllRecords(merged);
+
       setLatestActivities((data.latest_activities ?? []).map((item: any) => ({
         action:      item.action,
         description: item.description,
@@ -145,9 +206,7 @@ const Dashboard = () => {
         date:        item.created_at ? new Date(item.created_at).toLocaleDateString() : null,
       })));
 
-      // ── Total Encoded Today ────────────────────────────────────
-      setTotalEncodedToday(data.total_released_today ?? 0);
-
+      setTotalReleasedToday(data.total_released_today ?? 0);
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
     }
@@ -166,193 +225,258 @@ const Dashboard = () => {
     setToDate(defaultTo);
   }, [timeFilter]);
 
-  const sortedTickets = [...tickets].sort((a, b) => {
-    if (a.status === "Pending" && b.status !== "Pending") return -1;
-    if (a.status !== "Pending" && b.status === "Pending") return 1;
-    if (a.status === "Encoded" && b.status !== "Encoded") return 1;
-    if (a.status !== "Encoded" && b.status === "Encoded") return -1;
-    const priorityOrder: any = { High: 1, Normal: 2, Low: 3 };
-    const diff = (priorityOrder[a.priority] || 99) - (priorityOrder[b.priority] || 99);
-    if (diff !== 0) return diff;
-    return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
-  });
+  // ── Filtered queue ────────────────────────────────────────────────────────
 
-  const toTitleCaseLocal = (str: string) => {
-    return str
-      .replace(/_/g, " ")
-      .toLowerCase()
-      .replace(/\b\w/g, (char) => char.toUpperCase());
+  const filteredRecords = useMemo(() => {
+    const q = queueSearch.toLowerCase().trim();
+    return allRecords.filter((r) => {
+      const matchType   = queueTypeFilter === "All" || r.serviceType === queueTypeFilter;
+      const fullName    = `${r.firstName} ${r.middleName ?? ""} ${r.surname}`.toLowerCase();
+      const matchSearch =
+        !q ||
+        fullName.includes(q) ||
+        r.docNumber.toLowerCase().includes(q) ||
+        (r.zone?.toLowerCase().includes(q)   ?? false) ||
+        (r.street?.toLowerCase().includes(q) ?? false);
+      return matchType && matchSearch;
+    });
+  }, [allRecords, queueSearch, queueTypeFilter]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const handleProcessNow = (record: ClearanceRecord) =>
+    navigate("/clearancehome/clearance", {
+      state: { record: record.raw, serviceType: record.serviceType },
+    });
+
+  const statusClass = (status: string) => {
+    const s = status?.toUpperCase();
+    if (s === "PENDING")  return "bg-yellow-100 text-yellow-800";
+    if (s === "RELEASED") return "bg-green-100  text-green-800";
+    if (s === "ENCODED")  return "bg-blue-100   text-blue-800";
+    if (s === "REJECTED") return "bg-red-100    text-red-800";
+    return "bg-gray-100 text-gray-700";
   };
 
-  const handleProcessNow = (ticket: any) => {
-    const key  = toTitleCaseLocal(ticket.service_type);
-    const path = pathMap[key] ?? "/tickets";
-    navigate(path, { state: { ticket } });
-  };
+  const nowHour   = new Date().getHours();
+  const isMorning = nowHour >= 7 && nowHour < 12;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Layout>
-      <PendingClearancesModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        clearanceType={selectedClearanceType}
-        tickets={tickets}
-      />
-
       <div className="space-y-4">
 
-        {/* ── Now Serving Banner ───────────────────────────────────── */}
-        {tickets.length > 0 && (
+        {/* ── Queue Card ────────────────────────────────────────────────────── */}
+        {allRecords.length > 0 && (
           <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-background shadow-lg rounded-2xl overflow-hidden">
             <CardContent className="py-4 px-5">
 
-              {/* Header row */}
-              <div className="flex items-center gap-4 mb-4 flex-wrap">
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-3 flex-wrap">
                 <div className="relative">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
                     <Clock className="w-6 h-6 text-primary-foreground" />
                   </div>
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                 </div>
+
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-0.5">
-                    Now Serving
-                  </p>
-                  <p className="text-2xl font-bold text-foreground tracking-tight truncate">
-                    {sortedTickets[0]?.ticket_number || nowServing}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {sortedTickets[0]?.service_type}
-                  </p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                      Now Serving
+                    </p>
+                    <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full
+                      ${isMorning ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"}`}
+                    >
+                      {isMorning ? <Sun className="w-3 h-3" /> : <Cloud className="w-3 h-3" />}
+                      {isMorning ? "Morning Queue" : "Afternoon Queue"}
+                    </span>
+                  </div>
+                  {filteredRecords[0] && (
+                    <>
+                      <p className="text-2xl font-bold text-foreground tracking-tight truncate">
+                        {filteredRecords[0].docNumber}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate font-medium">
+                        {filteredRecords[0].firstName}{" "}
+                        {filteredRecords[0].middleName ? filteredRecords[0].middleName + " " : ""}
+                        {filteredRecords[0].surname}
+                        {" · "}
+                        <span style={{ color: serviceColors[filteredRecords[0].serviceType] }}>
+                          {filteredRecords[0].serviceType}
+                        </span>
+                        {filteredRecords[0].scheduleTime && (
+                          <> · Sched: <strong>{formatTime(filteredRecords[0].scheduleTime)}</strong></>
+                        )}
+                      </p>
+                    </>
+                  )}
                 </div>
+
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground">Total in Queue</p>
-                    <p className="text-xl font-bold text-primary">{tickets.length}</p>
+                    <p className="text-xl font-bold text-primary">{filteredRecords.length}</p>
                   </div>
-                  <Button
-                    size="sm"
-                    className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
-                    onClick={() => handleProcessNow(sortedTickets[0])}
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    Process Now
-                  </Button>
+                  {filteredRecords[0] && (
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
+                      onClick={() => handleProcessNow(filteredRecords[0])}
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      Process Now
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {/* Ticket Queue */}
-              <div className="flex overflow-x-auto gap-3 py-1">
-                {sortedTickets.map((ticket, index) => (
-                  <div
-                    key={ticket.id}
-                    className={`relative flex-shrink-0 w-48 flex flex-col gap-1.5 p-2.5 rounded-xl border transition-all group
-                      ${index === 0
-                        ? "border-primary bg-primary/10 shadow-md"
-                        : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
-                      }`}
+              {/* Search + Type Filters */}
+              <div className="flex flex-wrap gap-2 items-center mb-3">
+                <div className="relative flex-1 min-w-[200px] max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    className="pl-8 h-8 text-xs"
+                    placeholder="Search by name, number, zone…"
+                    value={queueSearch}
+                    onChange={(e) => setQueueSearch(e.target.value)}
+                  />
+                </div>
+                {["All", ...Object.keys(serviceColors)].map((type) => (
+                  <Button
+                    key={type}
+                    size="sm"
+                    variant={queueTypeFilter === type ? "default" : "outline"}
+                    className="h-8 text-xs px-3"
+                    onClick={() => setQueueTypeFilter(type)}
                   >
-                    {/* Top row */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-bold flex-shrink-0
-                            ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                        >
-                          {index + 1}
-                        </span>
-                        <p className="text-xs font-semibold text-foreground truncate">
-                          {ticket.ticket_number}
-                        </p>
-                      </div>
-                      <Badge
-                        className={`text-[9px] px-1.5 py-0 h-4 shrink-0 border-0
-                          ${ticket.status === "Pending"  ? "bg-yellow-100 text-yellow-800" : ""}
-                          ${ticket.status === "Encoded"  ? "bg-blue-100   text-blue-800"   : ""}
-                          ${ticket.status === "Released" ? "bg-green-100  text-green-800"  : ""}
-                          ${ticket.status === "Rejected" ? "bg-red-100    text-red-800"    : ""}
-                        `}
-                      >
-                        {ticket.status}
-                      </Badge>
-                    </div>
+                    {type === "All"
+                      ? "All"
+                      : type
+                          .replace("Barangay Clearance",    "Barangay")
+                          .replace("Business Clearance",    "Business")
+                          .replace("Building Clearance",    "Building")
+                          .replace("Barangay Certificate",  "Certificate")
+                          .replace("Resident Registration", "Resident")}
+                  </Button>
+                ))}
+              </div>
 
-                    {/* Service type pill */}
-                    <span
-                      className="text-[9px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
-                      style={{ backgroundColor: serviceColors[ticket.service_type] || "#9ca3af" }}
-                    >
-                      {ticket.service_type}
-                    </span>
+              {/* Scrollable record cards */}
+              <div className="flex overflow-x-auto gap-3 py-1">
+                {filteredRecords.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-4 px-2">No matching records.</p>
+                )}
 
-                    {/* Priority + time */}
-                    <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-                      <span className={`font-semibold
-                        ${ticket.priority === "High"   ? "text-red-500"   : ""}
-                        ${ticket.priority === "Normal" ? "text-blue-500"  : ""}
-                        ${ticket.priority === "Low"    ? "text-green-500" : ""}
-                      `}>
-                        {ticket.priority ?? "Normal"}
-                      </span>
-                      <span>
-                        {ticket.submitted_at
-                          ? new Date(ticket.submitted_at).toLocaleTimeString("en-PH", {
-                              hour: "2-digit", minute: "2-digit",
-                            })
-                          : "—"}
-                      </span>
-                    </div>
+                {filteredRecords.map((record, index) => {
+                  const hour = parseHour(record.scheduleTime);
+                  const slot = getTimeSlot(hour);
 
-                    {/* Process Now button */}
-                    <button
-                      onClick={() => handleProcessNow(ticket)}
-                      className={`flex items-center justify-center gap-1 w-full py-1 rounded-lg text-[10px] font-semibold transition-all
+                  return (
+                    <div
+                      key={`${record.serviceType}-${record.id}`}
+                      className={`relative flex-shrink-0 w-52 flex flex-col gap-1.5 p-2.5 rounded-xl border transition-all group
                         ${index === 0
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                          : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
+                          ? "border-primary bg-primary/10 shadow-md"
+                          : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
                         }`}
                     >
-                      <ArrowRight className="w-3 h-3" />
-                      Process Now
-                    </button>
-                  </div>
-                ))}
+                      {/* Doc number + status */}
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-bold flex-shrink-0
+                            ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                            {index + 1}
+                          </span>
+                          <p className="text-xs font-semibold text-foreground truncate">
+                            {record.docNumber}
+                          </p>
+                        </div>
+                        <Badge className={`text-[9px] px-1.5 py-0 h-4 shrink-0 border-0 ${statusClass(record.status)}`}>
+                          {toTitleCase(record.status)}
+                        </Badge>
+                      </div>
+
+                      {/* Full name of requester */}
+                      <p className="text-[11px] font-semibold text-foreground truncate leading-tight">
+                        {record.firstName}{" "}
+                        {record.middleName ? record.middleName + " " : ""}
+                        {record.surname}
+                      </p>
+
+                      {/* Service type pill */}
+                      <span
+                        className="text-[9px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
+                        style={{ backgroundColor: serviceColors[record.serviceType] || "#9ca3af" }}
+                      >
+                        {record.serviceType}
+                      </span>
+
+                      {/* Morning / Afternoon + scheduled time */}
+                      <div className="flex items-center gap-1 text-[9px]">
+                        {slot === 0
+                          ? <Sun   className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                          : <Cloud className="w-3 h-3 text-indigo-400 flex-shrink-0" />}
+                        <span className={`font-semibold ${slot === 0 ? "text-amber-600" : slot === 1 ? "text-indigo-500" : "text-muted-foreground"}`}>
+                          {slot === 0 ? "Morning" : slot === 1 ? "Afternoon" : "No schedule"}
+                        </span>
+                        {record.scheduleTime && (
+                          <span className="ml-auto text-muted-foreground font-medium">
+                            {formatTime(record.scheduleTime)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Submitted date + schedule date */}
+                      <div className="flex flex-col gap-0.5 text-[9px] text-muted-foreground">
+                        <span>Submitted: <span className="font-medium text-foreground">{formatDate(record.createdAt)}</span></span>
+                        {record.scheduleDate && (
+                          <span>Sched date: <span className="font-medium text-foreground">{formatDate(record.scheduleDate)}</span></span>
+                        )}
+                      </div>
+
+                      {/* Process Now */}
+                      <button
+                        onClick={() => handleProcessNow(record)}
+                        className={`flex items-center justify-center gap-1 w-full py-1 rounded-lg text-[10px] font-semibold transition-all
+                          ${index === 0
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
+                          }`}
+                      >
+                        <ArrowRight className="w-3 h-3" />
+                        Process Now
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
             </CardContent>
           </Card>
         )}
 
-        {/* ── Chart + Side Cards ───────────────────────────────────── */}
+        {/* ── Chart + Side Cards ────────────────────────────────────────────── */}
         <div className="flex gap-4 w-full items-start">
 
-          {/* Chart Card */}
           <Card className="flex-1 min-w-0">
             <CardHeader className="pb-2">
-              <div className="flex items-start justify-between flex-wrap gap-2">
-                <div>
-                  <CardTitle>Application Trend</CardTitle>
-                  <CardDescription>Application trends over time</CardDescription>
-                </div>
+              <div>
+                <CardTitle>Application Trend</CardTitle>
+                <CardDescription>Application trends over time</CardDescription>
               </div>
-
-              {/* Filters row */}
               <div className="flex flex-wrap gap-2 items-center pt-2">
                 {timeFilters.map((filter) => (
                   <Button
                     key={filter}
                     size="sm"
                     variant={timeFilter === filter ? "default" : "outline"}
-                    onClick={() => {
-                      setTimeFilter(filter);
-                      setFromDate("");
-                      setToDate("");
-                    }}
+                    onClick={() => { setTimeFilter(filter); setFromDate(""); setToDate(""); }}
                   >
                     {filter.charAt(0).toUpperCase() + filter.slice(1)}
                   </Button>
                 ))}
-
                 <div className="flex items-center gap-1.5">
                   <input
                     type="date"
@@ -368,7 +492,6 @@ const Dashboard = () => {
                     onChange={(e) => setToDate(e.target.value)}
                   />
                 </div>
-
                 {statuses.map((status) => (
                   <Button
                     key={status}
@@ -379,13 +502,11 @@ const Dashboard = () => {
                     {status}
                   </Button>
                 ))}
-
                 <Button size="sm" variant="default" onClick={fetchDashboard}>
                   Submit
                 </Button>
               </div>
             </CardHeader>
-
             <CardContent className="pt-0">
               <ResponsiveContainer width="100%" height={460}>
                 <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
@@ -411,19 +532,16 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Side Cards */}
           <div className="w-72 flex-shrink-0 flex flex-col gap-4">
-
-            {/* Total Released Today */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Total Released Today</CardTitle>
                 <CardDescription>All records released today</CardDescription>
               </CardHeader>
               <CardContent>
-                {totalEncodedToday > 0 ? (
+                {totalReleasedToday > 0 ? (
                   <div className="text-5xl font-bold text-green-600 flex items-center justify-center py-2">
-                    {totalEncodedToday}
+                    {totalReleasedToday}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground py-2">No records released today.</p>
@@ -431,7 +549,6 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Recent Activity */}
             <Card className="flex flex-col" style={{ maxHeight: "420px" }}>
               <CardHeader className="flex-shrink-0 pb-2">
                 <CardTitle className="text-base">Recent Activity</CardTitle>
@@ -464,7 +581,6 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
-
           </div>
         </div>
 
