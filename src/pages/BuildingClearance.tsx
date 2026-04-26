@@ -1245,6 +1245,7 @@ function EditableDetailModal({
                   { label: 'Middle Name', name: 'middle_name' },
                   { label: 'Surname', name: 'surname' },
                   { label: 'Extension Name', name: 'ext_name' },
+                  
                 ].map(f => (
                   <div key={f.name}>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>

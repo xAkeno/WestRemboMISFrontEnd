@@ -20,6 +20,7 @@ export interface BarangayClearance {
   email?: string;
   schedule?: Schedule;
   prefix?: string;
+  sitio?: string;
 }
 
 
