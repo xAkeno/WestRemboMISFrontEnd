@@ -123,7 +123,7 @@ const App = () => {
                 <Route path="/myrequest" element={<MyRequest />} />
                 <Route path="/pricing" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicePricing /></ProtectedRoute>} />
                 <Route path="/request/:type/:id" element={<RequestDetail />} />
-
+                <Route path="/serviceCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicesCms/></ProtectedRoute>} />
 
                 {/* All of the form */}
                 <Route path="/services/barangay-certificate/apply" element={<BarangayCertificateForm />} />
