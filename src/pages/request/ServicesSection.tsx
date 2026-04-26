@@ -40,7 +40,7 @@ const services = [
     icon: FileText,
     title: "Barangay Certificate",
     href: "/services/barangay-certificate",
-    number: "05",
+    number: "04",
   },  
 ];
 

@@ -254,7 +254,7 @@ const Login = () => {
             {/* ── reCAPTCHA — appears after 3 failed attempts ── */}
             {showCaptcha && (
               <div
-                
+                className="flex flex-col items-center"
               >
                 
                 <ReCAPTCHA

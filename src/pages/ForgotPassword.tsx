@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import AuthLayout from "@/components/AuthLayout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, ArrowLeft, Send, KeyRound, Eye, EyeOff, CheckCircle2, Loader2 } from "lucide-react";
+import { Mail, ArrowLeft, Send, KeyRound, Eye, EyeOff, CheckCircle2, Loader2, X } from "lucide-react";
 import logo from "@/assets/West_Rembo_Logo.png";
+import ReCAPTCHA from "react-google-recaptcha";
 
 const NAVY = "#0f2a5e";
 const PINK  = "#c2467d";
+const RECAPTCHA_SITE_KEY = "6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1";
 
-// ─── Reusable underline field ─────────────────────────────────────────────────
+// ─── Reusable underline field ──────────────────────────────────────────────
 const UField = ({
   label, id, type = "text", placeholder, value, onChange,
   icon, rightSlot, disabled,
@@ -57,29 +59,28 @@ const UField = ({
   </div>
 );
 
-// ─── Submit button ─────────────────────────────────────────────────────────────
+// ─── Submit button ─────────────────────────────────────────────────────────
 const SubmitBtn = ({
-  loading, label, icon,
-}: { loading: boolean; label: string; icon: React.ReactNode }) => (
+  loading, label, icon, disabled,
+}: { loading: boolean; label: string; icon: React.ReactNode; disabled?: boolean }) => (
   <button
     type="submit"
-    disabled={loading}
+    disabled={loading || disabled}
     className="w-full flex items-center justify-center gap-2 py-3 text-white text-sm font-bold uppercase tracking-wider transition-all duration-200 disabled:opacity-60"
     style={{ borderRadius: 2, backgroundColor: PINK, letterSpacing: "0.08em" }}
-    onMouseEnter={(e) => { if (!loading) (e.currentTarget as HTMLElement).style.backgroundColor = "#a33568"; }}
-    onMouseLeave={(e) => { if (!loading) (e.currentTarget as HTMLElement).style.backgroundColor = PINK; }}
+    onMouseEnter={(e) => { if (!loading && !disabled) (e.currentTarget as HTMLElement).style.backgroundColor = "#a33568"; }}
+    onMouseLeave={(e) => { if (!loading && !disabled) (e.currentTarget as HTMLElement).style.backgroundColor = PINK; }}
   >
     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{icon} {label}</>}
   </button>
 );
 
-// ─── Card shell ────────────────────────────────────────────────────────────────
+// ─── Card shell ───────────────────────────────────────────────────────────
 const Card = ({ children }: { children: React.ReactNode }) => (
   <div
     className="w-full max-w-md bg-white overflow-hidden"
     style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}
   >
-    {/* Navy header */}
     <div className="flex items-center gap-4 px-8 py-5" style={{ backgroundColor: NAVY }}>
       <div
         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
@@ -96,14 +97,12 @@ const Card = ({ children }: { children: React.ReactNode }) => (
         </p>
       </div>
     </div>
-    {/* Pink accent bar */}
     <div style={{ height: 3, backgroundColor: PINK }} />
-
     <div className="p-8">{children}</div>
   </div>
 );
 
-// ─── Section heading ───────────────────────────────────────────────────────────
+// ─── Section heading ──────────────────────────────────────────────────────
 const Heading = ({ eyebrow, title }: { eyebrow: string; title: string }) => (
   <div className="mb-7">
     <p className="text-xs font-bold uppercase tracking-[0.15em] mb-1" style={{ color: PINK }}>
@@ -116,16 +115,18 @@ const Heading = ({ eyebrow, title }: { eyebrow: string; title: string }) => (
   </div>
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // Main component
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Step 1 — email
-  const [email,      setEmail     ] = useState("");
-  const [sending,    setSending   ] = useState(false);
+  // Step 1 — email + captcha
+  const [email,           setEmail          ] = useState("");
+  const [sending,         setSending        ] = useState(false);
+  const [captchaToken,    setCaptchaToken   ] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   // Step 2 — code + new password
   const [sent,       setSent      ] = useState(false);
@@ -135,30 +136,107 @@ const ForgotPassword = () => {
   const [showPwd,    setShowPwd   ] = useState(false);
   const [showConf,   setShowConf  ] = useState(false);
   const [resetting,  setResetting ] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  // ── Step 1: send reset code ────────────────────────────────────────────────
+  const [cooldown,   setCooldown  ] = useState(0);
+
+  // Step 2 — reset captcha
+  const [resetCaptchaToken, setResetCaptchaToken] = useState<string | null>(null);
+  const resetRecaptchaRef = useRef<ReCAPTCHA>(null);
+
+  // ── password rules (mirrors Register) ────────────────────────────────────
+  const passwordRules = [
+    { label: "Maximum 10 characters",                     valid: password.length >= 1 && password.length <= 10 },
+    { label: "Contains an uppercase letter",               valid: /[A-Z]/.test(password) },
+    { label: "Contains a lowercase letter",               valid: /[a-z]/.test(password) },
+    { label: "Contains a numeric digit",                  valid: /\d/.test(password) },
+    { label: "Contains a special character (!@#$%^&*…)",  valid: /[^A-Za-z0-9]/.test(password) },
+    { label: "Passwords match",                           valid: confirm.length > 0 && password === confirm },
+  ];
+  const passwordValid = password.length > 0 && passwordRules.every((r) => r.valid);
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+  const resetCaptcha = () => {
+    recaptchaRef.current?.reset();
+    setCaptchaToken(null);
+  };
+
+  const resetResetCaptcha = () => {
+    resetRecaptchaRef.current?.reset();
+    setResetCaptchaToken(null);
+  };
+
+  const startCooldown = () => {
+    setCooldown(60);
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // ── Step 1: validate locally → CAPTCHA → DB ──────────────────────────────
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!email.trim()) {
       toast({ title: "Error", description: "Please enter your email address.", variant: "destructive" });
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      toast({ title: "Error", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    if (!captchaToken) {
+      toast({ title: "CAPTCHA Required", description: "Please complete the verification before continuing.", variant: "destructive" });
+      return;
+    }
+
     setSending(true);
     try {
-      await api.post("/api/forgot-password", { email,code });
+      await api.post("/api/forgot-password", { email, recaptcha_token: captchaToken });
       setSent(true);
+      startCooldown();
       toast({ title: "Code Sent", description: "A 6-digit code has been sent to your email." });
     } catch (error: any) {
+      resetCaptcha();
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to send reset code. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setSending(false); }
+      setSending(false);
+    }
   };
 
-  // ── Step 2: submit new password ────────────────────────────────────────────
+  // ── Step 2: resend ────────────────────────────────────────────────────────
+  const handleResendCode = async () => {
+    if (cooldown > 0) return;
+    if (!captchaToken) {
+      toast({ title: "CAPTCHA Required", description: "Please complete the verification below before resending.", variant: "destructive" });
+      return;
+    }
+
+    setSending(true);
+    try {
+      await api.post("/api/resend-password-reset-code", { email, recaptcha_token: captchaToken });
+      toast({ title: "Code Resent ✅", description: "A new 6-digit code has been sent to your email." });
+      resetCaptcha();
+      startCooldown();
+    } catch (error: any) {
+      resetCaptcha();
+      toast({
+        title: "Failed ❌",
+        description: error.response?.data?.message || "Unable to resend code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Step 2: submit new password ──────────────────────────────────────────
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -166,12 +244,12 @@ const ForgotPassword = () => {
       toast({ title: "Error", description: "Please enter the 6-digit code.", variant: "destructive" });
       return;
     }
-    if (password.length < 8) {
-      toast({ title: "Error", description: "Password must be at least 8 characters.", variant: "destructive" });
+    if (!passwordValid) {
+      toast({ title: "Error", description: "Please fix the password requirements.", variant: "destructive" });
       return;
     }
-    if (password !== confirm) {
-      toast({ title: "Error", description: "Passwords do not match.", variant: "destructive" });
+    if (!resetCaptchaToken) {
+      toast({ title: "CAPTCHA Required", description: "Please complete the verification before resetting your password.", variant: "destructive" });
       return;
     }
 
@@ -182,10 +260,12 @@ const ForgotPassword = () => {
         code,
         password,
         password_confirmation: confirm,
+        recaptcha_token: resetCaptchaToken,
       });
       toast({ title: "Password Reset", description: "Your password has been updated. Please sign in." });
       navigate("/login");
     } catch (error: any) {
+      resetResetCaptcha();
       toast({
         title: "Error",
         description: error.response?.data?.message || "Invalid or expired code. Please try again.",
@@ -196,56 +276,12 @@ const ForgotPassword = () => {
     }
   };
 
-  const startCooldown = () => {
-    setCooldown(60);
-
-    const interval = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const handleResendPasswordReset = async () => {
-    if (cooldown > 0) return;
-    if (!email.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your email first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await api.post("/resend-password-reset-code", { email });
-
-      toast({
-        title: "Reset Code Sent ✅",
-        description: "A new password reset code has been sent to your email.",
-      });
-      startCooldown();
-    } catch (error: any) {
-      toast({
-        title: "Failed ❌",
-        description:
-          error.response?.data?.message ||
-          "Unable to resend code. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────────────
   return (
     <AuthLayout>
       <Card>
 
-        {/* ══════════ STEP 1 — Email form ══════════ */}
+        {/* ══════════ STEP 1 — Email + CAPTCHA ══════════ */}
         {!sent && (
           <>
             <Heading eyebrow="Password Recovery" title="Forgot Your Password?" />
@@ -261,7 +297,31 @@ const ForgotPassword = () => {
                 icon={<Mail className="w-4 h-4" />}
               />
 
-              <SubmitBtn loading={sending} label="Send Reset Code" icon={<Send className="w-4 h-4" />} />
+              {/* reCAPTCHA — centered */}
+              <div className="flex flex-col items-center gap-1.5">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={RECAPTCHA_SITE_KEY}
+                  onChange={(token) => setCaptchaToken(token)}
+                  onExpired={() => {
+                    setCaptchaToken(null);
+                    toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
+                  }}
+                  theme="light"
+                />
+                {!captchaToken && (
+                  <p className="text-xs" style={{ color: "#ef4444" }}>
+                    ↑ Please complete the CAPTCHA above to continue
+                  </p>
+                )}
+              </div>
+
+              <SubmitBtn
+                loading={sending}
+                label={captchaToken ? "Send Reset Code" : "Complete CAPTCHA to Continue"}
+                icon={<Send className="w-4 h-4" />}
+                disabled={!captchaToken}
+              />
 
               <div className="pt-1 text-center">
                 <Link
@@ -279,7 +339,6 @@ const ForgotPassword = () => {
         {/* ══════════ STEP 2 — Code + New Password ══════════ */}
         {sent && (
           <>
-            {/* Envelope icon */}
             <div className="text-center mb-6">
               <div
                 className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
@@ -305,7 +364,7 @@ const ForgotPassword = () => {
             </div>
 
             <form onSubmit={handleResetPassword} className="space-y-5">
-              {/* Code */}
+              {/* Code field */}
               <UField
                 id="code" label="6-Digit Code" type="text"
                 placeholder="e.g. 123456" value={code} onChange={setCode}
@@ -361,45 +420,112 @@ const ForgotPassword = () => {
                 }
               />
 
-              {/* Inline match indicator */}
-              {confirm.length > 0 && (
-                <p
-                  className="text-xs flex items-center gap-1.5 -mt-1"
-                  style={{ color: password === confirm ? "#16a34a" : "#e11d48" }}
+              {/* Password checklist — only shown once user starts typing */}
+              {password.length > 0 && (
+                <div
+                  className="p-4 space-y-2"
+                  style={{ backgroundColor: "#f8f9fb", border: "1px solid #e5e7eb", borderRadius: 2 }}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-                  {password === confirm ? "Passwords match" : "Passwords do not match"}
-                </p>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: NAVY }}>
+                    Password Requirements
+                  </p>
+                  {passwordRules.map((rule) => (
+                    <div key={rule.label} className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: rule.valid ? "#d45ea3" : "#fee2e2" }}
+                      >
+                        {rule.valid
+                          ? <CheckCircle2 className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                          : <X className="w-2.5 h-2.5" style={{ color: "#ef4444" }} strokeWidth={3} />
+                        }
+                      </div>
+                      <span className="text-xs" style={{ color: "#6b7280" }}>{rule.label}</span>
+                    </div>
+                  ))}
+                </div>
               )}
 
-              <div className="pt-1">
-                <SubmitBtn
-                  loading={resetting}
-                  label="Reset Password"
-                  icon={<CheckCircle2 className="w-4 h-4" />}
+              {/* ── Reset CAPTCHA — centered, above the Reset button ── */}
+              <div className="flex flex-col items-center gap-1.5 pt-1">
+                <ReCAPTCHA
+                  ref={resetRecaptchaRef}
+                  sitekey={RECAPTCHA_SITE_KEY}
+                  onChange={(token) => setResetCaptchaToken(token)}
+                  onExpired={() => {
+                    setResetCaptchaToken(null);
+                    toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
+                  }}
+                  theme="light"
                 />
+                {!resetCaptchaToken && (
+                  <p className="text-xs" style={{ color: "#ef4444" }}>
+                    ↑ Please complete the CAPTCHA above to reset your password
+                  </p>
+                )}
               </div>
 
-              {/* Resend + back */}
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={() => { setSent(false); setCode(""); setPassword(""); setConfirm(""); }}
-                  className="text-xs font-semibold hover:underline inline-flex items-center gap-1 transition-colors"
-                  style={{ color: "#6b7280" }}
-                >
-                  <ArrowLeft className="w-3 h-3" /> Change Email
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={sending}
-                  className="text-xs font-semibold hover:underline inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                  style={{ color: PINK }}
-                >
-                  {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send onClick={handleResendPasswordReset} className="w-3 h-3" />}
-                  Resend Code
-                </button>
+              {/* Reset password button */}
+              <SubmitBtn
+                loading={resetting}
+                label={resetCaptchaToken ? "Reset Password" : "Complete CAPTCHA to Continue"}
+                icon={<CheckCircle2 className="w-4 h-4" />}
+                disabled={!resetCaptchaToken}
+              />
+
+              {/* ── Resend section ── */}
+              <div className="pt-2 space-y-3" style={{ borderTop: "1px solid #f0f0f0" }}>
+                <p className="text-xs text-center" style={{ color: "#9ca3af" }}>
+                  Didn't receive the code?
+                </p>
+
+                {/* Resend CAPTCHA — only shown when cooldown has expired */}
+                {cooldown === 0 && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <ReCAPTCHA
+                      ref={recaptchaRef}
+                      sitekey={RECAPTCHA_SITE_KEY}
+                      onChange={(token) => setCaptchaToken(token)}
+                      onExpired={() => {
+                        setCaptchaToken(null);
+                        toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
+                      }}
+                      theme="light"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSent(false);
+                      setCode("");
+                      setPassword("");
+                      setConfirm("");
+                      resetCaptcha();
+                      resetResetCaptcha();
+                    }}
+                    className="text-xs font-semibold hover:underline inline-flex items-center gap-1 transition-colors"
+                    style={{ color: "#6b7280" }}
+                  >
+                    <ArrowLeft className="w-3 h-3" /> Change Email
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={sending || cooldown > 0}
+                    className="text-xs font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                    style={{ color: cooldown > 0 ? "#9ca3af" : PINK }}
+                  >
+                    {sending
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Send className="w-3 h-3" />
+                    }
+                    {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend Code"}
+                  </button>
+                </div>
               </div>
             </form>
           </>

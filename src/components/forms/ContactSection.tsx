@@ -304,13 +304,15 @@ const ContactSection = () => {
                 </div>
 
                 {/* ── reCAPTCHA — above Submit Inquiry ── */}
-                <ReCAPTCHA
-                  ref={recaptchaRef}
-                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
-                  onChange={(token) => setCaptchaToken(token)}
-                  onExpired={() => setCaptchaToken(null)}
-                  theme="light"
-                />
+                <div className="flex justify-center">
+                  <ReCAPTCHA
+                    ref={recaptchaRef}
+                    sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                    onChange={(token) => setCaptchaToken(token)}
+                    onExpired={() => setCaptchaToken(null)}
+                    theme="light"
+                  />
+                </div>
 
                 <button
                   type="submit"

@@ -1940,7 +1940,6 @@ const StepReview = ({
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
   const handleSubmitWithValidation = () => {
-    if (!consentChecked) { toast.error(tr("err.consent")); return; }
     onSubmit();
   };
 
@@ -2015,23 +2014,10 @@ const StepReview = ({
         )}
       </ReviewSection>
 
-      {/* ── Schedule summary ── */}
       <ReviewSection title={tr("review.schedule")}>
         <ReviewRow label={tr("review.scheduleDate")} value={scheduleDate} />
         <ReviewRow label={tr("review.scheduleTime")} value={timeLabel} />
       </ReviewSection>
-
-      {/* Consent */}
-      <div className="mb-4 p-5" style={{ background: "#f8faff", border: "1px solid #dde3ed", borderRadius: 4 }}>
-        <p className="font-bold uppercase tracking-[0.15em] mb-2" style={{ color: NAVY, fontSize: "0.65em" }}>{tr("consent.heading")}</p>
-        <p className="text-muted-foreground leading-relaxed mb-3" style={{ fontSize: "0.85em" }}>{tr("consent.text")}</p>
-        <div className="flex items-start gap-3">
-          <Checkbox id="consent" checked={consentChecked} onCheckedChange={(v) => setConsentChecked(v as boolean)} />
-          <label htmlFor="consent" className="cursor-pointer text-foreground leading-snug" style={{ fontSize: "0.85em" }}>
-            {tr("consent.checkbox")}
-          </label>
-        </div>
-      </div>
 
       {error && <p className="mb-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
 
@@ -2368,7 +2354,7 @@ const FrontDesk = () => {
     return (
       <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
         <AccessibilityBar lang={lang} setLang={setLang} fontSize={fontSize} setFontSize={setFontSize} />
-        <WelcomeScreen tr={tr} onProceed={() => setStage("form")} />
+        <WelcomeScreen tr={tr} onProceed={() => { setConsentChecked(true); setStage("form"); }} />
       </div>
     );
   }

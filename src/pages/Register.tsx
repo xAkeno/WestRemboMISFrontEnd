@@ -323,6 +323,12 @@ const Register = () => {
     loadStreets();
   }, []);
 
+  useEffect(() => {
+    // Always start with a clean captcha on page load
+    recaptchaRef.current?.reset();
+    setCaptchaToken(null);
+  }, []);
+
   const updateField = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -370,9 +376,26 @@ const Register = () => {
       toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
       return;
     }
-
+    
+    if (!captchaToken) {
+    toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
+    return;
+    }
+    
     setIsLoading(true);
     try {
+      // Snapshot and guard the token
+      const tokenToSend = captchaToken ?? "";
+      
+      console.log("reCAPTCHA token length:", tokenToSend.length);
+      console.log("reCAPTCHA token preview:", tokenToSend.substring(0, 40));
+
+      if (!tokenToSend) {
+        toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
       const form = new FormData();
       form.append("first_name", formData.firstName);
       form.append("surname", formData.surname);
@@ -388,16 +411,20 @@ const Register = () => {
       form.append("password_confirmation", formData.confirmPassword);
       form.append("id_url", idFront as File);
       form.append("id_url_back", idBack as File);
-      form.append("recaptcha_token", captchaToken);
+      form.append("recaptcha_token", tokenToSend); // ← guaranteed string, never null
 
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
       toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
       navigate("/email-verification", { state: { email: formData.email } });
     } catch (error: any) {
-      // Reset reCAPTCHA on failure so user can try again
       recaptchaRef.current?.reset();
       setCaptchaToken(null);
-      toast({ title: "Error", description: error.response?.data?.message || "Registration failed.", variant: "destructive" });
+      const message = error.response?.data?.message || "Registration failed.";
+      toast({
+        title: message.includes("reCAPTCHA") ? "CAPTCHA Failed" : "Error",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -787,15 +814,23 @@ const Register = () => {
             {/* Footer */}
             <div className="space-y-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               {/* ── reCAPTCHA — sits above the submit buttons ── */}
-              <div className="flex justify-end">
-                <ReCAPTCHA
-                  ref={recaptchaRef}
-                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
-                  onChange={(token) => setCaptchaToken(token)}
-                  onExpired={() => setCaptchaToken(null)}
-                  theme="light"
-                />
-              </div>
+              <div className="flex flex-col items-end gap-1">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                onChange={(token) => setCaptchaToken(token)}
+                onExpired={() => {
+                  setCaptchaToken(null);
+                  toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
+                }}
+                theme="light"
+              />
+              {!captchaToken && (
+                <p className="text-xs" style={{ color: "#ef4444" }}>
+                  ↑ Please check the box above before submitting
+                </p>
+              )}
+            </div>
 
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <p className="text-xs" style={{ color: "#9ca3af" }}>
@@ -815,11 +850,11 @@ const Register = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isLoading}
+                    disabled={isLoading || !captchaToken} // ← add !captchaToken here
                     className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
                     style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
-                    onMouseEnter={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
-                    onMouseLeave={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
+                    onMouseEnter={(e) => { if (!isLoading && captchaToken) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                    onMouseLeave={(e) => { if (!isLoading && captchaToken) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
                   >
                     {isLoading ? (
                       <span className="flex items-center gap-2">
@@ -829,7 +864,7 @@ const Register = () => {
                         </svg>
                         Submitting...
                       </span>
-                    ) : "Submit Registration"}
+                    ) : !captchaToken ? "Complete CAPTCHA to Submit" : "Submit Registration"}
                   </button>
                 </div>
               </div>

@@ -172,7 +172,7 @@ const App = () => {
                 <Route path="/contactCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ContactCms /></ProtectedRoute>} />
                 <Route path="/servicesCms" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><ServicesCms /></ProtectedRoute>} />
 
-
+                
                 <Route path="/AccountManage" element={<Accounts/>}/>
                 <Route path="/settings/AccountDetails/:id" element={<AccountDetail/>}/>
                 <Route path="/frontdesk" element={<SearchResident/>}/>
