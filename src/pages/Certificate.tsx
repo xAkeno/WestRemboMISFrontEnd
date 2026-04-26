@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
-  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X,
+  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
   IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera,
 } from 'lucide-react';
@@ -17,7 +17,56 @@ import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 
-// ─── LABEL_TO_KEY map (mirrors CertificateEditor) ─────────────────────────────
+interface StreetOption {
+  id: number;
+  name: string;
+  sitio: string;
+  formerly?: string;
+}
+
+// Sitio options for dropdown
+const SITIO_OPTIONS = [
+  'Sitio 1',
+  'Sitio 2',
+  'Sitio 3',
+  'Sitio 4',
+  'Sitio 5',
+  'Sitio 6',
+  'Sitio 7',
+  'Sitio 8',
+  'Sitio 9',
+  'Sitio 10',
+];
+
+// ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
+interface ConcatGroup {
+  label: string;
+  members: string[];
+  separator: string;
+}
+
+const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
+  {
+    label: 'Full Name',
+    members: ['Prefix', 'First Name', 'Middle Name', 'Last Name', 'Ext Name', 'Extension'],
+    separator: ' ',
+  },
+  {
+    label: 'Full Address',
+    members: ['House Block Lot No', 'Street', 'Sitio'],
+    separator: ', ',
+  },
+];
+
+// ─── Robust label normaliser ───────────────────────────────────────────────────
+const normLabel = (s: string) =>
+  s.trim()
+   .toLowerCase()
+   .replace(/[.\-_]/g, ' ')
+   .replace(/\s+/g, ' ')
+   .trim();
+
+// ─── LABEL_TO_KEY map ─────────────────────────────────────────────────────────
 const LABEL_TO_KEY: Record<string, string> = {
   'First Name': 'first_name',
   'Middle Name': 'middle_name',
@@ -25,6 +74,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Last Name': 'surname',
   'Prefix': 'prefix',
   'Ext Name': 'ext_name',
+  'Extension': 'extension',
   'Nickname': 'nick_name',
   'Sex': 'sex',
   'Marital Status': 'marital_status',
@@ -35,7 +85,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Zone': 'zone',
+  'Sitio': 'sitio',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -90,12 +140,10 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Created At': 'created_at',
   'Updated At': 'updated_at',
   'Created By': 'created_by',
-  'Block No': 'block_no',
-  'Extension': 'extension',
 };
 
 const NON_DATE_KEYS = new Set([
-  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -107,8 +155,175 @@ const NON_DATE_KEYS = new Set([
   'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
   'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
   'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
-  'block_no', 'extension',
+  'extension',
 ]);
+
+const FIELD_WRAP_CONFIG: Record<string, number> = {
+  'Full Address': 50,
+  'Address': 50,
+  'House Block Lot No': 40,
+  'Street': 35,
+  'Sitio': 20,
+  'Full Name': 40,
+  'Purpose': 45,
+  'Purpose Details': 55,
+  'Remarks': 60,
+};
+
+function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
+  if (!value) return [''];
+  
+  const configKey = Object.keys(FIELD_WRAP_CONFIG).find(
+    key => fieldLabel?.toLowerCase().includes(key.toLowerCase())
+  );
+  
+  const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
+  
+  if (value.length <= maxChars) return [value];
+  
+  const words = value.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  for (const word of words) {
+    if ((currentLine + ' ' + word).length <= maxChars) {
+      currentLine += (currentLine ? ' ' : '') + word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  
+  return lines;
+}
+
+function cleanSitioNumber(value: string): string {
+  if (!value) return '';
+  
+  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
+  if (sitioMatch) {
+    return sitioMatch[1];
+  }
+  
+  const numberMatch = value.match(/^\d+$/);
+  if (numberMatch) {
+    return numberMatch[0];
+  }
+  
+  const anyNumberMatch = value.match(/\d+/);
+  if (anyNumberMatch) {
+    return anyNumberMatch[0];
+  }
+  
+  return value.trim();
+}
+
+// ─── buildLabelValueMap ────────────────────────────────────────────────────────
+function buildLabelValueMap(formData: any): Record<string, string> {
+  const prefix = formData.prefix ?? '';
+  const firstName = formData.first_name ?? '';
+  const middleName = formData.middle_name ?? '';
+  const lastName = formData.surname ?? '';
+  const extName = formData.ext_name ?? '';
+  const extension = formData.extension ?? '';
+  
+  const nameParts = [];
+  if (prefix) nameParts.push(prefix);
+  if (firstName) nameParts.push(firstName);
+  if (middleName) nameParts.push(middleName);
+  if (lastName) nameParts.push(lastName);
+  if (extName) nameParts.push(extName);
+  if (extension) nameParts.push(extension);
+  const fullName = nameParts.join(' ');
+  
+  const houseBlockLot = formData.house_block_lot_no ?? '';
+  const street = formData.street ?? '';
+  let sitio = formData.sitio ?? '';
+  sitio = cleanSitioNumber(sitio);
+  
+  const addressParts = [];
+  if (houseBlockLot) addressParts.push(houseBlockLot);
+  if (street) addressParts.push(street);
+  if (sitio) addressParts.push(sitio);
+  const fullAddress = addressParts.join(', ');
+  
+  return {
+    'Prefix':       prefix,
+    'First Name':   firstName,
+    'Middle Name':  middleName,
+    'Last Name':    lastName,
+    'Ext Name':     extName,
+    'Extension':    extension,
+    'Full Name':    fullName,
+    'House Block Lot No': houseBlockLot,
+    'Street':       street,
+    'Sitio':        sitio,
+    'Full Address': fullAddress,
+    'Age':          formData.age                  ?? '',
+    'Date of Birth': formData.dob                 ?? '',
+    'Period of Residency': formData.period_of_residency ?? '',
+    'Registered Voter':    formData.registered_voter    ?? '',
+    'Purpose':             formData.purpose             ?? '',
+    'BCert Number':        formData.bcert_number        ?? '',
+    'Issued Date':         formData.issued_date         ?? '',
+    'Issued At':           formData.issued_at           ?? '',
+    'Issued On':           formData.issued_on           ?? '',
+    'OR No':               formData.or_no               ?? '',
+    'CTC/VRR No':          formData.ctc_vrr_no          ?? '',
+    'Remarks':             formData.remarks             ?? '',
+    'Status':              formData.status              ?? '',
+    'Created By':          formData.created_by          ?? '',
+    'Date':                formData.created_at          ?? '',
+    'Email Address':       formData.email               ?? '',
+    'Requester Type':      formData.requester_type      ?? '',
+  };
+}
+
+// ─── buildReleasePDFFields ─────────────────────────────────────────────────────
+function buildReleasePDFFields(
+  fields: TextField[],
+  labelValueMap: Record<string, string>
+): TextField[] {
+  const suppressedNorm = new Set<string>();
+  const extras: TextField[] = [];
+
+  const fieldsToSuppress = [
+    'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
+    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'sitio'
+  ];
+
+  for (const group of RELEASE_CONCAT_GROUPS) {
+    const anchor = group.members
+      .map(m => fields.find(f => normLabel(f.label) === normLabel(m)))
+      .find(Boolean);
+
+    if (!anchor) continue;
+
+    let combinedValue = '';
+    if (group.label === 'Full Name') {
+      combinedValue = labelValueMap['Full Name'] || '';
+    } else if (group.label === 'Full Address') {
+      combinedValue = labelValueMap['Full Address'] || '';
+    }
+
+    if (combinedValue) {
+      extras.push({ ...anchor, label: group.label, value: combinedValue });
+    }
+
+    group.members.forEach(m => suppressedNorm.add(normLabel(m)));
+  }
+
+  const base = fields.filter(f => {
+    const normalizedLabel = normLabel(f.label);
+    if (fieldsToSuppress.some(suppress => normalizedLabel === suppress)) {
+      return false;
+    }
+    return !suppressedNorm.has(normalizedLabel);
+  });
+
+  return [...base, ...extras];
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
@@ -145,30 +360,29 @@ const PURPOSE_OPTIONS = [
   'Other',
 ];
 
-// ─── URL param key map ─────────────────────────────────────────────────────────
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
-  status:          'status',
-  filter_date:     'date',
-  from:            'from',
-  to:              'to',
-  purpose:         'purpose',
+  status: 'status',
+  filter_date: 'date',
+  from: 'from',
+  to: 'to',
+  purpose: 'purpose',
   schedule_filter: 'schedule',
 };
 
 function filtersFromParams(params: URLSearchParams): FilterState {
   return {
-    status:          params.get('status')   ?? '',
-    filter_date:     params.get('date')     ?? '',
-    from:            params.get('from')     ?? '',
-    to:              params.get('to')       ?? '',
-    purpose:         params.get('purpose')  ?? '',
+    status: params.get('status') ?? '',
+    filter_date: params.get('date') ?? '',
+    from: params.get('from') ?? '',
+    to: params.get('to') ?? '',
+    purpose: params.get('purpose') ?? '',
     schedule_filter: params.get('schedule') ?? '',
   };
 }
 
 function buildParams(filters: FilterState, search: string, page: number): URLSearchParams {
   const p = new URLSearchParams();
-  if (search)   p.set('search', search);
+  if (search) p.set('search', search);
   if (page > 1) p.set('page', String(page));
   (Object.keys(FILTER_PARAM_KEYS) as (keyof FilterState)[]).forEach(key => {
     const val = filters[key];
@@ -177,19 +391,17 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
   return p;
 }
 
-// ─── API instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatTimeRange(timeStr: string) {
   try {
     const [hStr, mStr] = timeStr.split(':');
     const startH = parseInt(hStr, 10);
-    const endH   = startH + 1;
+    const endH = startH + 1;
     const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
     return `${fmt(startH)}–${fmt(endH)} ${endH >= 12 ? 'PM' : 'AM'}`;
   } catch { return timeStr; }
@@ -206,7 +418,7 @@ function formatDateShort(dateStr: string) {
 function formatCreatedAt(raw: string | null | undefined): string {
   if (!raw) return '—';
   try {
-    const d    = new Date(raw);
+    const d = new Date(raw);
     const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return `${date} · ${time}`;
@@ -227,16 +439,16 @@ function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
-// ─── Status badge ──────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
-  pending:    'bg-yellow-100 text-yellow-800 border-yellow-200',
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
-  rejected:   'bg-rose-100 text-rose-800 border-rose-200',
-  released:   'bg-green-100 text-green-800 border-green-200',
-  scheduled:  'bg-blue-100 text-blue-800 border-blue-200',
-  encoded:    'bg-emerald-50 text-emerald-800 border-emerald-200',
-  to_pay:     'bg-purple-100 text-purple-800 border-purple-200',
-  paid:       'bg-teal-100 text-teal-800 border-teal-200',
+  rejected: 'bg-rose-100 text-rose-800 border-rose-200',
+  released: 'bg-green-100 text-green-800 border-green-200',
+  scheduled: 'bg-blue-100 text-blue-800 border-blue-200',
+  encoded: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  to_pay: 'bg-purple-100 text-purple-800 border-purple-200',
+  paid: 'bg-teal-100 text-teal-800 border-teal-200',
+  inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
 function StatusBadge({ status }: { status: string | null | undefined }) {
@@ -250,7 +462,6 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
-// ─── Schedule Cell ─────────────────────────────────────────────────────────────
 function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
   if (!schedule) {
     return (
@@ -263,9 +474,7 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${
-        isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'
-      }`}>
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
         <CalendarCheck className="h-3 w-3" />
         {formatDateShort(schedule.schedule_date)}
       </span>
@@ -276,32 +485,17 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   );
 }
 
-// ─── Lightbox ──────────────────────────────────────────────────────────────────
 function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}
-      onClick={onClose}
-    >
-      <button
-        className="absolute top-4 right-4 p-2 rounded-full"
-        style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
-        onClick={onClose}
-      >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.88)' }} onClick={onClose}>
+      <button className="absolute top-4 right-4 p-2 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }} onClick={onClose}>
         <X className="h-5 w-5" />
       </button>
-      <img
-        src={url}
-        alt="ID preview"
-        className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      />
+      <img src={url} alt="ID preview" className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl" onClick={e => e.stopPropagation()} />
     </div>
   );
 }
 
-// ─── Single ID image card (view-only) ─────────────────────────────────────────
 function IdImageCard({ label, url, onZoom }: { label: string; url: string | null; onZoom: (u: string) => void }) {
   if (!url) {
     return (
@@ -320,15 +514,9 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
           <IdCard className="h-3.5 w-3.5 text-blue-600" />
           <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span>
         </div>
-        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">
-          ✓ On file
-        </span>
+        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">✓ On file</span>
       </div>
-      <div
-        className="relative group overflow-hidden bg-gray-100"
-        style={{ height: 160, cursor: 'zoom-in' }}
-        onClick={() => onZoom(url)}
-      >
+      <div className="relative group overflow-hidden bg-gray-100" style={{ height: 160, cursor: 'zoom-in' }} onClick={() => onZoom(url)}>
         <img src={url} alt={label} className="w-full h-full object-cover" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
           <ZoomIn className="h-6 w-6 text-white" />
@@ -337,10 +525,7 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
       </div>
       <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-gray-100">
         <span className="text-[9px] text-gray-400 uppercase tracking-wider">View only · From documents</span>
-        <button
-          onClick={() => onZoom(url)}
-          className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
-        >
+        <button onClick={() => onZoom(url)} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors">
           <Eye className="h-3 w-3" /> View full
         </button>
       </div>
@@ -348,10 +533,9 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
   );
 }
 
-// ─── User ID Viewer ────────────────────────────────────────────────────────────
 function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (url: string) => void }) {
   const [idFront, setIdFront] = useState<string | null>(null);
-  const [idBack,  setIdBack]  = useState<string | null>(null);
+  const [idBack, setIdBack] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -362,12 +546,12 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         const { data } = await api.get('/api/mydocuments', { params: { user_id: userId } });
         const documents = data.data?.documents || {};
         let front: string | null = null;
-        let back:  string | null = null;
+        let back: string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
             const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
-            if (doc.type === 'valid_id_back')  back  = url;
+            if (doc.type === 'valid_id_back') back = url;
           });
         });
         setIdFront(front);
@@ -386,9 +570,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
       <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
         <IdCard className="h-4 w-4 text-blue-600" />
         <h3 className="text-sm font-semibold text-gray-900">Applicant's Registered ID</h3>
-        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
-          View Only · From Documents
-        </span>
+        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">View Only · From Documents</span>
       </div>
       {loading && (
         <div className="flex items-center gap-2 py-4 text-gray-400">
@@ -405,20 +587,18 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
       {!loading && (idFront || idBack) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <IdImageCard label="Government ID — Front" url={idFront} onZoom={onZoom} />
-          <IdImageCard label="Government ID — Back"  url={idBack}  onZoom={onZoom} />
+          <IdImageCard label="Government ID — Back" url={idBack} onZoom={onZoom} />
         </div>
       )}
     </div>
   );
 }
 
-// ─── QR Scanner Modal ──────────────────────────────────────────────────────────
 function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (result: string) => void }) {
-  const scannerRef   = useRef<Html5Qrcode | null>(null);
-  const containerId  = "qr-scanner-container-certificate";
-  const [error, setError]       = useState<string | null>(null);
-  const [scanning, setScanning] = useState(true);
-  const [scanned, setScanned]   = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const containerId = "qr-scanner-container-certificate";
+  const [error, setError] = useState<string | null>(null);
+  const [scanned, setScanned] = useState<string | null>(null);
 
   const startScanner = async () => {
     try {
@@ -430,7 +610,6 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
         { fps: 10, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
           setScanned(decodedText);
-          setScanning(false);
         },
         undefined
       );
@@ -452,7 +631,6 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
 
   const handleScanAgain = async () => {
     setScanned(null);
-    setScanning(true);
     setError(null);
     await stopScanner();
     setTimeout(() => startScanner(), 300);
@@ -467,37 +645,25 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-xl overflow-hidden w-full max-w-sm mx-4 shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <QrCode className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-semibold text-gray-900">Scan QR Code</span>
           </div>
-          <button
-            onClick={() => { stopScanner(); onClose(); }}
-            className="p-1 hover:bg-gray-100 rounded-md"
-          >
+          <button onClick={() => { stopScanner(); onClose(); }} className="p-1 hover:bg-gray-100 rounded-md">
             <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
-
-        {/* Scanner area */}
         <div className="relative bg-black" style={{ minHeight: 300 }}>
           <div id={containerId} className="w-full" />
-
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 px-6">
               <Camera className="h-8 w-8 text-gray-400" />
               <p className="text-xs text-gray-300 text-center">{error}</p>
             </div>
           )}
-
           {scanned && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-900/80">
               <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
@@ -510,30 +676,15 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
             </div>
           )}
         </div>
-
-        {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-100">
           {scanned ? (
             <div className="flex gap-2">
-              <button
-                onClick={handleScanAgain}
-                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Scan Again
-              </button>
-              <button
-                onClick={handleConfirm}
-                className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors"
-                style={{ backgroundColor: "#0f2a5e" }}
-              >
-                Search This QR
-              </button>
+              <button onClick={handleScanAgain} className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Scan Again</button>
+              <button onClick={handleConfirm} className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors" style={{ backgroundColor: "#0f2a5e" }}>Search This QR</button>
             </div>
           ) : (
             <p className="text-[11px] text-gray-400 text-center">
-              {error
-                ? "Camera access was denied. Please allow camera permissions and try again."
-                : "Point your camera at the resident's QR code."}
+              {error ? "Camera access was denied. Please allow camera permissions and try again." : "Point your camera at the resident's QR code."}
             </p>
           )}
         </div>
@@ -541,6 +692,142 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
     </div>
   );
 }
+
+// ─── Memoized Form Field Component ─────────────────────────────────────────────
+// Updated FormField component - always shows label, value changes based on isEditing
+const FormField = memo(({ 
+  name, 
+  value, 
+  onChange, 
+  type = 'text', 
+  options, 
+  isTextArea = false,
+  isEditing,
+  label
+}: any) => {
+  const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
+  const inputId = `field-${name}`;
+  
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditing, name]);
+  
+  // Always show the label container
+  if (type === 'select' && options) {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        {isEditing ? (
+          <select 
+            ref={inputRef as any}
+            id={inputId}
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        ) : (
+          <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
+        )}
+      </div>
+    );
+  }
+  
+  if (isTextArea) {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        {isEditing ? (
+          <textarea 
+            ref={inputRef as any}
+            id={inputId}
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            rows={3} 
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
+          />
+        ) : (
+          <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
+        )}
+      </div>
+    );
+  }
+  
+  if (type === 'date') {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        {isEditing ? (
+          <input 
+            ref={inputRef as any}
+            id={inputId}
+            type="date" 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
+            autoComplete="off"
+          />
+        ) : (
+          <p className="text-sm text-gray-700 mt-1">{value ? new Date(value).toLocaleDateString() : '—'}</p>
+        )}
+      </div>
+    );
+  }
+  
+  if (type === 'number') {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        {isEditing ? (
+          <input 
+            ref={inputRef as any}
+            id={inputId}
+            type="number" 
+            name={name} 
+            value={value} 
+            onChange={onChange} 
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
+            autoComplete="off"
+          />
+        ) : (
+          <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+      {isEditing ? (
+        <input 
+          ref={inputRef as any}
+          id={inputId}
+          type={type} 
+          name={name} 
+          value={value} 
+          onChange={onChange} 
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
+          autoComplete="off"
+        />
+      ) : (
+        <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
+      )}
+    </div>
+  );
+});
+
+FormField.displayName = 'FormField';
 
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
@@ -554,9 +841,9 @@ function EditableDetailModal({
   onUpdate: () => void;
   toast: any;
 }) {
-  const [isEditing, setIsEditing]         = useState(false);
-  const [isSaving, setIsSaving]           = useState(false);
-  const [isLoading, setIsLoading]         = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -565,9 +852,23 @@ function EditableDetailModal({
   const [isDownloading, setIsDownloading] = useState(false);
   const [releasedPath, setReleasedPath] = useState<string | null>(null);
   const [showDispositionModal, setShowDispositionModal] = useState(false);
-  const [dispositionType, setDispositionType]           = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
-  const [dispositionReason, setDispositionReason]       = useState('');
-  const [isDisposing, setIsDisposing]                   = useState(false);
+  const [dispositionType, setDispositionType] = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
+  const [dispositionReason, setDispositionReason] = useState('');
+  const [isDisposing, setIsDisposing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [streets, setStreets] = useState<StreetOption[]>([]);
+
+  useEffect(() => {
+    const loadStreets = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) { 
+        console.error("Failed to fetch streets:", e); 
+      }
+    };
+    loadStreets();
+  }, []);
 
   const [formData, setFormData] = useState<any>({
     bcert_number: '',
@@ -575,13 +876,15 @@ function EditableDetailModal({
     middle_name: '',
     surname: '',
     extension: '',
+    prefix: '',
+    ext_name: '',
     age: '',
     dob: '',
     registered_voter: '',
     period_of_residency: '',
-    block_no: '',
+    house_block_lot_no: '',
     street: '',
-    zone: '',
+    sitio: '',
     purpose: '',
     status: '',
     created_by: '',
@@ -597,58 +900,65 @@ function EditableDetailModal({
     email: '',
     remarks: '',
     rejection_reason: '',
+    created_at: '',
   });
 
-  useEffect(() => {
+  const fetchFullRecord = useCallback(async () => {
     if (!record) return;
-    const fetchFullRecord = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get(
-          `http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`,
-          { withCredentials: true }
-        );
-        const full = response.data.data.data[0];
-        setCurrentStatus(full.status ?? '');
-        setInitialReleasedPath(full.released_document_path ?? null);
-        setFormData({
-          bcert_number:        full.bcert_number        || '',
-          first_name:          full.first_name          || '',
-          middle_name:         full.middle_name         || '',
-          surname:             full.surname             || '',
-          extension:           full.extension           || '',
-          age:                 full.age                 || '',
-          dob:                 full.dob ? full.dob.split('T')[0] : '',
-          registered_voter:    full.registered_voter    || '',
-          period_of_residency: full.period_of_residency || '',
-          block_no:            full.block_no            || '',
-          street:              full.street              || '',
-          zone:                full.zone                || '',
-          purpose:             full.purpose             || '',
-          status:              full.status              || '',
-          created_by:          full.created_by          || '',
-          issued_date:         full.issued_date ? full.issued_date.split('T')[0] : '',
-          issued_at:           full.issued_at           || '',
-          issued_on:           full.issued_on           || '',
-          or_no:               full.or_no               || '',
-          ctc_vrr_no:          full.ctc_vrr_no          || '',
-          punong_barangay:     full.punong_barangay     || '',
-          for_the_punong_barangay: full.for_the_punong_barangay || '',
-          barangay_position:   full.barangay_position   || '',
-          requester_type:      full.requester_type      || '',
-          email:               full.email               || '',
-          remarks:             full.remarks             || '',
-          rejection_reason:    full.rejection_reason    || '',
-        });
-      } catch (error) {
-        console.error('Error fetching full record:', error);
-        toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchFullRecord();
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
+      const full = response.data.data.data[0];
+      setCurrentStatus(full.status ?? '');
+      setInitialReleasedPath(full.released_document_path ?? null);
+      setFormData({
+        bcert_number: full.bcert_number || '',
+        first_name: full.first_name || '',
+        middle_name: full.middle_name || '',
+        surname: full.surname || '',
+        extension: full.extension || '',
+        prefix: full.prefix || '',
+        ext_name: full.ext_name || '',
+        age: full.age || '',
+        dob: full.dob ? full.dob.split('T')[0] : '',
+        registered_voter: full.registered_voter || '',
+        period_of_residency: full.period_of_residency || '',
+        house_block_lot_no: full.house_block_lot_no || '',
+        street: full.street || '',
+        sitio: full.sitio || '',
+        purpose: full.purpose || '',
+        status: full.status || '',
+        created_by: full.created_by || '',
+        issued_date: full.issued_date ? full.issued_date.split('T')[0] : '',
+        issued_at: full.issued_at || '',
+        issued_on: full.issued_on || '',
+        or_no: full.or_no || '',
+        ctc_vrr_no: full.ctc_vrr_no || '',
+        punong_barangay: full.punong_barangay || '',
+        for_the_punong_barangay: full.for_the_punong_barangay || '',
+        barangay_position: full.barangay_position || '',
+        requester_type: full.requester_type || '',
+        email: full.email || '',
+        remarks: full.remarks || '',
+        rejection_reason: full.rejection_reason || '',
+        created_at: full.created_at || '',
+      });
+    } catch (error) {
+      console.error('Error fetching full record:', error);
+      toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, [record, toast]);
+
+  useEffect(() => {
+    fetchFullRecord();
+  }, [fetchFullRecord, refreshKey]);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+    toast({ title: 'Refreshed', description: 'Record data has been refreshed' });
+  };
 
   useEffect(() => {
     if (initialReleasedPath) setReleasedPath(initialReleasedPath);
@@ -658,21 +968,15 @@ function EditableDetailModal({
 
   if (!record) return null;
 
-  // ── Derived action visibility ──────────────────────────────────────────────
   const status = currentStatus.toUpperCase();
-  const canMarkToPay  = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
-  const canMarkAsPaid = status === 'TO_PAY';
-  const canRelease    = status === 'PAID';
+  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
+  const canRelease = status === 'PAID';
+  const canMarkToInspection = status === 'ENCODED' || status === 'SCHEDULED';
 
-  // ── Status action handlers ─────────────────────────────────────────────────
   const handleMarkToPay = async () => {
     setActionLoading('to_pay');
     try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/barangay-certificates/${record.id}`,
-        { status: 'TO_PAY' },
-        { withCredentials: true }
-      );
+      await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}`, { status: 'TO_PAY' }, { withCredentials: true });
       setCurrentStatus('TO_PAY');
       setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
       toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
@@ -682,22 +986,21 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
-  const handleMarkAsPaid = async () => {
-    setActionLoading('paid');
+  const handleMarkToInspection = async () => {
+    setActionLoading('inspection');
     try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/barangay-certificates/${record.id}`,
-        { status: 'PAID' },
-        { withCredentials: true }
-      );
-      setCurrentStatus('PAID');
-      setFormData((p: any) => ({ ...p, status: 'PAID' }));
-      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}`, { status: 'INSPECTING' }, { withCredentials: true });
+      setCurrentStatus('INSPECTING');
+      setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
+      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally { setActionLoading(null); }
+    } finally {
+      setActionLoading(null);
+    }
   };
+
   const handleDisposition = async () => {
     if (!record?.id || !dispositionType) return;
     if (!dispositionReason.trim()) {
@@ -706,11 +1009,7 @@ function EditableDetailModal({
     }
     setIsDisposing(true);
     try {
-      await axios.post(
-        `http://127.0.0.1:8000/api/barangay-certificates/${record.id}/disposition`,
-        { status: dispositionType, reason: dispositionReason.trim() },
-        { withCredentials: true }
-      );
+      await axios.post(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}/disposition`, { status: dispositionType, reason: dispositionReason.trim() }, { withCredentials: true });
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
@@ -720,13 +1019,8 @@ function EditableDetailModal({
       setDispositionType(null);
       onUpdate();
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to update disposition.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDisposing(false); }
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update disposition.', variant: 'destructive' });
+    } finally { setIsDisposing(false); }
   };
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
@@ -735,6 +1029,11 @@ function EditableDetailModal({
     setShowDispositionModal(true);
   };
 
+  function truncateText(value: string, maxLength: number = 45): string {
+    if (!value) return '';
+    if (value.length <= maxLength) return value;
+    return value.substring(0, maxLength - 3) + '...';
+  }
 
   const handleReleaseAndSave = async () => {
     if (!record?.id) {
@@ -743,68 +1042,138 @@ function EditableDetailModal({
     }
     setIsReleasing(true);
     try {
-      const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/1`,
-        { withCredentials: true }
-      );
+      const metaRes = await axios.get(`http://127.0.0.1:8000/api/documents/single/1`, { withCredentials: true });
       const fileUrl = metaRes.data?.file_url;
       if (!fileUrl) throw new Error('Template file URL missing.');
 
-      const resolvedUrl = fileUrl.startsWith('http')
-        ? fileUrl
-        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
+      const resolvedUrl = fileUrl.startsWith('http') ? fileUrl : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
 
-      const pdfRes = await axios.get(resolvedUrl, {
-        responseType: 'arraybuffer',
-        withCredentials: true,
-      });
+      const pdfRes = await axios.get(resolvedUrl, { responseType: 'arraybuffer', withCredentials: true });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
       let savedLayout: TextField[] = [];
       if (metaRes.data?.layout) {
         try {
-          savedLayout = Array.isArray(metaRes.data.layout)
-            ? metaRes.data.layout
-            : JSON.parse(metaRes.data.layout);
+          savedLayout = Array.isArray(metaRes.data.layout) ? metaRes.data.layout : JSON.parse(metaRes.data.layout);
         } catch {
           console.error('Could not parse template layout JSON');
         }
       }
 
+      const labelValueMap = buildLabelValueMap(formData);
+      
+      const fullAddress = labelValueMap['Full Address'] || '';
+      const addressLines = wrapTextFieldToLines('Full Address', fullAddress);
+      
+      const fullName = labelValueMap['Full Name'] || '';
+      const nameLines = wrapTextFieldToLines('Full Name', fullName);
+      
+      const addressField = savedLayout.find(f => normLabel(f.label) === 'full address');
+      const nameField = savedLayout.find(f => normLabel(f.label) === 'full name');
+      
+      let modifiedFields = [...savedLayout];
+      
+      if (addressField && addressLines.length > 1) {
+        modifiedFields = modifiedFields.filter(f => normLabel(f.label) !== 'full address');
+        
+        addressLines.forEach((line, index) => {
+          const lineNumber = index + 1;
+          let existingLineField = savedLayout.find(f => 
+            normLabel(f.label) === `address line ${lineNumber}` || 
+            normLabel(f.label) === `address ${lineNumber}`
+          );
+          
+          if (existingLineField) {
+            existingLineField.value = line;
+            modifiedFields.push(existingLineField);
+          } else if (addressField) {
+            const yOffset = (lineNumber - 1) * 12;
+            const newField = {
+              ...addressField,
+              label: `Address Line ${lineNumber}`,
+              value: line,
+              y: addressField.y + yOffset
+            };
+            modifiedFields.push(newField);
+          }
+        });
+      } else if (addressField) {
+        addressField.value = fullAddress;
+      }
+      
+      if (nameField && nameLines.length > 1) {
+        modifiedFields = modifiedFields.filter(f => normLabel(f.label) !== 'full name');
+        
+        nameLines.forEach((line, index) => {
+          const lineNumber = index + 1;
+          let existingLineField = savedLayout.find(f => 
+            normLabel(f.label) === `name line ${lineNumber}` ||
+            normLabel(f.label) === `name ${lineNumber}`
+          );
+          
+          if (existingLineField) {
+            existingLineField.value = line;
+            modifiedFields.push(existingLineField);
+          } else if (nameField) {
+            const yOffset = (lineNumber - 1) * 12;
+            const newField = {
+              ...nameField,
+              label: `Name Line ${lineNumber}`,
+              value: line,
+              y: nameField.y + yOffset
+            };
+            modifiedFields.push(newField);
+          }
+        });
+      } else if (nameField) {
+        nameField.value = fullName;
+      }
+      
       const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
-
+        
         let value: any = (formData as any)[key] ?? '';
-
+        
         if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
           const d = new Date(value);
           if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
         }
-
+        
+        const addressLabels = ['House Block Lot No', 'Street', 'Sitio', 'Full Address', 'Address'];
+        if (addressLabels.some(label => field.label?.toLowerCase().includes(label.toLowerCase()))) {
+          value = truncateText(String(value), 45);
+        }
+        
+        if (field.label === 'Full Name') {
+          value = truncateText(String(value), 40);
+        }
+        
         return { ...field, value: value ?? '' };
       });
 
-      const renderedBytes = await generatePDF(
-        templateBytes,
-        fieldsWithValues,
-        null,
-        record.bcert_number ?? null
-      );
+      labelValueMap['Full Address'] = addressLines[0] || '';
+      if (addressLines.length > 1) {
+        labelValueMap['Address Line 2'] = addressLines[1] || '';
+        if (addressLines.length > 2) {
+          labelValueMap['Address Line 3'] = addressLines[2] || '';
+        }
+      }
+      
+      labelValueMap['Full Name'] = nameLines[0] || '';
+      if (nameLines.length > 1) {
+        labelValueMap['Name Line 2'] = nameLines[1] || '';
+      }
+      
+      const finalFields = buildReleasePDFFields(fieldsWithValues, labelValueMap);
 
+      const renderedBytes = await generatePDF(templateBytes, finalFields, null, record.bcert_number ?? null);
       const filename = `barangay-certificates-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
-      const blob = new Blob(
-        [new Uint8Array(renderedBytes).buffer],
-        { type: "application/pdf" }
-      );
+      const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: "application/pdf" });
       const fd = new FormData();
       fd.append('file', blob, filename);
 
-      const res = await axios.post(
-        `http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}`,
-        fd,
-        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      const res = await axios.post(`http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}`, fd, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
 
       const path = res.data?.data?.released_document_path;
       if (path) setReleasedPath(path);
@@ -813,11 +1182,7 @@ function EditableDetailModal({
       toast({ title: 'Success', description: 'Document released successfully.' });
       onUpdate();
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to release document.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
     } finally {
       setIsReleasing(false);
     }
@@ -830,47 +1195,33 @@ function EditableDetailModal({
     }
     setIsDownloading(true);
     try {
-      const res = await axios.get(
-        `http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}/download`,
-        { withCredentials: true }
-      );
+      const res = await axios.get(`http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}/download`, { withCredentials: true });
       const url = res.data?.data?.url;
       if (!url) throw new Error('No download URL returned.');
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to get download link.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to get download link.', variant: 'destructive' });
     } finally {
       setIsDownloading(false);
     }
   };
 
-  // ── Save edits ─────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     setIsSaving(true);
     try {
       let existingId: number | null = null;
       try {
-        const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`,
-          { withCredentials: true }
-        );
+        const checkRes = await axios.get(`http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
 
       if (existingId) {
-        await axios.put(
-          `http://127.0.0.1:8000/api/barangay-certificates/${existingId}`,
-          formData,
-          { withCredentials: true }
-        );
+        await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${existingId}`, formData, { withCredentials: true });
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false);
         onUpdate();
+        handleRefresh();
       } else {
         toast({ title: 'Error', description: 'Record not found', variant: 'destructive' });
       }
@@ -893,61 +1244,10 @@ function EditableDetailModal({
     } finally { setIsSaving(false); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
-  };
-
-  // ── Field renderer ─────────────────────────────────────────────────────────
-  const Field = ({ label, name, type = 'text', options, isTextArea = false }: any) => {
-    const value = formData[name] || '';
-    if (isEditing) {
-      if (type === 'select' && options) {
-        return (
-          <select name={name} value={value} onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-            <option value="">Select {label}</option>
-            {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        );
-      }
-      if (isTextArea) {
-        return (
-          <textarea name={name} value={value} onChange={handleInputChange} rows={3}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-        );
-      }
-      return (
-        <input type={type} name={name} value={value} onChange={handleInputChange}
-          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-      );
-    }
-    if (type === 'date' && value) return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
-    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
-  };
-
-  // condition (add alongside the other can* variables)
-  const canMarkToInspection = status === 'WHATEVER_YOUR_TRIGGER_STATUS_IS';
-
-  // handler (add alongside handleMarkToPay)
-  const handleMarkToInspection = async () => {
-    setActionLoading('inspection');
-    try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/barangay-certificates/${record.id}`,
-        { status: 'INSPECTING' },
-        { withCredentials: true }
-      );
-      setCurrentStatus('INSPECTING');
-      setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
-      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -965,29 +1265,23 @@ function EditableDetailModal({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-
-          {/* ── Modal Header ── */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Certificate Details</h2>
               <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </button>
               {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                >
+                <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                   <Edit2 className="h-4 w-4" /> Edit
                 </button>
               ) : (
                 <>
-                  <button onClick={() => setIsEditing(false)}
-                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={handleUpdate} disabled={isSaving}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                  <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                  <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
                     <Save className="h-4 w-4" />
                     {isSaving ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -999,91 +1293,163 @@ function EditableDetailModal({
             </div>
           </div>
 
-          {/* ── Modal Body ── */}
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
 
-              <UserIdViewer
-                userId={record?.schedule?.user_id}
-                onZoom={url => setLightboxUrl(url)}
-              />
-
-              {/* Personal Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 {[
                   { label: 'BCert Number', name: 'bcert_number' },
-                  { label: 'First Name',   name: 'first_name' },
-                  { label: 'Middle Name',  name: 'middle_name' },
-                  { label: 'Surname',      name: 'surname' },
-                  { label: 'Extension',    name: 'extension' },
-                  { label: 'Age',          name: 'age', type: 'number' },
+                  { label: 'Prefix', name: 'prefix', type: 'select', options: ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.'] },
+                  { label: 'First Name', name: 'first_name' },
+                  { label: 'Middle Name', name: 'middle_name' },
+                  { label: 'Surname', name: 'surname' },
+                  { label: 'Ext Name', name: 'ext_name' },
+                  { label: 'Extension', name: 'extension' },
+                  { label: 'Age', name: 'age', type: 'number' },
                 ].map(f => (
                   <div key={f.name}>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                    <Field {...f} />
+                    <FormField 
+                      name={f.name}
+                      value={formData[f.name] || ''}
+                      onChange={handleInputChange}
+                      type={f.type || 'text'}
+                      options={f.options}
+                      isTextArea={f.isTextArea}
+                      isEditing={isEditing}
+                      label={f.label}
+                    />
                   </div>
                 ))}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Date of Birth</label>
-                  <Field label="Date of Birth" name="dob" type="date" />
+                  <FormField 
+                    name="dob"
+                    value={formData.dob || ''}
+                    onChange={handleInputChange}
+                    type="date"
+                    isEditing={isEditing}
+                    label="Date of Birth"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Email</label>
-                  <Field label="Email" name="email" type="email" />
+                  <FormField 
+                    name="email"
+                    value={formData.email || ''}
+                    onChange={handleInputChange}
+                    type="email"
+                    isEditing={isEditing}
+                    label="Email"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
-                  <Field label="Requester Type" name="requester_type" type="select" options={['Online', 'Walk-in']} />
+                  <FormField 
+                    name="requester_type"
+                    value={formData.requester_type || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={['Online', 'Walk-in']}
+                    isEditing={isEditing}
+                    label="Requester Type"
+                  />
                 </div>
               </div>
 
-              {/* Address Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
                 {[
-                  { label: 'Block No.',            name: 'block_no' },
-                  { label: 'Street',               name: 'street' },
-                  { label: 'Zone',                 name: 'zone' },
-                  { label: 'Period of Residency',  name: 'period_of_residency' },
+                  { label: 'House/Block/Lot No.', name: 'house_block_lot_no' },
+                  { label: 'Street', name: 'street', type: 'select', options: streets.map(s => s.name) },
+                  { label: 'Sitio', name: 'sitio', type: 'select', options: SITIO_OPTIONS },
+                  { label: 'Period of Residency', name: 'period_of_residency' },
                 ].map(f => (
                   <div key={f.name}>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                    <Field {...f} />
+                    <FormField 
+                      name={f.name}
+                      value={formData[f.name] || ''}
+                      onChange={handleInputChange}
+                      type={f.type || 'text'}
+                      options={f.options}
+                      isEditing={isEditing}
+                      label={f.label}
+                    />
                   </div>
                 ))}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Registered Voter</label>
-                  <Field label="Registered Voter" name="registered_voter" type="select" options={['Yes', 'No']} />
+                  <FormField 
+                    name="registered_voter"
+                    value={formData.registered_voter || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={['Yes', 'No']}
+                    isEditing={isEditing}
+                    label="Registered Voter"
+                  />
                 </div>
               </div>
 
-              {/* Document Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
-                  <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
+                  <FormField 
+                    name="purpose"
+                    value={formData.purpose || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={PURPOSE_OPTIONS}
+                    isEditing={isEditing}
+                    label="Purpose"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued Date</label>
-                  <Field label="Issued Date" name="issued_date" type="date" />
+                  <FormField 
+                    name="issued_date"
+                    value={formData.issued_date || ''}
+                    onChange={handleInputChange}
+                    type="date"
+                    isEditing={isEditing}
+                    label="Issued Date"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued On</label>
-                  <Field label="Issued On" name="issued_on" type="date" />
+                  <FormField 
+                    name="issued_on"
+                    value={formData.issued_on || ''}
+                    onChange={handleInputChange}
+                    type="date"
+                    isEditing={isEditing}
+                    label="Issued On"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued At</label>
-                  <Field label="Issued At" name="issued_at" />
+                  <FormField 
+                    name="issued_at"
+                    value={formData.issued_at || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="Issued At"
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
-                  <Field label="OR No." name="or_no" />
+                  <FormField 
+                    name="or_no"
+                    value={formData.or_no || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="OR No."
+                  />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">CTC/VRR No.</label>
-                  <Field label="CTC/VRR No" name="ctc_vrr_no" />
+                  <FormField 
+                    name="ctc_vrr_no"
+                    value={formData.ctc_vrr_no || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="CTC/VRR No."
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
@@ -1091,8 +1457,15 @@ function EditableDetailModal({
                 </div>
                 {formData.rejection_reason && (
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Reason of rejection</label>
-                    <Field label="Reason of rejection" name="rejection_reason" isTextArea />
+                    <FormField 
+                      name="rejection_reason"
+                      value={formData.rejection_reason || ''}
+                      onChange={handleInputChange}
+                      type="text"
+                      isTextArea={true}
+                      isEditing={isEditing}
+                      label="Reason of rejection"
+                    />
                   </div>
                 )}
                 <div>
@@ -1101,7 +1474,6 @@ function EditableDetailModal({
                 </div>
               </div>
 
-              {/* Schedule & Remarks */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
                 {(record as any).schedule ? (
@@ -1125,170 +1497,97 @@ function EditableDetailModal({
                   <p className="text-sm text-gray-400 italic">No schedule assigned.</p>
                 )}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
-                  <Field label="Remarks" name="remarks" isTextArea />
+                  <FormField 
+                    name="remarks"
+                    value={formData.remarks || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isTextArea={true}
+                    isEditing={isEditing}
+                    label="Remarks"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
+                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
               </div>
-
-              {/* Barangay Official Information */}
-              {/* <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Barangay Official Information</h3>
-                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Punong Barangay</label><Field label="Punong Barangay" name="punong_barangay" /></div>
-                <div><label className="text-xs text-gray-500 uppercase tracking-wider">For The Punong Barangay</label><Field label="For The Punong Barangay" name="for_the_punong_barangay" /></div>
-                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Barangay Position</label><Field label="Barangay Position" name="barangay_position" /></div>
-              </div> */}
-
             </div>
           </div>
 
-          {/* ── Disposition Inline Modal ── */}
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${
-                    dispositionType === 'REJECTED'
-                      ? 'bg-rose-100 text-rose-800 border-rose-200'
-                      : 'bg-orange-50 text-orange-700 border-orange-200'
-                  }`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${dispositionType === 'REJECTED' ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                     {dispositionType === 'REJECTED' ? 'Reject' : 'Mark as Incomplete'}
                   </span>
                   <span className="text-sm font-semibold text-gray-800">Provide a reason</span>
                 </div>
-                <button
-                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
-                  className="p-1 hover:bg-gray-200 rounded-md transition-colors"
-                >
+                <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }} className="p-1 hover:bg-gray-200 rounded-md transition-colors">
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
-              <textarea
-                rows={3}
-                placeholder={
-                  dispositionType === 'REJECTED'
-                    ? 'e.g. Insufficient documents, unverifiable information…'
-                    : 'e.g. Missing birth certificate, incomplete address…'
-                }
-                value={dispositionReason}
-                onChange={e => setDispositionReason(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white"
-              />
+              <textarea rows={3} placeholder={dispositionType === 'REJECTED' ? 'e.g. Insufficient documents, unverifiable information…' : 'e.g. Missing birth certificate, incomplete address…'} value={dispositionReason} onChange={e => setDispositionReason(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white" />
               <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDisposition}
-                  disabled={isDisposing || !dispositionReason.trim()}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${
-                    dispositionType === 'REJECTED'
-                      ? 'bg-rose-600 hover:bg-rose-700'
-                      : 'bg-orange-500 hover:bg-orange-600'
-                  }`}
-                >
+                <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onClick={handleDisposition} disabled={isDisposing || !dispositionReason.trim()} className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
                   {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── Modal Footer — action buttons live here ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
                 {canMarkToPay && (
-                  <button
-                    onClick={handleMarkToPay}
-                    disabled={actionLoading === 'to_pay'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleMarkToPay} disabled={actionLoading === 'to_pay'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
                     <CreditCard className="h-4 w-4" />
                     {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
                   </button>
                 )}
-                
-                {canMarkAsPaid && (
-                  <button
-                    onClick={handleMarkAsPaid}
-                    disabled={actionLoading === 'paid'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
-                  </button>
-                )}
                 {canRelease && (
-                  <button
-                    onClick={handleReleaseAndSave}
-                    disabled={isReleasing}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleReleaseAndSave} disabled={isReleasing} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
                     <Mail className="h-4 w-4" />
                     {isReleasing ? 'Releasing...' : 'Release Document'}
                   </button>
                 )}
                 {hasReleasedDocument && (
-                  <button
-                    onClick={downloadReleased}
-                    disabled={isDownloading}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={downloadReleased} disabled={isDownloading} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
                     <Download className="h-4 w-4" />
                     {isDownloading ? 'Downloading...' : 'Download Released'}
                   </button>
                 )}
-                {/* ── Disposition buttons — always visible unless already rejected/incomplete ── */}
                 <>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
-                  <button
-                    onClick={() => openDisposition('INCOMPLETE')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
-                  >
+                  <button onClick={() => openDisposition('INCOMPLETE')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
                     <X className="h-4 w-4" />
                     Mark as Incomplete
                   </button>
-                  <button
-                    onClick={() => openDisposition('REJECTED')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                  >
+                  <button onClick={() => openDisposition('REJECTED')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
                     <X className="h-4 w-4" />
                     Reject
                   </button>
                 </>
-
-                {true && (
-                  <button
-                    onClick={handleMarkToInspection}
-                    disabled={actionLoading === 'inspection'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
-                  >
+                {canMarkToInspection && (
+                  <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
                     <Eye className="h-4 w-4" />
                     {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                   </button>
                 )}
-                
-
-                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument
-                  && (status === 'REJECTED' || status === 'INCOMPLETE') && (
-                  <p className="text-xs text-gray-400 italic">
-                    This record has been {status === 'REJECTED' ? 'rejected' : 'marked as incomplete'}.
-                  </p>
+                {!canMarkToPay && !canRelease && !hasReleasedDocument && (status === 'REJECTED' || status === 'INCOMPLETE') && (
+                  <p className="text-xs text-gray-400 italic">This record has been {status === 'REJECTED' ? 'rejected' : 'marked as incomplete'}.</p>
                 )}
-                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument && (
+                {!canMarkToPay && !canRelease && !hasReleasedDocument && (
                   <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
                 )}
-                
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
           </div>
-
         </div>
       </div>
-
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
@@ -1299,34 +1598,16 @@ const DATE_PERIOD_LABELS: Record<string, string> = {
   this_week: 'This week', this_month: 'This month', this_year: 'This year',
 };
 
-function FilterBar({
-  filters, onChange, onReset, activeCount,
-}: {
-  filters: FilterState;
-  onChange: (patch: Partial<FilterState>) => void;
-  onReset: () => void;
-  activeCount: number;
-}) {
+function FilterBar({ filters, onChange, onReset, activeCount }: { filters: FilterState; onChange: (patch: Partial<FilterState>) => void; onReset: () => void; activeCount: number }) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border ${
-            activeCount > 0
-              ? 'border-blue-500 bg-blue-50 text-blue-700'
-              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-          } text-sm font-medium transition-all`}
-          onClick={() => setOpen(v => !v)}
-        >
+        <button className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border ${activeCount > 0 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'} text-sm font-medium transition-all`} onClick={() => setOpen(v => !v)}>
           <SlidersHorizontal className="h-4 w-4" />
           <span>Filters</span>
-          {activeCount > 0 && (
-            <span className="bg-blue-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full inline-flex items-center justify-center px-1">
-              {activeCount}
-            </span>
-          )}
+          {activeCount > 0 && <span className="bg-blue-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full inline-flex items-center justify-center px-1">{activeCount}</span>}
           <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
 
@@ -1373,13 +1654,8 @@ function FilterBar({
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE'] as const).map(v => (
-                  <button key={v}
-                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    onClick={() => onChange({ status: v })}
-                  >
+                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'INSPECTING'] as const).map(v => (
+                  <button key={v} className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ status: v })}>
                     {v === '' ? 'All' : v === 'TO_PAY' ? 'TO PAY' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
@@ -1394,12 +1670,7 @@ function FilterBar({
                   { v: 'scheduled', label: 'Scheduled', icon: <CalendarCheck className="h-3 w-3" /> },
                   { v: 'not_scheduled', label: 'Not yet scheduled', icon: <CalendarX className="h-3 w-3" /> },
                 ].map(opt => (
-                  <button key={opt.v}
-                    className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.schedule_filter === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    onClick={() => onChange({ schedule_filter: opt.v })}
-                  >
+                  <button key={opt.v} className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.schedule_filter === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ schedule_filter: opt.v })}>
                     {opt.icon}{opt.label}
                   </button>
                 ))}
@@ -1416,12 +1687,7 @@ function FilterBar({
                   { v: 'this_year', label: 'This year' },
                   { v: 'custom', label: 'Custom range' },
                 ].map(opt => (
-                  <button key={opt.v}
-                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                      filters.filter_date === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}
-                  >
+                  <button key={opt.v} className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.filter_date === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}>
                     {opt.label}
                   </button>
                 ))}
@@ -1437,8 +1703,7 @@ function FilterBar({
 
             <div className="p-4 border-l border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Purpose</label>
-              <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
-                value={filters.purpose} onChange={e => onChange({ purpose: e.target.value })}>
+              <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400" value={filters.purpose} onChange={e => onChange({ purpose: e.target.value })}>
                 <option value="">All purposes</option>
                 {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -1461,24 +1726,23 @@ function FilterBar({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 const Certificate = () => {
-  const { toast }       = useToast();
-  const navigate        = useNavigate();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
   const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
-  const [filters, setFiltersRaw]         = useState<FilterState>(() => filtersFromParams(searchParams));
+  const [filters, setFiltersRaw] = useState<FilterState>(() => filtersFromParams(searchParams));
 
-  const [data, setData]             = useState<CertificateType[]>([]);
-  const [isLoading, setIsLoading]   = useState(true);
-  const [total, setTotal]           = useState(0);
+  const [data, setData] = useState<CertificateType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortField, setSortField]   = useState('created_at');
+  const [sortField, setSortField] = useState('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<CertificateType | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
 
-  // ── URL sync ───────────────────────────────────────────────────────────────
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
   }, [setSearchParams]);
@@ -1498,10 +1762,8 @@ const Certificate = () => {
     setSearchValueRaw(searchParams.get('search') ?? '');
     setCurrentPageRaw(Number(searchParams.get('page') ?? '1'));
     setFiltersRaw(filtersFromParams(searchParams));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()]);
+  }, [searchParams]);
 
-  // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -1509,12 +1771,12 @@ const Certificate = () => {
         page: currentPage, pageSize: 15,
         search: searchValue || undefined,
         sortField, sortDirection,
-        ...(filters.status                                           ? { status:      filters.status }      : {}),
+        ...(filters.status ? { status: filters.status } : {}),
         ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date: filters.filter_date } : {}),
-        ...(filters.filter_date === 'custom' && filters.from        ? { from:        filters.from }        : {}),
-        ...(filters.filter_date === 'custom' && filters.to          ? { to:          filters.to }          : {}),
-        ...(filters.purpose                                         ? { purpose:     filters.purpose }     : {}),
-        ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
+        ...(filters.filter_date === 'custom' && filters.from ? { from: filters.from } : {}),
+        ...(filters.filter_date === 'custom' && filters.to ? { to: filters.to } : {}),
+        ...(filters.purpose ? { purpose: filters.purpose } : {}),
+        ...(filters.schedule_filter ? { schedule_filter: filters.schedule_filter } : {}),
       };
       const response = await fetchCertificates(params);
       setData(response.data as any[]);
@@ -1529,7 +1791,6 @@ const Certificate = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Table handlers ─────────────────────────────────────────────────────────
   const handleSort = (field: string) => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
@@ -1557,8 +1818,7 @@ const Certificate = () => {
   const activeFilterCount = countActiveFilters(filters);
 
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
-    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
-      onClick={() => handleSort(field)}>
+    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none" onClick={() => handleSort(field)}>
       <div className="flex items-center gap-1">
         {children}
         <ArrowUpDown className={`h-3 w-3 ${sortField === field ? 'text-blue-600' : 'opacity-40'}`} />
@@ -1566,7 +1826,6 @@ const Certificate = () => {
     </th>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Layout>
       <div className="p-6">
@@ -1584,21 +1843,12 @@ const Certificate = () => {
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
-              <button
-                onClick={() => setShowQRScanner(true)}
-                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-all flex-shrink-0"
-                title="Scan QR code to search"
-              >
+              <button onClick={() => setShowQRScanner(true)} className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-all flex-shrink-0" title="Scan QR code to search">
                 <QrCode className="h-4 w-4" />
                 <span className="hidden sm:inline">Scan QR</span>
               </button>
             </div>
-            <FilterBar
-              filters={filters}
-              onChange={patch => setFilters(prev => ({ ...prev, ...patch }))}
-              onReset={() => setFilters(EMPTY_FILTERS)}
-              activeCount={activeFilterCount}
-            />
+            <FilterBar filters={filters} onChange={patch => setFilters(prev => ({ ...prev, ...patch }))} onReset={() => setFilters(EMPTY_FILTERS)} activeCount={activeFilterCount} />
           </div>
 
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
@@ -1619,8 +1869,7 @@ const Certificate = () => {
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
                 {(activeFilterCount > 0 || searchValue) && (
-                  <button className="text-xs text-blue-600 hover:underline"
-                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
+                  <button className="text-xs text-blue-600 hover:underline" onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
                     Clear all filters
                   </button>
                 )}
@@ -1655,7 +1904,7 @@ const Certificate = () => {
                           </td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.bcert_number}</td>
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">
-                            {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}${item.extension ? ` ${item.extension}` : ''}`.trim()}
+                            {`${item.prefix ? item.prefix + ' ' : ''}${item.first_name} ${item.middle_name ?? ''} ${item.surname}${item.ext_name ? ' ' + item.ext_name : ''}${item.extension ? ' ' + item.extension : ''}`.trim()}
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
                             {item.issued_date ? new Date(item.issued_date).toLocaleDateString() : '—'}
@@ -1673,28 +1922,16 @@ const Certificate = () => {
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <button
-                                onClick={() => setSelectedDetailRecord(item)}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
+                              <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                 <Eye className="h-3 w-3" /> View/Edit
                               </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/1/${item.bcert_number}`)}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                              >
+                              <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">
                                 Preview
                               </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true } })}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
+                              <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                 Print
                               </button>
-                              <button
-                                onClick={() => handleDelete(Number(item.id))}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap"
-                              >
+                              <button onClick={() => handleDelete(Number(item.id))} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap">
                                 Delete
                               </button>
                             </div>
@@ -1708,29 +1945,16 @@ const Certificate = () => {
             )}
           </div>
 
-          <ClearancePagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            total={total}
-            onPageChange={setCurrentPage}
-          />
+          <ClearancePagination currentPage={currentPage} totalPages={totalPages} total={total} onPageChange={setCurrentPage} />
         </div>
       </div>
 
       {selectedDetailRecord && (
-        <EditableDetailModal
-          record={selectedDetailRecord}
-          onClose={() => setSelectedDetailRecord(null)}
-          onUpdate={loadData}
-          toast={toast}
-        />
+        <EditableDetailModal record={selectedDetailRecord} onClose={() => setSelectedDetailRecord(null)} onUpdate={loadData} toast={toast} />
       )}
 
       {showQRScanner && (
-        <QRScannerModal
-          onClose={() => setShowQRScanner(false)}
-          onScan={handleQRScan}
-        />
+        <QRScannerModal onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />
       )}
     </Layout>
   );

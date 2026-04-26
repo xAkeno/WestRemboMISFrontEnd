@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
@@ -17,7 +17,56 @@ import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 
-// ─── LABEL_TO_KEY map (mirrors CertificateEditor) ─────────────────────────────
+interface StreetOption {
+  id: number;
+  name: string;
+  sitio: string;
+  formerly?: string;
+}
+
+// Sitio options for dropdown
+const SITIO_OPTIONS = [
+  'Sitio 1',
+  'Sitio 2',
+  'Sitio 3',
+  'Sitio 4',
+  'Sitio 5',
+  'Sitio 6',
+  'Sitio 7',
+  'Sitio 8',
+  'Sitio 9',
+  'Sitio 10',
+];
+
+// ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
+interface ConcatGroup {
+  label: string;
+  members: string[];
+  separator: string;
+}
+
+const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
+  {
+    label: 'Full Name',
+    members: ['Prefix', 'First Name', 'M.I.', 'Last Name', 'Ext Name'],
+    separator: ' ',
+  },
+  {
+    label: 'Full Address',
+    members: ['House Block Lot No', 'Street', 'Sitio'],
+    separator: ', ',
+  },
+];
+
+// ─── Robust label normaliser ───────────────────────────────────────────────────
+const normLabel = (s: string) =>
+  s.trim()
+   .toLowerCase()
+   .replace(/[.\-_]/g, ' ')
+   .replace(/\s+/g, ' ')
+   .trim();
+
+// ─── LABEL_TO_KEY map ──────────────────────────────────────────────────────────
 const LABEL_TO_KEY: Record<string, string> = {
   'First Name': 'first_name',
   'Middle Name': 'middle_name',
@@ -35,7 +84,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Zone': 'zone',
+  'Sitio': 'sitio',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -64,6 +113,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Purpose Details': 'purpose_details',
   'Remarks': 'remarks',
   'Building Clearance No': 'bcert_number',
+  'Brgy Business No': 'brgy_business_no',
   'Punong Barangay': 'punong_barangay',
   'For The Punong Barangay': 'for_the_punong_barangay',
   'Barangay Position': 'barangay_position',
@@ -92,7 +142,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 };
 
 const NON_DATE_KEYS = new Set([
-  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -105,6 +155,149 @@ const NON_DATE_KEYS = new Set([
   'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
   'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
 ]);
+
+function cleanSitioNumber(value: string): string {
+  if (!value) return '';
+  
+  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
+  if (sitioMatch) {
+    return sitioMatch[1];
+  }
+  
+  const numberMatch = value.match(/^\d+$/);
+  if (numberMatch) {
+    return numberMatch[0];
+  }
+  
+  const anyNumberMatch = value.match(/\d+/);
+  if (anyNumberMatch) {
+    return anyNumberMatch[0];
+  }
+  
+  return value.trim();
+}
+
+// ─── buildLabelValueMap ────────────────────────────────────────────────────────
+function buildLabelValueMap(formData: any): Record<string, string> {
+  const firstName = formData.first_name ?? '';
+  const middleName = formData.middle_name ?? '';
+  const lastName = formData.surname ?? '';
+  const prefix = formData.prefix ?? '';
+  const extName = formData.ext_name ?? '';
+  
+  const nameParts = [];
+  if (prefix) nameParts.push(prefix);
+  if (firstName) nameParts.push(firstName);
+  if (middleName) nameParts.push(middleName);
+  if (lastName) nameParts.push(lastName);
+  if (extName) nameParts.push(extName);
+  const fullName = nameParts.join(' ');
+  
+  const houseNo = formData.house_block_lot_no ?? '';
+  const street = formData.street ?? '';
+  let sitio = formData.sitio ?? '';
+  sitio = cleanSitioNumber(sitio);
+  
+  const addressParts = [];
+  if (houseNo) addressParts.push(houseNo);
+  if (street) addressParts.push(street);
+  if (sitio) addressParts.push(sitio);
+  const fullAddress = addressParts.join(', ');
+  
+  return {
+    'Prefix':      prefix,
+    'First Name':  firstName,
+    'M.I.':        middleName,
+    'Middle Name': middleName,
+    'Last Name':   lastName,
+    'Ext Name':    extName,
+    'Full Name':   fullName,
+    'Nickname':    formData.nick_name        ?? '',
+    'House Block Lot No': houseNo,
+    'Street':             street,
+    'Sitio':              sitio,
+    'Full Address':       fullAddress,
+    'Date of Birth':      formData.dob                ?? '',
+    'Place of Birth':     formData.pob                ?? '',
+    'Contact No':         formData.contact_no         ?? '',
+    'Period of Residency':         formData.period_of_residency   ?? '',
+    'House Owner':                 formData.house_owner           ?? '',
+    'Relationship to House Owner': formData.relationship_to_owner ?? '',
+    'Registered Voter':            formData.registered_voter      ?? '',
+    'Purpose':         formData.purpose         ?? '',
+    'Purpose Details': formData.purpose_details ?? '',
+    'Issued At':       formData.issued_at        ?? '',
+    'Issued On':       formData.issued_on        ?? '',
+    'Issued Date':     formData.issued_date      ?? '',
+    'OR No':           formData.or_no            ?? '',
+    'CTC/VRR No':      formData.ctc_vrr_no       ?? '',
+    'Remarks':         formData.remarks          ?? '',
+    'Building Clearance No':   formData.bcert_number             ?? '',
+    'Punong Barangay':         formData.punong_barangay          ?? '',
+    'For The Punong Barangay': formData.for_the_punong_barangay  ?? '',
+    'Barangay Position':       formData.barangay_position        ?? '',
+    'Status':                  formData.status                   ?? '',
+    'Created By':              formData.created_by               ?? '',
+    'Date':                    formData.created_at               ?? '',
+    'Establishment':           formData.establishment            ?? '',
+  };
+}
+
+// ─── buildReleasePDFFields ─────────────────────────────────────────────────────
+function buildReleasePDFFields(
+  fields: TextField[],
+  labelValueMap: Record<string, string>
+): TextField[] {
+  const suppressedNorm = new Set<string>();
+  const extras: TextField[] = [];
+
+  for (const group of RELEASE_CONCAT_GROUPS) {
+    const anchor = group.members
+      .map(m => fields.find(f => normLabel(f.label) === normLabel(m)))
+      .find(Boolean);
+
+    if (!anchor) {
+      console.warn(`No anchor found for group: ${group.label}`);
+      continue;
+    }
+
+    let combinedValue = '';
+    
+    if (group.label === 'Full Name') {
+      combinedValue = labelValueMap['Full Name'] || '';
+    } else if (group.label === 'Full Address') {
+      combinedValue = labelValueMap['Full Address'] || '';
+    }
+
+    if (combinedValue) {
+      extras.push({ ...anchor, label: group.label, value: combinedValue });
+    }
+
+    group.members.forEach(m => suppressedNorm.add(normLabel(m)));
+  }
+
+  const base = fields.filter(f => {
+    const normalizedLabel = normLabel(f.label);
+    if (normalizedLabel === 'first name' || 
+        normalizedLabel === 'middle name' || 
+        normalizedLabel === 'm i' ||
+        normalizedLabel === 'mi' ||
+        normalizedLabel === 'last name' ||
+        normalizedLabel === 'surname' ||
+        normalizedLabel === 'prefix' ||
+        normalizedLabel === 'ext name' ||
+        normalizedLabel === 'extension name' ||
+        normalizedLabel === 'house block lot no' ||
+        normalizedLabel === 'house block lot' ||
+        normalizedLabel === 'street' ||
+        normalizedLabel === 'sitio') {
+      return false;
+    }
+    return !suppressedNorm.has(normalizedLabel);
+  });
+
+  return [...base, ...extras];
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
@@ -127,7 +320,7 @@ interface FilterState {
   filter_date: string;
   from: string;
   to: string;
-  zone: string;
+  sitio: string;
   street: string;
   purpose: string;
   schedule_filter: string;
@@ -135,7 +328,7 @@ interface FilterState {
 
 const EMPTY_FILTERS: FilterState = {
   status: '', filter_date: '', from: '', to: '',
-  zone: '', street: '', purpose: '', schedule_filter: '',
+  sitio: '', street: '', purpose: '', schedule_filter: '',
 };
 
 const PURPOSE_OPTIONS = [
@@ -147,13 +340,12 @@ const PURPOSE_OPTIONS = [
   'Other',
 ];
 
-// ─── URL param key map ─────────────────────────────────────────────────────────
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   status:          'status',
   filter_date:     'date',
   from:            'from',
   to:              'to',
-  zone:            'zone',
+  sitio:           'sitio',
   street:          'street',
   purpose:         'purpose',
   schedule_filter: 'schedule',
@@ -165,7 +357,7 @@ function filtersFromParams(params: URLSearchParams): FilterState {
     filter_date:     params.get('date')     ?? '',
     from:            params.get('from')     ?? '',
     to:              params.get('to')       ?? '',
-    zone:            params.get('zone')     ?? '',
+    sitio:           params.get('sitio')    ?? '',
     street:          params.get('street')   ?? '',
     purpose:         params.get('purpose')  ?? '',
     schedule_filter: params.get('schedule') ?? '',
@@ -183,14 +375,12 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
   return p;
 }
 
-// ─── API instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatTimeRange(timeStr: string) {
   try {
     const [hStr, mStr] = timeStr.split(':');
@@ -229,11 +419,10 @@ function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
     f.filter_date === 'custom' && f.from ? 'from' : '',
-    f.zone, f.street, f.purpose, f.schedule_filter,
+    f.sitio, f.street, f.purpose, f.schedule_filter,
   ].filter(Boolean).length;
 }
 
-// ─── Status badge ──────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<string, string> = {
   pending:      'bg-yellow-100 text-yellow-800 border-yellow-200',
   incomplete:   'bg-orange-50 text-orange-700 border-orange-200',
@@ -245,6 +434,7 @@ const STATUS_STYLES: Record<string, string> = {
   to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
   paid:         'bg-teal-100 text-teal-800 border-teal-200',
   approved:     'bg-green-100 text-green-800 border-green-200',
+  inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
 function StatusBadge({ status }: { status: string | null | undefined }) {
@@ -258,7 +448,6 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
-// ─── Schedule Cell ─────────────────────────────────────────────────────────────
 function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
   if (!schedule) {
     return (
@@ -285,32 +474,17 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
   );
 }
 
-// ─── Lightbox ──────────────────────────────────────────────────────────────────
 function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0,0,0,0.88)' }}
-      onClick={onClose}
-    >
-      <button
-        className="absolute top-4 right-4 p-2 rounded-full"
-        style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }}
-        onClick={onClose}
-      >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.88)' }} onClick={onClose}>
+      <button className="absolute top-4 right-4 p-2 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff' }} onClick={onClose}>
         <X className="h-5 w-5" />
       </button>
-      <img
-        src={url}
-        alt="ID preview"
-        className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      />
+      <img src={url} alt="ID preview" className="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl" onClick={e => e.stopPropagation()} />
     </div>
   );
 }
 
-// ─── Single ID image card (view-only) ─────────────────────────────────────────
 function IdImageCard({ label, url, onZoom }: { label: string; url: string | null; onZoom: (u: string) => void }) {
   if (!url) {
     return (
@@ -329,15 +503,9 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
           <IdCard className="h-3.5 w-3.5 text-blue-600" />
           <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span>
         </div>
-        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">
-          ✓ On file
-        </span>
+        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">✓ On file</span>
       </div>
-      <div
-        className="relative group overflow-hidden bg-gray-100"
-        style={{ height: 160, cursor: 'zoom-in' }}
-        onClick={() => onZoom(url)}
-      >
+      <div className="relative group overflow-hidden bg-gray-100" style={{ height: 160, cursor: 'zoom-in' }} onClick={() => onZoom(url)}>
         <img src={url} alt={label} className="w-full h-full object-cover" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
           <ZoomIn className="h-6 w-6 text-white" />
@@ -346,10 +514,7 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
       </div>
       <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-gray-100">
         <span className="text-[9px] text-gray-400 uppercase tracking-wider">View only · From documents</span>
-        <button
-          onClick={() => onZoom(url)}
-          className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
-        >
+        <button onClick={() => onZoom(url)} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors">
           <Eye className="h-3 w-3" /> View full
         </button>
       </div>
@@ -357,7 +522,6 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
   );
 }
 
-// ─── User ID Viewer ────────────────────────────────────────────────────────────
 function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (url: string) => void }) {
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack,  setIdBack]  = useState<string | null>(null);
@@ -395,9 +559,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
       <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
         <IdCard className="h-4 w-4 text-blue-600" />
         <h3 className="text-sm font-semibold text-gray-900">Applicant's Registered ID</h3>
-        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
-          View Only · From Documents
-        </span>
+        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">View Only · From Documents</span>
       </div>
       {loading && (
         <div className="flex items-center gap-2 py-4 text-gray-400">
@@ -421,7 +583,6 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
   );
 }
 
-// ─── QR Scanner Modal ──────────────────────────────────────────────────────────
 function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (result: string) => void }) {
   const scannerRef   = useRef<Html5Qrcode | null>(null);
   const containerId  = "qr-scanner-container-building";
@@ -476,37 +637,25 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-xl overflow-hidden w-full max-w-sm mx-4 shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <QrCode className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-semibold text-gray-900">Scan QR Code</span>
           </div>
-          <button
-            onClick={() => { stopScanner(); onClose(); }}
-            className="p-1 hover:bg-gray-100 rounded-md"
-          >
+          <button onClick={() => { stopScanner(); onClose(); }} className="p-1 hover:bg-gray-100 rounded-md">
             <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
-
-        {/* Scanner area */}
         <div className="relative bg-black" style={{ minHeight: 300 }}>
           <div id={containerId} className="w-full" />
-
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 px-6">
               <Camera className="h-8 w-8 text-gray-400" />
               <p className="text-xs text-gray-300 text-center">{error}</p>
             </div>
           )}
-
           {scanned && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-900/80">
               <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
@@ -519,30 +668,15 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
             </div>
           )}
         </div>
-
-        {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-100">
           {scanned ? (
             <div className="flex gap-2">
-              <button
-                onClick={handleScanAgain}
-                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Scan Again
-              </button>
-              <button
-                onClick={handleConfirm}
-                className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors"
-                style={{ backgroundColor: "#0f2a5e" }}
-              >
-                Search This QR
-              </button>
+              <button onClick={handleScanAgain} className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Scan Again</button>
+              <button onClick={handleConfirm} className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors" style={{ backgroundColor: "#0f2a5e" }}>Search This QR</button>
             </div>
           ) : (
             <p className="text-[11px] text-gray-400 text-center">
-              {error
-                ? "Camera access was denied. Please allow camera permissions and try again."
-                : "Point your camera at the resident's QR code."}
+              {error ? "Camera access was denied. Please allow camera permissions and try again." : "Point your camera at the resident's QR code."}
             </p>
           )}
         </div>
@@ -550,6 +684,89 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
     </div>
   );
 }
+
+// ─── Memoized Form Field Component ─────────────────────────────────────────────
+const FormField = memo(({ 
+  name, 
+  value, 
+  onChange, 
+  type = 'text', 
+  options, 
+  isTextArea = false,
+  isEditing,
+  label
+}: any) => {
+  const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
+  const inputId = `field-${name}`;
+  
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditing, name]);
+  
+  if (!isEditing) {
+    if (type === 'date' && value) return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
+    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
+  }
+  
+  if (type === 'select' && options) {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        <select 
+          ref={inputRef as any}
+          id={inputId}
+          name={name} 
+          value={value} 
+          onChange={onChange} 
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+        >
+          <option value="">Select {label}</option>
+          {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+      </div>
+    );
+  }
+  
+  if (isTextArea) {
+    return (
+      <div>
+        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+        <textarea 
+          ref={inputRef as any}
+          id={inputId}
+          name={name} 
+          value={value} 
+          onChange={onChange} 
+          rows={3} 
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+      <input 
+        ref={inputRef as any}
+        id={inputId}
+        type={type} 
+        name={name} 
+        value={value} 
+        onChange={onChange} 
+        className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
+        autoComplete="off"
+      />
+    </div>
+  );
+});
+
+FormField.displayName = 'FormField';
 
 // ─── Editable Detail Modal Component ──────────────────────────────────────────
 function EditableDetailModal({
@@ -577,6 +794,18 @@ function EditableDetailModal({
   const [dispositionType, setDispositionType]           = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
   const [dispositionReason, setDispositionReason]       = useState('');
   const [isDisposing, setIsDisposing]                   = useState(false);
+  const [streets, setStreets] = useState<Street[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const loadStreets = async () => {
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        setStreets(res.data?.data ?? res.data ?? []);
+      } catch (e) { console.error("Failed to fetch streets:", e); }
+    };
+    loadStreets();
+  }, []);
 
   const [formData, setFormData] = useState<any>({
     first_name: '',
@@ -589,7 +818,7 @@ function EditableDetailModal({
     purpose_details: '',
     house_block_lot_no: '',
     street: '',
-    zone: '',
+    sitio: '',
     or_no: '',
     remarks: '',
     status: '',
@@ -603,57 +832,81 @@ function EditableDetailModal({
     punong_barangay: '',
     for_the_punong_barangay: '',
     barangay_position: '',
-    rejection_reason: '', // For internal use when rejecting
+    rejection_reason: '',
+    created_at: '',
+    dob: '',
+    pob: '',
+    contact_no: '',
+    period_of_residency: '',
+    house_owner: '',
+    relationship_to_owner: '',
+    registered_voter: '',
+    bcert_number: '',
   });
 
-  useEffect(() => {
+  const fetchFullRecord = useCallback(async () => {
     if (!record) return;
-    const fetchFullRecord = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get(
-          `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
-          { withCredentials: true }
-        );
-        const full = response.data.data.data[0];
-        setCurrentStatus(full.status ?? '');
-        setInitialReleasedPath(full.released_document_path ?? null);
-        setFormData({
-          first_name:         full.first_name         || '',
-          middle_name:        full.middle_name        || '',
-          surname:            full.surname            || '',
-          ext_name:           full.ext_name           || '',
-          prefix:             full.prefix             || '',
-          establishment:      full.establishment      || '',
-          purpose:            full.purpose            || '',
-          purpose_details:    full.purpose_details    || '',
-          house_block_lot_no: full.house_block_lot_no || '',
-          street:             full.street             || '',
-          zone:               full.zone               || '',
-          or_no:              full.or_no              || '',
-          remarks:            full.remarks            || '',
-          status:             full.status             || '',
-          created_by:         full.created_by         || '',
-          requester_type:     full.requester_type     || '',
-          email:              full.email              || '',
-          issued_date:        full.issued_date ? full.issued_date.split('T')[0] : '',
-          issued_at:          full.issued_at          || '',
-          issued_on:          full.issued_on          || '',
-          ctc_vrr_no:         full.ctc_vrr_no         || '',
-          punong_barangay:    full.punong_barangay    || '',
-          for_the_punong_barangay: full.for_the_punong_barangay || '',
-          barangay_position:  full.barangay_position  || '',
-          rejection_reason:  full.rejection_reason  || '',
-        });
-      } catch (error) {
-        console.error('Error fetching full record:', error);
-        toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchFullRecord();
+    setIsLoading(true);
+    try {
+      const response = await axios.get(
+        `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+        { withCredentials: true }
+      );
+      const full = response.data.data.data[0];
+      setCurrentStatus(full.status ?? '');
+      setInitialReleasedPath(full.released_document_path ?? null);
+      setFormData({
+        first_name:         full.first_name         || '',
+        middle_name:        full.middle_name        || '',
+        surname:            full.surname            || '',
+        ext_name:           full.ext_name           || '',
+        prefix:             full.prefix             || '',
+        establishment:      full.establishment      || '',
+        purpose:            full.purpose            || '',
+        purpose_details:    full.purpose_details    || '',
+        house_block_lot_no: full.house_block_lot_no || '',
+        street:             full.street             || '',
+        sitio:              full.sitio              || '',
+        or_no:              full.or_no              || '',
+        remarks:            full.remarks            || '',
+        status:             full.status             || '',
+        created_by:         full.created_by         || '',
+        requester_type:     full.requester_type     || '',
+        email:              full.email              || '',
+        issued_date:        full.issued_date ? full.issued_date.split('T')[0] : '',
+        issued_at:          full.issued_at          || '',
+        issued_on:          full.issued_on          || '',
+        ctc_vrr_no:         full.ctc_vrr_no         || '',
+        punong_barangay:    full.punong_barangay    || '',
+        for_the_punong_barangay: full.for_the_punong_barangay || '',
+        barangay_position:  full.barangay_position  || '',
+        rejection_reason:   full.rejection_reason   || '',
+        created_at:         full.created_at         || '',
+        dob:                full.dob                || '',
+        pob:                full.pob                || '',
+        contact_no:         full.contact_no         || '',
+        period_of_residency: full.period_of_residency || '',
+        house_owner:        full.house_owner        || '',
+        relationship_to_owner: full.relationship_to_owner || '',
+        registered_voter:   full.registered_voter   || '',
+        bcert_number:       full.bcert_number       || '',
+      });
+    } catch (error) {
+      console.error('Error fetching full record:', error);
+      toast({ title: 'Error', description: 'Failed to load record details', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, [record, toast]);
+
+  useEffect(() => {
+    fetchFullRecord();
+  }, [fetchFullRecord, refreshKey]);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+    toast({ title: 'Refreshed', description: 'Record data has been refreshed' });
+  };
 
   useEffect(() => {
     if (initialReleasedPath) setReleasedPath(initialReleasedPath);
@@ -663,13 +916,12 @@ function EditableDetailModal({
 
   if (!record) return null;
 
-  // ── Derived action visibility ──────────────────────────────────────────────
   const status = currentStatus.toUpperCase();
   const canMarkToPay  = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
   const canMarkAsPaid = status === 'TO_PAY';
   const canRelease    = status === 'PAID';
+  const canMarkToInspection = status === 'ENCODED' || status === 'SCHEDULED';
 
-  // ── Status action handlers ─────────────────────────────────────────────────
   const handleMarkToPay = async () => {
     setActionLoading('to_pay');
     try {
@@ -687,6 +939,42 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
+  const handleMarkAsPaid = async () => {
+    setActionLoading('paid');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        { status: 'PAID' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  const handleMarkToInspection = async () => {
+    setActionLoading('inspection');
+    try {
+      await axios.put(
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        { status: 'INSPECTING' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('INSPECTING');
+      setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
+      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDisposition = async () => {
     if (!record?.id || !dispositionType) return;
     if (!dispositionReason.trim()) {
@@ -696,7 +984,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/api/barangay-building-clearances/${record.id}/disposition`,
+        `http://127.0.0.1:8000/api/building-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -715,30 +1003,14 @@ function EditableDetailModal({
         variant: 'destructive',
       });
     } finally {
-      setIsDisposing(false); }
+      setIsDisposing(false);
+    }
   };
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     setDispositionType(type);
     setDispositionReason('');
     setShowDispositionModal(true);
-  };
-
-  const handleMarkAsPaid = async () => {
-    setActionLoading('paid');
-    try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
-        { status: 'PAID' },
-        { withCredentials: true }
-      );
-      setCurrentStatus('PAID');
-      setFormData((p: any) => ({ ...p, status: 'PAID' }));
-      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally { setActionLoading(null); }
   };
 
   const handleReleaseAndSave = async () => {
@@ -790,9 +1062,12 @@ function EditableDetailModal({
         return { ...field, value: value ?? '' };
       });
 
+      const labelValueMap = buildLabelValueMap(formData);
+      const finalFields = buildReleasePDFFields(fieldsWithValues, labelValueMap);
+
       const renderedBytes = await generatePDF(
         templateBytes,
-        fieldsWithValues,
+        finalFields,
         null,
         record.bcert_number ?? null
       );
@@ -853,7 +1128,6 @@ function EditableDetailModal({
     }
   };
 
-  // ── Save edits ─────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     setIsSaving(true);
     try {
@@ -876,6 +1150,7 @@ function EditableDetailModal({
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false);
         onUpdate();
+        handleRefresh();
       } else {
         toast({ title: 'Error', description: 'Record not found', variant: 'destructive' });
       }
@@ -898,61 +1173,10 @@ function EditableDetailModal({
     } finally { setIsSaving(false); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
-  };
-
-  // ── Field renderer ─────────────────────────────────────────────────────────
-  const Field = ({ label, name, type = 'text', options, isTextArea = false }: any) => {
-    const value = formData[name] || '';
-    if (isEditing) {
-      if (type === 'select' && options) {
-        return (
-          <select name={name} value={value} onChange={handleInputChange}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-            <option value="">Select {label}</option>
-            {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        );
-      }
-      if (isTextArea) {
-        return (
-          <textarea name={name} value={value} onChange={handleInputChange} rows={3}
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-        );
-      }
-      return (
-        <input type={type} name={name} value={value} onChange={handleInputChange}
-          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-      );
-    }
-    if (type === 'date' && value) return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
-    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
-  };
-
-    // condition (add alongside the other can* variables)
-  const canMarkToInspection = status === 'WHATEVER_YOUR_TRIGGER_STATUS_IS';
-
-  // handler (add alongside handleMarkToPay)
-  const handleMarkToInspection = async () => {
-    setActionLoading('inspection');
-    try {
-      await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
-        { status: 'INSPECTING' },
-        { withCredentials: true }
-      );
-      setCurrentStatus('INSPECTING');
-      setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
-      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -971,13 +1195,15 @@ function EditableDetailModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
-          {/* ── Modal Header ── */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Building Clearance Details</h2>
               <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </button>
               {!isEditing ? (
                 <button
                   onClick={() => setIsEditing(true)}
@@ -1004,7 +1230,6 @@ function EditableDetailModal({
             </div>
           </div>
 
-          {/* ── Modal Body ── */}
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -1013,80 +1238,204 @@ function EditableDetailModal({
                 onZoom={url => setLightboxUrl(url)}
               />
 
-              {/* Personal Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 {[
-                  { label: 'First Name',     name: 'first_name' },
-                  { label: 'Middle Name',    name: 'middle_name' },
-                  { label: 'Surname',        name: 'surname' },
+                  { label: 'First Name', name: 'first_name' },
+                  { label: 'Middle Name', name: 'middle_name' },
+                  { label: 'Surname', name: 'surname' },
                   { label: 'Extension Name', name: 'ext_name' },
                 ].map(f => (
                   <div key={f.name}>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                    <Field {...f} />
+                    <FormField 
+                      name={f.name}
+                      value={formData[f.name] || ''}
+                      onChange={handleInputChange}
+                      type={f.type || 'text'}
+                      isEditing={isEditing}
+                      label={f.label}
+                    />
                   </div>
                 ))}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
-                  <Field label="Prefix" name="prefix" type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} />
+                  <FormField 
+                    name="prefix"
+                    value={formData.prefix || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']}
+                    isEditing={isEditing}
+                    label="Prefix"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Email</label>
-                  <Field label="Email" name="email" type="email" />
+                  <FormField 
+                    name="email"
+                    value={formData.email || ''}
+                    onChange={handleInputChange}
+                    type="email"
+                    isEditing={isEditing}
+                    label="Email"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
-                  <Field label="Requester Type" name="requester_type" type="select" options={['Online', 'Walk-in']} />
+                  <FormField 
+                    name="requester_type"
+                    value={formData.requester_type || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={['Online', 'Walk-in']}
+                    isEditing={isEditing}
+                    label="Requester Type"
+                  />
                 </div>
               </div>
 
-              {/* Property/Establishment Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Property Information</h3>
-                {[
-                  { label: 'Establishment',       name: 'establishment' },
-                  { label: 'House/Block/Lot No.', name: 'house_block_lot_no' },
-                  { label: 'Street',              name: 'street' },
-                  { label: 'Zone',                name: 'zone' },
-                ].map(f => (
-                  <div key={f.name}>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
-                    <Field {...f} />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Establishment</label>
+                  <FormField 
+                    name="establishment"
+                    value={formData.establishment || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="Establishment"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label>
+                  <FormField 
+                    name="house_block_lot_no"
+                    value={formData.house_block_lot_no || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="House/Block/Lot No."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Street</label>
+                  <FormField 
+                    name="street"
+                    value={formData.street || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={streets.map(s => s.name)}
+                    isEditing={isEditing}
+                    label="Street"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Sitio</label>
+                  <FormField 
+                    name="sitio"
+                    value={formData.sitio || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={SITIO_OPTIONS}
+                    isEditing={isEditing}
+                    label="Sitio"
+                  />
+                </div>
               </div>
 
-              {/* Document Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
-                  <Field label="Purpose" name="purpose" type="select" options={PURPOSE_OPTIONS} />
+                  <FormField 
+                    name="purpose"
+                    value={formData.purpose || ''}
+                    onChange={handleInputChange}
+                    type="select"
+                    options={PURPOSE_OPTIONS}
+                    isEditing={isEditing}
+                    label="Purpose"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
-                  <Field label="Purpose Details" name="purpose_details" isTextArea />
+                  <FormField 
+                    name="purpose_details"
+                    value={formData.purpose_details || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isTextArea={true}
+                    isEditing={isEditing}
+                    label="Purpose Details"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Issued Date</label>
-                  <Field label="Issued Date" name="issued_date" type="date" />
+                  <FormField 
+                    name="issued_date"
+                    value={formData.issued_date || ''}
+                    onChange={handleInputChange}
+                    type="date"
+                    isEditing={isEditing}
+                    label="Issued Date"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Issued On</label>
-                  <Field label="Issued On" name="issued_on" type="date" />
+                  <FormField 
+                    name="issued_on"
+                    value={formData.issued_on || ''}
+                    onChange={handleInputChange}
+                    type="date"
+                    isEditing={isEditing}
+                    label="Issued On"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Issued At</label>
-                  <Field label="Issued At" name="issued_at" />
+                  <FormField 
+                    name="issued_at"
+                    value={formData.issued_at || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="Issued At"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
-                  <Field label="OR No." name="or_no" />
+                  <FormField 
+                    name="or_no"
+                    value={formData.or_no || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="OR No."
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">CTC/VRR No.</label>
-                  <Field label="CTC/VRR No" name="ctc_vrr_no" />
+                  <FormField 
+                    name="ctc_vrr_no"
+                    value={formData.ctc_vrr_no || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="CTC/VRR No."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Building Clearance No.</label>
+                  <FormField 
+                    name="bcert_number"
+                    value={formData.bcert_number || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isEditing={isEditing}
+                    label="Building Clearance No."
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
@@ -1095,12 +1444,20 @@ function EditableDetailModal({
                 {formData.rejection_reason && (
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Reason of rejection</label>
-                    <Field label="Reason of rejection" name="rejection_reason" isTextArea />
+                    <FormField 
+                      name="rejection_reason"
+                      value={formData.rejection_reason || ''}
+                      onChange={handleInputChange}
+                      type="text"
+                      isTextArea={true}
+                      isEditing={isEditing}
+                      label="Reason of rejection"
+                    />
                   </div>
                 )}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
-                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt((record as any).created_at)}</p>
+                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
@@ -1108,7 +1465,6 @@ function EditableDetailModal({
                 </div>
               </div>
 
-              {/* Schedule & Remarks */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
                 {(record as any).schedule && (
@@ -1131,14 +1487,21 @@ function EditableDetailModal({
                 )}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
-                  <Field label="Remarks" name="remarks" isTextArea />
+                  <FormField 
+                    name="remarks"
+                    value={formData.remarks || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isTextArea={true}
+                    isEditing={isEditing}
+                    label="Remarks"
+                  />
                 </div>
               </div>
 
             </div>
           </div>
 
-          {/* ── Disposition Inline Modal ── */}
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1164,7 +1527,7 @@ function EditableDetailModal({
                 placeholder={
                   dispositionType === 'REJECTED'
                     ? 'e.g. Insufficient documents, unverifiable information…'
-                    : 'e.g. Missing birth certificate, incomplete address…'
+                    : 'e.g. Missing documents, incomplete information…'
                 }
                 value={dispositionReason}
                 onChange={e => setDispositionReason(e.target.value)}
@@ -1192,7 +1555,6 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* ── Modal Footer — action buttons live here ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1236,11 +1598,6 @@ function EditableDetailModal({
                     {isDownloading ? 'Downloading...' : 'Download Released'}
                   </button>
                 )}
-                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument && (
-                  <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
-                )}
-
-                {/* ── Disposition buttons — always visible unless already rejected/incomplete ── */}
                 
                 <>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -1260,7 +1617,7 @@ function EditableDetailModal({
                   </button>
                 </>
 
-                {true && (
+                {canMarkToInspection && (
                   <button
                     onClick={handleMarkToInspection}
                     disabled={actionLoading === 'inspection'}
@@ -1270,7 +1627,6 @@ function EditableDetailModal({
                     {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                   </button>
                 )}
-                
 
                 {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument
                   && (status === 'REJECTED' || status === 'INCOMPLETE') && (
@@ -1331,57 +1687,43 @@ function FilterBar({
         {filters.status && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Status: <strong>{filters.status}</strong>
-            <button onClick={() => onChange({ status: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ status: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.schedule_filter && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Schedule: <strong>{filters.schedule_filter === 'scheduled' ? 'Scheduled' : 'Not yet scheduled'}</strong>
-            <button onClick={() => onChange({ schedule_filter: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ schedule_filter: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date && filters.filter_date !== 'custom' && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Created: <strong>{DATE_PERIOD_LABELS[filters.filter_date]}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.filter_date === 'custom' && (filters.from || filters.to) && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Created: <strong>{filters.from || '…'} → {filters.to || '…'}</strong>
-            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
-        {filters.zone && (
+        {filters.sitio && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
-            Zone: <strong>{filters.zone}</strong>
-            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            Sitio: <strong>{filters.sitio}</strong>
+            <button onClick={() => onChange({ sitio: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.street && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Street: <strong>{filters.street}</strong>
-            <button onClick={() => onChange({ street: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ street: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.purpose && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Purpose: <strong>{filters.purpose}</strong>
-            <button onClick={() => onChange({ purpose: '' })} className="text-blue-400 hover:text-blue-600">
-              <X className="h-3 w-3" />
-            </button>
+            <button onClick={() => onChange({ purpose: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {activeCount > 0 && (
@@ -1397,7 +1739,7 @@ function FilterBar({
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'SCHEDULED', 'RESCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'APPROVED'] as const).map(v => (
+                {(['', 'PENDING', 'SCHEDULED', 'RESCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'APPROVED', 'INSPECTING'] as const).map(v => (
                   <button
                     key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
@@ -1471,13 +1813,13 @@ function FilterBar({
             </div>
 
             <div className="p-4 border-l border-b border-gray-100">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Sitio</label>
               <input
                 type="text"
-                placeholder="e.g. Zone 1, Zone 2…"
+                placeholder="e.g. Sitio 1, Sitio 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
-                value={filters.zone}
-                onChange={e => onChange({ zone: e.target.value })}
+                value={filters.sitio}
+                onChange={e => onChange({ sitio: e.target.value })}
               />
             </div>
 
@@ -1568,8 +1910,7 @@ const BuildingClearance = () => {
     setSearchValueRaw(searchParams.get('search') ?? '');
     setCurrentPageRaw(Number(searchParams.get('page') ?? '1'));
     setFiltersRaw(filtersFromParams(searchParams));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()]);
+  }, [searchParams]);
 
   useEffect(() => {
     const load = async () => {
@@ -1594,7 +1935,7 @@ const BuildingClearance = () => {
         ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:      filters.filter_date }     : {}),
         ...(filters.filter_date === 'custom' && filters.from        ? { from:             filters.from }            : {}),
         ...(filters.filter_date === 'custom' && filters.to          ? { to:               filters.to }              : {}),
-        ...(filters.zone                                            ? { zone:             filters.zone }            : {}),
+        ...(filters.sitio                                           ? { sitio:            filters.sitio }           : {}),
         ...(filters.street                                          ? { street:           filters.street }          : {}),
         ...(filters.purpose                                         ? { purpose:          filters.purpose }         : {}),
         ...(filters.schedule_filter                                 ? { schedule_filter:  filters.schedule_filter } : {}),
@@ -1747,7 +2088,7 @@ const BuildingClearance = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {data.map(item => {
+                    {data.map((item) => {
                       const isNew = isNewRequest((item as any).created_at);
                       return (
                         <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
@@ -1760,7 +2101,7 @@ const BuildingClearance = () => {
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium text-blue-600 whitespace-nowrap">
-                            {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}${(item as any).ext_name ? ` ${(item as any).ext_name}` : ''}`.trim()}
+                            {`${(item as any).prefix ? (item as any).prefix + ' ' : ''}${item.first_name} ${item.middle_name ?? ''} ${item.surname}${(item as any).ext_name ? ` ${(item as any).ext_name}` : ''}`.trim()}
                           </td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.bcert_number}</td>
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
@@ -1774,7 +2115,7 @@ const BuildingClearance = () => {
                           <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
-                            {[item.house_block_lot_no, item.street, item.zone].filter(Boolean).join(', ') || '—'}
+                            {[item.house_block_lot_no, item.street, (item as any).sitio].filter(Boolean).join(', ') || '—'}
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>

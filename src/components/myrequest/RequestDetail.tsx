@@ -8,7 +8,7 @@ import {
   User, MapPin, ClipboardList,
   Info, FileX, BadgeCheck,
   X, Copy, Check, Clock, Home, RefreshCw, ChevronRight,
-  QrCode,
+  QrCode, XCircle, AlertCircle, Search,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -63,6 +63,7 @@ const statusStyle: Record<string, { bg: string; text: string; border: string; do
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
   scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
   to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+  inspecting: { bg: "#faf5ff", text: "#7c3aed", border: "#ddd6fe", dot: "#7c3aed" },
 };
 
 const PROCESS_STEPS = [
@@ -75,6 +76,7 @@ const PROCESS_STEPS = [
 const STATUS_TO_STEP: Record<string, number> = {
   pending: 0, incomplete: 0, processing: 0, encoded: 0,
   approved: 0, scheduled: 0,
+  inspecting: 0,
   to_pay: 2,
   released: 3,
 };
@@ -89,6 +91,7 @@ const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null
   to_pay:     { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
   released:   { message: "Your document has been sent to your registered email address.", nextStep: null },
   rejected:   { message: "Your request was not approved. See details for more information.", nextStep: null },
+  inspecting: { message: "A barangay officer is currently inspecting your submitted documents.", nextStep: null },
 };
 
 const WHAT_NEXT: Record<string, string> = {
@@ -101,7 +104,11 @@ const WHAT_NEXT: Record<string, string> = {
   to_pay:     "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
   released:   "Your document has been officially released and sent to your registered email.",
   rejected:   "Your request was not approved. Please contact the barangay office for more information.",
+  inspecting: "A barangay officer is currently reviewing and inspecting your submitted documents. You will be notified once the inspection is complete.",
 };
+
+// ─── Statuses that BLOCK the pickup schedule card from showing ─────────────────
+const BLOCKED_STATUSES = new Set(["rejected", "incomplete", "inspecting"]);
 
 const hasValue = (v: any): boolean =>
   v !== null && v !== undefined && String(v).trim() !== "";
@@ -158,15 +165,16 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Progress Bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ status }: { status: string }) {
-  const isRejected = status === "rejected";
-  const currentStep = isRejected ? -1 : (STATUS_TO_STEP[status] ?? 0);
+  const isRejected  = status === "rejected";
+  const isBlocked   = BLOCKED_STATUSES.has(status);
+  const currentStep = isBlocked ? -1 : (STATUS_TO_STEP[status] ?? 0);
 
   return (
     <div>
       <div className="flex gap-1 mb-2">
         {PROCESS_STEPS.map((step, i) => {
-          const done    = !isRejected && i <= currentStep;
-          const current = !isRejected && i === currentStep;
+          const done    = !isBlocked && i <= currentStep;
+          const current = !isBlocked && i === currentStep;
           return (
             <div
               key={i}
@@ -178,8 +186,8 @@ function ProgressBar({ status }: { status: string }) {
       </div>
       <div className="flex">
         {PROCESS_STEPS.map((step, i) => {
-          const done    = !isRejected && i <= currentStep;
-          const current = !isRejected && i === currentStep;
+          const done    = !isBlocked && i <= currentStep;
+          const current = !isBlocked && i === currentStep;
           return (
             <div key={i} className="flex-1">
               <span
@@ -254,14 +262,11 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
     catch { return dateStr; }
   })();
 
+  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const friendlyTime = (() => {
     try {
-      const [hStr, mStr] = timeStr.split(":");
-      const startH = parseInt(hStr, 10);
-      const endH = startH + 1;
-      const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
-      const period = endH >= 12 ? "PM" : "AM";
-      return `${fmt(startH)} – ${fmt(endH)} ${period}`;
+      const hour = parseInt(timeStr.split(":")[0], 10);
+      return hour >= 7 && hour < 12 ? "Morning" : "Afternoon";
     } catch { return timeStr; }
   })();
 
@@ -410,34 +415,6 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
           printing needed. Just show your screen to the staff.
         </p>
       </div>
-
-      {/* Steps */}
-      {/* <div className="px-4 pb-5 space-y-2">
-        {[
-          { n: 1, text: "Approach the counter and tell the officer you have an online request." },
-          { n: 2, text: "Show this QR code on your screen — the officer will scan it directly." },
-          { n: 3, text: "Your request appears instantly — no need to fill out a new form." },
-        ].map(({ n, text }) => (
-          <div
-            key={n}
-            className="flex items-start gap-3 px-3 py-3 rounded-xl"
-            style={{
-              backgroundColor: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black text-white"
-              style={{ backgroundColor: PINK, flexShrink: 0 }}
-            >
-              {n}
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.8)" }}>
-              {text}
-            </p>
-          </div>
-        ))}
-      </div> */}
     </div>
   );
 }
@@ -954,7 +931,7 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
                     })}
                   </p>
                   <p className="text-xs" style={{ color: "#6366f1" }}>
-                    {timeGroup === "morning" ? "8:00 AM – 12:00 PM" : "1:00 PM – 5:00 PM"}
+                    {timeGroup === "morning" ? "Morning" : "Afternoon"}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 ml-auto" style={{ color: "#a5b4fc" }} />
@@ -1027,13 +1004,11 @@ function ScheduledVisitCard({
     weekday: "long", month: "long", day: "numeric",
   });
 
+  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const timeLabel = (() => {
     try {
-      const [hStr, mStr] = schedule.schedule_time.split(":");
-      const startH = parseInt(hStr, 10);
-      const endH   = startH + 1;
-      const fmt    = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
-      return `${fmt(startH)} – ${fmt(endH)} ${endH >= 12 ? "PM" : "AM"}`;
+      const hour = parseInt(schedule.schedule_time.split(":")[0], 10);
+      return hour >= 7 && hour < 12 ? "Morning" : "Afternoon";
     } catch { return schedule.schedule_time; }
   })();
 
@@ -1218,6 +1193,328 @@ function ScheduledVisitCard({
   );
 }
 
+// ─── NEW: Rejected Status Card ─────────────────────────────────────────────────
+function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: "#fff",
+        border: "1px solid #fecdd3",
+        boxShadow: "0 1px 8px rgba(225,29,72,0.08)",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)", borderBottom: "1px solid #fecdd3" }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "#fee2e2" }}
+        >
+          <XCircle className="h-5 w-5" style={{ color: "#e11d48" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-black" style={{ color: "#9f1239" }}>Request Rejected</p>
+          <p className="text-[11px]" style={{ color: "#be123c" }}>
+            Your document request was not approved
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
+          style={{ background: "#fee2e2", color: "#e11d48", border: "1px solid #fecdd3" }}
+        >
+          Rejected
+        </span>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+        {/* Reason Block */}
+        {hasValue(reason) ? (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
+              Reason for Rejection
+            </p>
+            <div
+              className="flex items-start gap-3 px-4 py-4 rounded-xl"
+              style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ backgroundColor: "#fee2e2" }}
+              >
+                <FileX className="h-3.5 w-3.5" style={{ color: "#e11d48" }} />
+              </div>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9f1239" }}>
+                {String(reason)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="flex items-start gap-3 px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}
+          >
+            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#e11d48" }} />
+            <p className="text-xs leading-relaxed" style={{ color: "#be123c" }}>
+              No specific reason was provided. Please contact the barangay office for more information.
+            </p>
+          </div>
+        )}
+
+        {/* What to do next */}
+        <div
+          className="px-4 py-3 rounded-xl"
+          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
+            What you can do
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
+            Visit the barangay hall for assistance or to clarify the grounds of rejection. You may resubmit a new request once the issue has been resolved.
+          </p>
+        </div>
+
+        <button
+          onClick={onViewDetails}
+          className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
+          style={{ border: "1px solid #fecdd3", background: "#fff1f2", color: "#e11d48" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#ffe4e6";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2";
+          }}
+        >
+          View Full Request Details
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── NEW: Incomplete Status Card ───────────────────────────────────────────────
+function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: "#fff",
+        border: "1px solid #fed7aa",
+        boxShadow: "0 1px 8px rgba(234,88,12,0.08)",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)", borderBottom: "1px solid #fed7aa" }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "#ffedd5" }}
+        >
+          <AlertCircle className="h-5 w-5" style={{ color: "#ea580c" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-black" style={{ color: "#9a3412" }}>Action Required</p>
+          <p className="text-[11px]" style={{ color: "#c2410c" }}>
+            Missing or incomplete documents detected
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
+          style={{ background: "#ffedd5", color: "#ea580c", border: "1px solid #fed7aa" }}
+        >
+          Incomplete
+        </span>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+        {/* Reason Block */}
+        {hasValue(reason) ? (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
+              What Needs Attention
+            </p>
+            <div
+              className="flex items-start gap-3 px-4 py-4 rounded-xl"
+              style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ backgroundColor: "#ffedd5" }}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#ea580c" }} />
+              </div>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9a3412" }}>
+                {String(reason)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="flex items-start gap-3 px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
+          >
+            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
+            <p className="text-xs leading-relaxed" style={{ color: "#c2410c" }}>
+              Your submission has missing or incomplete documents. Please check the requirements and resubmit.
+            </p>
+          </div>
+        )}
+
+        {/* What to do next */}
+        <div
+          className="px-4 py-3 rounded-xl"
+          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
+            Next step
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
+            Please upload or provide the missing documents as soon as possible so the barangay office can continue processing your request.
+          </p>
+        </div>
+
+        <button
+          onClick={onViewDetails}
+          className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
+          style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#ffedd5";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed";
+          }}
+        >
+          View Full Request Detail
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── NEW: Inspecting Status Card ───────────────────────────────────────────────
+function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: "#fff",
+        border: "1px solid #ddd6fe",
+        boxShadow: "0 1px 8px rgba(124,58,237,0.08)",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)", borderBottom: "1px solid #ddd6fe" }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "#ede9fe" }}
+        >
+          <Search className="h-5 w-5" style={{ color: "#7c3aed" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-black" style={{ color: "#4c1d95" }}>Under Inspection</p>
+          <p className="text-[11px]" style={{ color: "#6d28d9" }}>
+            A barangay officer is reviewing your business or establishment.
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
+          style={{ background: "#ede9fe", color: "#7c3aed", border: "1px solid #ddd6fe" }}
+        >
+          Inspecting
+        </span>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+        {/* Animated inspection indicator */}
+        <div
+          className="flex items-center gap-3 px-4 py-4 rounded-xl"
+          style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
+        >
+          <div className="flex gap-1 flex-shrink-0">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: "#7c3aed",
+                  animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+                }}
+              />
+            ))}
+          </div>
+          <p className="text-xs font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>
+            The inspection of your business or establishment may take a few days to complete.
+          </p>
+        </div>
+
+        {/* Inspection notes / reason if any */}
+        {hasValue(reason) && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
+              Inspection Note
+            </p>
+            <div
+              className="flex items-start gap-3 px-4 py-4 rounded-xl"
+              style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ backgroundColor: "#ede9fe" }}
+              >
+                <Info className="h-3.5 w-3.5" style={{ color: "#7c3aed" }} />
+              </div>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>
+                {String(reason)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* What to do next */}
+        <div
+          className="px-4 py-3 rounded-xl"
+          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
+            What to expect
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
+            You will be notified once the inspection is complete. No action is needed from you at this time. Please keep your contact details up to date.
+          </p>
+        </div>
+
+        <button
+          onClick={onViewDetails}
+          className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
+          style={{ border: "1px solid #ddd6fe", background: "#faf5ff", color: "#7c3aed" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#ede9fe";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff";
+          }}
+        >
+          View Full Request Details
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function RequestDetail() {
   const navigate = useNavigate();
@@ -1285,10 +1582,17 @@ export default function RequestDetail() {
   }
 
   const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
-  const isReleased  = normalizedStatus === "released";
-  const isScheduled = normalizedStatus === "scheduled";
-  const isApproved  = normalizedStatus === "approved";
-  const isToPay     = normalizedStatus === "to_pay";
+  const isReleased   = normalizedStatus === "released";
+  const isScheduled  = normalizedStatus === "scheduled";
+  const isApproved   = normalizedStatus === "approved";
+  const isToPay      = normalizedStatus === "to_pay";
+  const isRejected   = normalizedStatus === "rejected";
+  const isIncomplete = normalizedStatus === "incomplete";
+  const isInspecting = normalizedStatus === "inspecting";
+
+  // These statuses block the regular pickup schedule card from appearing
+  const isBlockedStatus = BLOCKED_STATUSES.has(normalizedStatus);
+
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
   const req = { ...request, ...(request.raw ?? {}) };
 
@@ -1321,6 +1625,9 @@ export default function RequestDetail() {
 
   // Show QR card when the resident needs to physically visit the barangay
   const showQRCard = isScheduled || isApproved || isToPay;
+
+  // Rejection / incomplete reason — read from raw.rejection_reason
+  const rejectionReason = req.rejection_reason ?? null;
 
   const handleRescheduleSuccess = () => {
     setShowReschedule(false);
@@ -1413,7 +1720,27 @@ export default function RequestDetail() {
               </h1>
               <StatusBadge status={normalizedStatus} />
             </div>
-            <ProgressBar status={normalizedStatus} />
+
+            {/* Progress bar — only for normal flow statuses; blocked statuses get a separate indicator */}
+            {!isBlockedStatus ? (
+              <ProgressBar status={normalizedStatus} />
+            ) : (
+              // Separator line with label for blocked statuses
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+                <span
+                  className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: isRejected ? "#fff1f2" : isIncomplete ? "#fff7ed" : "#faf5ff",
+                    color: isRejected ? "#e11d48" : isIncomplete ? "#ea580c" : "#7c3aed",
+                    border: `1px solid ${isRejected ? "#fecdd3" : isIncomplete ? "#fed7aa" : "#ddd6fe"}`,
+                  }}
+                >
+                  {isRejected ? "Rejected" : isIncomplete ? "Incomplete" : "Inspecting"}
+                </span>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+              </div>
+            )}
           </div>
 
           {svcMeta && (
@@ -1450,15 +1777,15 @@ export default function RequestDetail() {
           )}
         </div>
 
-        {/* Schedule Card (non-scheduled statuses, not released) */}
-        {schedule && !isReleased && !isScheduled && (
+        {/* Schedule Card (non-scheduled statuses, not released, not blocked) */}
+        {schedule && !isReleased && !isScheduled && !isBlockedStatus && (
           <div className="mb-4">
             <ScheduleCard schedule={schedule} />
           </div>
         )}
 
-        {/* Required Documents (hidden when scheduled) */}
-        {dynamicRequirements.length > 0 && !isScheduled && (
+        {/* Required Documents (hidden when scheduled or blocked) */}
+        {dynamicRequirements.length > 0 && !isScheduled && !isBlockedStatus && (
           <div
             className="mb-6 rounded-2xl overflow-hidden"
             style={{
@@ -1532,6 +1859,30 @@ export default function RequestDetail() {
           />
         )}
 
+        {/* ── NEW: Rejected Card ── */}
+        {isRejected && (
+          <RejectedCard
+            reason={rejectionReason}
+            onViewDetails={() => setShowDetails(true)}
+          />
+        )}
+
+        {/* ── NEW: Incomplete Card ── */}
+        {isIncomplete && (
+          <IncompleteCard
+            reason={rejectionReason}
+            onViewDetails={() => setShowDetails(true)}
+          />
+        )}
+
+        {/* ── NEW: Inspecting Card ── */}
+        {isInspecting && (
+          <InspectingCard
+            reason={rejectionReason}
+            onViewDetails={() => setShowDetails(true)}
+          />
+        )}
+
         {/* ── QR Present Card — shown when a barangay visit is needed ── */}
         {showQRCard && (
           <QRPresentCard
@@ -1540,8 +1891,8 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* What's Next Card (hidden when scheduled or released) */}
-        {whatNext && !isReleased && !isScheduled && (
+        {/* What's Next Card (hidden when scheduled, released, or blocked statuses) */}
+        {whatNext && !isReleased && !isScheduled && !isBlockedStatus && (
           <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: NAVY }}>
             <div className="px-5 py-5 relative overflow-hidden">
               <div className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
