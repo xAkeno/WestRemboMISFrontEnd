@@ -480,7 +480,7 @@ const ForgotPassword = () => {
                 </p>
 
                 {/* Resend CAPTCHA — only shown when cooldown has expired */}
-                {cooldown === 0 && (
+                {/* {cooldown === 0 && (
                   <div className="flex flex-col items-center gap-1.5">
                     <ReCAPTCHA
                       ref={recaptchaRef}
@@ -493,7 +493,7 @@ const ForgotPassword = () => {
                       theme="light"
                     />
                   </div>
-                )}
+                )} */}
 
                 <div className="flex items-center justify-between">
                   <button

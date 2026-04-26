@@ -837,7 +837,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
                 <div>
                   <p className="text-xs font-bold" style={{ color: "#0369a1" }}>
-                    Appointments are available Monday – Friday only, within 2026.
+                    Appointments are available Monday – Friday only .
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "#0369a1" }}>
                     Weekends, public holidays, and special non-working holidays are not available.
