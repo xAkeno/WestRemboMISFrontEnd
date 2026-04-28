@@ -1,14 +1,30 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+// Auto-reset the success screen back to the kiosk welcome page after this idle
+// window. Spec: "Wait for approximately 5 seconds." Also acts as the inactivity
+// timeout if the resident leaves the success screen untouched.
+const SUCCESS_AUTO_RESET_MS = 5000;
+// Route that renders the SearchResident landing page (Yes/No prompt). The
+// kiosk navigates back here after a successful submission so the next
+// resident lands on the proper start-of-flow.
+const KIOSK_WELCOME_ROUTE = "/frontdesk";
+
+// ── Local kiosk profile cache ─────────────────────────────────────────────────
+// Mirrors SearchResident.tsx so the Yes-flow can look up a resident's last
+// submission entirely on-device when the backend search misses. The key is
+// normalised so casing / whitespace differences don't break lookups.
+const KIOSK_CACHE_PREFIX = "kiosk:profile:";
+const makeKioskCacheKey = (fn: string, ln: string, dob: string) =>
+  `${KIOSK_CACHE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
 import api from "@/lib/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
 import {
-  FileText, Building2, Briefcase, Users, Check,
+  FileText, Building2, Briefcase, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
   Shield, ArrowRight,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -28,13 +44,37 @@ const SERVICE_TYPE_MAP: Record<string, string> = {
   "building-clearance":    "Building Clearance",
   "business-clearance":    "Business Clearance",
   "barangay-certificate":  "Barangay Certificate",
-  "resident-registration": "Resident Registration",
+};
+
+// ─── Document-type → backend document_type string ─────────────────────────────
+const DOC_TYPE_TO_SCHEDULE_TYPE: Record<string, string> = {
+  "clearance":             "barangay_clearance",
+  "building-clearance":    "building_clearance",
+  "business-clearance":    "business_clearance",
+  "barangay-certificate":  "barangay_certificate",
 };
 
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
 
 // Prefix options for the combobox
 const PREFIX_OPTIONS = ["Mr.", "Ms.", "Mrs.", "Dr.", "Atty.", "Engr.", "Prof."];
+
+// ─── PH Holidays 2026 ─────────────────────────────────────────────────────────
+const PH_HOLIDAYS_2026 = [
+  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
+  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
+];
+
+// ─── Auto-detect current time slot & today's date ─────────────────────────────
+// Morning: 12:00 AM – 11:59 AM  |  Afternoon: 12:00 PM – 11:59 PM
+const getAutoTimeGroup = (): "morning" | "afternoon" => {
+  const hour = new Date().getHours();
+  return hour < 12 ? "morning" : "afternoon";
+};
+
+const getTodayDateString = (): string => {
+  return new Date().toISOString().split("T")[0];
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSLATIONS
@@ -119,8 +159,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "For business registration",
     "doc.bcert.label":        "Barangay Certificate",
     "doc.bcert.sub":          "Official barangay certificate",
-    "doc.resident.label":     "Resident Registration",
-    "doc.resident.sub":       "Register as a barangay resident",
     "step1.eyebrow":          "Step 1 of 5",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
@@ -222,6 +260,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.consent":            "Please accept the data privacy consent to proceed.",
     "success.title":          "Request submitted!",
     "success.sub":            "Your request has been successfully received. Kindly wait for your turn to be served.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Returning to home in {n}s…",
     "addr.preview":           "Full address:",
     "field.spouse":           "Name of spouse (Optional)",
     "field.bloodType":        "Blood type (Optional)",
@@ -320,8 +360,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa pagpaparehistro ng negosyo",
     "doc.bcert.label":        "Sertipiko ng Barangay",
     "doc.bcert.sub":          "Opisyal na sertipiko ng barangay",
-    "doc.resident.label":     "Pagpaparehistro ng Residente",
-    "doc.resident.sub":       "Magparehistro bilang residente ng barangay",
     "step1.eyebrow":          "Hakbang 1 ng 5",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
@@ -423,6 +461,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.consent":            "Mangyaring tanggapin ang pahintulot sa privacy ng data upang magpatuloy.",
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Babalik sa home sa {n}s…",
     "addr.preview":           "Buong tirahan:",
     "field.spouse":           "Pangalan ng asawa (Opsyonal)",
     "field.bloodType":        "Uri ng dugo (Opsyonal)",
@@ -521,8 +561,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa rehistrasyon sa negosyo",
     "doc.bcert.label":        "Sertipiko sa Barangay",
     "doc.bcert.sub":          "Opisyal nga sertipiko sa barangay",
-    "doc.resident.label":     "Rehistrasyon sa Residente",
-    "doc.resident.sub":       "Magparehistro isip residente sa barangay",
     "step1.eyebrow":          "Lakang 1 sa 5",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
@@ -624,6 +662,8 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Mobalik sa home sulod sa {n}s…",
     "addr.preview":           "Tibuok adres:",
     "field.spouse":           "Ngalan sa asawa (Opsyonal)",
     "field.bloodType":        "Matang sa dugo (Opsyonal)",
@@ -657,21 +697,6 @@ const FONT_SCALE: Record<FontSize, { scale: number; label: string; ariaLabel: st
 
 const LS_LANG = "fd_lang";
 const LS_FONT = "fd_font";
-
-// ── Returning-resident profile cache ──────────────────────────────────────
-// Mirrors the prefix used by `SearchResident.tsx` so that submissions made
-// here can be retrieved by the kiosk welcome page on the next visit.
-const LS_KIOSK_PROFILE_PREFIX = "kiosk:profile:";
-const makeKioskProfileKey = (fn: string, ln: string, dob: string) =>
-  `${LS_KIOSK_PROFILE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
-
-// Auto-reset the success screen back to the kiosk welcome after this idle
-// window. Covers both the explicit "Wait" requirement and the inactivity
-// case described in the spec.
-const SUCCESS_AUTO_RESET_MS = 15000;
-
-// Welcome page (Yes/No) lives at /frontdesk; the kiosk form lives at /kiosk.
-const KIOSK_WELCOME_ROUTE = "/frontdesk";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
@@ -896,7 +921,6 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
                 { icon: <Building2 className="h-4 w-4" />, label: "Building Clearance" },
                 { icon: <Briefcase className="h-4 w-4" />, label: "Business Clearance" },
                 { icon: <ScrollText className="h-4 w-4" />, label: "Barangay Certificate" },
-                { icon: <Users className="h-4 w-4" />, label: "Resident Registration" },
               ].map((item, i) => (
                 <div
                   key={i}
@@ -1227,7 +1251,6 @@ const DOC_TYPE_KEYS = [
   { type: "building-clearance",    bg: "#e8f8f0", icon: (cls: string) => <Building2  className={cls} /> },
   { type: "business-clearance",    bg: "#fef4e8", icon: (cls: string) => <Briefcase  className={cls} /> },
   { type: "barangay-certificate",  bg: "#f0e8fe", icon: (cls: string) => <ScrollText className={cls} /> },
-  { type: "resident-registration", bg: "#fce8f0", icon: (cls: string) => <Users      className={cls} /> },
 ];
 
 const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
@@ -1235,7 +1258,6 @@ const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
   "building-clearance":    { label: "doc.building.label",  sub: "doc.building.sub"  },
   "business-clearance":    { label: "doc.business.label",  sub: "doc.business.sub"  },
   "barangay-certificate":  { label: "doc.bcert.label",     sub: "doc.bcert.sub"     },
-  "resident-registration": { label: "doc.resident.label",  sub: "doc.resident.sub"  },
 };
 
 const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => (
@@ -1302,8 +1324,7 @@ interface CommonStepProps {
   docType: string;
 }
 
-const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
-  const isResident = docType === "resident-registration";
+const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateAndSet = (field: string, value: string) => {
@@ -1341,12 +1362,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
     newErrors.surname        = validateName(formData.surname || "", tr("field.Surname"), tr);
     newErrors.date_of_birth  = validateDob(formData.date_of_birth || "", tr);
     newErrors.place_of_birth = validateRequired(formData.place_of_birth || "", "Place of birth");
-    if (isResident) {
-      newErrors.sex          = validateRequired(formData.sex || "", "Sex");
-      newErrors.marital_status = validateRequired(formData.marital_status || "", "Marital status");
-      if (formData.height_cm?.trim()) newErrors.height_cm = validatePositiveNumber(formData.height_cm, "Height", tr, false);
-      if (formData.weight_kg?.trim()) newErrors.weight_kg = validatePositiveNumber(formData.weight_kg, "Weight", tr, false);
-    }
     setFieldErrors(newErrors);
     return !Object.values(newErrors).some(err => err);
   };
@@ -1383,77 +1398,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
           </Field>
         </div>
 
-        {isResident && (
-          <>
-            <Field label={tr("field.nickname")}>
-              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => validateAndSet("nickname", v)} placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <Field label={`${tr("field.sex")}`} error={fieldErrors.sex} required>
-              <SelectField value={formData.sex || ""} onChange={(v) => validateAndSet("sex", v)} inputCls={inputCls} error={fieldErrors.sex}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="Male">{tr("opt.male")}</option>
-                <option value="Female">{tr("opt.female")}</option>
-              </SelectField>
-            </Field>
-            <Field label={`${tr("field.civilStatus")}`} error={fieldErrors.marital_status} required>
-              <SelectField value={formData.marital_status || ""} onChange={(v) => validateAndSet("marital_status", v)} inputCls={inputCls} error={fieldErrors.marital_status}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="Single">{tr("opt.single")}</option>
-                <option value="Married">{tr("opt.married")}</option>
-                <option value="Widowed">{tr("opt.widowed")}</option>
-                <option value="Separated">{tr("opt.separated")}</option>
-              </SelectField>
-            </Field>
-            {formData.marital_status === "Married" && (
-              <div className="md:col-span-2">
-                <Field label={tr("field.spouse")}>
-                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => validateAndSet("name_of_spouse", v)} placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-                </Field>
-              </div>
-            )}
-            <Field label={tr("field.age")}>
-              <input type="text" readOnly
-                value={formData.date_of_birth ? (() => {
-                  const dob = new Date(formData.date_of_birth); const today = new Date();
-                  let age = today.getFullYear() - dob.getFullYear();
-                  const m = today.getMonth() - dob.getMonth();
-                  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-                  return age >= 0 ? String(age) : "";
-                })() : ""}
-                placeholder={tr("ph.agePlaceholder")} className={inputCls}
-                style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }} />
-            </Field>
-            <Field label={tr("field.bloodType")}>
-              <SelectField value={formData.blood_type || ""} onChange={(v) => validateAndSet("blood_type", v)} inputCls={inputCls}>
-                <option value="">{tr("opt.select")}</option>
-                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
-              </SelectField>
-            </Field>
-            <Field label={tr("field.complexion")}>
-              <Combobox value={formData.complexion || ""} onChange={(v) => validateAndSet("complexion", v)}
-                options={[tr("opt.veryFair"), tr("opt.fair"), tr("opt.morena"), tr("opt.brown"), tr("opt.dark"), tr("opt.veryDark")]}
-                placeholder={tr("ph.complexion")} inputCls={inputCls} />
-            </Field>
-            <Field label={tr("field.height")} error={fieldErrors.height_cm}>
-              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => validateAndSet("height_cm", v)} placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: fieldErrors.height_cm ? PINK : "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.weight")} error={fieldErrors.weight_kg}>
-              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => validateAndSet("weight_kg", v)} placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: fieldErrors.weight_kg ? PINK : "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.religion")}>
-              <Combobox value={formData.religion || ""} onChange={(v) => validateAndSet("religion", v)}
-                options={["Roman Catholic", "Iglesia Ni Cristo", "Born Again Christian", "Muslim", "Buddhist", "Other"]}
-                placeholder={tr("ph.religion")} inputCls={inputCls} />
-            </Field>
-            <Field label={tr("field.pwd")}>
-              <SelectField value={formData.pwd ?? ""} onChange={(v) => validateAndSet("pwd", v)} inputCls={inputCls}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="true">PWD</option>
-                <option value="false">Not PWD</option>
-              </SelectField>
-            </Field>
-          </>
-        )}
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
       <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
@@ -1470,7 +1414,6 @@ interface StepAddressProps extends CommonStepProps {
 interface StreetRecord { id: number; name: string; sitio?: string; formerly?: string | null; }
 
 const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputCls, docType }: StepAddressProps) => {
-  const isResident = docType === "resident-registration";
   const streetNames = Array.from(new Set(streets.map((s) => s.name))).sort();
   const zoneOptions = Array.from(
     new Set(
@@ -1560,11 +1503,6 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => validateAndSet("precinct_no", v)} placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
-        {isResident && (
-          <Field label={tr("field.residentStatus")}>
-            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => validateAndSet("resident_status", v)} placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-          </Field>
-        )}
         <Field label={`${tr("field.houseOwner")}`} error={fieldErrors.house_owner} required>
           <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => validateAndSet("house_owner", v)} placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: fieldErrors.house_owner ? PINK : "#d1d5db" }} />
         </Field>
@@ -1593,7 +1531,6 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
 const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
-  const isResident = docType === "resident-registration";
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateAndSet = (field: string, value: string) => {
@@ -1663,27 +1600,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
               className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
           </Field>
         </div>
-        {isResident && (
-          <>
-            <Field label={tr("field.occupation")}>
-              <MaskedInput value={formData.occupation || ""} onValueChange={(v) => validateAndSet("occupation", v)} placeholder={tr("ph.occupation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.position")}>
-              <MaskedInput value={formData.position || ""} onValueChange={(v) => validateAndSet("position", v)} placeholder={tr("ph.position")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <div className="md:col-span-2">
-              <Field label={tr("field.employmentStatus")}>
-                <MaskedInput value={formData.employment_status || ""} onValueChange={(v) => validateAndSet("employment_status", v)} placeholder={tr("ph.employmentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-              </Field>
-            </div>
-            <div className="md:col-span-2">
-              <Field label={tr("field.notes")}>
-                <textarea value={formData.notes || ""} onChange={(e) => validateAndSet("notes", e.target.value)}
-                  placeholder={tr("ph.notes")} rows={3} className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
-              </Field>
-            </div>
-          </>
-        )}
         {isBusiness && (
           <>
             <Field label={`${tr("field.businessName")}`} error={fieldErrors.business_name} required>
@@ -1712,7 +1628,7 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 4: REVIEW
+// STEP 4: REVIEW  (was Step 5, now Step 4 — schedule removed from UI)
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
   docType: string;
@@ -1736,12 +1652,7 @@ const StepReview = ({
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
   const isBCert    = docType === "barangay-certificate";
-  const isResident = docType === "resident-registration";
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
-
-  const handleSubmitWithValidation = () => {
-    onSubmit();
-  };
 
   return (
     <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
@@ -1759,22 +1670,6 @@ const StepReview = ({
         <ReviewRow label={tr("review.Surname")}    value={formData.surname} />
         <ReviewRow label={tr("review.dob")}        value={formData.date_of_birth} />
         <div className="col-span-2"><ReviewRow label={tr("review.pob")} value={formData.place_of_birth} /></div>
-        {isResident && (
-          <>
-            <ReviewRow label={tr("review.sex")}         value={formData.sex} />
-            <ReviewRow label={tr("review.civilStatus")}  value={formData.marital_status} />
-            {formData.name_of_spouse && (
-              <div className="col-span-2"><ReviewRow label={tr("review.spouse")} value={formData.name_of_spouse} /></div>
-            )}
-            <ReviewRow label={tr("review.nickname")}    value={formData.nickname} />
-            <ReviewRow label={tr("review.bloodType")}   value={formData.blood_type} />
-            <ReviewRow label={tr("review.height")}      value={formData.height_cm} />
-            <ReviewRow label={tr("review.weight")}      value={formData.weight_kg} />
-            <ReviewRow label={tr("review.complexion")}  value={formData.complexion} />
-            <ReviewRow label={tr("review.religion")}    value={formData.religion} />
-            <ReviewRow label={tr("review.pwd")}         value={formData.pwd === "true" ? "PWD" : formData.pwd === "false" ? "Not PWD" : formData.pwd} />
-          </>
-        )}
       </ReviewSection>
 
       <ReviewSection title={tr("review.address")}>
@@ -1784,7 +1679,6 @@ const StepReview = ({
         <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
         <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
         {formData.precinct_no && <ReviewRow label={tr("review.precinctNo")} value={formData.precinct_no} />}
-        {isResident && <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />}
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
         <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
@@ -1802,21 +1696,13 @@ const StepReview = ({
         {isBuilding && <ReviewRow label={tr("field.establishment")} value={formData.establishment} />}
         {isBCert    && <ReviewRow label={tr("field.bcertNumber")}   value={formData.bcert_number} />}
         <ReviewRow label={tr("review.email")} value={formData.email} />
-        {isResident && (
-          <>
-            <ReviewRow label={tr("review.occupation")}       value={formData.occupation} />
-            <ReviewRow label={tr("review.position")}         value={formData.position} />
-            <ReviewRow label={tr("review.employmentStatus")} value={formData.employment_status} />
-            {formData.notes && <div className="col-span-2"><ReviewRow label={tr("review.notes")} value={formData.notes} /></div>}
-          </>
-        )}
       </ReviewSection>
 
       {error && <p className="mb-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
 
       <Actions
         onBack={onBack}
-        onNext={handleSubmitWithValidation}
+        onNext={onSubmit}
         nextLabel={isSubmitting ? "Submitting…" : tr("btn.submit")}
         backLabel={tr("btn.back")}
         disabled={isSubmitting}
@@ -1850,6 +1736,9 @@ const SuccessScreen = ({
   onReset, tr, bcertNumber, serviceLabel, applicantName, autoResetSeconds,
 }: SuccessScreenProps) => {
   // Live countdown so the resident can see how long until the kiosk resets.
+  // Drives the visible "Returning to home in Ns" text. The actual reset is
+  // triggered by the parent's auto-reset timer; we only mirror the value
+  // here for display.
   const [secondsLeft, setSecondsLeft] = useState(autoResetSeconds);
   useEffect(() => {
     setSecondsLeft(autoResetSeconds);
@@ -1858,16 +1747,6 @@ const SuccessScreen = ({
     }, 1000);
     return () => clearInterval(id);
   }, [autoResetSeconds]);
-
-  const summaryRow = (label: string, value: string) =>
-    value
-      ? (
-        <div className="flex justify-between items-baseline gap-4 py-1.5" style={{ borderBottom: "1px dashed #e5e7eb" }}>
-          <span className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.6em" }}>{label}</span>
-          <span className="text-foreground" style={{ fontSize: "0.85em" }}>{value}</span>
-        </div>
-      )
-      : null;
 
   return (
     <div
@@ -1890,24 +1769,24 @@ const SuccessScreen = ({
           style={{ background: "#f8faff", border: `1px solid ${NAVY}22`, borderRadius: 4 }}
         >
           <span className="font-bold uppercase tracking-[0.18em]" style={{ color: PINK, fontSize: "0.6em" }}>
-            Reference Number
+            {tr("success.refLabel")}
           </span>
           <span
             className="font-bold mt-1"
-            style={{ color: NAVY, fontSize: "1.05em", letterSpacing: "0.08em", fontFamily: "'Georgia', serif" }}
+            style={{ color: NAVY, fontFamily: "'Georgia', serif", fontSize: "1.4em", letterSpacing: "0.04em" }}
           >
             {bcertNumber}
           </span>
+          {(applicantName || serviceLabel) && (
+            <span className="text-muted-foreground mt-2" style={{ fontSize: "0.78em" }}>
+              {applicantName}{applicantName && serviceLabel ? " · " : ""}{serviceLabel}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="text-left max-w-sm mx-auto mb-6">
-        {summaryRow("Service", serviceLabel)}
-        {summaryRow("Applicant", applicantName)}
-      </div>
-
-      <p className="text-muted-foreground mb-3" style={{ fontSize: "0.78em" }}>
-        Returning to the welcome screen in <strong style={{ color: NAVY }}>{secondsLeft}s</strong>…
+      <p className="text-muted-foreground mb-4" style={{ fontSize: "0.78em" }}>
+        {tr("success.autoReset").replace("{n}", String(secondsLeft))}
       </p>
 
       <button
@@ -1923,7 +1802,7 @@ const SuccessScreen = ({
   );
 };
 
-// ─── Step Bar (now 6 steps) ────────────────────────────────────────────────────
+// ─── Step Bar (now 5 steps) ────────────────────────────────────────────────────
 interface StepBarProps { currentStep: number; steps: string[]; }
 const StepBar = ({ currentStep, steps }: StepBarProps) => (
   <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
@@ -1970,6 +1849,16 @@ const FrontDesk = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Yes-flow handoff: SearchResident.tsx pushes a normalised `prefill` blob
+  // into router state when a returning resident is matched. Pull it once on
+  // mount; subsequent renders keep working off `formData`.
+  const initialPrefill = useMemo<Record<string, string> | null>(() => {
+    const state = location.state as { prefill?: Record<string, string> } | null;
+    const p = state?.prefill;
+    if (p && typeof p === "object" && Object.keys(p).length > 0) return p;
+    return null;
+  }, [location.state]);
+
   const [lang, setLang]         = useState<Lang>(() => (localStorage.getItem(LS_LANG) as Lang) || "en");
   const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem(LS_FONT) as FontSize) || "md");
   const tr = useCallback((k: string) => TRANSLATIONS[lang][k] ?? k, [lang]);
@@ -1977,7 +1866,7 @@ const FrontDesk = () => {
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // 5 steps (scheduling removed)
+  // 5 steps now (schedule removed from UI)
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
@@ -1987,19 +1876,23 @@ const FrontDesk = () => {
   ], [tr]);
 
   // ── App stage ──────────────────────────────────────────────────────────────
-  // If we arrived from `SearchResident` with a prefill (Yes-flow returning
-  // resident), skip the in-page welcome and go straight to the form.
-  const initialPrefill = (location.state as { prefill?: Record<string, string> } | null)?.prefill ?? null;
-  const hasPrefill     = !!initialPrefill && Object.keys(initialPrefill).length > 0;
-  const [stage, setStage]                   = useState<"welcome" | "form">(hasPrefill ? "form" : "welcome");
+  // Prefilled residents skip the welcome / privacy gate and land directly on
+  // the document picker so they can pick a service and breeze through the
+  // pre-populated steps. Fresh residents still see the welcome screen.
+  const [stage, setStage]                   = useState<"welcome" | "form">(
+    initialPrefill ? "form" : "welcome"
+  );
 
   // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
   const [docType, setDocType]               = useState("");
-  const [formData, setFormData]             = useState<Record<string, string>>(() => initialPrefill ?? {});
-  // When prefill is present, the resident has already accepted privacy on the
-  // SearchResident welcome screen, so we honour that here.
-  const [consentChecked, setConsentChecked] = useState(hasPrefill);
+  const [formData, setFormData]             = useState<Record<string, string>>(
+    () => initialPrefill ?? {}
+  );
+  // Already-consented Yes-flow residents inherit the privacy acknowledgement
+  // they accepted on the previous submission so they don't have to re-tick
+  // the review-step consent box.
+  const [consentChecked, setConsentChecked] = useState(initialPrefill !== null);
   const [errors, setErrors]                 = useState("");
   const [submitted, setSubmitted]           = useState(false);
   const [isSubmitting, setIsSubmitting]     = useState(false);
@@ -2026,7 +1919,7 @@ const FrontDesk = () => {
   const goNext = useCallback(() => { setErrors(""); setCurrentStep((s) => s + 1); }, []);
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit (mirrors BarangayClearanceForm logic exactly) ───────────────────
+  // ── Submit — schedule auto-computed from wall-clock time at submission ─────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
   
@@ -2114,7 +2007,6 @@ const FrontDesk = () => {
           },
         };
         break;
-      case "resident-registration":
       default:
         cfg = {
           url: "api/barangay-clearances",
@@ -2139,7 +2031,7 @@ const FrontDesk = () => {
         } else if (docType === "barangay-certificate") {
           documentNumber = service?.bcert_number ?? null;
         } else {
-          // Default for clearance and resident-registration
+          // Default for barangay clearance fallback
           documentNumber = service?.bcert_number ?? null;
         }
   
@@ -2162,6 +2054,51 @@ const FrontDesk = () => {
           console.error("Auto-schedule creation failed:", schedErr);
         }
   
+        // ── Step 3: Persist the resident's profile so future Yes-flow lookups
+        // (FN/LN/DOB) auto-fill every step. We mirror to localStorage (keyed
+        // by normalised FN|LN|DOB so SearchResident.tsx finds it) AND, best-
+        // effort, push to a backend endpoint so the lookup survives across
+        // browsers / kiosks. Both writes are non-blocking.
+        const fn  = formData.first_name    || "";
+        const ln  = formData.surname       || formData.last_name || "";
+        const dob = formData.date_of_birth || "";
+        if (fn && ln && dob) {
+          const profileSnapshot: Record<string, string> = {};
+          Object.entries(formData).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && String(v).trim() !== "") {
+              profileSnapshot[k] = String(v);
+            }
+          });
+          // Make sure both surname and last_name keys are populated so
+          // either spelling resolves on the next lookup.
+          if (!profileSnapshot.surname    && profileSnapshot.last_name)  profileSnapshot.surname   = profileSnapshot.last_name;
+          if (!profileSnapshot.last_name  && profileSnapshot.surname)    profileSnapshot.last_name = profileSnapshot.surname;
+
+          try {
+            window.localStorage.setItem(
+              makeKioskCacheKey(fn, ln, dob),
+              JSON.stringify(profileSnapshot),
+            );
+          } catch (lsErr) {
+            console.error("Local kiosk profile cache failed:", lsErr);
+          }
+
+          try {
+            // Backend resident schema validates `surname`, not `last_name`,
+            // so we send `surname` here to keep the kiosk-profile upsert
+            // aligned with the kiosk-search lookup payload.
+            await api.post(
+              "api/kiosk/profile",
+              { first_name: fn, surname: ln, date_of_birth: dob, payload: profileSnapshot },
+              { withCredentials: true },
+            );
+          } catch (profileErr) {
+            // Non-blocking — local cache still works for next Yes-flow.
+            console.error("Backend kiosk profile save failed:", profileErr);
+          }
+        }
+
+        setBcertNumber(documentNumber);
         toast.success(tr("success.title"));
         setSubmitted(true);
       }
@@ -2173,25 +2110,24 @@ const FrontDesk = () => {
   }, [consentChecked, docType, formData, tr]);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
-  // After submission we hand control back to the kiosk welcome page (the
-  // SearchResident Yes/No screen) instead of the in-page welcome, per the
-  // spec's auto-reset requirement.
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
     setBcertNumber(null);
+    setStage("welcome");
+    // Also bounce back to the SearchResident landing page so the next
+    // resident starts on the Yes/No prompt instead of the privacy gate.
     navigate(KIOSK_WELCOME_ROUTE, { replace: true });
   }, [navigate]);
 
-  // ── Auto-reset to welcome after success ─────────────────────────────
-  // Returns to the welcome page after a fixed idle window so the kiosk is
-  // ready for the next resident. The success screen has no interactive UI
-  // aside from the manual "new request" button, which calls handleReset
-  // directly.
+  // ── Auto-reset after success ────────────────────────────────────────────────
+  // The success screen shows a live countdown; this timer is the source of
+  // truth that actually fires the reset. Cleared if the resident hits
+  // "Start new request" early.
   useEffect(() => {
     if (!submitted) return;
-    const id = window.setTimeout(handleReset, SUCCESS_AUTO_RESET_MS);
-    return () => window.clearTimeout(id);
+    const id = setTimeout(() => { handleReset(); }, SUCCESS_AUTO_RESET_MS);
+    return () => clearTimeout(id);
   }, [submitted, handleReset]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -2233,7 +2169,7 @@ const FrontDesk = () => {
               tr={tr}
               bcertNumber={bcertNumber}
               serviceLabel={getServiceType(docType)}
-              applicantName={[formData.first_name, formData.surname].filter(Boolean).join(" ")}
+              applicantName={[formData.first_name, formData.surname || formData.last_name].filter(Boolean).join(" ").trim()}
               autoResetSeconds={Math.round(SUCCESS_AUTO_RESET_MS / 1000)}
             />
 

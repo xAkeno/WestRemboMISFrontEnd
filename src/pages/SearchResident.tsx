@@ -31,50 +31,128 @@ const readCachedProfile = (fn: string, ln: string, dob: string): Record<string, 
 /**
  * Normalise a backend kiosk record so its field names match the `formData`
  * shape used by `frontDesk.tsx` (e.g. `surname`, `contact_number`,
- * `place_of_birth`, `date_of_birth`). Backend records may use either set
- * of names depending on which endpoint persisted them, so we try both.
+ * `place_of_birth`, `date_of_birth`).
+ *
+ * Backends in this codebase historically nest the resident under various
+ * wrapper keys (`resident`, `profile`, `applicant`, `data`, `attributes`,
+ * `payload`, `record`, `details`, `kiosk_profile`) depending on which
+ * endpoint persisted it. To avoid the previous bug where only top-level
+ * scalars (e.g. `email`) made it through, we flatten one level into every
+ * known wrapper before mapping field names.
+ *
+ * If the backend returns an unfamiliar shape we still want SOMETHING to
+ * land in formData, so we also copy any primitive top-level key as-is.
  */
+const NESTED_WRAPPER_KEYS = [
+  "resident", "profile", "applicant", "data", "attributes",
+  "payload", "record", "details", "kiosk_profile", "kiosk",
+  "user", "person", "service", "form_data", "formData",
+];
+
+const flattenSource = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const flat: Record<string, unknown> = {};
+  // Top-level primitives win first; nested objects override only when the
+  // top-level value is missing/empty (so a nested resident.email won't
+  // clobber a real top-level email).
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "object" && !Array.isArray(v)) continue;
+    flat[k] = v;
+  }
+  for (const wrapper of NESTED_WRAPPER_KEYS) {
+    const nested = raw[wrapper];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      for (const [k, v] of Object.entries(nested as Record<string, unknown>)) {
+        if (v === null || v === undefined) continue;
+        if (typeof v === "object" && !Array.isArray(v)) continue;
+        if (flat[k] === undefined || flat[k] === "") flat[k] = v;
+      }
+    }
+  }
+  return flat;
+};
+
 const normalisePrefill = (raw: Record<string, unknown>): Record<string, string> => {
+  const flat = flattenSource(raw);
+
   const get = (...keys: string[]): string => {
     for (const k of keys) {
-      const v = raw[k];
+      const v = flat[k];
       if (v !== undefined && v !== null && v !== "") return String(v);
     }
     return "";
   };
+
   const out: Record<string, string> = {};
-  Object.entries(raw).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) out[k] = String(v);
-  });
-  out.first_name            = get("first_name");
-  out.surname               = get("surname", "last_name");
-  out.last_name             = get("last_name", "surname");
-  out.middle_name           = get("middle_name");
-  out.ext_name              = get("ext_name", "extension");
+  // 1) Bulk copy every primitive top-level key so unknown fields still land
+  //    in formData (defensive — covers backend-added columns we haven't
+  //    explicitly mapped yet).
+  for (const [k, v] of Object.entries(flat)) {
+    if (v === null || v === undefined) continue;
+    out[k] = String(v);
+  }
+
+  // 2) Authoritative mapping for every input the kiosk reads. Each entry
+  //    lists the kiosk's formData key on the left and every backend column
+  //    name we've seen for it on the right.
   out.prefix                = get("prefix");
-  out.date_of_birth         = get("date_of_birth", "dob");
-  out.place_of_birth        = get("place_of_birth", "pob");
+  out.first_name            = get("first_name", "firstname", "given_name");
+  out.middle_name           = get("middle_name", "middlename");
+  out.surname               = get("surname", "last_name", "lastname", "family_name");
+  out.last_name             = get("last_name", "lastname", "surname");
+  out.ext_name              = get("ext_name", "extension", "ext", "suffix");
+  out.date_of_birth         = get("date_of_birth", "dob", "birth_date", "birthdate");
+  out.place_of_birth        = get("place_of_birth", "pob", "birth_place", "birthplace");
   out.age                   = get("age");
-  out.contact_number        = get("contact_number", "contact_no");
-  out.email                 = get("email");
-  out.house_block_lot_no    = get("house_block_lot_no");
+  out.sex                   = get("sex", "gender");
+  out.marital_status        = get("marital_status", "civil_status", "civilstatus");
+  out.name_of_spouse        = get("name_of_spouse", "spouse", "spouse_name");
+  out.nickname              = get("nickname", "alias");
+  out.blood_type            = get("blood_type", "bloodtype");
+  out.complexion            = get("complexion");
+  out.height_cm             = get("height_cm", "height");
+  out.weight_kg             = get("weight_kg", "weight");
+  out.religion              = get("religion");
+  out.pwd                   = get("pwd", "is_pwd", "person_with_disability");
+  out.contact_number        = get("contact_number", "contact_no", "phone", "mobile", "mobile_number");
+  out.email                 = get("email", "email_address");
+  out.house_block_lot_no    = get("house_block_lot_no", "house_no", "block_lot");
   out.street                = get("street");
   out.zone                  = get("zone");
-  out.period_of_residency   = get("period_of_residency");
-  out.registered_voter      = get("registered_voter");
-  out.house_owner           = get("house_owner");
-  out.relationship_to_owner = get("relationship_to_owner");
+  out.period_of_residency   = get("period_of_residency", "residency_period", "years_of_residency");
+  out.registered_voter      = get("registered_voter", "is_voter", "voter");
+  out.house_owner           = get("house_owner", "is_house_owner");
+  out.relationship_to_owner = get("relationship_to_owner", "relation_to_owner");
+  out.precinct_no           = get("precinct_no", "precinct");
+  out.resident_status       = get("resident_status");
+  out.occupation            = get("occupation");
+  out.position              = get("position");
+  out.employment_status     = get("employment_status");
+  out.notes                 = get("notes", "remarks");
   out.purpose               = get("purpose");
-  out.purpose_details       = get("purpose_details");
+  out.purpose_details       = get("purpose_details", "purpose_detail");
   out.business_name         = get("business_name");
   out.business_type         = get("business_type");
   out.capital               = get("capital");
   out.establishment         = get("establishment");
-  // Drop fields that should always be fresh per request.
+
+  // 3) Strip empty strings that overrode real bulk-copy values (e.g. a
+  //    bulk-copied `surname` would survive even if the mapped get() above
+  //    returned "" — but if both are empty, just drop the key so the input
+  //    placeholder shows).
+  for (const k of Object.keys(out)) {
+    if (out[k] === "" || out[k] === "null" || out[k] === "undefined") delete out[k];
+  }
+
+  // 4) Drop fields that should always be fresh per request.
   delete out.id;
   delete out.created_at;
   delete out.updated_at;
   delete out.service_type;
+  delete out.status;
+  delete out.bcert_number;
+  delete out.brgy_business_no;
+
   return out;
 };
 
@@ -120,14 +198,36 @@ const ProcessFrontDesk = () => {
       let prefill: Record<string, string> | null = null;
 
       try {
+        // Backend validates `surname` (matches the residents schema). The
+        // local form field is labelled "Last Name" for UX, so we map it on
+        // the request boundary. We deliberately send ONLY first_name +
+        // surname + date_of_birth so a stray field can't fail validation.
         const res = await axios.post(
           "http://127.0.0.1:8000/api/kiosk/search",
-          searchData,
+          {
+            first_name:    searchData.first_name.trim(),
+            surname:       searchData.last_name.trim(),
+            date_of_birth: searchData.date_of_birth,
+          },
           { withCredentials: true },
         );
-        const kiosk = res.data?.kiosk ?? res.data?.data ?? res.data;
-        if (kiosk && typeof kiosk === "object" && Object.keys(kiosk).length > 0) {
-          prefill = normalisePrefill(kiosk as Record<string, unknown>);
+        // Pass the full response body (not just one wrapper) into the
+        // normaliser so its NESTED_WRAPPER_KEYS walk can find the resident
+        // record regardless of how the backend nests it. The previous code
+        // pre-narrowed to res.data.kiosk / res.data.data and missed any
+        // siblings, which caused the "only email comes through" bug.
+        const root = (res.data ?? {}) as Record<string, unknown>;
+        // eslint-disable-next-line no-console
+        console.debug("[kiosk/search] raw response →", root);
+        if (Object.keys(root).length > 0) {
+          prefill = normalisePrefill(root);
+          // If the normaliser couldn't extract anything beyond the few
+          // identifying fields we already knew, treat it as a miss so the
+          // localStorage cache fallback still gets a chance to fill in.
+          const meaningfulKeys = Object.keys(prefill).filter(
+            (k) => !["first_name", "surname", "last_name", "date_of_birth"].includes(k)
+          );
+          if (meaningfulKeys.length === 0) prefill = null;
         }
       } catch {
         // Backend miss → fall through to local cache.
