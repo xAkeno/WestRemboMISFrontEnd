@@ -359,9 +359,9 @@ const Dashboard = () => {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                  {/* <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                     Now Serving
-                  </p>
+                  </p> */}
                   <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full
                     ${isMorning ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"}`}
                   >
@@ -371,9 +371,9 @@ const Dashboard = () => {
                 </div>
                 {filteredRecords.length > 0 ? (
                   <>
-                    <p className="text-2xl font-bold text-foreground tracking-tight truncate">
+                    {/* <p className="text-2xl font-bold text-foreground tracking-tight truncate">
                       {filteredRecords[0].docNumber}
-                    </p>
+                    </p> */}
                     <p className="text-xs text-muted-foreground truncate font-medium">
                       {filteredRecords[0].firstName}{" "}
                       {filteredRecords[0].middleName ? filteredRecords[0].middleName + " " : ""}
