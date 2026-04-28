@@ -832,9 +832,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
                                 </div>
-                                <p className="text-xs" style={{ color: slot.available ? "#16a34a" : "#9ca3af" }}>
-                                  {slot.available ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available` : "No slots available"}
-                                </p>
+                                
                               </label>
                             </div>
                           );

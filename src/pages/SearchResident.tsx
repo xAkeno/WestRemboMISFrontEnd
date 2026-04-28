@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Loader2, Shield, ArrowRight, FileText, Plus } from "lucide-react";
+import { Search, Loader2, ArrowRight, UserSearch, FilePlus2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 import { MaskedInput } from "@/components/MaskedInput";
+import westRemboLogo from "@/assets/West_Rembo_Logo.png";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
@@ -17,13 +18,33 @@ const ProcessFrontDesk = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [showSearchModal, setShowSearchModal] = useState(false);
-  const [isSearching, setIsSearching]         = useState(false);
-  const [searchData, setSearchData]           = useState({ first_name: "", last_name: "", date_of_birth: "" });
-  const [foundData, setFoundData]             = useState<any>(null);
-  const [editData, setEditData]               = useState<any>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  // ── Confirmation modal ──────────────────────────────────────────────────────
+  const [showConfirmModal, setShowConfirmModal]   = useState(false);
 
+  // ── Search / edit modals ────────────────────────────────────────────────────
+  const [showSearchModal, setShowSearchModal]     = useState(false);
+  const [isSearching, setIsSearching]             = useState(false);
+  const [searchData, setSearchData]               = useState({ first_name: "", last_name: "", date_of_birth: "" });
+  const [foundData, setFoundData]                 = useState<any>(null);
+  const [editData, setEditData]                   = useState<any>(null);
+  const [showDetailModal, setShowDetailModal]     = useState(false);
+
+  // ── Confirmation modal handlers ─────────────────────────────────────────────
+  const handleProceedClick = () => setShowConfirmModal(true);
+
+  /** User chose YES → close confirm modal, open search modal */
+  const handleConfirmYes = () => {
+    setShowConfirmModal(false);
+    setShowSearchModal(true);
+  };
+
+  /** User chose NO → skip lookup, go straight to empty form */
+  const handleConfirmNo = () => {
+    setShowConfirmModal(false);
+    navigate("/kiosk");
+  };
+
+  // ── Search modal ────────────────────────────────────────────────────────────
   const handleSearch = async () => {
     if (!searchData.first_name || !searchData.last_name || !searchData.date_of_birth) {
       toast({ title: "Missing Information", description: "Please fill in all search fields", variant: "destructive" });
@@ -70,7 +91,7 @@ const ProcessFrontDesk = () => {
     }
   };
 
-  // ─── Shared button styles ────────────────────────────────────────────────────
+  // ── Shared button styles ────────────────────────────────────────────────────
   const btnPrimary: React.CSSProperties = {
     background:    NAVY,
     borderRadius:  2,
@@ -105,28 +126,31 @@ const ProcessFrontDesk = () => {
 
       {/* ── Page body ── */}
       <div className="flex-1 flex items-center justify-center px-4 py-14">
-        <div className="w-full max-w-2xl bg-white" style={{ borderRadius: 8, border: "1px solid #dce1ec", boxShadow: "0 4px 24px rgba(15,42,94,0.07), 0 1px 4px rgba(15,42,94,0.05)", padding: "2.5rem 2.5rem 2rem" }}>
+        <div
+          className="w-full max-w-2xl bg-white"
+          style={{
+            borderRadius: 8,
+            border: "1px solid #dce1ec",
+            boxShadow: "0 4px 24px rgba(15,42,94,0.07), 0 1px 4px rgba(15,42,94,0.05)",
+            padding: "2.5rem 2.5rem 2rem",
+          }}
+        >
 
           {/* ── Header ── */}
           <div className="text-center mb-10">
-            {/* Seal ring */}
             <div className="flex items-center justify-center mb-6">
               <div
-                className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-                style={{ border: `3px solid ${PINK}`, background: "#fdf5f9" }}
+                className="w-[82px] h-[82px] rounded-full flex items-center justify-center overflow-hidden"
+                style={{ border: `3px solid ${PINK}`, background: "#fdf5f9", padding: "6px" }}
               >
-                <Shield className="h-8 w-8" style={{ color: PINK }} />
+                <img src={westRemboLogo} alt="West Rembo Logo" className="w-full h-full object-contain" />
               </div>
             </div>
 
-            <p
-              className="font-bold uppercase tracking-[0.22em] mb-3"
-              style={{ color: PINK, fontSize: "0.68em" }}
-            >
+            <p className="font-bold uppercase tracking-[0.22em] mb-3" style={{ color: PINK, fontSize: "0.68em" }}>
               Republic of the Philippines · Barangay West Rembo
             </p>
 
-            {/* Ornamental rule */}
             <div className="flex items-center justify-center gap-3 mb-3">
               <div style={{ flex: 1, maxWidth: 56, height: 1, background: `linear-gradient(to right, transparent, ${PINK}88)` }} />
               <div style={{ width: 5, height: 5, background: PINK, transform: "rotate(45deg)", borderRadius: 1 }} />
@@ -157,7 +181,6 @@ const ProcessFrontDesk = () => {
             className="bg-white border border-border overflow-hidden"
             style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
           >
-            {/* Card header */}
             <div className="px-8 py-5 text-center" style={{ borderBottom: "1px solid #e5e7eb" }}>
               <p className="font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK, fontSize: "0.6em" }}>
                 Document Request Portal
@@ -166,66 +189,41 @@ const ProcessFrontDesk = () => {
                 Start an Application
               </h2>
               <p className="text-muted-foreground mt-1" style={{ fontSize: "0.82em" }}>
-                Have you submitted an application before?
+                Click <strong>Proceed</strong> to begin your document request
               </p>
             </div>
 
-            {/* ── Choice buttons ── */}
-            <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              {/* Yes — pink filled */}
+            {/* ── Proceed button ── */}
+            <div className="p-8 flex justify-center">
               <button
-                onClick={() => setShowSearchModal(true)}
-                className="group relative flex flex-col items-center justify-center gap-1.5 py-6 px-6 transition-all duration-150"
+                onClick={handleProceedClick}
+                className="group relative flex items-center justify-center gap-3 px-12 py-4 transition-all duration-200"
                 style={{
-                  background:   PINK,
-                  borderRadius: 2,
-                  border:       `1.5px solid ${PINK}`,
-                  color:        "#fff",
-                }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#a83569"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = PINK}
-              >
-                <div className="flex items-center gap-2 font-bold" style={{ fontSize: "1em" }}>
-                  <Search className="w-4 h-4" />
-                  Yes
-                </div>
-                <span className="font-normal" style={{ fontSize: "0.72em", color: "rgba(255,255,255,0.8)" }}>
-                  Search existing information
-                </span>
-                <ArrowRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50 group-hover:opacity-100 transition-all" />
-              </button>
-
-              {/* No — navy outlined */}
-              <button
-                onClick={() => navigate("/kiosk")}
-                className="group relative flex flex-col items-center justify-center gap-1.5 py-6 px-6 transition-all duration-150"
-                style={{
-                  background:   "transparent",
-                  borderRadius: 2,
-                  border:       `1.5px solid #dde3ed`,
-                  color:        NAVY,
+                  background:    `linear-gradient(135deg, ${NAVY} 0%, #1a3d7c 100%)`,
+                  borderRadius:  3,
+                  border:        `2px solid ${NAVY}`,
+                  color:         "#fff",
+                  fontWeight:    700,
+                  fontSize:      "0.9em",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  cursor:        "pointer",
+                  boxShadow:     `0 4px 16px rgba(15,42,94,0.25), inset 0 1px 0 rgba(255,255,255,0.1)`,
+                  minWidth:      220,
                 }}
                 onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = NAVY;
-                  (e.currentTarget as HTMLElement).style.background  = "#f5f7fb";
+                  (e.currentTarget as HTMLElement).style.background = `linear-gradient(135deg, ${PINK} 0%, #a83569 100%)`;
+                  (e.currentTarget as HTMLElement).style.borderColor = PINK;
+                  (e.currentTarget as HTMLElement).style.boxShadow = `0 6px 20px rgba(194,70,125,0.35), inset 0 1px 0 rgba(255,255,255,0.1)`;
                 }}
                 onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = "#dde3ed";
-                  (e.currentTarget as HTMLElement).style.background  = "transparent";
+                  (e.currentTarget as HTMLElement).style.background = `linear-gradient(135deg, ${NAVY} 0%, #1a3d7c 100%)`;
+                  (e.currentTarget as HTMLElement).style.borderColor = NAVY;
+                  (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px rgba(15,42,94,0.25), inset 0 1px 0 rgba(255,255,255,0.1)`;
                 }}
               >
-                <div className="flex items-center gap-2 font-bold" style={{ fontSize: "1em" }}>
-                  <Plus className="w-4 h-4" style={{ color: PINK }} />
-                  No
-                </div>
-                <span className="font-normal text-muted-foreground" style={{ fontSize: "0.72em" }}>
-                  Register to use the application
-                </span>
-                <ArrowRight
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-20 group-hover:opacity-60 transition-all"
-                  style={{ color: NAVY }}
-                />
+                Proceed
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
               </button>
             </div>
           </div>
@@ -239,6 +237,114 @@ const ProcessFrontDesk = () => {
           </p>
         </div>
       </div>
+
+      {/* ════════════════════════════════════════════════════
+          Confirmation Modal — Returning Resident?
+      ════════════════════════════════════════════════════ */}
+      <Dialog open={showConfirmModal} onOpenChange={(open) => { if (!open) setShowConfirmModal(false); }}>
+        <DialogContent
+          className="max-w-sm bg-white p-0"
+          style={{ borderRadius: 2, borderTop: `3px solid ${PINK}` }}
+        >
+          {/* Header */}
+          <DialogHeader className="px-7 pt-7 pb-4" style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK }}>
+              Before You Begin
+            </p>
+            <DialogTitle
+              className="text-lg font-bold leading-snug"
+              style={{ color: NAVY, fontFamily: "'Georgia', serif" }}
+            >
+              Have you submitted a request here before?
+            </DialogTitle>
+            <DialogDescription style={{ fontSize: "0.85em", marginTop: "0.4rem" }}>
+              If yes, we can retrieve your previous details and pre-fill the form to save you time.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Option cards */}
+          <div className="px-7 py-6 space-y-3">
+
+            {/* YES option */}
+            <button
+              onClick={handleConfirmYes}
+              className="w-full flex items-start gap-4 p-4 text-left transition-all duration-150"
+              style={{
+                border:       `1.5px solid #dce1ec`,
+                borderRadius: 4,
+                background:   "#f8f9fc",
+                cursor:       "pointer",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = NAVY;
+                (e.currentTarget as HTMLElement).style.background  = "#eef1f8";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = "#dce1ec";
+                (e.currentTarget as HTMLElement).style.background  = "#f8f9fc";
+              }}
+            >
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: `${NAVY}14`, color: NAVY }}
+              >
+                <UserSearch className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-sm" style={{ color: NAVY }}>
+                  Yes, retrieve my details
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  We'll look up your previous submission and pre-fill the form with your information.
+                </p>
+              </div>
+            </button>
+
+            {/* NO option */}
+            <button
+              onClick={handleConfirmNo}
+              className="w-full flex items-start gap-4 p-4 text-left transition-all duration-150"
+              style={{
+                border:       `1.5px solid #dce1ec`,
+                borderRadius: 4,
+                background:   "#f8f9fc",
+                cursor:       "pointer",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = PINK;
+                (e.currentTarget as HTMLElement).style.background  = "#fdf5f9";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = "#dce1ec";
+                (e.currentTarget as HTMLElement).style.background  = "#f8f9fc";
+              }}
+            >
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: `${PINK}14`, color: PINK }}
+              >
+                <FilePlus2 className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-sm" style={{ color: NAVY }}>
+                  No, start a new application
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Skip the lookup and go directly to a blank form to enter fresh information.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Footer note */}
+          <div
+            className="px-7 pb-6 text-center"
+            style={{ fontSize: "0.75em", color: "#9ca3af" }}
+          >
+            Your information is handled securely and used only for this request.
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ════════════════════════════════════════════════════
           Search Modal
@@ -258,10 +364,7 @@ const ProcessFrontDesk = () => {
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK }}>
               Application Lookup
             </p>
-            <DialogTitle
-              className="text-lg font-bold"
-              style={{ color: NAVY, fontFamily: "'Georgia', serif" }}
-            >
+            <DialogTitle className="text-lg font-bold" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
               Search Your Application
             </DialogTitle>
             <DialogDescription style={{ fontSize: "0.85em" }}>
@@ -272,9 +375,9 @@ const ProcessFrontDesk = () => {
           {!foundData ? (
             <div className="px-7 py-6 space-y-5">
               {[
-                { id: "s_fn",  label: "First Name",    key: "first_name",    type: "text", ph: "e.g. Juan"        },
-                { id: "s_ln",  label: "Last Name",     key: "last_name",     type: "text", ph: "e.g. Dela Cruz"   },
-                { id: "s_dob", label: "Date of Birth", key: "date_of_birth", type: "date", ph: ""                 },
+                { id: "s_fn",  label: "First Name",    key: "first_name",    type: "text", ph: "e.g. Juan"      },
+                { id: "s_ln",  label: "Last Name",     key: "last_name",     type: "text", ph: "e.g. Dela Cruz" },
+                { id: "s_dob", label: "Date of Birth", key: "date_of_birth", type: "date", ph: ""               },
               ].map(f => (
                 <div key={f.id}>
                   <Label htmlFor={f.id} className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: PINK }}>
@@ -308,7 +411,6 @@ const ProcessFrontDesk = () => {
             </div>
           ) : (
             <div className="px-7 py-6 space-y-4">
-              {/* Found banner */}
               <div
                 className="flex items-start gap-3 p-4"
                 style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4 }}
@@ -365,10 +467,7 @@ const ProcessFrontDesk = () => {
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK }}>
               Edit Application
             </p>
-            <DialogTitle
-              className="text-lg font-bold"
-              style={{ color: NAVY, fontFamily: "'Georgia', serif" }}
-            >
+            <DialogTitle className="text-lg font-bold" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
               Application Details
             </DialogTitle>
             <DialogDescription style={{ fontSize: "0.85em" }}>
@@ -381,7 +480,6 @@ const ProcessFrontDesk = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                 {Object.keys(editData).map(key => {
                   if (["id", "created_at", "updated_at"].includes(key)) return null;
-
                   const fieldLabel = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
                   if (key === "service_type") return (
@@ -419,7 +517,6 @@ const ProcessFrontDesk = () => {
               </div>
             )}
 
-            {/* Action row */}
             <div className="flex gap-3 pt-8 mt-4" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 onClick={() => setShowDetailModal(false)}

@@ -770,6 +770,25 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
 
               <div className="mt-6 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
+                  CTC / VRR No. <span style={{ color: "#ef4444" }}>*</span>
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Enter CTC or VRR number"
+                  value={formData.ctc_vrr_no}
+                  onChange={(e) => upd("ctc_vrr_no", e.target.value)}
+                  className={editableInputCls}
+                  style={{ ...editableRequiredStyle, borderBottomColor: "#bbf7d0" }}
+                  onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                  onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#bbf7d0")}
+                />
+                <p className="text-xs" style={{ color: "#9ca3af" }}>
+                  Community Tax Certificate or Voter's Registration Record number
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                   Purpose <span style={{ color: "#ef4444" }}>*</span>
                 </Label>
                 <Select
@@ -923,11 +942,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
                                 </div>
-                                <p className="text-xs" style={{ color: slot.available ? "#16a34a" : "#9ca3af" }}>
-                                  {slot.available
-                                    ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available`
-                                    : "No slots available"}
-                                </p>
+                                
                               </label>
                             </div>
                           );
