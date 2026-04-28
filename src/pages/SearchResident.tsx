@@ -8,11 +8,75 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
-import { MaskedInput } from "@/components/MaskedInput";
 import westRemboLogo from "@/assets/West_Rembo_Logo.png";
 
 const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
+
+// ── Local cache helpers (fallback when backend doesn't return full formData) ──
+// Key is normalised so casing / whitespace differences don't break lookups.
+const KIOSK_CACHE_PREFIX = "kiosk:profile:";
+const makeCacheKey = (fn: string, ln: string, dob: string) =>
+  `${KIOSK_CACHE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
+
+const readCachedProfile = (fn: string, ln: string, dob: string): Record<string, string> | null => {
+  try {
+    const raw = localStorage.getItem(makeCacheKey(fn, ln, dob));
+    return raw ? (JSON.parse(raw) as Record<string, string>) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Normalise a backend kiosk record so its field names match the `formData`
+ * shape used by `frontDesk.tsx` (e.g. `surname`, `contact_number`,
+ * `place_of_birth`, `date_of_birth`). Backend records may use either set
+ * of names depending on which endpoint persisted them, so we try both.
+ */
+const normalisePrefill = (raw: Record<string, unknown>): Record<string, string> => {
+  const get = (...keys: string[]): string => {
+    for (const k of keys) {
+      const v = raw[k];
+      if (v !== undefined && v !== null && v !== "") return String(v);
+    }
+    return "";
+  };
+  const out: Record<string, string> = {};
+  Object.entries(raw).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) out[k] = String(v);
+  });
+  out.first_name            = get("first_name");
+  out.surname               = get("surname", "last_name");
+  out.last_name             = get("last_name", "surname");
+  out.middle_name           = get("middle_name");
+  out.ext_name              = get("ext_name", "extension");
+  out.prefix                = get("prefix");
+  out.date_of_birth         = get("date_of_birth", "dob");
+  out.place_of_birth        = get("place_of_birth", "pob");
+  out.age                   = get("age");
+  out.contact_number        = get("contact_number", "contact_no");
+  out.email                 = get("email");
+  out.house_block_lot_no    = get("house_block_lot_no");
+  out.street                = get("street");
+  out.zone                  = get("zone");
+  out.period_of_residency   = get("period_of_residency");
+  out.registered_voter      = get("registered_voter");
+  out.house_owner           = get("house_owner");
+  out.relationship_to_owner = get("relationship_to_owner");
+  out.purpose               = get("purpose");
+  out.purpose_details       = get("purpose_details");
+  out.business_name         = get("business_name");
+  out.business_type         = get("business_type");
+  out.capital               = get("capital");
+  out.establishment         = get("establishment");
+  // Drop fields that should always be fresh per request.
+  delete out.id;
+  delete out.created_at;
+  delete out.updated_at;
+  delete out.service_type;
+  return out;
+};
 
 const ProcessFrontDesk = () => {
   const navigate = useNavigate();
@@ -21,13 +85,10 @@ const ProcessFrontDesk = () => {
   // ── Confirmation modal ──────────────────────────────────────────────────────
   const [showConfirmModal, setShowConfirmModal]   = useState(false);
 
-  // ── Search / edit modals ────────────────────────────────────────────────────
+  // ── Search modal ────────────────────────────────────────────────────────────
   const [showSearchModal, setShowSearchModal]     = useState(false);
   const [isSearching, setIsSearching]             = useState(false);
   const [searchData, setSearchData]               = useState({ first_name: "", last_name: "", date_of_birth: "" });
-  const [foundData, setFoundData]                 = useState<any>(null);
-  const [editData, setEditData]                   = useState<any>(null);
-  const [showDetailModal, setShowDetailModal]     = useState(false);
 
   // ── Confirmation modal handlers ─────────────────────────────────────────────
   const handleProceedClick = () => setShowConfirmModal(true);
@@ -44,7 +105,11 @@ const ProcessFrontDesk = () => {
     navigate("/kiosk");
   };
 
-  // ── Search modal ────────────────────────────────────────────────────────────
+  // ── Search → autofill ───────────────────────────────────────────────────────
+  // Goal: locate the resident's previous kiosk submission (via the backend
+  // first, falling back to a localStorage cache populated by `frontDesk.tsx`),
+  // then navigate to the kiosk form with the prefilled formData in router
+  // state. The form reads that state on mount and skips re-entry.
   const handleSearch = async () => {
     if (!searchData.first_name || !searchData.last_name || !searchData.date_of_birth) {
       toast({ title: "Missing Information", description: "Please fill in all search fields", variant: "destructive" });
@@ -52,42 +117,55 @@ const ProcessFrontDesk = () => {
     }
     setIsSearching(true);
     try {
-      const res = await axios.post("http://127.0.0.1:8000/api/kiosk/search", searchData, { withCredentials: true });
-      if (res.data.kiosk) {
-        setFoundData(res.data.kiosk);
-        setEditData(res.data.kiosk);
-        toast({ title: "Record Found", description: "Click 'View Details' to review and update your application" });
-      } else {
-        setFoundData(null); setEditData(null);
-        toast({ title: "No record found", description: "Please check your details and try again", variant: "destructive" });
+      let prefill: Record<string, string> | null = null;
+
+      try {
+        const res = await axios.post(
+          "http://127.0.0.1:8000/api/kiosk/search",
+          searchData,
+          { withCredentials: true },
+        );
+        const kiosk = res.data?.kiosk ?? res.data?.data ?? res.data;
+        if (kiosk && typeof kiosk === "object" && Object.keys(kiosk).length > 0) {
+          prefill = normalisePrefill(kiosk as Record<string, unknown>);
+        }
+      } catch {
+        // Backend miss → fall through to local cache.
       }
-    } catch (error: any) {
-      toast({ title: "Not Found", description: error.response?.data?.message || "No record found", variant: "destructive" });
-      setFoundData(null); setEditData(null);
-    } finally { setIsSearching(false); }
-  };
 
-  const serviceOptions = ["Barangay Clearance", "Building Clearance", "Business Clearance", "Resident Registration"];
+      if (!prefill) {
+        const cached = readCachedProfile(
+          searchData.first_name,
+          searchData.last_name,
+          searchData.date_of_birth,
+        );
+        if (cached) prefill = cached;
+      }
 
-  const handleSubmit = async () => {
-    try {
-      await axios.post("http://127.0.0.1:8000/api/kiosk/update", editData, { withCredentials: true });
-      toast({ title: "Application Updated", description: "Your application has been resubmitted successfully" });
-      setShowDetailModal(false); setShowSearchModal(false);
-      setFoundData(null); setEditData(null);
-    } catch (error: any) {
-      toast({ title: "Update Failed", description: error.response?.data?.message || "Failed to update application", variant: "destructive" });
-    }
-  };
+      if (prefill) {
+        // Honour the search inputs in case the persisted record had a
+        // different casing ("juan" vs "Juan", etc.).
+        prefill.first_name    = searchData.first_name;
+        prefill.surname       = prefill.surname || searchData.last_name;
+        prefill.last_name     = prefill.last_name || searchData.last_name;
+        prefill.date_of_birth = searchData.date_of_birth;
 
-  const handleResubmit = async () => {
-    try {
-      await axios.post("http://127.0.0.1:8000/api/kiosk/submit", foundData, { withCredentials: true });
-      toast({ title: "Application Resubmitted", description: "Your application has been submitted again successfully" });
-      setShowSearchModal(false); setFoundData(null); setEditData(null);
-      setSearchData({ first_name: "", last_name: "", date_of_birth: "" });
-    } catch (error: any) {
-      toast({ title: "Resubmit Failed", description: error.response?.data?.message || "Failed to resubmit", variant: "destructive" });
+        toast({
+          title: "Record Found",
+          description: "Your previous details have been loaded — pick a service to continue.",
+        });
+        setShowSearchModal(false);
+        setSearchData({ first_name: "", last_name: "", date_of_birth: "" });
+        navigate("/kiosk", { state: { prefill } });
+      } else {
+        toast({
+          title: "No record found",
+          description: "Please check your details and try again, or close this dialog to start a new application.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -103,19 +181,6 @@ const ProcessFrontDesk = () => {
     textTransform: "uppercase",
     cursor:        "pointer",
     transition:    "background .15s",
-  };
-
-  const btnOutline: React.CSSProperties = {
-    background:    "transparent",
-    borderRadius:  2,
-    fontSize:      "0.78em",
-    border:        `1px solid #d1d5db`,
-    color:         NAVY,
-    fontWeight:    700,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    cursor:        "pointer",
-    transition:    "border-color .15s",
   };
 
   return (
@@ -353,7 +418,7 @@ const ProcessFrontDesk = () => {
         open={showSearchModal}
         onOpenChange={(open) => {
           setShowSearchModal(open);
-          if (!open) { setFoundData(null); setEditData(null); setSearchData({ first_name: "", last_name: "", date_of_birth: "" }); }
+          if (!open) setSearchData({ first_name: "", last_name: "", date_of_birth: "" });
         }}
       >
         <DialogContent
@@ -372,171 +437,45 @@ const ProcessFrontDesk = () => {
             </DialogDescription>
           </DialogHeader>
 
-          {!foundData ? (
-            <div className="px-7 py-6 space-y-5">
-              {[
-                { id: "s_fn",  label: "First Name",    key: "first_name",    type: "text", ph: "e.g. Juan"      },
-                { id: "s_ln",  label: "Last Name",     key: "last_name",     type: "text", ph: "e.g. Dela Cruz" },
-                { id: "s_dob", label: "Date of Birth", key: "date_of_birth", type: "date", ph: ""               },
-              ].map(f => (
-                <div key={f.id}>
-                  <Label htmlFor={f.id} className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: PINK }}>
-                    {f.label}
-                  </Label>
-                  <Input
-                    id={f.id}
-                    type={f.type}
-                    value={searchData[f.key as keyof typeof searchData]}
-                    onChange={e => setSearchData({ ...searchData, [f.key]: e.target.value })}
-                    placeholder={f.ph}
-                    className="w-full bg-transparent border-0 border-b rounded-none shadow-none focus-visible:ring-0 px-0 py-2 text-sm placeholder-gray-400"
-                    style={{ borderColor: "#d1d5db" }}
-                  />
-                </div>
-              ))}
-
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="w-full flex items-center justify-center gap-2 py-3 mt-2 text-white disabled:opacity-50"
-                style={btnPrimary}
-                onMouseEnter={e => !isSearching && ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
-                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
-              >
-                {isSearching
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching…</>
-                  : <><Search className="w-4 h-4" /> Search Application</>
-                }
-              </button>
-            </div>
-          ) : (
-            <div className="px-7 py-6 space-y-4">
-              <div
-                className="flex items-start gap-3 p-4"
-                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4 }}
-              >
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{ background: "#dcfce7", color: "#15803d" }}
-                >
-                  ✓
-                </div>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "#166534" }}>Application Found</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {foundData.first_name} {foundData.last_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{foundData.service_type}</p>
-                </div>
+          <div className="px-7 py-6 space-y-5">
+            {[
+              { id: "s_fn",  label: "First Name",    key: "first_name",    type: "text", ph: "e.g. Juan"      },
+              { id: "s_ln",  label: "Last Name",     key: "last_name",     type: "text", ph: "e.g. Dela Cruz" },
+              { id: "s_dob", label: "Date of Birth", key: "date_of_birth", type: "date", ph: ""               },
+            ].map(f => (
+              <div key={f.id}>
+                <Label htmlFor={f.id} className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: PINK }}>
+                  {f.label}
+                </Label>
+                <Input
+                  id={f.id}
+                  type={f.type}
+                  value={searchData[f.key as keyof typeof searchData]}
+                  onChange={e => setSearchData({ ...searchData, [f.key]: e.target.value })}
+                  placeholder={f.ph}
+                  className="w-full bg-transparent border-0 border-b rounded-none shadow-none focus-visible:ring-0 px-0 py-2 text-sm placeholder-gray-400"
+                  style={{ borderColor: "#d1d5db" }}
+                />
               </div>
+            ))}
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={handleResubmit}
-                  className="flex-1 py-2.5"
-                  style={btnOutline}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = NAVY}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#d1d5db"}
-                >
-                  Submit Again
-                </button>
-                <button
-                  onClick={() => setShowDetailModal(true)}
-                  className="flex-1 py-2.5 text-white"
-                  style={btnPrimary}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            <button
+              onClick={handleSearch}
+              disabled={isSearching}
+              className="w-full flex items-center justify-center gap-2 py-3 mt-2 text-white disabled:opacity-50"
+              style={btnPrimary}
+              onMouseEnter={e => !isSearching && ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+            >
+              {isSearching
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching…</>
+                : <><Search className="w-4 h-4" /> Search Application</>
+              }
+            </button>
 
-      {/* ════════════════════════════════════════════════════
-          Detail / Edit Modal
-      ════════════════════════════════════════════════════ */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent
-          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white p-0"
-          style={{ borderRadius: 2, borderTop: `3px solid ${PINK}` }}
-        >
-          <DialogHeader className="px-7 pt-7 pb-4" style={{ borderBottom: "1px solid #e5e7eb" }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: PINK }}>
-              Edit Application
+            <p className="text-center text-xs text-muted-foreground pt-1">
+              We'll auto-fill the form with your previous details if a match is found.
             </p>
-            <DialogTitle className="text-lg font-bold" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
-              Application Details
-            </DialogTitle>
-            <DialogDescription style={{ fontSize: "0.85em" }}>
-              Review and update your application information below
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="px-7 py-6">
-            {editData && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-                {Object.keys(editData).map(key => {
-                  if (["id", "created_at", "updated_at"].includes(key)) return null;
-                  const fieldLabel = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
-                  if (key === "service_type") return (
-                    <div key={key} className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: PINK }}>
-                        {fieldLabel}
-                      </label>
-                      <select
-                        value={editData[key]}
-                        onChange={e => setEditData({ ...editData, [key]: e.target.value })}
-                        className="w-full bg-transparent border-0 border-b py-2.5 text-sm text-foreground focus:outline-none focus:border-[#c2467d] transition-colors cursor-pointer"
-                        style={{ borderColor: "#d1d5db" }}
-                      >
-                        {serviceOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  );
-
-                  return (
-                    <div key={key} className={key === "address" ? "sm:col-span-2" : ""}>
-                      <label className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: PINK }}>
-                        {fieldLabel}
-                      </label>
-                      <MaskedInput
-                        type={key.includes("date") ? "date" : "text"}
-                        value={editData[key] || ""}
-                        onValueChange={val => setEditData({ ...editData, [key]: val })}
-                        placeholder={fieldLabel}
-                        className="w-full bg-transparent border-0 border-b py-2.5 text-sm text-foreground placeholder-gray-400 focus:outline-none focus:border-[#c2467d] transition-colors"
-                        style={{ borderColor: "#d1d5db" }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-8 mt-4" style={{ borderTop: "1px solid #e5e7eb" }}>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="flex-1 py-2.5"
-                style={btnOutline}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = NAVY}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#d1d5db"}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-1 py-2.5 text-white"
-                style={btnPrimary}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = NAVY}
-              >
-                Update Application
-              </button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
