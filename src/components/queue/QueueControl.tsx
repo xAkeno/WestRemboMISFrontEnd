@@ -5,61 +5,41 @@ import api from "@/lib/api";
 
 export interface ServiceItem {
   id: number;
-  bcert_number?: string;
-  brgy_business_no?: string;
   first_name: string;
-  middle_name?: string | null;
+  middle_name: string | null;
   surname: string;
   status: string;
-  schedule_date?: string | null;
-  schedule_time?: string | null;
+  schedule_date: string | null;
+  schedule_time: string | null;
+  business_name: string | null;
+  business_type: string | null;
+  _serviceType: string;
+  _refNumber: string;
+  _serviceColor: string;
+  _serviceBg: string;
   street?: string | null;
   zone?: string | null;
   pob?: string | null;
   contact_no?: string | null;
   dob?: string | null;
-  business_name?: string | null;
-  business_type?: string | null;
   establishment?: string | null;
-  // Injected fields
-  _serviceType: string;
-  _serviceColor: string;
-  _serviceBg: string;
-  _refNumber: string;
 }
 
 interface RawItem {
   id: number;
-  bcert_number?: string;
-  brgy_business_no?: string;
   first_name: string;
   middle_name?: string | null;
   surname: string;
   status: string;
-  schedule_date?: string | null;
-  schedule_time?: string | null;
+  bcert_number?: string;
+  brgy_business_no?: string;
+  business_name?: string | null;
+  business_type?: string | null;
+  schedule?: {
+    schedule_date?: string | null;
+    schedule_time?: string | null;
+  } | null;
   [key: string]: unknown;
-}
-
-export interface NowServing {
-  id: number;
-  ticket_number: string;
-  service_type: string;
-  status: string;
-  scheduled_time?: string | null;
-  priority?: string;
-  missed_attempts?: number;
-  schedule_id?: number;
-}
-
-interface DashboardData {
-  now_serving: NowServing | null;
-  barangay_clearances_list: RawItem[];
-  barangay_certificates_list: RawItem[];
-  building_clearances_list: RawItem[];
-  business_clearances_list: RawItem[];
-  total_released_today: number;
-  pending_counts: Record<string, number>;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -67,43 +47,37 @@ interface DashboardData {
 const POLL_MS = 10_000;
 
 const SERVICE_CONFIG = [
-  { key: "barangay_clearances_list",   label: "Barangay Clearance",   color: "#0C447C", bg: "#E6F1FB" },
-  { key: "barangay_certificates_list", label: "Barangay Certificate",  color: "#085041", bg: "#E1F5EE" },
-  { key: "building_clearances_list",   label: "Building Clearance",   color: "#633806", bg: "#FAEEDA" },
-  { key: "business_clearances_list",   label: "Business Clearance",   color: "#712B13", bg: "#FAECE7" },
+  { endpoint: "api/barangay-clearances",   label: "Barangay Clearance",  color: "#0C447C", bg: "#E6F1FB" },
+  { endpoint: "api/barangay-certificates", label: "Barangay Certificate", color: "#085041", bg: "#E1F5EE" },
+  { endpoint: "api/building-clearances",   label: "Building Clearance",  color: "#633806", bg: "#FAEEDA" },
+  { endpoint: "api/business-clearances",   label: "Business Clearance",  color: "#712B13", bg: "#FAECE7" },
 ] as const;
 
-// Backend sends UPPERCASE statuses — always normalize before comparing
-const normalizeStatus = (s: string) => s.toLowerCase().replace(/[\s-]+/g, "_");
-
-// Active = still needs to be served
-const ACTIVE_NS = new Set(["pending", "waiting", "for_release", "processing", "approved", "rescheduled"]);
-const DONE_NS   = new Set(["released", "completed", "rejected", "no_show", "cancelled"]);
-
-const isActiveStatus = (s: string) => ACTIVE_NS.has(normalizeStatus(s));
-const isDoneStatus   = (s: string) => DONE_NS.has(normalizeStatus(s));
+const DONE_STATUSES = new Set(["RELEASED", "COMPLETED", "REJECTED", "NO_SHOW", "CANCELLED"]);
+const isActiveStatus = (s: string) => !DONE_STATUSES.has(s);
+const isDoneStatus = (s: string) => DONE_STATUSES.has(s);
 
 // ─── Status style map ─────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  waiting:     { bg: "#E6F1FB", color: "#0C447C" },
-  pending:     { bg: "#FAEEDA", color: "#633806" },
-  processing:  { bg: "#FAEEDA", color: "#633806" },
-  for_release: { bg: "#E1F5EE", color: "#085041" },
-  released:    { bg: "#EAF3DE", color: "#27500A" },
-  approved:    { bg: "#E1F5EE", color: "#085041" },
-  rejected:    { bg: "#FCEBEB", color: "#791F1F" },
-  no_show:     { bg: "#FCEBEB", color: "#791F1F" },
-  rescheduled: { bg: "#FAEEDA", color: "#633806" },
-  cancelled:   { bg: "#FCEBEB", color: "#791F1F" },
+  WAITING:     { bg: "#E6F1FB", color: "#0C447C" },
+  PENDING:     { bg: "#FAEEDA", color: "#633806" },
+  PROCESSING:  { bg: "#FAEEDA", color: "#633806" },
+  FOR_RELEASE: { bg: "#E1F5EE", color: "#085041" },
+  RELEASED:    { bg: "#EAF3DE", color: "#27500A" },
+  APPROVED:    { bg: "#E1F5EE", color: "#085041" },
+  REJECTED:    { bg: "#FCEBEB", color: "#791F1F" },
+  NO_SHOW:     { bg: "#FCEBEB", color: "#791F1F" },
+  RESCHEDULED: { bg: "#FAEEDA", color: "#633806" },
+  CANCELLED:   { bg: "#FCEBEB", color: "#791F1F" },
+  COMPLETED:   { bg: "#EAF3DE", color: "#27500A" },
 };
 
 const statusStyle = (s: string) =>
-  STATUS_STYLE[normalizeStatus(s)] ?? { bg: "#F1EFE8", color: "#5F5E5A" };
+  STATUS_STYLE[s] ?? { bg: "#F1EFE8", color: "#5F5E5A" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** "HH:MM:SS" or "HH:MM" → "9:30 AM" */
 const fmtTime = (t: string | null | undefined): string => {
   if (!t) return "—";
   const parts = t.split(":");
@@ -113,67 +87,82 @@ const fmtTime = (t: string | null | undefined): string => {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
 };
 
-const getRefNumber = (item: RawItem): string =>
-  item.bcert_number ?? item.brgy_business_no ?? `#${item.id}`;
+const getFullName = (item: ServiceItem): string =>
+  [item.first_name, item.middle_name, item.surname].filter(Boolean).join(" ");
 
-const getFullName = (item: RawItem | ServiceItem): string =>
-  [item.first_name, (item as any).middle_name, item.surname].filter(Boolean).join(" ");
+const itemKey = (item: ServiceItem): string => `${item.id}-${item._serviceType}`;
 
-// ─── Build merged queue ───────────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
-function buildQueue(data: DashboardData): ServiceItem[] {
-  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-  const result: ServiceItem[] = [];
+// ─── Unified data mapping ─────────────────────────────────────────────────────
 
-  for (const cfg of SERVICE_CONFIG) {
-    const list: RawItem[] = (data as any)[cfg.key] ?? [];
-    for (const item of list) {
-      // Keep items scheduled today (backend may already filter, but be safe)
-      if (item.schedule_date && item.schedule_date !== today) continue;
-      result.push({
-        ...(item as any),
-        _serviceType:  cfg.label,
-        _serviceColor: cfg.color,
-        _serviceBg:    cfg.bg,
-        _refNumber:    getRefNumber(item),
-      });
+function mapRawItem(
+  item: RawItem,
+  cfg: (typeof SERVICE_CONFIG)[number],
+): ServiceItem {
+  return {
+    id: item.id,
+    first_name: item.first_name,
+    middle_name: item.middle_name ?? null,
+    surname: item.surname,
+    status: item.status,
+    schedule_date: item.schedule?.schedule_date ?? null,
+    schedule_time: item.schedule?.schedule_time ?? null,
+    business_name: item.business_name ?? null,
+    business_type: item.business_type ?? null,
+    _serviceType: cfg.label,
+    _refNumber: item.bcert_number ?? item.brgy_business_no ?? `#${item.id}`,
+    _serviceColor: cfg.color,
+    _serviceBg: cfg.bg,
+    street: (item.street as string) ?? null,
+    zone: (item.zone as string) ?? null,
+    pob: (item.pob as string) ?? null,
+    contact_no: (item.contact_no as string) ?? null,
+    dob: (item.dob as string) ?? null,
+    establishment: (item.establishment as string) ?? null,
+  };
+}
+
+// ─── Load all items from direct APIs ──────────────────────────────────────────
+
+async function fetchAllItems(): Promise<ServiceItem[]> {
+  const responses = await Promise.all(
+    SERVICE_CONFIG.map((cfg) => api.get(cfg.endpoint)),
+  );
+  const items: ServiceItem[] = [];
+  responses.forEach((res, i) => {
+    const list: RawItem[] = res.data?.data?.data ?? [];
+    for (const raw of list) {
+      items.push(mapRawItem(raw, SERVICE_CONFIG[i]));
     }
-  }
+  });
+  return items;
+}
 
-  // Active first, then by schedule_time asc
-  result.sort((a, b) => {
+// ─── Build automatic queue ────────────────────────────────────────────────────
+
+function buildAutoQueue(allItems: ServiceItem[]): ServiceItem[] {
+  const today = todayStr();
+  return allItems.filter(
+    (item) => item.schedule_date === today || item.status === "RELEASED",
+  );
+}
+
+function sortQueue(queue: ServiceItem[]): ServiceItem[] {
+  return [...queue].sort((a, b) => {
     const aDone = isDoneStatus(a.status) ? 1 : 0;
     const bDone = isDoneStatus(b.status) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
     return (a.schedule_time ?? "99:99").localeCompare(b.schedule_time ?? "99:99");
   });
-
-  return result;
 }
 
-// ─── API ──────────────────────────────────────────────────────────────────────
-
-const getDashboard = async (): Promise<DashboardData> => {
-  const res = await api.get("api/dashboard");
-  // Response shape: { data: { barangay_clearances_list: [...], now_serving: {...}, ... } }
-  const raw = res.data?.data ?? res.data ?? {};
-  return {
-    now_serving:                raw.now_serving                ?? null,
-    barangay_clearances_list:   Array.isArray(raw.barangay_clearances_list)   ? raw.barangay_clearances_list   : [],
-    barangay_certificates_list: Array.isArray(raw.barangay_certificates_list) ? raw.barangay_certificates_list : [],
-    building_clearances_list:   Array.isArray(raw.building_clearances_list)   ? raw.building_clearances_list   : [],
-    business_clearances_list:   Array.isArray(raw.business_clearances_list)   ? raw.business_clearances_list   : [],
-    total_released_today:       raw.total_released_today ?? 0,
-    pending_counts:             raw.pending_counts        ?? {},
-  };
-};
-
-const postCallNext = async () => (await api.post("api/tickets/call-next")).data;
+// ─── API actions ──────────────────────────────────────────────────────────────
 
 const patchServiceStatus = async (item: ServiceItem, newStatus: string) => {
   const endpointMap: Record<string, string> = {
     "Barangay Clearance":  `api/barangay-clearances/${item.id}/status`,
-    "Barangay Certificate":`api/barangay-certificates/${item.id}/status`,
+    "Barangay Certificate": `api/barangay-certificates/${item.id}/status`,
     "Building Clearance":  `api/building-clearances/${item.id}/status`,
     "Business Clearance":  `api/business-clearances/${item.id}/status`,
   };
@@ -186,71 +175,130 @@ const patchServiceStatus = async (item: ServiceItem, newStatus: string) => {
 const cardStyle: React.CSSProperties = {
   background: "var(--color-background-primary,#fff)",
   border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
-  borderRadius: 12, padding: 16,
+  borderRadius: 12,
+  padding: 16,
 };
 
 const sectionDivider: React.CSSProperties = {
-  paddingBottom: 12, marginBottom: 12,
+  paddingBottom: 12,
+  marginBottom: 12,
   borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.10))",
 };
 
 const metaRow: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "space-between",
-  fontSize: 12, padding: "5px 0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  fontSize: 12,
+  padding: "5px 0",
   borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.07))",
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Pill({ label, style }: { label: string; style: { bg: string; color: string } }) {
+function Pill({
+  label,
+  style,
+}: {
+  label: string;
+  style: { bg: string; color: string };
+}) {
   return (
-    <span style={{
-      padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
-      background: style.bg, color: style.color, whiteSpace: "nowrap",
-    }}>
+    <span
+      style={{
+        padding: "3px 10px",
+        borderRadius: 99,
+        fontSize: 11,
+        fontWeight: 500,
+        background: style.bg,
+        color: style.color,
+        whiteSpace: "nowrap",
+      }}
+    >
       {label}
     </span>
   );
 }
 
-function ActionBtn({ label, onClick, disabled, variant }: {
-  label: string; onClick: () => void; disabled?: boolean;
+function ActionBtn({
+  label,
+  onClick,
+  disabled,
+  variant,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
   variant: "success" | "danger" | "warning" | "primary" | "outline" | "info";
 }) {
   const V = {
     success: { bg: "#3B6D11", color: "#EAF3DE", border: "#3B6D11" },
-    danger:  { bg: "#A32D2D", color: "#FCEBEB", border: "#A32D2D" },
+    danger: { bg: "#A32D2D", color: "#FCEBEB", border: "#A32D2D" },
     warning: { bg: "#854F0B", color: "#FAEEDA", border: "#854F0B" },
     primary: { bg: "#185FA5", color: "#E6F1FB", border: "#185FA5" },
-    outline: { bg: "transparent", color: "var(--color-text-primary)", border: "rgba(0,0,0,0.18)" },
-    info:    { bg: "#534AB7", color: "#EEEDFE", border: "#534AB7" },
+    outline: {
+      bg: "transparent",
+      color: "var(--color-text-primary)",
+      border: "rgba(0,0,0,0.18)",
+    },
+    info: { bg: "#534AB7", color: "#EEEDFE", border: "#534AB7" },
   }[variant];
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      width: "100%", padding: "10px 0", borderRadius: 8,
-      fontSize: 13, fontWeight: 500,
-      cursor: disabled ? "not-allowed" : "pointer",
-      opacity: disabled ? 0.4 : 1,
-      background: V.bg, color: V.color, border: `0.5px solid ${V.border}`,
-      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-      transition: "opacity 0.15s",
-    }}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: "10px 0",
+        borderRadius: 8,
+        fontSize: 13,
+        fontWeight: 500,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        background: V.bg,
+        color: V.color,
+        border: `0.5px solid ${V.border}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        transition: "opacity 0.15s",
+      }}
+    >
       {label}
     </button>
   );
 }
 
-function IconBtn({ label, title, onClick, color }: {
-  label: string; title: string; onClick: () => void; color?: string;
+function IconBtn({
+  label,
+  title,
+  onClick,
+  color,
+}: {
+  label: string;
+  title: string;
+  onClick: () => void;
+  color?: string;
 }) {
   return (
-    <button onClick={onClick} title={title} style={{
-      width: 28, height: 28, borderRadius: 6, cursor: "pointer",
-      border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
-      background: "none", fontSize: 13,
-      color: color ?? "var(--color-text-secondary)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        cursor: "pointer",
+        border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+        background: "none",
+        fontSize: 13,
+        color: color ?? "var(--color-text-secondary)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       {label}
     </button>
   );
@@ -258,75 +306,293 @@ function IconBtn({ label, title, onClick, color }: {
 
 // ─── Item Detail Panel ────────────────────────────────────────────────────────
 
-function ItemDetail({ item, onClose, onAct, busy }: {
+function ItemDetail({
+  item,
+  onClose,
+  onDone,
+  busy,
+}: {
   item: ServiceItem;
   onClose: () => void;
-  onAct: (item: ServiceItem, action: string) => void;
-  busy: string | null;
+  onDone: (item: ServiceItem) => void;
+  busy: boolean;
 }) {
   const active = isActiveStatus(item.status);
 
   return (
     <div style={{ ...cardStyle, border: "0.5px solid #378ADD" }}>
-      <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div
+        style={{
+          ...sectionDivider,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>{item._refNumber}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>
+            {item._refNumber}
+          </div>
           <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
             <Pill label={item.status} style={statusStyle(item.status)} />
-            <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
+            <Pill
+              label={item._serviceType}
+              style={{ bg: item._serviceBg, color: item._serviceColor }}
+            />
           </div>
         </div>
-        <button onClick={onClose} style={{
-          background: "none", border: "none", cursor: "pointer",
-          fontSize: 18, color: "var(--color-text-tertiary)", padding: 4,
-        }}>✕</button>
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 18,
+            color: "var(--color-text-tertiary)",
+            padding: 4,
+          }}
+        >
+          ✕
+        </button>
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Applicant</div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: "var(--color-text-tertiary)",
+            marginBottom: 6,
+          }}
+        >
+          Applicant
+        </div>
         <div style={{ fontSize: 15, fontWeight: 600 }}>{getFullName(item)}</div>
         {item.contact_no && (
-          <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{item.contact_no}</div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--color-text-secondary)",
+              marginTop: 2,
+            }}
+          >
+            {item.contact_no}
+          </div>
         )}
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Schedule</div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: "var(--color-text-tertiary)",
+            marginBottom: 6,
+          }}
+        >
+          Schedule
+        </div>
         {[
           { label: "Date", value: item.schedule_date ?? "—" },
           { label: "Time", value: fmtTime(item.schedule_time) },
-        ].map(row => (
+        ].map((row) => (
           <div key={row.label} style={metaRow}>
-            <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              {row.label}
+            </span>
             <span style={{ fontWeight: 500 }}>{row.value}</span>
           </div>
         ))}
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Details</div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: "var(--color-text-tertiary)",
+            marginBottom: 6,
+          }}
+        >
+          Details
+        </div>
         {[
-          { label: "Service",       value: item._serviceType },
-          { label: "Address",       value: [item.street, item.zone].filter(Boolean).join(", ") || null },
-          { label: "Business",      value: item.business_name ?? item.establishment ?? null },
+          { label: "Service", value: item._serviceType },
+          {
+            label: "Address",
+            value:
+              [item.street, item.zone].filter(Boolean).join(", ") || null,
+          },
+          {
+            label: "Business",
+            value: item.business_name ?? item.establishment ?? null,
+          },
           { label: "Business Type", value: item.business_type ?? null },
-        ].filter(r => r.value).map(row => (
-          <div key={row.label} style={metaRow}>
-            <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
-            <span style={{ fontWeight: 500 }}>{row.value}</span>
-          </div>
-        ))}
+        ]
+          .filter((r) => r.value)
+          .map((row) => (
+            <div key={row.label} style={metaRow}>
+              <span style={{ color: "var(--color-text-secondary)" }}>
+                {row.label}
+              </span>
+              <span style={{ fontWeight: 500 }}>{row.value}</span>
+            </div>
+          ))}
       </div>
 
       {active && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <ActionBtn label="✓ Complete" variant="success" disabled={!!busy} onClick={() => onAct(item, "completed")} />
-            <ActionBtn label="✕ No Show"  variant="danger"  disabled={!!busy} onClick={() => onAct(item, "no_show")} />
-          </div>
-          <ActionBtn label="↩ Move to Back" variant="warning" disabled={!!busy} onClick={() => onAct(item, "move_back")} />
+          <ActionBtn
+            label="✓ Done"
+            variant="success"
+            disabled={busy}
+            onClick={() => onDone(item)}
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Manual Add Search Panel ──────────────────────────────────────────────────
+
+function ManualAddPanel({
+  allItems,
+  queueKeys,
+  onAdd,
+}: {
+  allItems: ServiceItem[];
+  queueKeys: Set<string>;
+  onAdd: (item: ServiceItem) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const q = query.toLowerCase();
+  const results = query
+    ? allItems.filter((item) => {
+        if (queueKeys.has(itemKey(item))) return false;
+        return (
+          item._refNumber.toLowerCase().includes(q) ||
+          item._serviceType.toLowerCase().includes(q) ||
+          getFullName(item).toLowerCase().includes(q) ||
+          (item.business_name ?? "").toLowerCase().includes(q) ||
+          (item.establishment ?? "").toLowerCase().includes(q)
+        );
+      })
+    : [];
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionDivider}>
+        <span style={{ fontSize: 15, fontWeight: 500 }}>Add to Queue</span>
+      </div>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search by ref, name, business…"
+        style={{
+          width: "100%",
+          padding: "7px 10px",
+          fontSize: 12,
+          border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.2))",
+          borderRadius: 8,
+          background: "var(--color-background-primary,#fff)",
+          color: "var(--color-text-primary)",
+          marginBottom: 8,
+          boxSizing: "border-box",
+        }}
+      />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          maxHeight: 240,
+          overflowY: "auto",
+        }}
+      >
+        {query && results.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 16,
+              fontSize: 12,
+              color: "var(--color-text-tertiary)",
+            }}
+          >
+            No results
+          </div>
+        )}
+        {results.slice(0, 20).map((item) => (
+          <div
+            key={itemKey(item)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border:
+                "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+              background: "var(--color-background-primary,#fff)",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {item._refNumber}
+                </span>
+                <Pill label={item.status} style={statusStyle(item.status)} />
+                <Pill
+                  label={item._serviceType}
+                  style={{ bg: item._serviceBg, color: item._serviceColor }}
+                />
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-text-secondary)",
+                  marginTop: 2,
+                }}
+              >
+                {getFullName(item)}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                onAdd(item);
+                setQuery("");
+              }}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: "pointer",
+                background: "#185FA5",
+                color: "#E6F1FB",
+                border: "0.5px solid #185FA5",
+                whiteSpace: "nowrap",
+              }}
+            >
+              + Add
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -334,59 +600,29 @@ function ItemDetail({ item, onClose, onAct, busy }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function QueueControl() {
-  const [allItems,      setAllItems]      = useState<ServiceItem[]>([]);
-  const [nowServing,    setNowServing]    = useState<NowServing | null>(null);
-  const [releasedToday, setReleasedToday] = useState(0);
-  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
-  const [busy,          setBusy]          = useState<string | null>(null);
-  const [filter,        setFilter]        = useState("all");
-  const [search,        setSearch]        = useState("");
-  const [selected,      setSelected]      = useState<ServiceItem | null>(null);
-  const [log,           setLog]           = useState<{ msg: string; type: string; time: string }[]>([]);
-  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
-  const [calling,       setCalling]       = useState(false);
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const activeItems = allItems.filter(t => isActiveStatus(t.status));
-
-  // Match serving item from active list — fall back to first active
-  const servingItem: ServiceItem | null = (() => {
-    if (!nowServing) return null;
-    const byRef = activeItems.find(t =>
-      t._refNumber === nowServing.ticket_number ||
-      t.bcert_number === nowServing.ticket_number ||
-      t.brgy_business_no === nowServing.ticket_number
-    );
-    return byRef ?? activeItems[0] ?? null;
-  })();
-
-  const upNext = activeItems.filter(t =>
-    !(t.id === servingItem?.id && t._serviceType === servingItem?._serviceType)
+  const [allItems, setAllItems] = useState<ServiceItem[]>([]);
+  const [queue, setQueue] = useState<ServiceItem[]>([]);
+  const [manualKeys, setManualKeys] = useState<Set<string>>(new Set());
+  const [servingKey, setServingKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<ServiceItem | null>(null);
+  const [log, setLog] = useState<
+    { msg: string; type: string; time: string }[]
+  >([]);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(
+    null,
   );
 
-  const breakdown: Record<string, number> = {};
-  activeItems.forEach(t => { breakdown[t._serviceType] = (breakdown[t._serviceType] ?? 0) + 1; });
-  const bTotal = Math.max(Object.values(breakdown).reduce((a, b) => a + b, 0), 1);
-
-  const allStatuses = Array.from(new Set(allItems.map(t => normalizeStatus(t.status))));
-
-  const filtered = allItems.filter(t => {
-    const ns = normalizeStatus(t.status);
-    const mf = filter === "all" || ns === filter;
-    const q  = search.toLowerCase();
-    const ms = !search
-      || t._refNumber.toLowerCase().includes(q)
-      || t._serviceType.toLowerCase().includes(q)
-      || getFullName(t).toLowerCase().includes(q)
-      || (t.business_name ?? "").toLowerCase().includes(q)
-      || (t.establishment ?? "").toLowerCase().includes(q);
-    return mf && ms;
-  });
-
   // ── Helpers ────────────────────────────────────────────────────────────────
+
   const addLog = useCallback((msg: string, type = "info") => {
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setLog(prev => [{ msg, type, time }, ...prev].slice(0, 60));
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    setLog((prev) => [{ msg, type, time }, ...prev].slice(0, 60));
   }, []);
 
   const showToast = useCallback((msg: string, ok = true) => {
@@ -395,21 +631,30 @@ export function QueueControl() {
   }, []);
 
   // ── Load ───────────────────────────────────────────────────────────────────
+
   const load = useCallback(async () => {
     try {
-      const data = await getDashboard();
-      setNowServing(data.now_serving);
-      setReleasedToday(data.total_released_today);
-      setPendingCounts(data.pending_counts);
-      setAllItems(buildQueue(data));
+      const items = await fetchAllItems();
+      setAllItems(items);
+
+      setQueue((prevQueue) => {
+        const autoItems = buildAutoQueue(items);
+        const autoKeys = new Set(autoItems.map(itemKey));
+
+        const manualItems = items.filter(
+          (item) => manualKeys.has(itemKey(item)) && !autoKeys.has(itemKey(item)),
+        );
+
+        return sortQueue([...autoItems, ...manualItems]);
+      });
     } catch (e) {
-      console.error("Dashboard load failed", e);
+      console.error("Load failed", e);
     }
-  }, []);
+  }, [manualKeys]);
 
   useEffect(() => {
     load();
-    addLog("Admin panel ready", "info");
+    addLog("Queue control ready", "info");
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, [load, addLog]);
@@ -417,91 +662,198 @@ export function QueueControl() {
   // Keep selected fresh
   useEffect(() => {
     if (selected) {
-      const fresh = allItems.find(t => t.id === selected.id && t._serviceType === selected._serviceType);
+      const fresh = queue.find((t) => itemKey(t) === itemKey(selected));
       if (fresh) setSelected(fresh);
     }
-  }, [allItems]);
+  }, [queue, selected]);
 
-  // ── Act ────────────────────────────────────────────────────────────────────
-  async function act(item: ServiceItem, action: string) {
-    const key = `${item.id}-${item._serviceType}-${action}`;
-    setBusy(key);
-    const ACTION_LABELS: Record<string, string> = {
-      completed: "Completed", no_show: "Marked No Show",
-      move_back: "Moved to Back", released: "Released",
-      approved: "Approved", rejected: "Rejected",
-    };
-    try {
-      const newStatus = action === "move_back" ? "pending" : action;
-      await patchServiceStatus(item, newStatus);
-      const msg = `${item._refNumber} → ${ACTION_LABELS[action] ?? action}`;
-      showToast(msg, true);
-      addLog(msg, "success");
-      await load();
-    } catch {
-      showToast("Action failed", false);
-      addLog(`Failed: ${action} on ${item._refNumber}`, "error");
-    } finally {
-      setBusy(null);
-    }
+  // ── Derived ────────────────────────────────────────────────────────────────
+
+  const activeQueue = queue.filter((t) => isActiveStatus(t.status));
+  const servingItem =
+    queue.find((t) => itemKey(t) === servingKey) ?? activeQueue[0] ?? null;
+
+  const upNext = activeQueue.filter(
+    (t) => servingItem && itemKey(t) !== itemKey(servingItem),
+  );
+
+  const queueKeys = new Set(queue.map(itemKey));
+
+  const allStatuses = Array.from(new Set(queue.map((t) => t.status)));
+
+  const filtered = queue.filter((t) => {
+    const mf = filter === "all" || t.status === filter;
+    const q = search.toLowerCase();
+    const ms =
+      !search ||
+      t._refNumber.toLowerCase().includes(q) ||
+      t._serviceType.toLowerCase().includes(q) ||
+      getFullName(t).toLowerCase().includes(q) ||
+      (t.business_name ?? "").toLowerCase().includes(q) ||
+      (t.establishment ?? "").toLowerCase().includes(q);
+    return mf && ms;
+  });
+
+  const breakdown: Record<string, number> = {};
+  activeQueue.forEach((t) => {
+    breakdown[t._serviceType] = (breakdown[t._serviceType] ?? 0) + 1;
+  });
+  const bTotal = Math.max(
+    Object.values(breakdown).reduce((a, b) => a + b, 0),
+    1,
+  );
+
+  // ── Manual Add ─────────────────────────────────────────────────────────────
+
+  function handleManualAdd(item: ServiceItem) {
+    const key = itemKey(item);
+    setManualKeys((prev) => new Set(prev).add(key));
+    setQueue((prev) => {
+      if (prev.some((t) => itemKey(t) === key)) return prev;
+      return sortQueue([...prev, item]);
+    });
+    showToast(`${item._refNumber} added to queue`);
+    addLog(`Added ${item._refNumber} to queue`, "info");
   }
 
   // ── Call Next ──────────────────────────────────────────────────────────────
-  async function handleCallNext() {
-    setCalling(true);
+
+  function handleCallNext() {
+    if (activeQueue.length === 0) return;
+
+    if (!servingItem) {
+      const next = activeQueue[0];
+      setServingKey(itemKey(next));
+      showToast(`Now serving: ${next._refNumber}`);
+      addLog(`Now serving: ${next._refNumber}`, "success");
+      return;
+    }
+
+    const currentIdx = activeQueue.findIndex(
+      (t) => itemKey(t) === itemKey(servingItem),
+    );
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < activeQueue.length) {
+      const next = activeQueue[nextIdx];
+      setServingKey(itemKey(next));
+      showToast(`Now serving: ${next._refNumber}`);
+      addLog(`Now serving: ${next._refNumber}`, "success");
+    } else {
+      showToast("No more items in queue", false);
+    }
+  }
+
+  // ── Done ───────────────────────────────────────────────────────────────────
+
+  async function handleDone(item: ServiceItem) {
+    const key = itemKey(item);
+    setBusy(true);
     try {
-      await postCallNext();
-      addLog("Called next", "success");
-      showToast("Next called", true);
-      await load();
+      try {
+        await patchServiceStatus(item, "COMPLETED");
+      } catch {
+        // optional PATCH — continue even if it fails
+      }
+      setQueue((prev) => prev.filter((t) => itemKey(t) !== key));
+      setManualKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+
+      if (servingKey === key) {
+        const remaining = activeQueue.filter((t) => itemKey(t) !== key);
+        setServingKey(remaining.length > 0 ? itemKey(remaining[0]) : null);
+      }
+
+      if (selected && itemKey(selected) === key) setSelected(null);
+
+      showToast(`${item._refNumber} done`);
+      addLog(`${item._refNumber} completed & removed`, "success");
     } catch {
-      showToast("Failed to call next", false);
-      addLog("Failed to call next", "error");
+      showToast("Action failed", false);
+      addLog(`Failed: done on ${item._refNumber}`, "error");
     } finally {
-      setCalling(false);
+      setBusy(false);
     }
   }
 
   const logColor: Record<string, string> = {
-    info: "var(--color-text-secondary)", success: "#3B6D11", error: "#A32D2D", warn: "#854F0B",
+    info: "var(--color-text-secondary)",
+    success: "#3B6D11",
+    error: "#A32D2D",
+    warn: "#854F0B",
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ fontFamily: "var(--font-sans,system-ui)", color: "var(--color-text-primary,#111)", position: "relative" }}>
 
+  return (
+    <div
+      style={{
+        fontFamily: "var(--font-sans,system-ui)",
+        color: "var(--color-text-primary,#111)",
+        position: "relative",
+      }}
+    >
       {toast && (
-        <div style={{
-          position: "fixed", bottom: 20, right: 20, zIndex: 9999,
-          background: "var(--color-background-primary,#fff)",
-          border: `0.5px solid ${toast.ok ? "#3B6D11" : "#A32D2D"}`,
-          borderRadius: 8, padding: "10px 16px", fontSize: 13,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            background: "var(--color-background-primary,#fff)",
+            border: `0.5px solid ${toast.ok ? "#3B6D11" : "#A32D2D"}`,
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontSize: 13,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          }}
+        >
           {toast.msg}
         </div>
       )}
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: selected ? "1fr 320px 300px" : "1fr 300px",
-        gap: 16, padding: 16,
-      }}>
-
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: selected ? "1fr 320px 300px" : "1fr 300px",
+          gap: 16,
+          padding: 16,
+        }}
+      >
         {/* ══ LEFT ══════════════════════════════════════════════════════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
           <div style={cardStyle}>
             {/* Title row */}
-            <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 17, fontWeight: 500 }}>Queue Admin</span>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3B6D11", display: "inline-block" }} />
+            <div
+              style={{
+                ...sectionDivider,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+              >
+                <span style={{ fontSize: 17, fontWeight: 500 }}>
+                  Queue Admin
+                </span>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "#3B6D11",
+                    display: "inline-block",
+                  }}
+                />
               </div>
               <ActionBtn
-                label={calling ? "Calling…" : "▶  Call Next"}
+                label={activeQueue.length === 0 ? "No Items" : "▶  Call Next"}
                 variant="primary"
-                disabled={calling || activeItems.length === 0}
+                disabled={activeQueue.length === 0}
                 onClick={handleCallNext}
               />
             </div>
@@ -509,78 +861,110 @@ export function QueueControl() {
             {/* Metrics */}
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               {[
-                { label: "Active",     value: activeItems.length },
-                { label: "Done Today", value: releasedToday },
-                { label: "Total",      value: allItems.length },
-              ].map(m => (
-                <div key={m.label} style={{
-                  flex: 1, borderRadius: 8, padding: "10px 12px",
-                  background: "var(--color-background-secondary,#f5f5f3)",
-                }}>
-                  <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginBottom: 3 }}>{m.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 500 }}>{m.value}</div>
+                { label: "Active", value: activeQueue.length },
+                { label: "In Queue", value: queue.length },
+                { label: "Total Fetched", value: allItems.length },
+              ].map((m) => (
+                <div
+                  key={m.label}
+                  style={{
+                    flex: 1,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    background:
+                      "var(--color-background-secondary,#f5f5f3)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-secondary)",
+                      marginBottom: 3,
+                    }}
+                  >
+                    {m.label}
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 500 }}>
+                    {m.value}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Pending counts per service type */}
-            {Object.keys(pendingCounts).filter(k => pendingCounts[k] > 0).length > 0 && (
-              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-                {Object.entries(pendingCounts)
-                  .filter(([, count]) => count > 0)
-                  .map(([svc, count]) => {
-                    const cfg = SERVICE_CONFIG.find(c => c.label === svc);
-                    return (
-                      <div key={svc} style={{
-                        padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 500,
-                        background: cfg?.bg ?? "#F1EFE8",
-                        color: cfg?.color ?? "#5F5E5A",
-                      }}>
-                        {svc}: <strong>{count}</strong>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
             {/* Now Serving display */}
-            <div style={{
-              background: "var(--color-background-secondary,#f5f5f3)",
-              border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.18))",
-              borderRadius: 10, padding: "20px 16px", textAlign: "center", marginBottom: 14,
-            }}>
-              <div style={{
-                fontSize: 11, fontWeight: 500, letterSpacing: "0.08em",
-                textTransform: "uppercase", color: "var(--color-text-secondary)", marginBottom: 10,
-              }}>
+            <div
+              style={{
+                background: "var(--color-background-secondary,#f5f5f3)",
+                border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.18))",
+                borderRadius: 10,
+                padding: "20px 16px",
+                textAlign: "center",
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--color-text-secondary)",
+                  marginBottom: 10,
+                }}
+              >
                 Now Serving
               </div>
-              <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1, letterSpacing: -3 }}>
-                {nowServing?.ticket_number ?? "---"}
+              <div
+                style={{
+                  fontSize: 68,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  letterSpacing: -3,
+                }}
+              >
+                {servingItem?._refNumber ?? "---"}
               </div>
-              {nowServing ? (
+              {servingItem ? (
                 <div style={{ marginTop: 10 }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                    <Pill label={nowServing.service_type} style={{ bg: "#E6F1FB", color: "#0C447C" }} />
-                    {nowServing.scheduled_time && (
-                      <Pill label={`🕐 ${fmtTime(nowServing.scheduled_time)}`} style={{ bg: "#F1EFE8", color: "#5F5E5A" }} />
-                    )}
-                    {nowServing.priority && normalizeStatus(nowServing.priority) !== "normal" && (
-                      <Pill label={nowServing.priority} style={{ bg: "#FBEAF0", color: "#72243E" }} />
-                    )}
-                    {(nowServing.missed_attempts ?? 0) > 0 && (
-                      <Pill label={`${nowServing.missed_attempts}× missed`} style={{ bg: "#FCEBEB", color: "#791F1F" }} />
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      justifyContent: "center",
+                      flexWrap: "wrap",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Pill
+                      label={servingItem.status}
+                      style={statusStyle(servingItem.status)}
+                    />
+                    <Pill
+                      label={servingItem._serviceType}
+                      style={{
+                        bg: servingItem._serviceBg,
+                        color: servingItem._serviceColor,
+                      }}
+                    />
+                    {servingItem.schedule_time && (
+                      <Pill
+                        label={`🕐 ${fmtTime(servingItem.schedule_time)}`}
+                        style={{ bg: "#F1EFE8", color: "#5F5E5A" }}
+                      />
                     )}
                   </div>
-                  {servingItem && (
-                    <>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{servingItem._refNumber}</div>
-                      <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>{servingItem._serviceType}</div>
-                    </>
-                  )}
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>
+                    {getFullName(servingItem)}
+                  </div>
                 </div>
               ) : (
-                <div style={{ marginTop: 10, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontSize: 13,
+                    color: "var(--color-text-tertiary)",
+                  }}
+                >
                   No appointment currently being served
                 </div>
               )}
@@ -588,20 +972,31 @@ export function QueueControl() {
 
             {/* Actions */}
             {servingItem ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <ActionBtn label="✓  Complete" variant="success" disabled={!!busy} onClick={() => act(servingItem, "completed")} />
-                  <ActionBtn label="✕  No Show"  variant="danger"  disabled={!!busy} onClick={() => act(servingItem, "no_show")} />
-                </div>
-                <ActionBtn label="↩  Move to Back (missed attempt)" variant="warning" disabled={!!busy} onClick={() => act(servingItem, "move_back")} />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <ActionBtn
+                  label="✓  Done"
+                  variant="success"
+                  disabled={busy}
+                  onClick={() => handleDone(servingItem)}
+                />
               </div>
             ) : (
-              <div style={{
-                textAlign: "center", fontSize: 13, color: "var(--color-text-tertiary)",
-                padding: "10px 0",
-                border: "0.5px dashed var(--color-border-tertiary,rgba(0,0,0,0.12))",
-                borderRadius: 8,
-              }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: 13,
+                  color: "var(--color-text-tertiary)",
+                  padding: "10px 0",
+                  border: "0.5px dashed var(--color-border-tertiary,rgba(0,0,0,0.12))",
+                  borderRadius: 8,
+                }}
+              >
                 No appointments in queue
               </div>
             )}
@@ -609,14 +1004,25 @@ export function QueueControl() {
 
           {/* Queue List */}
           <div style={cardStyle}>
-            <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Today's Queue</span>
+            <div
+              style={{
+                ...sectionDivider,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 500 }}>
+                Today's Queue
+              </span>
               <input
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search ref, name, service…"
                 style={{
-                  padding: "5px 10px", fontSize: 12, width: 180,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  width: 180,
                   border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.2))",
                   borderRadius: 8,
                   background: "var(--color-background-primary,#fff)",
@@ -626,77 +1032,172 @@ export function QueueControl() {
             </div>
 
             {/* Filter tabs */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              {["all", ...allStatuses].map(f => (
-                <button key={f} onClick={() => setFilter(f)} style={{
-                  padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500, cursor: "pointer",
-                  border: `0.5px solid ${filter === f ? "#185FA5" : "rgba(0,0,0,0.14)"}`,
-                  background: filter === f ? "#E6F1FB" : "transparent",
-                  color: filter === f ? "#0C447C" : "var(--color-text-secondary)",
-                }}>
-                  {f.replace(/_/g, " ")}
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                marginBottom: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              {["all", ...allStatuses].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    border: `0.5px solid ${filter === f ? "#185FA5" : "rgba(0,0,0,0.14)"}`,
+                    background: filter === f ? "#E6F1FB" : "transparent",
+                    color:
+                      filter === f
+                        ? "#0C447C"
+                        : "var(--color-text-secondary)",
+                  }}
+                >
+                  {f}
                 </button>
               ))}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 480, overflowY: "auto" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                maxHeight: 480,
+                overflowY: "auto",
+              }}
+            >
               {filtered.length === 0 && (
-                <div style={{ textAlign: "center", padding: 32, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 32,
+                    fontSize: 13,
+                    color: "var(--color-text-tertiary)",
+                  }}
+                >
                   No appointments found
                 </div>
               )}
               {filtered.map((item, i) => {
-                const isSelected = selected?.id === item.id && selected?._serviceType === item._serviceType;
-                const isServing  = servingItem?.id === item.id && servingItem?._serviceType === item._serviceType;
-                const active     = isActiveStatus(item.status);
-                const done       = isDoneStatus(item.status);
+                const key = itemKey(item);
+                const isSelected =
+                  selected && itemKey(selected) === key;
+                const isServing =
+                  servingItem && itemKey(servingItem) === key;
+                const done = isDoneStatus(item.status);
 
                 return (
                   <div
-                    key={`${item._serviceType}-${item.id}`}
-                    onClick={() => setSelected(isSelected ? null : item)}
+                    key={key}
+                    onClick={() =>
+                      setSelected(isSelected ? null : item)
+                    }
                     style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      cursor: "pointer",
                       opacity: done ? 0.55 : 1,
                       border: `0.5px solid ${isSelected ? "#185FA5" : isServing ? "#378ADD" : "var(--color-border-tertiary,rgba(0,0,0,0.12))"}`,
-                      background: isSelected ? "#EBF3FC" : isServing ? "#E6F1FB" : "var(--color-background-primary,#fff)",
+                      background: isSelected
+                        ? "#EBF3FC"
+                        : isServing
+                          ? "#E6F1FB"
+                          : "var(--color-background-primary,#fff)",
                       transition: "background 0.12s",
                     }}
                   >
-                    <div style={{
-                      width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                      background: isServing ? "#378ADD" : "var(--color-background-secondary,#f5f5f3)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 500,
-                      color: isServing ? "#fff" : "var(--color-text-secondary)",
-                    }}>
+                    <div
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        background: isServing
+                          ? "#378ADD"
+                          : "var(--color-background-secondary,#f5f5f3)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: isServing
+                          ? "#fff"
+                          : "var(--color-text-secondary)",
+                      }}
+                    >
                       {isServing ? "▶" : done ? "✓" : i + 1}
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{item._refNumber}</span>
-                        <Pill label={item.status} style={statusStyle(item.status)} />
-                        <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{ fontSize: 14, fontWeight: 600 }}
+                        >
+                          {item._refNumber}
+                        </span>
+                        <Pill
+                          label={item.status}
+                          style={statusStyle(item.status)}
+                        />
+                        <Pill
+                          label={item._serviceType}
+                          style={{
+                            bg: item._serviceBg,
+                            color: item._serviceColor,
+                          }}
+                        />
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>
-                        {item.schedule_time ? `🕐 ${fmtTime(item.schedule_time)}` : "No schedule time"}
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--color-text-secondary)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {item.schedule_time
+                          ? `🕐 ${fmtTime(item.schedule_time)}`
+                          : "No schedule time"}
                       </div>
                       {(item.business_name ?? item.establishment) && (
-                        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 1 }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "var(--color-text-tertiary)",
+                            marginTop: 1,
+                          }}
+                        >
                           {item.business_name ?? item.establishment}
                         </div>
                       )}
                     </div>
 
-                    <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
-                      {active && (
-                        <>
-                          <IconBtn label="✓" title="Complete"     onClick={() => act(item, "completed")} color="#3B6D11" />
-                          <IconBtn label="✕" title="No Show"      onClick={() => act(item, "no_show")}   color="#A32D2D" />
-                          <IconBtn label="↩" title="Move to back" onClick={() => act(item, "move_back")} color="#854F0B" />
-                        </>
+                    <div
+                      style={{ display: "flex", gap: 4 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isActiveStatus(item.status) && (
+                        <IconBtn
+                          label="✓"
+                          title="Done"
+                          onClick={() => handleDone(item)}
+                          color="#3B6D11"
+                        />
                       )}
                     </div>
                   </div>
@@ -708,49 +1209,111 @@ export function QueueControl() {
 
         {/* ══ MIDDLE — Detail ═══════════════════════════════════════════════ */}
         {selected && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+          >
             <ItemDetail
-              item={allItems.find(t => t.id === selected.id && t._serviceType === selected._serviceType) ?? selected}
+              item={
+                queue.find((t) => itemKey(t) === itemKey(selected)) ??
+                selected
+              }
               onClose={() => setSelected(null)}
-              onAct={act}
+              onDone={handleDone}
               busy={busy}
             />
           </div>
         )}
 
         {/* ══ RIGHT ═════════════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 16 }}
+        >
+          {/* Manual Add */}
+          <ManualAddPanel
+            allItems={allItems}
+            queueKeys={queueKeys}
+            onAdd={handleManualAdd}
+          />
 
           {/* Active by Service */}
           <div style={cardStyle}>
             <div style={sectionDivider}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Active by Service</span>
+              <span style={{ fontSize: 15, fontWeight: 500 }}>
+                Active by Service
+              </span>
             </div>
             {Object.keys(breakdown).length === 0 ? (
-              <div style={{ textAlign: "center", padding: 24, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 24,
+                  fontSize: 13,
+                  color: "var(--color-text-tertiary)",
+                }}
+              >
                 No active appointments
               </div>
             ) : (
-              SERVICE_CONFIG.filter(cfg => breakdown[cfg.label] != null).map(cfg => (
-                <div key={cfg.label} style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "8px 0",
-                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
-                }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 99,
-                    background: cfg.bg, color: cfg.color,
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110,
-                  }}>
+              SERVICE_CONFIG.filter(
+                (cfg) => breakdown[cfg.label] != null,
+              ).map((cfg) => (
+                <div
+                  key={cfg.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 0",
+                    borderBottom:
+                      "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 500,
+                      padding: "2px 7px",
+                      borderRadius: 99,
+                      background: cfg.bg,
+                      color: cfg.color,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 110,
+                    }}
+                  >
                     {cfg.label}
                   </span>
-                  <div style={{ flex: 1, height: 4, background: "rgba(0,0,0,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%",
-                      width: `${Math.round(((breakdown[cfg.label] ?? 0) / bTotal) * 100)}%`,
-                      background: cfg.color, borderRadius: 2,
-                    }} />
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 4,
+                      background: "rgba(0,0,0,0.08)",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${Math.round(((breakdown[cfg.label] ?? 0) / bTotal) * 100)}%`,
+                        background: cfg.color,
+                        borderRadius: 2,
+                      }}
+                    />
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 500, minWidth: 18, textAlign: "right" }}>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      minWidth: 18,
+                      textAlign: "right",
+                    }}
+                  >
                     {breakdown[cfg.label] ?? 0}
                   </span>
                 </div>
@@ -761,26 +1324,74 @@ export function QueueControl() {
           {/* Up Next */}
           <div style={cardStyle}>
             <div style={sectionDivider}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Up Next</span>
+              <span style={{ fontSize: 15, fontWeight: 500 }}>
+                Up Next
+              </span>
             </div>
             {upNext.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 20,
+                  fontSize: 13,
+                  color: "var(--color-text-tertiary)",
+                }}
+              >
                 Queue is empty
               </div>
             ) : (
               upNext.slice(0, 6).map((item, i) => (
-                <div key={`${item._serviceType}-${item.id}`} style={{
-                  padding: "8px 0",
-                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "var(--color-text-tertiary)", width: 16 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{item._refNumber}</span>
-                    <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
+                <div
+                  key={itemKey(item)}
+                  style={{
+                    padding: "8px 0",
+                    borderBottom:
+                      "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "var(--color-text-tertiary)",
+                        width: 16,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span
+                      style={{ flex: 1, fontSize: 14, fontWeight: 600 }}
+                    >
+                      {item._refNumber}
+                    </span>
+                    <Pill
+                      label={item._serviceType}
+                      style={{
+                        bg: item._serviceBg,
+                        color: item._serviceColor,
+                      }}
+                    />
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginLeft: 24, marginTop: 2 }}>
-                    {item.schedule_time ? `🕐 ${fmtTime(item.schedule_time)}` : "No time set"}
-                    {(item.business_name ?? item.establishment) ? ` · ${item.business_name ?? item.establishment}` : ""}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-secondary)",
+                      marginLeft: 24,
+                      marginTop: 2,
+                    }}
+                  >
+                    {item.schedule_time
+                      ? `🕐 ${fmtTime(item.schedule_time)}`
+                      : "No time set"}
+                    {item.business_name ?? item.establishment
+                      ? ` · ${item.business_name ?? item.establishment}`
+                      : ""}
                   </div>
                 </div>
               ))
@@ -789,31 +1400,86 @@ export function QueueControl() {
 
           {/* Activity Log */}
           <div style={{ ...cardStyle, flex: 1 }}>
-            <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Activity</span>
-              <button onClick={() => setLog([])} style={{
-                fontSize: 11, cursor: "pointer",
-                border: "0.5px solid rgba(0,0,0,0.14)", borderRadius: 6,
-                background: "none", padding: "3px 8px", color: "var(--color-text-secondary)",
-              }}>
+            <div
+              style={{
+                ...sectionDivider,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 500 }}>
+                Activity
+              </span>
+              <button
+                onClick={() => setLog([])}
+                style={{
+                  fontSize: 11,
+                  cursor: "pointer",
+                  border: "0.5px solid rgba(0,0,0,0.14)",
+                  borderRadius: 6,
+                  background: "none",
+                  padding: "3px 8px",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
                 Clear
               </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                maxHeight: 280,
+                overflowY: "auto",
+              }}
+            >
               {log.length === 0 && (
-                <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 20,
+                    fontSize: 13,
+                    color: "var(--color-text-tertiary)",
+                  }}
+                >
                   No activity yet
                 </div>
               )}
               {log.map((e, i) => (
-                <div key={i} style={{
-                  display: "flex", gap: 7, alignItems: "flex-start",
-                  fontSize: 12, padding: "5px 0",
-                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
-                }}>
-                  <span style={{ color: logColor[e.type] ?? "var(--color-text-secondary)", flexShrink: 0, marginTop: 1 }}>●</span>
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    gap: 7,
+                    alignItems: "flex-start",
+                    fontSize: 12,
+                    padding: "5px 0",
+                    borderBottom:
+                      "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                  }}
+                >
+                  <span
+                    style={{
+                      color:
+                        logColor[e.type] ??
+                        "var(--color-text-secondary)",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}
+                  >
+                    ●
+                  </span>
                   <span style={{ flex: 1 }}>{e.msg}</span>
-                  <span style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }}>{e.time}</span>
+                  <span
+                    style={{
+                      color: "var(--color-text-tertiary)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {e.time}
+                  </span>
                 </div>
               ))}
             </div>
