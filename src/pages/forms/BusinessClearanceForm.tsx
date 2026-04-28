@@ -386,7 +386,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
 
   const getMinScheduleDate = () => {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
+    d.setDate(d.getDate());
     return d.toISOString().split("T")[0];
   };
 
