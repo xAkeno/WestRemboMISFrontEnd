@@ -1,52 +1,72 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database, RotateCcw, Calendar, Settings } from 'lucide-react';
+import { Download, RefreshCw, FileArchive, Clock, Play, Trash2, Database, RotateCcw, Calendar, Settings, Lock, Unlock, Upload, Shield } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Layout } from '@/components/Layout';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 const API_BASE = 'https://westrembomis.onrender.com/api';
 
-type DbType = 'postgresql' | 'mysql' | 'sqlite';
-type Frequency = 'hourly' | 'daily' | 'weekly';
-
 interface Backup {
-  id: number;
-  filename: string;
-  size: string;
-  created_at: string;
-  status: 'completed' | 'in_progress' | 'failed';
-  download_url?: string;
-  db_type?: DbType;
+  id: string;
+  name: string;
+  size_kb: number;
+  size_mb: number;
+  last_modified: string;
+  location: 'local' | 's3';
+  encrypted: boolean;
 }
 
-interface ScheduleSettings {
-  enabled: boolean;
-  frequency: Frequency;
-  time: string;
-  day_of_week: number | null;
+interface BackupResponse {
+  success: boolean;
+  backups: Backup[];
+  count: number;
 }
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+interface CreateBackupResponse {
+  success: boolean;
+  file: string;
+  path: string;
+  original_size_kb: number;
+  encrypted_size_kb: number;
+  encrypted: boolean;
+}
 
-const dbTypeConfig: Record<DbType, { label: string; className: string }> = {
-  postgresql: { label: 'PostgreSQL', className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
-  mysql:      { label: 'MySQL',      className: 'bg-orange-500/10 text-orange-600 border-orange-500/20' },
-  sqlite:     { label: 'SQLite',     className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
-};
+interface RestoreResponse {
+  success: boolean;
+  message: string;
+  failed_statements?: number;
+  warnings?: any[];
+}
 
 const BackupRecovery = () => {
   const { toast } = useToast();
@@ -56,45 +76,15 @@ const BackupRecovery = () => {
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [backupDialogOpen, setBackupDialogOpen] = useState(false);
-  const [selectedDbType, setSelectedDbType] = useState<DbType>('mysql');
   const [restoreFromFilename, setRestoreFromFilename] = useState<string | null>(null);
   const [isRestoringFromFile, setIsRestoringFromFile] = useState(false);
-  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
-
-  const [schedule, setSchedule] = useState<ScheduleSettings>({
-    enabled: false,
-    frequency: 'daily',
-    time: '02:00',
-    day_of_week: 1,
-  });
-
-  /* =======================
-     COMPUTE NEXT RUN TEXT
-  ======================= */
-  const getNextRunText = (s: ScheduleSettings): string => {
-    if (!s.enabled) return 'Disabled';
-
-    const [h, m] = s.time.split(':').map(Number);
-    const now = new Date();
-    const next = new Date();
-
-    if (s.frequency === 'hourly') {
-      const n = new Date(now.getTime() + 60 * 60 * 1000);
-      return `in ~1 hour (${n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
-    }
-
-    next.setHours(h, m, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-
-    if (s.frequency === 'weekly' && s.day_of_week !== null) {
-      while (next.getDay() !== s.day_of_week) next.setDate(next.getDate() + 1);
-      return `${DAYS[s.day_of_week]}, ${next.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-
-    return `${next.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} at ${next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  };
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteFileName, setDeleteFileName] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [uploadEncrypted, setUploadEncrypted] = useState(true);
+  const [restoreProgress, setRestoreProgress] = useState<number | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   /* =======================
      LOAD BACKUPS
@@ -102,102 +92,56 @@ const BackupRecovery = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/backup`, { withCredentials: true });
+      const res = await axios.get<BackupResponse>(`${API_BASE}/backup/list`, { 
+        withCredentials: true 
+      });
 
-      const backupsData = Array.isArray(res.data.backups) ? res.data.backups : [];
-
-      const formatted = backupsData.map((b: any, index: number) => ({
-        id: index,
-        filename: b.name,
-        size: `${b.size_kb} KB`,
-        created_at: b.last_modified,
-        status: 'completed',
-        db_type: 'mysql',
-      }));
-
-      setBackups(formatted);
-    } catch (e) {
+      if (res.data.success) {
+        setBackups(res.data.backups);
+      } else {
+        throw new Error('Failed to load backups');
+      }
+    } catch (e: any) {
       toast({
         title: 'Error',
-        description: 'Cannot load backups',
+        description: e?.response?.data?.message ?? 'Cannot load backups',
         variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  /* =======================
-     SAVE SCHEDULE
-  ======================= */
-  const saveSchedule = async () => {
-    setIsSavingSchedule(true);
-    try {
-      await axios.post(
-        `${API_BASE}/backup/settings`,
-        {
-          enabled: schedule.enabled ? 1 : 0,
-          frequency: schedule.frequency,
-          time: schedule.time,
-          day_of_week: schedule.frequency === 'weekly' ? schedule.day_of_week : null,
-        },
-        { withCredentials: true }
-      );
-      toast({ title: 'Schedule saved', description: 'Auto backup schedule updated successfully' });
-      setScheduleDialogOpen(false);
-    } catch (err: any) {
-      toast({
-        title: 'Failed to save schedule',
-        description: err?.response?.data?.message ?? 'Could not save schedule settings',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingSchedule(false);
-    }
-  };
+  useEffect(() => { 
+    loadData(); 
+  }, [loadData]);
 
   /* =======================
      CREATE DATABASE BACKUP
   ======================= */
   const triggerBackup = async () => {
     setIsRunning(true);
-    setBackupDialogOpen(false);
-
-    const tempBackup: Backup = {
-      id: Date.now(),
-      filename: `backup_${new Date().toISOString().replace(/[-T:.Z]/g, '_').slice(0, 19)}.sql`,
-      size: 'Calculating...',
-      created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      status: 'in_progress',
-      db_type: selectedDbType,
-    };
-
-    setBackups(prev => [tempBackup, ...prev]);
 
     try {
-      const res = await axios.post(
-        `${API_BASE}/backup/database`,
+      const res = await axios.post<CreateBackupResponse>(
+        `${API_BASE}/backup/create`,
         {},
         { withCredentials: true }
       );
 
-      setBackups(prev => prev.map(b =>
-        b.id === tempBackup.id
-          ? { ...b, filename: res.data.file, status: 'completed' as const, size: 'N/A' }
-          : b
-      ));
-
-      toast({ title: 'Backup Complete', description: 'Full SQL dump saved successfully' });
-      loadData();
+      if (res.data.success) {
+        toast({
+          title: 'Backup Complete',
+          description: `Encrypted backup created: ${res.data.file} (${res.data.encrypted_size_kb} KB encrypted)`,
+        });
+        loadData();
+      } else {
+        throw new Error('Backup failed');
+      }
     } catch (err: any) {
-      setBackups(prev =>
-        prev.map(b => b.id === tempBackup.id ? { ...b, status: 'failed' as const } : b)
-      );
       toast({
         title: 'Backup failed',
-        description: err?.response?.data?.message ?? 'Admin permission required or backup error',
+        description: err?.response?.data?.message ?? 'Backup error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -206,25 +150,46 @@ const BackupRecovery = () => {
   };
 
   /* =======================
-     RESTORE — UPLOAD SQL FILE
+     RESTORE — UPLOAD FILE (ENCRYPTED OR PLAIN)
   ======================= */
   const handleRestoreUpload = async () => {
     if (!restoreFile) return;
     setIsRestoring(true);
+    setRestoreProgress(0);
 
     const formData = new FormData();
     formData.append('file', restoreFile);
+    formData.append('encrypted', uploadEncrypted ? '1' : '0');
 
     try {
-      await axios.post(`${API_BASE}/backup/restore-upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        withCredentials: true,
-      });
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setRestoreProgress(prev => Math.min((prev || 0) + 10, 90));
+      }, 500);
 
-      toast({ title: 'Restore Complete', description: 'Database imported successfully' });
-      setRestoreDialogOpen(false);
-      setRestoreFile(null);
-      loadData();
+      const res = await axios.post<RestoreResponse>(
+        `${API_BASE}/backup/restore-upload`,
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
+        }
+      );
+
+      clearInterval(progressInterval);
+      setRestoreProgress(100);
+
+      if (res.data.success) {
+        toast({
+          title: 'Restore Complete',
+          description: res.data.message,
+        });
+        setRestoreDialogOpen(false);
+        setRestoreFile(null);
+        loadData();
+      } else {
+        throw new Error(res.data.message || 'Restore failed');
+      }
     } catch (err: any) {
       toast({
         title: 'Restore failed',
@@ -233,6 +198,7 @@ const BackupRecovery = () => {
       });
     } finally {
       setIsRestoring(false);
+      setRestoreProgress(null);
     }
   };
 
@@ -242,16 +208,31 @@ const BackupRecovery = () => {
   const handleRestoreFromFile = async () => {
     if (!restoreFromFilename) return;
     setIsRestoringFromFile(true);
+    setRestoreProgress(0);
 
     try {
-      await axios.post(
+      const progressInterval = setInterval(() => {
+        setRestoreProgress(prev => Math.min((prev || 0) + 10, 90));
+      }, 500);
+
+      const res = await axios.post<RestoreResponse>(
         `${API_BASE}/backup/restore/${encodeURIComponent(restoreFromFilename)}`,
         {},
         { withCredentials: true }
       );
 
-      toast({ title: 'Restore Complete', description: `Restored from ${restoreFromFilename}` });
-      loadData();
+      clearInterval(progressInterval);
+      setRestoreProgress(100);
+
+      if (res.data.success) {
+        toast({
+          title: 'Restore Complete',
+          description: res.data.message,
+        });
+        loadData();
+      } else {
+        throw new Error(res.data.message || 'Restore failed');
+      }
     } catch (err: any) {
       toast({
         title: 'Restore failed',
@@ -261,6 +242,42 @@ const BackupRecovery = () => {
     } finally {
       setIsRestoringFromFile(false);
       setRestoreFromFilename(null);
+      setRestoreProgress(null);
+    }
+  };
+
+  /* =======================
+     DELETE BACKUP
+  ======================= */
+  const handleDeleteBackup = async () => {
+    if (!deleteFileName) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await axios.delete(
+        `${API_BASE}/backup/delete/${encodeURIComponent(deleteFileName)}`,
+        { withCredentials: true }
+      );
+
+      if (res.data.success) {
+        toast({
+          title: 'Backup Deleted',
+          description: `Successfully deleted ${deleteFileName}`,
+        });
+        loadData();
+      } else {
+        throw new Error(res.data.message || 'Delete failed');
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Delete failed',
+        description: err?.response?.data?.message ?? 'Could not delete backup',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setDeleteFileName(null);
     }
   };
 
@@ -269,26 +286,34 @@ const BackupRecovery = () => {
   ======================= */
   const downloadBackup = async (backup: Backup) => {
     try {
-      if (!backup.filename) return;
+      if (!backup.name) return;
 
-      const url = `${API_BASE}/backup/${encodeURIComponent(backup.filename)}/download`;
+      // For encrypted files, we need to download as-is
+      const url = `${API_BASE}/backup/download/${encodeURIComponent(backup.name)}`;
 
       const res = await axios.get(url, {
         responseType: 'blob',
         withCredentials: true,
       });
 
-      const blob = new Blob([res.data], { type: 'application/sql' });
+      const blob = new Blob([res.data], { 
+        type: backup.encrypted ? 'application/octet-stream' : 'application/sql' 
+      });
       const downloadUrl = window.URL.createObjectURL(blob);
 
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = backup.filename;
+      a.download = backup.name;
       document.body.appendChild(a);
       a.click();
       a.remove();
 
       window.URL.revokeObjectURL(downloadUrl);
+      
+      toast({
+        title: 'Download Started',
+        description: `Downloading ${backup.name}`,
+      });
     } catch (err) {
       console.error(err);
       toast({
@@ -297,6 +322,74 @@ const BackupRecovery = () => {
         variant: 'destructive',
       });
     }
+  };
+
+  /* =======================
+     TEST ENCRYPTION
+  ======================= */
+  const testEncryption = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/backup/test-encryption`, {
+        withCredentials: true,
+      });
+      
+      if (res.data.success) {
+        toast({
+          title: 'Encryption Test Passed',
+          description: 'Your encryption key is working correctly',
+        });
+      } else {
+        toast({
+          title: 'Encryption Test Failed',
+          description: res.data.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Test Failed',
+        description: err?.response?.data?.message ?? 'Could not test encryption',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  /* =======================
+     DEBUG DATABASE
+  ======================= */
+  const debugDatabase = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/backup/debug`, {
+        withCredentials: true,
+      });
+      
+      if (res.data.success) {
+        setDebugInfo(res.data);
+        setShowDebug(true);
+      } else {
+        toast({
+          title: 'Debug Failed',
+          description: res.data.error,
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Debug Error',
+        description: err?.response?.data?.message ?? 'Could not get debug info',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  const formatSize = (sizeKb: number) => {
+    if (sizeKb < 1024) return `${sizeKb.toFixed(2)} KB`;
+    return `${(sizeKb / 1024).toFixed(2)} MB`;
   };
 
   return (
@@ -308,11 +401,21 @@ const BackupRecovery = () => {
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Backup & Recovery</h1>
-              <p className="text-sm text-muted-foreground mt-1">Manage database backups</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Encrypted PostgreSQL backups with AES-256-CBC
+              </p>
             </div>
-            <Button variant="outline" onClick={loadData} className="gap-2">
-              <RefreshCw className="h-4 w-4" /> Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={debugDatabase} className="gap-2">
+                <Database className="h-4 w-4" /> Debug
+              </Button>
+              <Button variant="outline" onClick={testEncryption} className="gap-2">
+                <Shield className="h-4 w-4" /> Test Encryption
+              </Button>
+              <Button variant="outline" onClick={loadData} className="gap-2">
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </Button>
+            </div>
           </div>
 
           {/* Quick Actions */}
@@ -320,13 +423,15 @@ const BackupRecovery = () => {
 
             {/* Manual Backup */}
             <button
-              onClick={() => setBackupDialogOpen(true)}
+              onClick={triggerBackup}
               disabled={isRunning}
               className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors disabled:opacity-50"
             >
               <FileArchive className="h-8 w-8 text-primary mb-3" />
-              <h3 className="text-sm font-medium">Database Backup</h3>
-              <p className="text-xs text-muted-foreground mt-1">Full SQL dump saved to local storage</p>
+              <h3 className="text-sm font-medium">Encrypted Backup</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                AES-256-CBC encrypted SQL dump
+              </p>
               <div className="mt-3">
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
                   <Play className="h-3 w-3" />
@@ -340,37 +445,45 @@ const BackupRecovery = () => {
               onClick={() => setRestoreDialogOpen(true)}
               className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors"
             >
-              <Database className="h-8 w-8 text-primary mb-3" />
-              <h3 className="text-sm font-medium">Import Database</h3>
-              <p className="text-xs text-muted-foreground mt-1">Upload a .sql file to restore database</p>
+              <Upload className="h-8 w-8 text-primary mb-3" />
+              <h3 className="text-sm font-medium">Restore Database</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload encrypted or plain SQL file
+              </p>
             </button>
 
-            {/* Auto Schedule */}
-            <button
-              onClick={() => setScheduleDialogOpen(true)}
-              className="bg-card rounded-lg border border-border p-5 text-left hover:bg-muted/30 transition-colors"
-            >
-              <Calendar className="h-8 w-8 text-primary mb-3" />
-              <h3 className="text-sm font-medium">Auto Schedule</h3>
+            {/* Encryption Info */}
+            <div className="bg-card rounded-lg border border-border p-5">
+              <Lock className="h-8 w-8 text-emerald-600 mb-3" />
+              <h3 className="text-sm font-medium">Encryption Active</h3>
               <p className="text-xs text-muted-foreground mt-1">
-                {schedule.enabled
-                  ? `${schedule.frequency.charAt(0).toUpperCase() + schedule.frequency.slice(1)} · ${schedule.frequency !== 'hourly' ? schedule.time : 'Every hour'}`
-                  : 'Scheduled backups are off'}
+                All backups are encrypted with AES-256-CBC
               </p>
               <div className="mt-3">
-                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${schedule.enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                  <Settings className="h-3 w-3" />
-                  Configure
-                </span>
+                <Badge variant="outline" className="gap-1">
+                  <Lock className="h-3 w-3" /> End-to-End Encrypted
+                </Badge>
               </div>
-            </button>
+            </div>
 
           </div>
 
+          {/* Restore Progress */}
+          {restoreProgress !== null && (
+            <div className="mb-4 p-4 bg-muted/20 rounded-lg border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Restore in progress...</span>
+                <span className="text-sm text-muted-foreground">{restoreProgress}%</span>
+              </div>
+              <Progress value={restoreProgress} className="h-2" />
+            </div>
+          )}
+
           {/* Backup History Table */}
           <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-3 border-b border-border flex justify-between items-center">
               <h2 className="text-sm font-medium text-foreground">Backup History</h2>
+              <Badge variant="secondary">{backups.length} backups</Badge>
             </div>
 
             {isLoading ? (
@@ -383,80 +496,86 @@ const BackupRecovery = () => {
                   <thead className="border-b border-border bg-muted/30">
                     <tr>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Filename</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">DB Type</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Security</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider w-36">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {backups.length ? (
-                      backups.map(backup => {
-                        const dbType = backup.db_type ?? 'mysql';
-                        const tc = dbTypeConfig[dbType];
-                        return (
-                          <tr key={backup.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="py-3 px-4 text-sm font-medium">{backup.filename}</td>
-                            <td className="py-3 px-4">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${tc.className}`}>
-                                <Database className="h-3 w-3" />
-                                {tc.label}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-muted-foreground">{backup.size}</td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                <Clock className="h-3.5 w-3.5" /> {backup.created_at}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                                backup.status === 'completed'
-                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                  : backup.status === 'in_progress'
-                                  ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                                  : 'bg-destructive/10 text-destructive border-destructive/20'
-                              }`}>
-                                {backup.status === 'in_progress' ? 'In Progress' : backup.status.charAt(0).toUpperCase() + backup.status.slice(1)}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost" size="icon" className="h-8 w-8"
-                                  title="Download"
-                                  onClick={() => downloadBackup(backup)}
-                                  disabled={backup.status !== 'completed'}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
+                      backups.map((backup) => (
+                        <tr key={backup.name} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-4 text-sm font-medium font-mono">
+                            {backup.name}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                            {formatSize(backup.size_kb)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={backup.location === 's3' ? 'default' : 'secondary'}>
+                              {backup.location.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Clock className="h-3.5 w-3.5" /> {formatDate(backup.last_modified)}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {backup.encrypted ? (
+                              <Badge variant="outline" className="gap-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                <Lock className="h-3 w-3" /> AES-256 Encrypted
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1">
+                                <Unlock className="h-3 w-3" /> Plain SQL
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Download"
+                                onClick={() => downloadBackup(backup)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
 
-                                <Button
-                                  variant="ghost" size="icon" className="h-8 w-8 text-amber-600"
-                                  title="Restore this backup"
-                                  onClick={() => setRestoreFromFilename(backup.filename)}
-                                  disabled={backup.status !== 'completed'}
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-amber-600"
+                                title="Restore this backup"
+                                onClick={() => setRestoreFromFilename(backup.name)}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
 
-                                <Button
-                                  variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                                  title="Delete (no route defined)"
-                                  disabled
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                title="Delete backup"
+                                onClick={() => {
+                                  setDeleteFileName(backup.name);
+                                  setDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
                     ) : (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
-                          No backups found
+                          No backups found. Create your first encrypted backup!
                         </td>
                       </tr>
                     )}
@@ -467,191 +586,78 @@ const BackupRecovery = () => {
           </div>
 
           {/* ================================
-              SCHEDULE DIALOG
-          ================================ */}
-          <Dialog open={scheduleDialogOpen} onOpenChange={open => { if (!isSavingSchedule) setScheduleDialogOpen(open); }}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Auto Backup Schedule</DialogTitle>
-                <DialogDescription>
-                  Set when automatic backups should run.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-5 py-2">
-
-                {/* Enable toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Enable auto backup</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Run backups automatically on a schedule</p>
-                  </div>
-                  <Switch
-                    checked={schedule.enabled}
-                    onCheckedChange={val => setSchedule(s => ({ ...s, enabled: val }))}
-                  />
-                </div>
-
-                <div className={`space-y-4 transition-opacity ${schedule.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-
-                  {/* Frequency */}
-                  <div className="space-y-1.5">
-                    <Label>Frequency</Label>
-                    <Select
-                      value={schedule.frequency}
-                      onValueChange={(v: Frequency) => setSchedule(s => ({ ...s, frequency: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hourly">Every hour</SelectItem>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Time — hidden for hourly */}
-                  {schedule.frequency !== 'hourly' && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="sched-time">Time</Label>
-                      <input
-                        id="sched-time"
-                        type="time"
-                        value={schedule.time}
-                        onChange={e => setSchedule(s => ({ ...s, time: e.target.value }))}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      />
-                    </div>
-                  )}
-
-                  {/* Day of week — only for weekly */}
-                  {schedule.frequency === 'weekly' && (
-                    <div className="space-y-2">
-                      <Label>Day of week</Label>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {DAYS_SHORT.map((day, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setSchedule(s => ({ ...s, day_of_week: i }))}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                              schedule.day_of_week === i
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-background text-muted-foreground border-border hover:bg-muted/50'
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Next run preview */}
-                  <div className="rounded-md bg-muted/40 border border-border px-4 py-3 text-sm">
-                    <p className="text-xs text-muted-foreground mb-0.5">Next scheduled run</p>
-                    <p className="font-medium text-foreground">{getNextRunText(schedule)}</p>
-                  </div>
-
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setScheduleDialogOpen(false)} disabled={isSavingSchedule}>
-                  Cancel
-                </Button>
-                <Button onClick={saveSchedule} disabled={isSavingSchedule}>
-                  {isSavingSchedule ? 'Saving...' : 'Save Schedule'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* ================================
-              BACKUP DIALOG
-          ================================ */}
-          <Dialog open={backupDialogOpen} onOpenChange={open => { if (!isRunning) setBackupDialogOpen(open); }}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Database Backup</DialogTitle>
-                <DialogDescription>
-                  Runs <code>mysqldump</code> and saves a full <code>.sql</code> file to local storage.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label>Database Type</Label>
-                  <Select value={selectedDbType} onValueChange={(v: DbType) => setSelectedDbType(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="postgresql">
-                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-blue-600" /> PostgreSQL</span>
-                      </SelectItem>
-                      <SelectItem value="mysql">
-                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-orange-600" /> MySQL</span>
-                      </SelectItem>
-                      <SelectItem value="sqlite">
-                        <span className="flex items-center gap-2"><Database className="h-4 w-4 text-emerald-600" /> SQLite</span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className={`rounded-md border p-3 text-sm ${dbTypeConfig[selectedDbType].className}`}>
-                  <p className="font-medium mb-1">{dbTypeConfig[selectedDbType].label} selected</p>
-                  <p className="text-xs opacity-80">
-                    {selectedDbType === 'postgresql' && 'Uses pg_dump to export a plain SQL file.'}
-                    {selectedDbType === 'mysql'      && 'Uses mysqldump --quick --single-transaction (no locks).'}
-                    {selectedDbType === 'sqlite'     && 'Copies the .sqlite database file directly.'}
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setBackupDialogOpen(false)} disabled={isRunning}>Cancel</Button>
-                <Button onClick={triggerBackup} disabled={isRunning}>
-                  <Play className="h-4 w-4 mr-2" />
-                  {isRunning ? 'Running...' : 'Start Backup'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* ================================
               UPLOAD RESTORE DIALOG
           ================================ */}
-          <Dialog open={restoreDialogOpen} onOpenChange={open => { if (!isRestoring) { setRestoreDialogOpen(open); if (!open) setRestoreFile(null); } }}>
-            <DialogContent>
+          <Dialog open={restoreDialogOpen} onOpenChange={open => { 
+            if (!isRestoring) { 
+              setRestoreDialogOpen(open); 
+              if (!open) setRestoreFile(null);
+            } 
+          }}>
+            <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Import Database</DialogTitle>
+                <DialogTitle>Restore Database</DialogTitle>
                 <DialogDescription>
-                  Upload a <code>.sql</code> file to restore the database. This will overwrite existing data.
+                  Upload a backup file to restore your PostgreSQL database.
+                  Supports both encrypted (.enc) and plain SQL files.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
-                  <Label htmlFor="restore-file">SQL File</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="encrypted-toggle">File is encrypted</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{uploadEncrypted ? 'Yes' : 'No'}</span>
+                      <Switch
+                        id="encrypted-toggle"
+                        checked={uploadEncrypted}
+                        onCheckedChange={setUploadEncrypted}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {uploadEncrypted 
+                      ? 'The file will be decrypted using your BACKUP_ENCRYPTION_KEY'
+                      : 'The file will be imported as plain SQL'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="restore-file">Backup File</Label>
                   <input
                     id="restore-file"
                     type="file"
-                    accept=".sql"
+                    accept=".sql,.enc"
                     onChange={e => setRestoreFile(e.target.files?.[0] ?? null)}
                     className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
                   />
                 </div>
+                
                 {restoreFile && (
-                  <p className="text-xs text-muted-foreground">
-                    Selected: <span className="font-medium text-foreground">{restoreFile.name}</span>
-                    {' '}({(restoreFile.size / 1024).toFixed(1)} KB)
-                  </p>
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Selected: <span className="font-medium text-foreground">{restoreFile.name}</span>
+                      <br />
+                      Size: {(restoreFile.size / 1024).toFixed(1)} KB
+                      <br />
+                      Type: {restoreFile.name.endsWith('.enc') ? 'Encrypted backup' : 'SQL file'}
+                    </p>
+                  </div>
                 )}
+
+                <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3">
+                  <p className="text-xs text-amber-600">
+                    ⚠️ Warning: Restoring will overwrite all existing data in your database.
+                    This action cannot be undone.
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }} disabled={isRestoring}>
                   Cancel
                 </Button>
                 <Button onClick={handleRestoreUpload} disabled={!restoreFile || isRestoring}>
-                  {isRestoring ? 'Restoring...' : 'Import'}
+                  {isRestoring ? 'Restoring...' : 'Restore Database'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -660,14 +666,20 @@ const BackupRecovery = () => {
           {/* ================================
               RESTORE FROM FILE CONFIRM DIALOG
           ================================ */}
-          <AlertDialog open={!!restoreFromFilename} onOpenChange={() => { if (!isRestoringFromFile) setRestoreFromFilename(null); }}>
+          <AlertDialog open={!!restoreFromFilename} onOpenChange={() => { 
+            if (!isRestoringFromFile) setRestoreFromFilename(null); 
+          }}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Restore from Backup</AlertDialogTitle>
+                <AlertDialogTitle>Restore from Encrypted Backup</AlertDialogTitle>
                 <AlertDialogDescription>
                   This will restore the database from{' '}
                   <span className="font-medium text-foreground">{restoreFromFilename}</span>.
-                  All current data will be overwritten. Are you sure?
+                  <br /><br />
+                  <span className="text-amber-600">⚠️ All current data will be overwritten.</span>
+                  <br /><br />
+                  The backup will be automatically decrypted using your encryption key.
+                  Are you sure you want to proceed?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -682,6 +694,89 @@ const BackupRecovery = () => {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* ================================
+              DELETE CONFIRM DIALOG
+          ================================ */}
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Backup</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete{' '}
+                  <span className="font-medium text-foreground">{deleteFileName}</span>?
+                  <br /><br />
+                  This action cannot be undone. The file will be removed from both
+                  local storage and S3 (if applicable).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteBackup}
+                  disabled={isDeleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* ================================
+              DEBUG INFO DIALOG
+          ================================ */}
+          <Dialog open={showDebug} onOpenChange={setShowDebug}>
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Database Debug Information</DialogTitle>
+                <DialogDescription>
+                  Current database status and configuration
+                </DialogDescription>
+              </DialogHeader>
+              {debugInfo && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-md bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground">Database</p>
+                      <p className="font-mono text-sm">{debugInfo.database}</p>
+                    </div>
+                    <div className="rounded-md bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground">Size</p>
+                      <p className="font-mono text-sm">{debugInfo.database_size}</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Tables ({debugInfo.total_tables})</h3>
+                    <div className="rounded-md border border-border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/30">
+                          <tr>
+                            <th className="text-left p-2">Table Name</th>
+                            <th className="text-left p-2">Columns</th>
+                            <th className="text-left p-2">Rows</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {debugInfo.tables?.map((table: any) => (
+                            <tr key={table.tablename}>
+                              <td className="p-2 font-mono">{table.tablename}</td>
+                              <td className="p-2">{table.column_count}</td>
+                              <td className="p-2">{table.row_count?.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button onClick={() => setShowDebug(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         </div>
       </div>
