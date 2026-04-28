@@ -2156,7 +2156,7 @@ const FrontDesk = () => {
           }
 
           try {
-            // Backend resident schema validates `surname`, not `last_name`,
+            
             // so we send `surname` here to keep the kiosk-profile upsert
             // aligned with the kiosk-search lookup payload.
             await api.post(
