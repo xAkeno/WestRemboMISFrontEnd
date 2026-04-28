@@ -579,7 +579,7 @@ export default function DocumentVerifier() {
           </div>
 
           {/* QR SCANNER BUTTONS */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-1 gap-3 mb-6">
             <button
               onClick={() => setShowQRScanner(true)}
               className="flex items-center justify-center gap-2 py-3 rounded-lg transition-all hover:opacity-90"
@@ -588,14 +588,14 @@ export default function DocumentVerifier() {
               <QrCode className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase">Scan QR Code</span>
             </button>
-            <button
+            {/* <button
               onClick={() => setShowManualSearch(true)}
               className="flex items-center justify-center gap-2 py-3 rounded-lg transition-all hover:opacity-90"
               style={{ backgroundColor: PINK, color: "white" }}
             >
               <Search className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase">Enter Reference #</span>
-            </button>
+            </button> */}
           </div>
 
           {/* OR DIVIDER */}
