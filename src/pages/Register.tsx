@@ -705,6 +705,7 @@ const Register = () => {
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
+                        
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -724,15 +725,27 @@ const Register = () => {
                         <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
                           {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
-                      </div>
-                      {formData.confirmPassword.length > 0 && (
-                        <p className="text-xs flex items-center gap-1" style={{ color: formData.password === formData.confirmPassword ? "#16a34a" : "#ef4444" }}>
-                          {formData.password === formData.confirmPassword
-                            ? <><Check className="w-3 h-3" strokeWidth={3} /> Passwords match</>
-                            : <><X className="w-3 h-3" strokeWidth={3} /> Passwords do not match</>
-                          }
-                        </p>
+                        {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
+                        <div
+                          className="absolute left-0 -bottom-9 z-10 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white shadow-md"
+                          style={{ backgroundColor: "#ef4444", borderRadius: 3, whiteSpace: "nowrap" }}
+                        >
+                          <X className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
+                          Passwords do not match
+                          {/* Little arrow pointing up */}
+                          <span
+                            className="absolute -top-1.5 left-3"
+                            style={{
+                              width: 0, height: 0,
+                              borderLeft: "6px solid transparent",
+                              borderRight: "6px solid transparent",
+                              borderBottom: "6px solid #ef4444",
+                            }}
+                          />
+                        </div>
                       )}
+                      </div>
+                      
                     </div>
                   </div>
 

@@ -76,20 +76,20 @@ const Header = () => {
     }
   };
 
-  const signout = async () => {
-    try {
+    const signout = async () => { 
+      try {
       await axios.post(
         "http://127.0.0.1:8000/api/logout",
-        { withCredentials: true }
+        {},                          // ← empty body was missing
+        { withCredentials: true }    // ← this was in wrong position
       );
-
-      setSelf(null);
+      setSelf(null);         // clear AFTER logout succeeds
       navigate("/home");
       toast.success("You have been signed out.");
     } catch (error) {
       toast.error("Failed to sign out.");
     }
-  }; 
+  };
 
   const isActive = (href: string) => location.pathname === href;
   return (
@@ -172,7 +172,7 @@ const Header = () => {
               <div className="ml-4 pl-4 flex items-center gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
                 {self && <NotificationBell />}
                 {self ? (
-                  <ProfileDropdown self={self} />
+                  <ProfileDropdown self={self} onSignOut={()=> setSelf(null)} />
                 ) : (
                   <a
                     onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
@@ -274,6 +274,9 @@ const Header = () => {
                 <MobileProfilePanel
                   self={self}
                   onClose={() => setMobileMenuOpen(false)}
+                  onSignOut={() => {
+                    setSelf(null);
+                  }}
                 />
               ) : (
                 <a
@@ -312,9 +315,11 @@ const Header = () => {
 const MobileProfilePanel = ({
     self,
     onClose,
+    onSignOut,
   }: {
     self: any;
     onClose: () => void;
+    onSignOut: () => void;
   }) => {
     const navigate = useNavigate();
 
@@ -325,6 +330,8 @@ const MobileProfilePanel = ({
         {},
         { withCredentials: true }
       );
+      onSignOut();           // clear self in parent AFTER logout succeeds
+      onClose();
       navigate("/home");
       toast.success("You have been signed out.");
     } catch (error) {
