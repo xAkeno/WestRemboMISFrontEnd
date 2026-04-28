@@ -12,7 +12,7 @@ const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000",
+  baseURL: "https://westrembomis.onrender.com",
   withCredentials: true,
   headers: { Accept: "application/json" },
 });
@@ -538,7 +538,7 @@ export default function DocumentUploadSection({
             // Build the full URL whether the API returns a relative or absolute path
             const fullUrl = rawUrl.startsWith("http")
               ? rawUrl
-              : `http://127.0.0.1:8000${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+              : `https://westrembomis.onrender.com${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
 
             loadedFiles[slotKey] = {
               id: `profile-${field}`,
@@ -572,7 +572,7 @@ export default function DocumentUploadSection({
                 id: `existing-${doc.id}`,
                 dbId: doc.id,
                 file: null,
-                preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
+                preview: doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`,
                 status: "success",
                 progress: 100,
                 url: doc.url,

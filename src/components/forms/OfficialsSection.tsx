@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "@/components/ui/use-toast"; // your toast component
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "https://westrembomis.onrender.com/api";
 
 // Position badge colors
 const positionBadge: Record<string, { bg: string; text: string; border: string }> = {

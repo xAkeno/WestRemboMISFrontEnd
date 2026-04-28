@@ -139,7 +139,7 @@ export default function BarangayForm() {
   useEffect(() => {
     const get = async () => {
       try{
-        const res = await axios.get('http://127.0.0.1:8000/api/latestRecordBrgyClearance',{withCredentials:true})
+        const res = await axios.get('https://westrembomis.onrender.com/api/latestRecordBrgyClearance',{withCredentials:true})
         var json = res.data.data
         setLatestId(json);
       }catch (error: any) {
@@ -198,7 +198,7 @@ export default function BarangayForm() {
       if (savedRecordId) {
         console.log("Updating ticket for service ID:", savedRecordId);
         await axios.post(
-          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          `https://westrembomis.onrender.com/api/tickets/update-by-service/${ticket.ticket_number}`,
           {
             status: "ENCODED"
           },

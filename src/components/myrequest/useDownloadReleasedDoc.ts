@@ -11,7 +11,7 @@ import { useState, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 
-const API = "http://127.0.0.1:8000/api";
+const API = "https://westrembomis.onrender.com/api";
 
 const DOCUMENT_TYPE_MAP: Record<string, string> = {
   barangay_certificate:  "barangay-certificates",

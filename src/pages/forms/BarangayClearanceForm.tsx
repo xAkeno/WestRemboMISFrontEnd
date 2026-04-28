@@ -307,7 +307,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -318,7 +318,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     const loadServiceInfo = async () => {
       setLoadingServiceInfo(true);
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/services", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
         const services: any[] = res.data?.data ?? res.data ?? [];
         const clearance = services.find((s) => s.name === "Barangay Clearance");
         if (clearance) {
@@ -368,7 +368,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/schedules/available-slots", {
+      const res = await axios.get("https://westrembomis.onrender.com/api/schedules/available-slots", {
         params: { document_type: formData.document_type, date },
         withCredentials: true,
       });
@@ -411,14 +411,14 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     setIsSubmitting(true);
     try {
       const certRes = await axios.post(
-        "http://127.0.0.1:8000/api/barangay-clearances",
+        "https://westrembomis.onrender.com/api/barangay-clearances",
         { ...formData, age: formData.age ? Number(formData.age) : null },
         { withCredentials: true }
       );
       if (certRes.status === 201 || certRes.status === 200) {
         const documentNumber = certRes.data?.data?.service?.bcert_number;
         const scheduleRes = await axios.post(
-          "http://127.0.0.1:8000/api/schedules",
+          "https://westrembomis.onrender.com/api/schedules",
           { document_type: formData.document_type, document_number: documentNumber, schedule_date: formData.schedule_date, time_group: formData.time_group },
           { withCredentials: true }
         );
@@ -444,7 +444,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
         const user = res.data.data;
         const normalizedDob = user.date_of_birth ? user.date_of_birth.split("T")[0] : "";
         const addressParts = parseAddress(user.address || "");

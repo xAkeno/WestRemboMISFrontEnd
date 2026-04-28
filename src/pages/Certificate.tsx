@@ -400,7 +400,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -557,7 +557,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back: string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back') back = url;
           });
@@ -867,7 +867,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { 
         console.error("Failed to fetch streets:", e); 
@@ -913,7 +913,7 @@ function EditableDetailModal({
     if (!record) return;
     setIsLoading(true);
     try {
-      const response = await axios.get(`http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
+      const response = await axios.get(`https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
       const full = response.data.data.data[0];
       setCurrentStatus(full.status ?? '');
       setInitialReleasedPath(full.released_document_path ?? null);
@@ -982,7 +982,7 @@ function EditableDetailModal({
   const handleMarkToPay = async () => {
     setActionLoading('to_pay');
     try {
-      await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}`, { status: 'TO_PAY' }, { withCredentials: true });
+      await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`, { status: 'TO_PAY' }, { withCredentials: true });
       setCurrentStatus('TO_PAY');
       setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
       toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
@@ -995,7 +995,7 @@ function EditableDetailModal({
   const handleMarkToInspection = async () => {
     setActionLoading('inspection');
     try {
-      await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}`, { status: 'INSPECTING' }, { withCredentials: true });
+      await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`, { status: 'INSPECTING' }, { withCredentials: true });
       setCurrentStatus('INSPECTING');
       setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
       toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
@@ -1015,7 +1015,7 @@ function EditableDetailModal({
     }
     setIsDisposing(true);
     try {
-      await axios.post(`http://127.0.0.1:8000/api/barangay-certificates/${record.id}/disposition`, { status: dispositionType, reason: dispositionReason.trim() }, { withCredentials: true });
+      await axios.post(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}/disposition`, { status: dispositionType, reason: dispositionReason.trim() }, { withCredentials: true });
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
@@ -1048,7 +1048,7 @@ function EditableDetailModal({
     }
     setIsReleasing(true);
     try {
-      const metaRes = await axios.get(`http://127.0.0.1:8000/api/documents/single/1`, { withCredentials: true });
+      const metaRes = await axios.get(`https://westrembomis.onrender.com/api/documents/single/1`, { withCredentials: true });
       const fileUrl = metaRes.data?.file_url;
       if (!fileUrl) throw new Error('Template file URL missing.');
 
@@ -1095,7 +1095,7 @@ function EditableDetailModal({
       const fd = new FormData();
       fd.append('file', blob, filename);
 
-      const res = await axios.post(`http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}`, fd, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post(`https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}`, fd, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
 
       const path = res.data?.data?.released_document_path;
       if (path) setReleasedPath(path);
@@ -1117,7 +1117,7 @@ function EditableDetailModal({
     }
     setIsDownloading(true);
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/documents/release/barangay-certificates/${record.id}/download`, { withCredentials: true });
+      const res = await axios.get(`https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}/download`, { withCredentials: true });
       const url = res.data?.data?.url;
       if (!url) throw new Error('No download URL returned.');
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -1133,13 +1133,13 @@ function EditableDetailModal({
     try {
       let existingId: number | null = null;
       try {
-        const checkRes = await axios.get(`http://127.0.0.1:8000/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
+        const checkRes = await axios.get(`https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
 
       if (existingId) {
-        await axios.put(`http://127.0.0.1:8000/api/barangay-certificates/${existingId}`, formData, { withCredentials: true });
+        await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${existingId}`, formData, { withCredentials: true });
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false);
         onUpdate();
@@ -1680,7 +1680,7 @@ const Certificate = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this certificate?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/barangay-certificates/${id}`, { withCredentials: true });
+      await axios.delete(`https://westrembomis.onrender.com/api/barangay-certificates/${id}`, { withCredentials: true });
       toast({ title: 'Deleted', description: 'Certificate deleted successfully.' });
       loadData();
     } catch {

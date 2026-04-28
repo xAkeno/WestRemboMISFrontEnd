@@ -139,7 +139,7 @@ export default function Accounts() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/getAllUser", { withCredentials: true });
+      const response = await axios.get("https://westrembomis.onrender.com/api/getAllUser", { withCredentials: true });
       const raw: Account[] = (response.data?.data || []).map((a: any) => ({
         ...a,
         name: [a.first_name, a.middle_name, a.surname].filter(Boolean).join(" "),

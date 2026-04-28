@@ -69,7 +69,7 @@ export default function DocumentVerifier() {
       formData.append("file", file);
 
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/documents/verify",
+        "https://westrembomis.onrender.com/api/documents/verify",
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },

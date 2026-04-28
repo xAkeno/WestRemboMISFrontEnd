@@ -28,7 +28,7 @@ export default function ProfileDropdown({ self, onSignOut }: { self: { url_photo
      onSignOut(); 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},
         { withCredentials: true }
       );

@@ -12,7 +12,7 @@ const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000",
+  baseURL: "https://westrembomis.onrender.com",
   withCredentials: true,
   headers: { Accept: "application/json" },
 });
@@ -383,8 +383,8 @@ export default function DocumentInspectModal({
             flatDocs.push({
               id: doc.id, category: doc.category, type: doc.type, label: doc.label,
               original_filename: doc.original_filename,
-              url:     doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
-              preview: doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`,
+              url:     doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`,
+              preview: doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`,
             });
           });
         });

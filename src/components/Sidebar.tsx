@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const BASE = "http://127.0.0.1:8000/api";
+const BASE = "https://westrembomis.onrender.com/api";
 
 const DOT_COLORS: Record<string, string> = {
   "Barangay Clearance":   "#D4537E",

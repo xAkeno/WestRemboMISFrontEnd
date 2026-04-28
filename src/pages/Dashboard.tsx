@@ -12,7 +12,7 @@ import { Layout } from "../components/Layout";
 import axios from "axios";
 import { startOfWeek, startOfMonth, format } from "date-fns";
 
-const BASE = "http://127.0.0.1:8000/api";
+const BASE = "https://westrembomis.onrender.com/api";
 
 const statuses    = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];

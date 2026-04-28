@@ -400,7 +400,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -559,7 +559,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -869,7 +869,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -901,7 +901,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/barangay-clearances?search=${record.bcert_number}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -981,7 +981,7 @@ function EditableDetailModal({
     setActionLoading('to_pay');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
@@ -998,7 +998,7 @@ function EditableDetailModal({
     setActionLoading('paid');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'PAID' },
         { withCredentials: true }
       );
@@ -1015,7 +1015,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1039,7 +1039,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1076,7 +1076,7 @@ function EditableDetailModal({
     try {
       // 1. Fetch template metadata (file URL + saved layout which may contain qrField)
       const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/2`,
+        `https://westrembomis.onrender.com/api/documents/single/2`,
         { withCredentials: true }
       );
       const fileUrl = metaRes.data?.file_url;
@@ -1154,7 +1154,7 @@ function EditableDetailModal({
       fd.append('file', blob, filename);
 
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}`,
         fd,
         { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -1184,7 +1184,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1207,7 +1207,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/barangay-clearances?search=${record.bcert_number}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1216,7 +1216,7 @@ function EditableDetailModal({
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/barangay-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
           { ...formData, requester_type: formData.requester_type || 'Online' },
           { withCredentials: true }
         );
