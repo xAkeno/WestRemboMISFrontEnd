@@ -55,7 +55,7 @@ const Header = () => {
   // Fetch logged-in user
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/details", { withCredentials: true })
+      .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
       .catch(() => {/* not authenticated — silently ignore */});
   }, []);
@@ -79,7 +79,7 @@ const Header = () => {
     const signout = async () => { 
       try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},                          // ← empty body was missing
         { withCredentials: true }    // ← this was in wrong position
       );
@@ -326,7 +326,7 @@ const MobileProfilePanel = ({
   const signout = async () => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},
         { withCredentials: true }
       );

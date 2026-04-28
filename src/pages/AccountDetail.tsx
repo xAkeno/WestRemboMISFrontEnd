@@ -155,7 +155,8 @@ export default function AccountDetail() {
   const fetchAccount = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/users/${id}`, { withCredentials: true });
+      const res = await axios.get(`https://westrembomis.onrender.com/api/users/${id}`, { withCredentials: true });
+      console.log("Account details response:", res); // Debug log
       const user: FullAccount = res.data.data;
       let perms: string[] = [];
       if (Array.isArray(user.permissions)) perms = user.permissions;
@@ -186,7 +187,7 @@ export default function AccountDetail() {
       : permissions.filter(p => p !== permConfirm.key);
     setPermissions(updated);
     try {
-      await axios.put(`http://127.0.0.1:8000/api/users/${account.id}/permissions`,
+      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/permissions`,
         { permissions: updated }, { withCredentials: true });
       toast("Permission updated.");
     } catch {
@@ -201,7 +202,7 @@ export default function AccountDetail() {
     if (!account) return;
     setApproving(true);
     try {
-      await axios.put(`http://127.0.0.1:8000/api/users/${account.id}/approve`,
+      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/approve`,
         { is_approved: true, status: "active" }, { withCredentials: true });
       setAccount(prev => prev ? { ...prev, is_approved: true, status: "active" } : prev);
       shadToast({ title: "Account Approved", description: "The user can now log in." });
@@ -214,7 +215,7 @@ export default function AccountDetail() {
     if (!account) return;
     setApproving(true);
     try {
-      await axios.put(`http://127.0.0.1:8000/api/users/${account.id}/approve`,
+      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/approve`,
         { is_approved: false, status: "inactive" }, { withCredentials: true });
       setAccount(prev => prev ? { ...prev, is_approved: false, status: "inactive" } : prev);
       shadToast({ title: "Account Rejected", description: "User set to inactive." });

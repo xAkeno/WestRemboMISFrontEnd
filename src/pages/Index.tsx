@@ -125,7 +125,7 @@ const Index = () => {
       if (recordStatus === "Save") {
         // Create new record
         response = await axios.post(
-          "http://127.0.0.1:8000/api/barangay-certificates",
+          "https://westrembomis.onrender.com/api/barangay-certificates",
           formData,
           { withCredentials: true }
         );
@@ -144,7 +144,7 @@ const Index = () => {
         }
 
         response = await axios.put(
-          `http://127.0.0.1:8000/api/barangay-certificates/${formData.id}`,
+          `https://westrembomis.onrender.com/api/barangay-certificates/${formData.id}`,
           formData,
           { withCredentials: true }
         );
@@ -159,7 +159,7 @@ const Index = () => {
       // Update Ticket Based on the Service Saved
       if (savedRecordId) {
         await axios.post(
-          `http://127.0.0.1:8000/api/tickets/update-by-service/${ticket.ticket_number}`,
+          `https://westrembomis.onrender.com/api/tickets/update-by-service/${ticket.ticket_number}`,
           {
             status: "ENCODED"
           },

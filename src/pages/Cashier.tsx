@@ -67,7 +67,7 @@ const Cashier = () => {
     useEffect(() => {
         const fetchPrices = async () => {
             try {
-                const res = await axios.get("http://127.0.0.1:8000/api/service-prices", { withCredentials: true });
+                const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", { withCredentials: true });
                 const data: { type: string; amount: string | number }[] = res.data?.data ?? res.data ?? [];
                 const map: { [type: string]: number } = {};
                 data.forEach((d) => { map[d.type] = parseFloat(String(d.amount)); });
@@ -84,7 +84,7 @@ const Cashier = () => {
 
         setFetchingTin((prev) => new Set(prev).add(rowIndex));
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/official-receipts/by-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
                 params: { or_number: orNumber },
                 withCredentials: true,
             });
@@ -143,32 +143,32 @@ const Cashier = () => {
     };
 
     const getEndpoint = () => {
-        if (choose === "Resident")             return "http://127.0.0.1:8000/api/residents";
-        if (choose === "Barangay Clearance")   return "http://127.0.0.1:8000/api/barangay-clearances";
-        if (choose === "Business Clearance")   return "http://127.0.0.1:8000/api/business-clearances";
-        if (choose === "Building Clearance")   return "http://127.0.0.1:8000/api/building-clearances";
-        if (choose === "Barangay Certificate") return "http://127.0.0.1:8000/api/barangay-certificates";
+        if (choose === "Resident")             return "https://westrembomis.onrender.com/api/residents";
+        if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
+        if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
+        if (choose === "Building Clearance")   return "https://westrembomis.onrender.com/api/building-clearances";
+        if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
     };
 
     const getRowEndpoint = (row: any): string => {
         switch (choose) {
-            case "Resident":             return `http://127.0.0.1:8000/api/residents/${row.id}`;
-            case "Barangay Clearance":   return `http://127.0.0.1:8000/api/barangay-clearances/${row.id}`;
-            case "Business Clearance":   return `http://127.0.0.1:8000/api/business-clearances/${row.id}`;
-            case "Building Clearance":   return `http://127.0.0.1:8000/api/building-clearances/${row.id}`;
-            case "Barangay Certificate": return `http://127.0.0.1:8000/api/barangay-certificates/${row.id}`;
+            case "Resident":             return `https://westrembomis.onrender.com/api/residents/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/${row.id}`;
             default: return "";
         }
     };
 
     const getStatusEndpoint = (row: any): string => {
         switch (choose) {
-            case "Barangay Clearance":   return `http://127.0.0.1:8000/api/barangay-clearances/status/${row.id}`;
-            case "Business Clearance":   return `http://127.0.0.1:8000/api/business-clearances/status/${row.id}`;
-            case "Building Clearance":   return `http://127.0.0.1:8000/api/building-clearances/status/${row.id}`;
-            case "Barangay Certificate": return `http://127.0.0.1:8000/api/barangay-certificates/status/${row.id}`;
-            case "Resident":             return `http://127.0.0.1:8000/api/residents/status/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/status/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/status/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/status/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/status/${row.id}`;
+            case "Resident":             return `https://westrembomis.onrender.com/api/residents/status/${row.id}`;
             default:                     return getRowEndpoint(row);
         }
     };
@@ -189,7 +189,7 @@ const Cashier = () => {
         setSettingStart((prev) => ({ ...prev, [type]: true }));
         try {
             await axios.post(
-                "http://127.0.0.1:8000/api/or-starting-number",
+                "https://westrembomis.onrender.com/api/or-starting-number",
                 { type, starting_number: parseInt(value, 10) },
                 { withCredentials: true }
             );
@@ -211,7 +211,7 @@ const Cashier = () => {
 
         setGeneratingOr((prev) => new Set(prev).add(rowIndex));
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/generate-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/generate-or", {
                 params: {
                     type,
                     reference_id: row.id,
@@ -271,7 +271,7 @@ const Cashier = () => {
                 const orForTin = newOrNo;
                 if (orForTin && tinValue.trim() !== "") {
                     await axios.patch(
-                        "http://127.0.0.1:8000/api/official-receipts/by-or",
+                        "https://westrembomis.onrender.com/api/official-receipts/by-or",
                         { or_number: orForTin, tin_no: tinValue.trim() },
                         { withCredentials: true }
                     );

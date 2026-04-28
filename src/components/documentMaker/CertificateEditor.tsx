@@ -403,14 +403,14 @@ export function CertificateEditor() {
 
   const fetchStreets = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/streets', { withCredentials: true });
+      const res = await axios.get('https://westrembomis.onrender.com/api/streets', { withCredentials: true });
       setStreets(res.data);
     } catch { toast.error('Failed to load streets'); }
   };
 
   const fetchUser = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/me", { withCredentials: true });
+      const res = await axios.get("https://westrembomis.onrender.com/api/me", { withCredentials: true });
       setIsAdmin(res.data.data?.role === "ADMIN");
     } catch { console.error("Failed to fetch user"); }
   };
@@ -419,7 +419,7 @@ export function CertificateEditor() {
     try {
       const apiPath = getApiPath(id!);
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+        `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
       setDocumentUserData((res.data.data.data as any[]).map(normalizeRecord));
@@ -436,7 +436,7 @@ export function CertificateEditor() {
     try {
       const apiPath = getApiPath(id!);
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+        `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
       const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
@@ -491,7 +491,7 @@ export function CertificateEditor() {
     try {
       const numId = parseInt(documentId, 10);
       const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/${numId}`,
+        `https://westrembomis.onrender.com/api/documents/single/${numId}`,
         { withCredentials: true }
       );
       const metadata = metaRes.data;
@@ -579,7 +579,7 @@ export function CertificateEditor() {
         try {
           const apiPath = getApiPath(id!);
           const res = await axios.get(
-            `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+            `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
             { withCredentials: true }
           );
           const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
@@ -717,7 +717,7 @@ export function CertificateEditor() {
     setIsChangingStatus(true);
     try {
       const res = await axios.put(
-        `http://127.0.0.1:8000/api/${getApiPath(id!)}/${existingRecord.id}`,
+        `https://westrembomis.onrender.com/api/${getApiPath(id!)}/${existingRecord.id}`,
         { status }, { withCredentials: true }
       );
       if (res.status === 200) {
@@ -753,7 +753,7 @@ export function CertificateEditor() {
     };
 
     axios.put(
-      `http://127.0.0.1:8000/api/documents/${id}/layout`,
+      `https://westrembomis.onrender.com/api/documents/${id}/layout`,
       { layout: layoutToSave },
       { withCredentials: true }
     ).then((res) => {
@@ -814,7 +814,7 @@ export function CertificateEditor() {
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/${apiPath}?search=${bcertNumber}`,
+          `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -822,10 +822,10 @@ export function CertificateEditor() {
       } catch { console.error("Check existing failed"); }
 
       if (existingId) {
-        await axios.put(`http://127.0.0.1:8000/api/${apiPath}/${existingId}`, payload, { withCredentials: true });
+        await axios.put(`https://westrembomis.onrender.com/api/${apiPath}/${existingId}`, payload, { withCredentials: true });
         toast.success("Record updated");
       } else {
-        await axios.post(`http://127.0.0.1:8000/api/${apiPath}`, payload, { withCredentials: true });
+        await axios.post(`https://westrembomis.onrender.com/api/${apiPath}`, payload, { withCredentials: true });
         toast.success("Record saved successfully");
       }
     } catch (error) {
@@ -846,7 +846,7 @@ export function CertificateEditor() {
     setIsMarkingToPay(true);
     try {
       const res = await axios.put(
-        `http://127.0.0.1:8000/api/${getApiPath(id!)}/${existingRecord.id}`,
+        `https://westrembomis.onrender.com/api/${getApiPath(id!)}/${existingRecord.id}`,
         { status: "TO_PAY" }, { withCredentials: true }
       );
       if (res.status === 200) {
