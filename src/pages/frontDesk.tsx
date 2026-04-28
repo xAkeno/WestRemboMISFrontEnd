@@ -1704,7 +1704,7 @@ interface StepReviewProps {
   error: string;
   onBack: () => void;
   onSubmit: () => void;
-  onEdit: () => void;
+  onEdit: () => void; 
   tr: (k: string) => string;
   isSubmitting: boolean;
 }
@@ -2104,20 +2104,22 @@ const FrontDesk = () => {
         const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
   
         // ── Step 2: Auto-schedule based on wall-clock time at submission ────
-        try {
-          await api.post(
-            "api/schedules",
-            {
-              document_type:   documentType,
-              document_number: documentNumber,
-              schedule_date:   submissionDate,   // today
-              time_group:      submissionTimeGroup, // "morning" or "afternoon"
-            },
-            { withCredentials: true }
-          );
-        } catch (schedErr) {
-          // Non-blocking — document already submitted successfully
-          console.error("Auto-schedule creation failed:", schedErr);
+        if (docType !== "business-clearance") {
+          try {
+            await api.post(
+              "api/schedules",
+              {
+                document_type:   documentType,
+                document_number: documentNumber,
+                schedule_date:   submissionDate,   // today
+                time_group:      submissionTimeGroup, // "morning" or "afternoon"
+              },
+              { withCredentials: true }
+            );
+          } catch (schedErr) {
+            // Non-blocking — document already submitted successfully
+            console.error("Auto-schedule creation failed:", schedErr);
+          }
         }
   
         // ── Step 3: Persist the resident's profile so future Yes-flow lookups
