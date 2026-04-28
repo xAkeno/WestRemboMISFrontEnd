@@ -27,214 +27,6 @@ import axios from "axios";
 
 const BASE = "https://westrembomis.onrender.com/api";
 
-const DOT_COLORS: Record<string, string> = {
-  "Barangay Clearance":   "#D4537E",
-  "Business Clearance":   "#378ADD",
-  "Building Clearance":   "#1D9E75",
-  "Barangay Certificate": "#BA7517",
-  "Resident":             "#7F77DD",
-};
-
-const PENDING_STATUSES = ["pending", "for review", "new", "encoded"];
-
-interface NotifItem {
-  key: string;
-  label: string;
-  name: string;
-  status: string | null;
-  date: string | null;
-  ts: number;
-}
-
-function isPending(status: string | null) {
-  if (!status) return true;
-  return PENDING_STATUSES.some((s) => status.toLowerCase().includes(s));
-}
-
-function pillClass(s: string | null) {
-  if (!s) return "bg-blue-100 text-blue-800";
-  const l = s.toLowerCase();
-  if (l.includes("pending") || l.includes("review")) return "bg-amber-100 text-amber-800";
-  if (l.includes("approved") || l.includes("active")) return "bg-green-100 text-green-800";
-  if (l.includes("rejected") || l.includes("denied")) return "bg-red-100 text-red-800";
-  return "bg-blue-100 text-blue-800";
-}
-
-function NotificationFeed({ collapsed }: { collapsed: boolean }) {
-  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
-  const [pendingItems, setPendingItems]   = useState<NotifItem[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [lastUpdated, setLastUpdated]     = useState<string | null>(null);
-  const [expanded, setExpanded]           = useState(true);
-
-  const totalPending = Object.values(pendingCounts).reduce((a, b) => a + b, 0);
-
-  const doFetch = useCallback(async (showSpinner: boolean) => {
-    if (showSpinner) setLoading(true);
-    try {
-      const res  = await axios.get(`${BASE}/dashboard`, { withCredentials: true });
-      const data = res.data.data;
-
-      setPendingCounts(data.pending_counts ?? {});
-
-      const tickets: any[] = data.tickets ?? [];
-      const items: NotifItem[] = tickets.map((t) => {
-        const s = t.serviceable ?? {};
-        const name = [s.first_name, s.middle_name, s.last_name ?? s.surname]
-          .filter(Boolean).join(" ") || t.ticket_number || "—";
-        return {
-          key:    t.service_type,
-          label:  t.service_type,
-          name,
-          status: t.status,
-          date:   t.submitted_at ?? t.created_at ?? null,
-          ts:     t.submitted_at ? new Date(t.submitted_at).getTime() : 0,
-        };
-      });
-
-      setPendingItems(items.filter((it) => isPending(it.status)).slice(0, 10));
-      setLastUpdated(
-        new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })
-      );
-    } catch (err) {
-      console.error("Sidebar fetch failed", err);
-    } finally {
-      if (showSpinner) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    doFetch(true);
-    const interval = setInterval(() => doFetch(false), 30_000);
-    return () => clearInterval(interval);
-  }, [doFetch]);
-
-  if (collapsed) {
-    return (
-      <div className="flex justify-center py-2 relative">
-        <div className="relative">
-          <Bell className="w-5 h-5 text-sidebar-foreground" />
-          {totalPending > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none animate-pulse">
-              {totalPending > 99 ? "99+" : totalPending}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col border-t border-sidebar-border flex-shrink-0">
-      {/* Header toggle */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="flex items-center justify-between px-4 py-2.5 hover:bg-sidebar-accent transition-colors w-full"
-      >
-        <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-sidebar-foreground" />
-          <span className="text-xs font-semibold text-sidebar-foreground uppercase tracking-wider">
-            Pending Requests
-          </span>
-          {loading && (
-            <span className="w-3 h-3 border-2 border-sidebar-foreground/20 border-t-sidebar-foreground/60 rounded-full animate-spin" />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {totalPending > 0 && (
-            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none">
-              {totalPending > 99 ? "99+" : totalPending}
-            </span>
-          )}
-          <ChevronLeft
-            className={cn(
-              "w-3.5 h-3.5 text-sidebar-foreground/50 transition-transform duration-200",
-              expanded ? "-rotate-90" : "rotate-90"
-            )}
-          />
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="flex flex-col">
-          {/* Count pills */}
-          <div className="grid grid-cols-2 gap-1.5 px-3 pb-2">
-            {Object.entries(pendingCounts).map(([type, count]) => (
-              <div
-                key={type}
-                className="flex items-center justify-between bg-sidebar-accent/60 rounded-md px-2.5 py-1.5"
-              >
-                <span
-                  className="text-[10px] font-medium truncate"
-                  style={{ color: DOT_COLORS[type] ?? "#9ca3af" }}
-                >
-                  {type.replace(" Clearance", "").replace("Certificate", "Cert")}
-                </span>
-                <span className="text-xs font-semibold text-sidebar-foreground ml-1 flex-shrink-0">
-                  {loading ? "…" : count}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Feed list - fixed small height, scrollable */}
-          <div className="flex flex-col max-h-40 overflow-y-auto mx-2 mb-2 rounded-lg border border-sidebar-border bg-sidebar-accent/20">
-            {loading && pendingItems.length === 0 ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs text-sidebar-foreground/50">
-                <span className="w-3 h-3 border-2 border-sidebar-foreground/20 border-t-sidebar-foreground/50 rounded-full animate-spin" />
-                Fetching…
-              </div>
-            ) : pendingItems.length === 0 ? (
-              <div className="text-center text-xs text-sidebar-foreground/40 py-4">
-                No pending requests
-              </div>
-            ) : (
-              pendingItems.map((it, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-2 px-3 py-2 border-b border-sidebar-border/50 last:border-0 hover:bg-sidebar-accent/40 transition-colors"
-                >
-                  <div
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
-                    style={{ backgroundColor: DOT_COLORS[it.key] ?? "#9ca3af" }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-medium text-sidebar-foreground truncate leading-tight">
-                      {it.name}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span
-                        className="text-[9px] font-semibold uppercase tracking-wide"
-                        style={{ color: DOT_COLORS[it.key] ?? "#9ca3af" }}
-                      >
-                        {it.label.replace(" Clearance", "").replace("Certificate", "Cert")}
-                      </span>
-                      <span className={cn("text-[9px] font-medium rounded-full px-1.5 py-px", pillClass(it.status))}>
-                        {it.status ?? "New"}
-                      </span>
-                    </div>
-                  </div>
-                  {it.date && (
-                    <span className="text-[9px] text-sidebar-foreground/40 flex-shrink-0 mt-0.5">
-                      {new Date(it.date).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
-                    </span>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          {lastUpdated && (
-            <p className="text-[10px] text-sidebar-foreground/30 text-center pb-2">
-              Updated {lastUpdated}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Menu items ───────────────────────────────────────────────────────────────
 
 const allMenuItems = [
@@ -256,7 +48,7 @@ const allMenuItems = [
   { title: "Street Cms",        path: "/street-cms",        icon: NotebookTabs, permission: "settings" },
   { title: "Settings",          path: "/settings",          icon: Settings,     permission: "settings" }
 ];
-  
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
@@ -278,12 +70,11 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        // KEY: h-screen + flex col so children can fill and scroll independently
         "h-screen flex flex-col bg-sidebar-background border-r border-sidebar-border transition-all duration-300",
         collapsed ? "w-20" : "w-64"
       )}
     >
-      {/* ── Logo / Header ── fixed, never scrolls */}
+      {/* ── Logo / Header ── */}
       <div className="flex-shrink-0 p-6 border-b border-sidebar-border flex items-center justify-between">
         {!collapsed && (
           <div className="flex items-center gap-3">
@@ -304,11 +95,6 @@ export function Sidebar() {
         >
           <ChevronLeft className={cn("w-5 h-5 transition-transform", collapsed && "rotate-180")} />
         </Button>
-      </div>
-
-      {/* ── Notification Feed ── fixed height, never scrolls with nav */}
-      <div className="flex-shrink-0">
-        <NotificationFeed collapsed={collapsed} />
       </div>
 
       {/* ── Nav ── takes remaining height, scrolls independently */}
@@ -334,7 +120,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* ── Footer buttons ── fixed at bottom, never scrolls */}
+      {/* ── Footer buttons ── */}
       <div className="flex-shrink-0 border-t border-sidebar-border">
         <button
           className={cn(
