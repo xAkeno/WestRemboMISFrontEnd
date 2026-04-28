@@ -303,6 +303,14 @@ const isValidDob = (value: string): boolean => {
   return value < getTodayString();
 };
 
+const getDefaultAdultDateString = (): string => {
+  const currentYear = new Date().getFullYear();
+  const defaultYear = currentYear - 18; // Default to 18 years ago
+  const defaultMonth = "01"; // January
+  const defaultDay = "01"; // 1st day
+  return `${defaultYear}-${defaultMonth}-${defaultDay}`;
+};
+
 // ─── Main Register Component ─────────────────────────────────────────────────
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -329,6 +337,8 @@ const Register = () => {
   const [streets, setStreets] = useState<any[]>([]);
   // ── DOB validation state ──
   const [dobError, setDobError] = useState<string | null>(null);
+  // ── Zone options based on selected street ──
+  const [zoneOptions, setZoneOptions] = useState<string[]>([]);
 
   // ── Google reCAPTCHA state ──
   const recaptchaRef = useRef<ReCAPTCHA>(null);
@@ -337,6 +347,7 @@ const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Load streets data
   useEffect(() => {
     const loadStreets = async () => {
       try {
@@ -349,6 +360,28 @@ const Register = () => {
     loadStreets();
   }, []);
 
+  // ── NEW: Update zone options when street changes (dependent dropdown) ──
+  useEffect(() => {
+    if (formData.street) {
+      const filteredZones = Array.from(
+        new Set(
+          streets
+            .filter((s) => s.name.trim().toLowerCase() === formData.street.trim().toLowerCase())
+            .map((s) => s.sitio ?? "")
+            .filter((z) => z !== "")
+        )
+      ).sort((a, b) => {
+        const aNum = Number(a);
+        const bNum = Number(b);
+        if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+        return String(a).localeCompare(String(b));
+      });
+      setZoneOptions(filteredZones);
+    } else {
+      setZoneOptions([]);
+    }
+  }, [formData.street, streets]);
+
   useEffect(() => {
     // Always start with a clean captcha on page load
     recaptchaRef.current?.reset();
@@ -358,18 +391,56 @@ const Register = () => {
   const updateField = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
-  // ── DOB change handler — validates immediately on change ──
+  // ── MODIFIED: DOB change handler ──
   const handleDobChange = (value: string) => {
     updateField("dateOfBirth", value);
     if (!value) {
       setDobError(null);
       return;
     }
-    if (!isValidDob(value)) {
+    // Check if date is in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(value);
+    if (selectedDate >= today) {
       setDobError("Invalid Date of Birth. Only past dates are allowed.");
     } else {
       setDobError(null);
     }
+  };
+
+  // ── NEW: Handle calendar open - set default adult date if empty ──
+  const handleCalendarOpen = (e: React.MouseEvent<HTMLInputElement>) => {
+    const target = e.target as HTMLInputElement;
+    if (target.showPicker && !formData.dateOfBirth) {
+      const defaultDate = getDefaultAdultDateString();
+      handleDobChange(defaultDate);
+    }
+  };
+
+  // ── NEW: Handle focus on DOB field ──
+  const handleDobFocus = () => {
+    if (!formData.dateOfBirth) {
+      const defaultDate = getDefaultAdultDateString();
+      handleDobChange(defaultDate);
+    }
+  };
+
+  // ── NEW: Street change handler - reset zone when street changes ──
+  const handleStreetChange = (value: string) => {
+    updateField("street", value);
+    // Reset zone/purok when street changes
+    if (formData.zonePurok) {
+      updateField("zonePurok", "");
+    }
+  };
+
+  // ── Helper to get display name for zone (e.g., "Station 1" instead of just "1") ──
+  const getZoneDisplayName = (zone: string): string => {
+    if (/^\d+$/.test(zone)) {
+      return `Station ${zone}`;
+    }
+    return zone;
   };
 
   const rawZones = Array.from(new Set(streets.map((s) => s.sitio).filter(Boolean)));
@@ -381,7 +452,10 @@ const Register = () => {
           if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
           return String(a).localeCompare(String(b));
         })
-      : FALLBACK_ZONES;
+      : ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+  // Use filtered zones if street is selected, otherwise show all zones
+  const displayZones = formData.street && zoneOptions.length > 0 ? zoneOptions : uniqueZones;
 
   const passwordRules = [
     { label: "Maximum 10 characters", valid: formData.password.length >= 1 && formData.password.length <= 10 },
@@ -402,7 +476,10 @@ const Register = () => {
     }
 
     // ── Guard: reject future dates on submit as a safety net ──
-    if (!isValidDob(formData.dateOfBirth)) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(formData.dateOfBirth);
+    if (selectedDate >= today) {
       setDobError("Invalid Date of Birth. Only past dates are allowed.");
       toast({ title: "Invalid Date of Birth", description: "Only past dates are allowed.", variant: "destructive" });
       return;
@@ -428,15 +505,6 @@ const Register = () => {
     setIsLoading(true);
     try {
       const tokenToSend = captchaToken ?? "";
-
-      console.log("reCAPTCHA token length:", tokenToSend.length);
-      console.log("reCAPTCHA token preview:", tokenToSend.substring(0, 40));
-
-      if (!tokenToSend) {
-        toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
 
       const form = new FormData();
       form.append("first_name", formData.firstName);
@@ -477,13 +545,13 @@ const Register = () => {
     setIdFront(null);
     setIdBack(null);
     setDobError(null);
+    setZoneOptions([]);
     recaptchaRef.current?.reset();
     setCaptchaToken(null);
   };
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
   const idUploaded = idFront && idBack;
-  const yesterdayString = getYesterdayString();
 
   return (
     <AuthLayout>
@@ -562,23 +630,34 @@ const Register = () => {
                   </Select>
                 </div>
 
-                {/* ── Date of Birth — with future-date guard ── */}
+                {/* ── MODIFIED: Date of Birth with default adult date on calendar open ── */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
                   <Input
                     type="date"
                     value={formData.dateOfBirth}
-                    max={yesterdayString}
                     onChange={(e) => handleDobChange(e.target.value)}
+                    onFocus={handleDobFocus}
+                    onClick={handleCalendarOpen}
                     className={underlineInput}
                     style={{ borderBottomColor: dobError ? "#ef4444" : "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = dobError ? "#ef4444" : "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = dobError ? "#ef4444" : "#dde3ed")}
+                    onFocusCapture={(e) => {
+                      (e.currentTarget as HTMLInputElement).style.borderBottomColor = dobError ? "#ef4444" : "#c2467d";
+                    }}
+                    onBlur={(e) => {
+                      (e.currentTarget as HTMLInputElement).style.borderBottomColor = dobError ? "#ef4444" : "#dde3ed";
+                    }}
                   />
                   {dobError && (
                     <p className="flex items-center gap-1 text-xs font-medium mt-1" style={{ color: "#ef4444" }}>
                       <X className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
                       {dobError}
+                    </p>
+                  )}
+                  {!dobError && formData.dateOfBirth && (
+                    <p className="flex items-center gap-1 text-xs mt-1" style={{ color: "#9ca3af" }}>
+                      <Check className="w-3 h-3 flex-shrink-0" />
+                      Date accepted
                     </p>
                   )}
                 </div>
@@ -622,7 +701,7 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Section 3 — Address Information */}
+            {/* Section 3 — Address Information with dependent dropdowns */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -642,10 +721,11 @@ const Register = () => {
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
                   />
                 </div>
+                {/* ── MODIFIED: Street field with handler that resets zone ── */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street Name</Label>
                   {streets.length > 0 ? (
-                    <Select value={formData.street} onValueChange={(v) => updateField("street", v)}>
+                    <Select value={formData.street} onValueChange={handleStreetChange}>
                       <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
                         <SelectValue placeholder="Select street" />
                       </SelectTrigger>
@@ -661,7 +741,7 @@ const Register = () => {
                     <Input
                       placeholder="Enter street name"
                       value={formData.street}
-                      onChange={(e) => updateField("street", e.target.value)}
+                      onChange={(e) => handleStreetChange(e.target.value)}
                       className={underlineInput}
                       style={{ borderBottomColor: "#dde3ed" }}
                       onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
@@ -669,20 +749,38 @@ const Register = () => {
                     />
                   )}
                 </div>
+                {/* ── MODIFIED: Zone/Purok field - options filtered by selected street ── */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Station</Label>
-                  <Select value={formData.zonePurok} onValueChange={(v) => updateField("zonePurok", v)}>
-                    <SelectTrigger className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm" style={{ borderBottomColor: "#dde3ed" }}>
-                      <SelectValue placeholder="Select zone / station" />
+                  <Select 
+                    value={formData.zonePurok} 
+                    onValueChange={(v) => updateField("zonePurok", v)}
+                    disabled={!formData.street}
+                  >
+                    <SelectTrigger 
+                      className="rounded-none border-0 border-b-2 bg-transparent px-0 focus:ring-0 text-sm"
+                      style={{ borderBottomColor: "#dde3ed", opacity: !formData.street ? 0.5 : 1 }}
+                    >
+                      <SelectValue placeholder={formData.street ? "Select zone / station" : "Select a street first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {uniqueZones.map((z) => (
+                      {displayZones.map((z) => (
                         <SelectItem key={z} value={z}>
-                          {/^\d+$/.test(z) ? `Station ${z}` : z}
+                          {getZoneDisplayName(z)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {!formData.street && (
+                    <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>
+                      Please select a street first to see available zones
+                    </p>
+                  )}
+                  {formData.street && zoneOptions.length === 0 && (
+                    <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>
+                      No specific zones found for this street. Showing all zones.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -876,7 +974,7 @@ const Register = () => {
 
             {/* Footer */}
             <div className="space-y-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
-              {/* ── reCAPTCHA — sits above the submit buttons ── */}
+              {/* reCAPTCHA */}
               <div className="flex flex-col items-end gap-1">
                 <ReCAPTCHA
                   ref={recaptchaRef}
