@@ -21,8 +21,8 @@ const DEFAULT_DOCS: DocItem[] = [
   { name: "Barangay Clearance", file_url: null, file_name: null },
   { name: "Building Clearance", file_url: null, file_name: null },
   { name: "Business Clearance", file_url: null, file_name: null },
-  { name: "Resident Certificate", file_url: null, file_name: null },
-  { name: "Cedula", file_url: null, file_name: null },
+  // { name: "Resident Certificate", file_url: null, file_name: null },
+  // { name: "Cedula", file_url: null, file_name: null },
 ];
 
 export function DocumentGrid() {

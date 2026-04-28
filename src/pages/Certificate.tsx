@@ -16,26 +16,28 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
+import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
+import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
 
 interface StreetOption {
   id: number;
   name: string;
-  sitio: string;
+  zone?: string;
   formerly?: string;
 }
 
-// Sitio options for dropdown
-const SITIO_OPTIONS = [
-  'Sitio 1',
-  'Sitio 2',
-  'Sitio 3',
-  'Sitio 4',
-  'Sitio 5',
-  'Sitio 6',
-  'Sitio 7',
-  'Sitio 8',
-  'Sitio 9',
-  'Sitio 10',
+// Zone options for dropdown
+const ZONE_OPTIONS = [
+  'Zone 1',
+  'Zone 2',
+  'Zone 3',
+  'Zone 4',
+  'Zone 5',
+  'Zone 6',
+  'Zone 7',
+  'Zone 8',
+  'Zone 9',
+  'Zone 10',
 ];
 
 // ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
   },
   {
     label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Sitio'],
+    members: ['House Block Lot No', 'Street', 'Zone'],
     separator: ', ',
   },
 ];
@@ -85,7 +87,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Sitio': 'sitio',
+  'Zone': 'zone',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -143,7 +145,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 };
 
 const NON_DATE_KEYS = new Set([
-  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -163,7 +165,7 @@ const FIELD_WRAP_CONFIG: Record<string, number> = {
   'Address': 50,
   'House Block Lot No': 40,
   'Street': 35,
-  'Sitio': 20,
+  'Zone': 20,
   'Full Name': 40,
   'Purpose': 45,
   'Purpose Details': 55,
@@ -198,22 +200,28 @@ function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
   return lines;
 }
 
-function cleanSitioNumber(value: string): string {
+function cleanZoneNumber(value: string): string {
   if (!value) return '';
   
-  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
+  // Handle "SITIO 7" -> "Zone 7"
+  const sitioMatch = value.match(/SITIO\s*(\d+)/i);
   if (sitioMatch) {
-    return sitioMatch[1];
+    return `Zone ${sitioMatch[1]}`;
+  }
+  
+  const zoneMatch = value.match(/Zone\s*(\d+)/i);
+  if (zoneMatch) {
+    return `Zone ${zoneMatch[1]}`;
   }
   
   const numberMatch = value.match(/^\d+$/);
   if (numberMatch) {
-    return numberMatch[0];
+    return `Zone ${numberMatch[0]}`;
   }
   
   const anyNumberMatch = value.match(/\d+/);
   if (anyNumberMatch) {
-    return anyNumberMatch[0];
+    return `Zone ${anyNumberMatch[0]}`;
   }
   
   return value.trim();
@@ -239,13 +247,13 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   
   const houseBlockLot = formData.house_block_lot_no ?? '';
   const street = formData.street ?? '';
-  let sitio = formData.sitio ?? '';
-  sitio = cleanSitioNumber(sitio);
+  let zone = formData.zone ?? '';
+  zone = cleanZoneNumber(zone);
   
   const addressParts = [];
   if (houseBlockLot) addressParts.push(houseBlockLot);
   if (street) addressParts.push(street);
-  if (sitio) addressParts.push(sitio);
+  if (zone) addressParts.push(zone);
   const fullAddress = addressParts.join(', ');
   
   return {
@@ -258,7 +266,7 @@ function buildLabelValueMap(formData: any): Record<string, string> {
     'Full Name':    fullName,
     'House Block Lot No': houseBlockLot,
     'Street':       street,
-    'Sitio':        sitio,
+    'Zone':         zone,
     'Full Address': fullAddress,
     'Age':          formData.age                  ?? '',
     'Date of Birth': formData.dob                 ?? '',
@@ -290,7 +298,7 @@ function buildReleasePDFFields(
 
   const fieldsToSuppress = [
     'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
-    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'sitio'
+    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'zone'
   ];
 
   for (const group of RELEASE_CONCAT_GROUPS) {
@@ -694,7 +702,6 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
 }
 
 // ─── Memoized Form Field Component ─────────────────────────────────────────────
-// Updated FormField component - always shows label, value changes based on isEditing
 const FormField = memo(({ 
   name, 
   value, 
@@ -717,7 +724,6 @@ const FormField = memo(({
     }
   }, [isEditing, name]);
   
-  // Always show the label container
   if (type === 'select' && options) {
     return (
       <div>
@@ -884,7 +890,7 @@ function EditableDetailModal({
     period_of_residency: '',
     house_block_lot_no: '',
     street: '',
-    sitio: '',
+    zone: '',
     purpose: '',
     status: '',
     created_by: '',
@@ -925,7 +931,7 @@ function EditableDetailModal({
         period_of_residency: full.period_of_residency || '',
         house_block_lot_no: full.house_block_lot_no || '',
         street: full.street || '',
-        sitio: full.sitio || '',
+        zone: full.zone || '',
         purpose: full.purpose || '',
         status: full.status || '',
         created_by: full.created_by || '',
@@ -1051,123 +1057,39 @@ function EditableDetailModal({
       const pdfRes = await axios.get(resolvedUrl, { responseType: 'arraybuffer', withCredentials: true });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
-      let savedLayout: TextField[] = [];
+      let savedFields: TextField[] = [];
+      let savedQrField: QRCodeFieldData | null = null;
+
       if (metaRes.data?.layout) {
         try {
-          savedLayout = Array.isArray(metaRes.data.layout) ? metaRes.data.layout : JSON.parse(metaRes.data.layout);
+          const parsed = Array.isArray(metaRes.data.layout) ? metaRes.data.layout : JSON.parse(metaRes.data.layout);
+          if (Array.isArray(parsed)) {
+            savedFields = parsed;
+            savedQrField = null;
+          } else if (parsed.fields !== undefined) {
+            const layout = parsed as SavedLayout;
+            savedFields = layout.fields ?? [];
+            savedQrField = layout.qrField ?? null;
+          }
         } catch {
           console.error('Could not parse template layout JSON');
         }
       }
 
-      const labelValueMap = buildLabelValueMap(formData);
-      
-      const fullAddress = labelValueMap['Full Address'] || '';
-      const addressLines = wrapTextFieldToLines('Full Address', fullAddress);
-      
-      const fullName = labelValueMap['Full Name'] || '';
-      const nameLines = wrapTextFieldToLines('Full Name', fullName);
-      
-      const addressField = savedLayout.find(f => normLabel(f.label) === 'full address');
-      const nameField = savedLayout.find(f => normLabel(f.label) === 'full name');
-      
-      let modifiedFields = [...savedLayout];
-      
-      if (addressField && addressLines.length > 1) {
-        modifiedFields = modifiedFields.filter(f => normLabel(f.label) !== 'full address');
-        
-        addressLines.forEach((line, index) => {
-          const lineNumber = index + 1;
-          let existingLineField = savedLayout.find(f => 
-            normLabel(f.label) === `address line ${lineNumber}` || 
-            normLabel(f.label) === `address ${lineNumber}`
-          );
-          
-          if (existingLineField) {
-            existingLineField.value = line;
-            modifiedFields.push(existingLineField);
-          } else if (addressField) {
-            const yOffset = (lineNumber - 1) * 12;
-            const newField = {
-              ...addressField,
-              label: `Address Line ${lineNumber}`,
-              value: line,
-              y: addressField.y + yOffset
-            };
-            modifiedFields.push(newField);
-          }
-        });
-      } else if (addressField) {
-        addressField.value = fullAddress;
-      }
-      
-      if (nameField && nameLines.length > 1) {
-        modifiedFields = modifiedFields.filter(f => normLabel(f.label) !== 'full name');
-        
-        nameLines.forEach((line, index) => {
-          const lineNumber = index + 1;
-          let existingLineField = savedLayout.find(f => 
-            normLabel(f.label) === `name line ${lineNumber}` ||
-            normLabel(f.label) === `name ${lineNumber}`
-          );
-          
-          if (existingLineField) {
-            existingLineField.value = line;
-            modifiedFields.push(existingLineField);
-          } else if (nameField) {
-            const yOffset = (lineNumber - 1) * 12;
-            const newField = {
-              ...nameField,
-              label: `Name Line ${lineNumber}`,
-              value: line,
-              y: nameField.y + yOffset
-            };
-            modifiedFields.push(newField);
-          }
-        });
-      } else if (nameField) {
-        nameField.value = fullName;
-      }
-      
-      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
-        
         let value: any = (formData as any)[key] ?? '';
-        
         if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
           const d = new Date(value);
           if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
         }
-        
-        const addressLabels = ['House Block Lot No', 'Street', 'Sitio', 'Full Address', 'Address'];
-        if (addressLabels.some(label => field.label?.toLowerCase().includes(label.toLowerCase()))) {
-          value = truncateText(String(value), 45);
-        }
-        
-        if (field.label === 'Full Name') {
-          value = truncateText(String(value), 40);
-        }
-        
         return { ...field, value: value ?? '' };
       });
 
-      labelValueMap['Full Address'] = addressLines[0] || '';
-      if (addressLines.length > 1) {
-        labelValueMap['Address Line 2'] = addressLines[1] || '';
-        if (addressLines.length > 2) {
-          labelValueMap['Address Line 3'] = addressLines[2] || '';
-        }
-      }
-      
-      labelValueMap['Full Name'] = nameLines[0] || '';
-      if (nameLines.length > 1) {
-        labelValueMap['Name Line 2'] = nameLines[1] || '';
-      }
-      
+      const labelValueMap = buildLabelValueMap(formData);
       const finalFields = buildReleasePDFFields(fieldsWithValues, labelValueMap);
-
-      const renderedBytes = await generatePDF(templateBytes, finalFields, null, record.bcert_number ?? null);
+      const renderedBytes = await generatePDF(templateBytes, finalFields, savedQrField, record.bcert_number ?? null);
       const filename = `barangay-certificates-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
       const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: "application/pdf" });
       const fd = new FormData();
@@ -1295,12 +1217,15 @@ function EditableDetailModal({
 
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
+              {/* Only show UserIdViewer if requester_type is 'Online' */}
+              {formData.requester_type === 'Online' && (
+                <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 {[
-                  { label: 'BCert Number', name: 'bcert_number' },
+                  { label: 'BCert Number', name: 'bcert_number', readOnly: true },
                   { label: 'Prefix', name: 'prefix', type: 'select', options: ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.'] },
                   { label: 'First Name', name: 'first_name' },
                   { label: 'Middle Name', name: 'middle_name' },
@@ -1308,7 +1233,7 @@ function EditableDetailModal({
                   { label: 'Ext Name', name: 'ext_name' },
                   { label: 'Extension', name: 'extension' },
                   { label: 'Age', name: 'age', type: 'number' },
-                ].map(f => (
+                ].map((f) => (
                   <div key={f.name}>
                     <FormField 
                       name={f.name}
@@ -1316,8 +1241,7 @@ function EditableDetailModal({
                       onChange={handleInputChange}
                       type={f.type || 'text'}
                       options={f.options}
-                      isTextArea={f.isTextArea}
-                      isEditing={isEditing}
+                      isEditing={isEditing && !f.readOnly}
                       label={f.label}
                     />
                   </div>
@@ -1360,9 +1284,9 @@ function EditableDetailModal({
                 {[
                   { label: 'House/Block/Lot No.', name: 'house_block_lot_no' },
                   { label: 'Street', name: 'street', type: 'select', options: streets.map(s => s.name) },
-                  { label: 'Sitio', name: 'sitio', type: 'select', options: SITIO_OPTIONS },
+                  { label: 'Zone', name: 'zone', type: 'select', options: ZONE_OPTIONS },
                   { label: 'Period of Residency', name: 'period_of_residency' },
-                ].map(f => (
+                ].map((f) => (
                   <div key={f.name}>
                     <FormField 
                       name={f.name}
@@ -1413,42 +1337,12 @@ function EditableDetailModal({
                 </div>
                 <div>
                   <FormField 
-                    name="issued_on"
-                    value={formData.issued_on || ''}
-                    onChange={handleInputChange}
-                    type="date"
-                    isEditing={isEditing}
-                    label="Issued On"
-                  />
-                </div>
-                <div>
-                  <FormField 
-                    name="issued_at"
-                    value={formData.issued_at || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="Issued At"
-                  />
-                </div>
-                <div>
-                  <FormField 
                     name="or_no"
                     value={formData.or_no || ''}
                     onChange={handleInputChange}
                     type="text"
                     isEditing={isEditing}
                     label="OR No."
-                  />
-                </div>
-                <div>
-                  <FormField 
-                    name="ctc_vrr_no"
-                    value={formData.ctc_vrr_no || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="CTC/VRR No."
                   />
                 </div>
                 <div>
@@ -1468,10 +1362,6 @@ function EditableDetailModal({
                     />
                   </div>
                 )}
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -1496,17 +1386,6 @@ function EditableDetailModal({
                 ) : (
                   <p className="text-sm text-gray-400 italic">No schedule assigned.</p>
                 )}
-                <div>
-                  <FormField 
-                    name="remarks"
-                    value={formData.remarks || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isTextArea={true}
-                    isEditing={isEditing}
-                    label="Remarks"
-                  />
-                </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>

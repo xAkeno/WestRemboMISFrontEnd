@@ -91,6 +91,14 @@ export interface DocumentUserData {
   updated_at?: string;
 }
 
+// ─── Layout structure to include QR ──────────────────────────────────────────
+
+export interface SavedLayout {
+  fields: TextField[];
+  qrField?: QRCodeFieldData | null;
+  version?: string;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DOCUMENT_API_PATHS: Record<string, string> = {
@@ -235,8 +243,6 @@ const LABEL_TO_FIELD_TYPE: Record<string, TextField["fieldType"]> = {
 };
 
 // ─── Fields that should NEVER have date normalization applied ─────────────────
-// These are text/address fields whose values might accidentally look like dates
-// (e.g. zone codes like "2001-A", lot numbers like "123-B-01")
 const NON_DATE_KEYS = new Set([
   'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
@@ -280,27 +286,38 @@ function buildPDFFields(fields: TextField[]): TextField[] {
   return [...base, ...extras];
 }
 
+// ─── Default QR position in PDF points (A4: 595×842 pts) ─────────────────────
+const DEFAULT_QR: Omit<QRCodeFieldData, 'page'> = {
+  x: 20,       // 20 pts from left edge
+  y: 20,       // 20 pts from top edge
+  size: 80,    // 80×80 pts square
+  visible: true,
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
-  const location = useLocation();
-  const ticket   = location.state?.ticket;
+  const location  = useLocation();
+  const ticket    = location.state?.ticket;
   const autoPrint = location.state?.autoPrint;
 
   const [selectedClearanceType, setSelectedClearanceType] = useState<string | null>(null);
-  const [fields, setFields]           = useState<TextField[]>([]);
-  const [selectedId, setSelectedId]   = useState<string | null>(null);
+  const [fields, setFields]             = useState<TextField[]>([]);
+  const [selectedId, setSelectedId]     = useState<string | null>(null);
   const [templateInfo, setTemplateInfo] = useState<PDFTemplateInfo | null>(null);
-  const [blobUrl, setBlobUrl]         = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [isLoading, setIsLoading]     = useState(false);
+  const [blobUrl, setBlobUrl]           = useState<string | null>(null);
+  const [currentPage, setCurrentPage]   = useState(0);
+  const [isLoading, setIsLoading]       = useState(false);
   const [isMarkingToPay, setIsMarkingToPay] = useState(false);
-  const [isAdmin, setIsAdmin]         = useState(false);
+  const [isAdmin, setIsAdmin]           = useState(false);
   const [documentUserData, setDocumentUserData] = useState<DocumentUserData[] | undefined>(undefined);
-  const [streets, setStreets]         = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
-  const [qrField, setQrField]         = useState<QRCodeFieldData | null>(null);
+  const [streets, setStreets]           = useState<{ id: number; name: string; sitio: string; formerly?: string }[]>([]);
+  const [qrField, setQrField]           = useState<QRCodeFieldData | null>(null);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+
+  // Track whether the layout has been loaded so the bcert effect doesn't clobber it
+  const layoutLoadedRef = useRef(false);
 
   const templateBytesRef = useRef<ArrayBuffer | null>(null);
   const debounceRef      = useRef<ReturnType<typeof setTimeout>>();
@@ -344,16 +361,8 @@ export function CertificateEditor() {
     resident_id:    r.resident_id ?? undefined,
   });
 
-  /**
-   * Only normalizes a value to a date string if:
-   * 1. The mapped data key is a known date field (not in NON_DATE_KEYS)
-   * 2. The value is a string containing "T" (ISO timestamp format)
-   * 3. It parses as a valid Date
-   */
   const normaliseDate = (value: any, dataKey?: string): any => {
-    // Skip normalization for non-date fields entirely
     if (dataKey && NON_DATE_KEYS.has(dataKey)) return value;
-
     if (typeof value === "string" && value.includes("T")) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
@@ -377,7 +386,6 @@ export function CertificateEditor() {
       const key = LABEL_TO_KEY[field.label];
       if (!key) return;
       let value = field.value;
-      // Only format dates for actual date fields
       if (!NON_DATE_KEYS.has(key) && typeof value === "string" && value.includes("T")) {
         const d = new Date(value);
         if (!isNaN(d.getTime())) value = d.toISOString().split("T")[0];
@@ -500,25 +508,53 @@ export function CertificateEditor() {
       setTemplateInfo(info);
       setCurrentPage(0);
 
-      let savedLayout: TextField[] = [];
+      let savedLayout: SavedLayout | TextField[] = [];
+      let restoredQr: QRCodeFieldData | null = null;
+
       if (metadata.layout) {
         try {
-          savedLayout = Array.isArray(metadata.layout)
+          const parsed = Array.isArray(metadata.layout)
             ? metadata.layout : JSON.parse(metadata.layout);
+
+          if (parsed.fields !== undefined) {
+            // New SavedLayout format
+            const layout = parsed as SavedLayout;
+            savedLayout = layout;
+            restoredQr  = layout.qrField ?? null;
+          } else {
+            // Legacy format (just TextField[])
+            savedLayout = parsed as TextField[];
+          }
         } catch { console.error('Invalid layout format'); }
       }
 
       const record = existingData ?? null;
-      const mergedFields = savedLayout.map((field) => {
-        const key = LABEL_TO_KEY[field.label];
+
+      // Extract fields from layout
+      const layoutFields = Array.isArray(savedLayout)
+        ? savedLayout
+        : (savedLayout as SavedLayout).fields || [];
+
+      const mergedFields = layoutFields.map((field) => {
+        const key       = LABEL_TO_KEY[field.label];
         const fieldType = field.fieldType ?? LABEL_TO_FIELD_TYPE[field.label] ?? "TEXT";
-        let value: any = key && record ? (record as any)[key] : "";
-        // Pass key so non-date fields are never date-normalized
-        value = normaliseDate(value, key);
+        let value: any  = key && record ? (record as any)[key] : "";
+        value           = normaliseDate(value, key);
         return { ...field, fieldType, value: value ?? "" };
       });
 
       setFields(mergedFields);
+
+      // ── FIX: restore saved QR position, mark layout as loaded ──────────────
+      if (restoredQr) {
+        setQrField(restoredQr);
+        layoutLoadedRef.current = true;
+      } else {
+        // No QR in saved layout — clear it; bcert effect will set default later
+        setQrField(null);
+        layoutLoadedRef.current = false;
+      }
+
       setSelectedId(null);
       await renderPreview(mergedFields);
       toast.success('Template loaded successfully');
@@ -562,7 +598,6 @@ export function CertificateEditor() {
     setFields((prev) => prev.map((field) => {
       const key = LABEL_TO_KEY[field.label];
       if (!key) return field;
-      // Pass key to prevent date-normalizing non-date fields
       return { ...field, value: normaliseDate((record as any)[key], key) ?? field.value };
     }));
   }, [documentUserData, bcertNumber]);
@@ -590,6 +625,20 @@ export function CertificateEditor() {
     } else { fetchUserDocument(); }
   }, [bcertNumber]);
 
+  // ── FIX: only set default QR position when the layout did NOT restore one ────
+  useEffect(() => {
+    if (!resolvedBcert || resolvedBcert === 'new') return;
+
+    // If fetchPDFTemplate already restored a saved QR position, don't overwrite it
+    if (layoutLoadedRef.current) return;
+
+    // Only set the default when there is currently no QR field at all
+    setQrField((prev) => {
+      if (prev !== null) return prev;
+      return { ...DEFAULT_QR, page: currentPage };
+    });
+  }, [resolvedBcert]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
 
   const handleClearanceChange = (type: string) => {
@@ -602,16 +651,14 @@ export function CertificateEditor() {
     setSelectedId(null);
   };
 
-  useEffect(() => {
-    if (resolvedBcert && resolvedBcert !== 'new' && !qrField?.visible) {
-      setQrField({ x: 5, y: 80, size: 96, page: currentPage, visible: true });
-    }
-  }, [resolvedBcert]);
-
   const handleToggleQR = () => {
-    setQrField(qrField?.visible
-      ? null
-      : { x: 5, y: 80, size: 96, page: currentPage, visible: true });
+    if (qrField?.visible) {
+      setQrField(null);
+      layoutLoadedRef.current = false;
+    } else {
+      setQrField({ ...DEFAULT_QR, page: currentPage });
+      layoutLoadedRef.current = true;
+    }
   };
 
   const handleUpload = useCallback(async (file: File) => {
@@ -619,6 +666,7 @@ export function CertificateEditor() {
       templateBytesRef.current = await file.arrayBuffer();
       const { info } = await loadPDFTemplate(templateBytesRef.current);
       setTemplateInfo(info); setCurrentPage(0); setFields([]); setSelectedId(null);
+      layoutLoadedRef.current = false;
       await renderPreview([]);
       toast.success('Template loaded successfully');
     } catch { toast.error('Failed to load PDF template'); }
@@ -652,7 +700,7 @@ export function CertificateEditor() {
       const bytes = await generatePDF(
         templateBytesRef.current, buildPDFFields(fields), qrField, resolvedBcert
       );
-      const url   = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" }));
+      const url    = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" }));
       const iframe = document.createElement("iframe");
       iframe.style.cssText = "position:fixed;width:0;height:0;border:none";
       iframe.src = url;
@@ -688,9 +736,7 @@ export function CertificateEditor() {
         templateBytesRef.current, buildPDFFields(fields), qrField, resolvedBcert
       );
       const url = URL.createObjectURL(
-        new Blob([new Uint8Array(bytes).buffer], {
-          type: "application/pdf",
-        })
+        new Blob([new Uint8Array(bytes).buffer], { type: "application/pdf" })
       );
       Object.assign(document.createElement("a"), { href: url, download: "certificate.pdf" }).click();
       URL.revokeObjectURL(url);
@@ -698,26 +744,67 @@ export function CertificateEditor() {
     } catch { toast.error("Failed to generate PDF"); }
   }, [fields, qrField, resolvedBcert]);
 
+  // ── Save layout — includes QR field in PDF-point coordinates ─────────────────
   const handleSaveLayout = useCallback(() => {
+    const layoutToSave: SavedLayout = {
+      fields,
+      qrField: qrField || undefined,
+      version: "2.0",
+    };
+
     axios.put(
       `http://127.0.0.1:8000/api/documents/${id}/layout`,
-      { layout: fields }, { withCredentials: true }
+      { layout: layoutToSave },
+      { withCredentials: true }
     ).then((res) => {
       if (res.status === 200) toast.success('Layout saved successfully');
       else toast.error('Failed to save layout');
     }).catch(() => toast.error('Failed to save layout'));
-  }, [fields, id]);
+  }, [fields, qrField, id]);
 
+  // ── Load layout from file — restores QR field ────────────────────────────────
   const handleLoadLayout = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        setFields(JSON.parse(reader.result as string) as TextField[]);
-        setSelectedId(null); toast.success('Layout loaded');
-      } catch { toast.error('Invalid layout file'); }
+        const parsed = JSON.parse(reader.result as string) as SavedLayout | TextField[];
+
+        if (Array.isArray(parsed)) {
+          // Legacy format (just array of fields)
+          setFields(parsed);
+          setQrField(null);
+          layoutLoadedRef.current = false;
+        } else if ((parsed as SavedLayout).fields !== undefined) {
+          // New SavedLayout format
+          const layout = parsed as SavedLayout;
+          setFields(layout.fields);
+          // ── FIX: restore QR from file and mark layout as loaded ────────────
+          if (layout.qrField) {
+            setQrField(layout.qrField);
+            layoutLoadedRef.current = true;
+          } else {
+            setQrField(null);
+            layoutLoadedRef.current = false;
+          }
+        } else {
+          setFields(parsed as any);
+          setQrField(null);
+          layoutLoadedRef.current = false;
+        }
+
+        setSelectedId(null);
+        toast.success('Layout loaded successfully');
+      } catch (error) {
+        console.error('Layout parse error:', error);
+        toast.error('Invalid layout file');
+      }
     };
-    reader.readAsText(file); e.target.value = '';
+
+    reader.readAsText(file);
+    e.target.value = '';
   }, []);
 
   const handleSubmitCertificate = async () => {
@@ -846,7 +933,10 @@ export function CertificateEditor() {
             onQRChange={(updates) =>
               setQrField((prev) => prev ? { ...prev, ...updates } : null)
             }
-            onQRRemove={() => setQrField(null)}
+            onQRRemove={() => {
+              setQrField(null);
+              layoutLoadedRef.current = false;
+            }}
             bcertNumber={resolvedBcert}
             isAdmin={isAdmin}
           />
