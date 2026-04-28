@@ -2029,9 +2029,13 @@ const FrontDesk = () => {
   // ── Submit (mirrors BarangayClearanceForm logic exactly) ───────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-
+  
+    // ── Derive schedule values at the moment of submission ──────────────────
+    const submissionTimeGroup = getAutoTimeGroup();
+    const submissionDate      = getTodayDateString();
+  
     setIsSubmitting(true);
-
+  
     // ── Build base payload ──────────────────────────────────────────────────
     const base = {
       requester_type:        "Walk-in",
@@ -2056,11 +2060,11 @@ const FrontDesk = () => {
       purpose:               formData.purpose               || "",
       purpose_details:       formData.purpose_details       || null,
     };
-
+  
     // ── Pick endpoint per document type ────────────────────────────────────
     type EndpointCfg = { url: string; payload: Record<string, unknown> };
     let cfg: EndpointCfg;
-
+  
     switch (docType) {
       case "clearance":
         cfg = {
@@ -2118,36 +2122,46 @@ const FrontDesk = () => {
         };
         break;
     }
-
+  
     try {
       // ── Step 1: Submit the document ────────────────────────────────────────
       const docRes = await api.post(cfg.url, cfg.payload, { withCredentials: true });
-
+  
       if (docRes.status === 201 || docRes.status === 200) {
-        // Extract the document number (bcert_number) from the response
-        const documentNumber = docRes.data?.data?.service?.bcert_number ?? null;
-
-        // Persist the resident's full formData so a future Yes-flow lookup
-        // can auto-fill every step. Backend write is best-effort; we always
-        // mirror to localStorage so the next session works offline too.
-        const fn  = formData.first_name    || "";
-        const ln  = formData.surname       || formData.last_name || "";
-        const dob = formData.date_of_birth || "";
-        if (fn && ln && dob) {
-          const profile = { ...formData, last_name: ln, service_type: getServiceType(docType) };
-          try {
-            await api.post("api/kiosk/submit", profile, { withCredentials: true });
-          } catch (kioskErr) {
-            console.error("Kiosk profile persistence failed:", kioskErr);
-          }
-          try {
-            localStorage.setItem(makeKioskProfileKey(fn, ln, dob), JSON.stringify(profile));
-          } catch (lsErr) {
-            console.error("Local kiosk profile cache failed:", lsErr);
-          }
+        // ✅ FIX: Extract document number based on document type
+        const service = docRes.data?.data?.service;
+        let documentNumber: string | null = null;
+  
+        if (docType === "business-clearance") {
+          documentNumber = service?.brgy_business_no ?? null;
+        } else if (docType === "building-clearance") {
+          documentNumber = service?.bcert_number ?? null;
+        } else if (docType === "barangay-certificate") {
+          documentNumber = service?.bcert_number ?? null;
+        } else {
+          // Default for clearance and resident-registration
+          documentNumber = service?.bcert_number ?? null;
         }
-
-        setBcertNumber(documentNumber);
+  
+        const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
+  
+        // ── Step 2: Auto-schedule based on wall-clock time at submission ────
+        try {
+          await api.post(
+            "api/schedules",
+            {
+              document_type:   documentType,
+              document_number: documentNumber,
+              schedule_date:   submissionDate,   // today
+              time_group:      submissionTimeGroup, // "morning" or "afternoon"
+            },
+            { withCredentials: true }
+          );
+        } catch (schedErr) {
+          // Non-blocking — document already submitted successfully
+          console.error("Auto-schedule creation failed:", schedErr);
+        }
+  
         toast.success(tr("success.title"));
         setSubmitted(true);
       }
