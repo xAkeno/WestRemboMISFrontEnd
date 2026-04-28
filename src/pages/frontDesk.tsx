@@ -2097,7 +2097,7 @@ const FrontDesk = () => {
         } else if (docType === "barangay-certificate") {
           documentNumber = service?.bcert_number ?? null;
         } else {
-          // Default for barangay clearance fallback
+          
           documentNumber = service?.bcert_number ?? null;
         }
   
