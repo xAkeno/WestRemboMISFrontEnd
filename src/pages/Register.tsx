@@ -279,6 +279,30 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
 // ─── Fallback zones 1–9 ──────────────────────────────────────────────────────
 const FALLBACK_ZONES = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Returns a date as "YYYY-MM-DD" in local time (no timezone shift).
+const toDateString = (date: Date): string => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const getTodayString = (): string => toDateString(new Date());
+
+// Returns yesterday's date string — used as the max attribute on the DOB input.
+const getYesterdayString = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toDateString(d);
+};
+
+// Returns true only when the date is strictly in the past (not today, not future).
+const isValidDob = (value: string): boolean => {
+  if (!value) return false;
+  return value < getTodayString();
+};
+
 // ─── Main Register Component ─────────────────────────────────────────────────
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -303,6 +327,8 @@ const Register = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [streets, setStreets] = useState<any[]>([]);
+  // ── DOB validation state ──
+  const [dobError, setDobError] = useState<string | null>(null);
 
   // ── Google reCAPTCHA state ──
   const recaptchaRef = useRef<ReCAPTCHA>(null);
@@ -332,6 +358,20 @@ const Register = () => {
   const updateField = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
+  // ── DOB change handler — validates immediately on change ──
+  const handleDobChange = (value: string) => {
+    updateField("dateOfBirth", value);
+    if (!value) {
+      setDobError(null);
+      return;
+    }
+    if (!isValidDob(value)) {
+      setDobError("Invalid Date of Birth. Only past dates are allowed.");
+    } else {
+      setDobError(null);
+    }
+  };
+
   const rawZones = Array.from(new Set(streets.map((s) => s.sitio).filter(Boolean)));
   const uniqueZones: string[] =
     rawZones.length > 0
@@ -360,6 +400,14 @@ const Register = () => {
       toast({ title: "Error", description: "Please fill in all required fields including Sex", variant: "destructive" });
       return;
     }
+
+    // ── Guard: reject future dates on submit as a safety net ──
+    if (!isValidDob(formData.dateOfBirth)) {
+      setDobError("Invalid Date of Birth. Only past dates are allowed.");
+      toast({ title: "Invalid Date of Birth", description: "Only past dates are allowed.", variant: "destructive" });
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
       return;
@@ -376,17 +424,11 @@ const Register = () => {
       toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
       return;
     }
-    
-    if (!captchaToken) {
-    toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" });
-    return;
-    }
-    
+
     setIsLoading(true);
     try {
-      // Snapshot and guard the token
       const tokenToSend = captchaToken ?? "";
-      
+
       console.log("reCAPTCHA token length:", tokenToSend.length);
       console.log("reCAPTCHA token preview:", tokenToSend.substring(0, 40));
 
@@ -411,7 +453,7 @@ const Register = () => {
       form.append("password_confirmation", formData.confirmPassword);
       form.append("id_url", idFront as File);
       form.append("id_url_back", idBack as File);
-      form.append("recaptcha_token", tokenToSend); // ← guaranteed string, never null
+      form.append("recaptcha_token", tokenToSend);
 
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
       toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
@@ -434,12 +476,14 @@ const Register = () => {
     setFormData({ firstName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "", zonePurok: "", password: "", confirmPassword: "" });
     setIdFront(null);
     setIdBack(null);
+    setDobError(null);
     recaptchaRef.current?.reset();
     setCaptchaToken(null);
   };
 
   const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
   const idUploaded = idFront && idBack;
+  const yesterdayString = getYesterdayString();
 
   return (
     <AuthLayout>
@@ -517,17 +561,26 @@ const Register = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* ── Date of Birth — with future-date guard ── */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
                   <Input
                     type="date"
                     value={formData.dateOfBirth}
-                    onChange={(e) => updateField("dateOfBirth", e.target.value)}
+                    max={yesterdayString}
+                    onChange={(e) => handleDobChange(e.target.value)}
                     className={underlineInput}
-                    style={{ borderBottomColor: "#dde3ed" }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")}
+                    style={{ borderBottomColor: dobError ? "#ef4444" : "#dde3ed" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = dobError ? "#ef4444" : "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = dobError ? "#ef4444" : "#dde3ed")}
                   />
+                  {dobError && (
+                    <p className="flex items-center gap-1 text-xs font-medium mt-1" style={{ color: "#ef4444" }}>
+                      <X className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
+                      {dobError}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -705,7 +758,6 @@ const Register = () => {
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
-                        
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -726,26 +778,24 @@ const Register = () => {
                           {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                         {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
-                        <div
-                          className="absolute left-0 -bottom-9 z-10 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white shadow-md"
-                          style={{ backgroundColor: "#ef4444", borderRadius: 3, whiteSpace: "nowrap" }}
-                        >
-                          <X className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
-                          Passwords do not match
-                          {/* Little arrow pointing up */}
-                          <span
-                            className="absolute -top-1.5 left-3"
-                            style={{
-                              width: 0, height: 0,
-                              borderLeft: "6px solid transparent",
-                              borderRight: "6px solid transparent",
-                              borderBottom: "6px solid #ef4444",
-                            }}
-                          />
-                        </div>
-                      )}
+                          <div
+                            className="absolute left-0 -bottom-9 z-10 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white shadow-md"
+                            style={{ backgroundColor: "#ef4444", borderRadius: 3, whiteSpace: "nowrap" }}
+                          >
+                            <X className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
+                            Passwords do not match
+                            <span
+                              className="absolute -top-1.5 left-3"
+                              style={{
+                                width: 0, height: 0,
+                                borderLeft: "6px solid transparent",
+                                borderRight: "6px solid transparent",
+                                borderBottom: "6px solid #ef4444",
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
-                      
                     </div>
                   </div>
 
@@ -828,22 +878,22 @@ const Register = () => {
             <div className="space-y-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               {/* ── reCAPTCHA — sits above the submit buttons ── */}
               <div className="flex flex-col items-end gap-1">
-              <ReCAPTCHA
-                ref={recaptchaRef}
-                sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
-                onChange={(token) => setCaptchaToken(token)}
-                onExpired={() => {
-                  setCaptchaToken(null);
-                  toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
-                }}
-                theme="light"
-              />
-              {!captchaToken && (
-                <p className="text-xs" style={{ color: "#ef4444" }}>
-                  ↑ Please check the box above before submitting
-                </p>
-              )}
-            </div>
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey="6LcxosUsAAAAAJpim7cdKsK_GgUJf8GBkPUNHtS1"
+                  onChange={(token) => setCaptchaToken(token)}
+                  onExpired={() => {
+                    setCaptchaToken(null);
+                    toast({ title: "CAPTCHA Expired", description: "Please complete the verification again.", variant: "destructive" });
+                  }}
+                  theme="light"
+                />
+                {!captchaToken && (
+                  <p className="text-xs" style={{ color: "#ef4444" }}>
+                    ↑ Please check the box above before submitting
+                  </p>
+                )}
+              </div>
 
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <p className="text-xs" style={{ color: "#9ca3af" }}>
@@ -863,11 +913,11 @@ const Register = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isLoading || !captchaToken} // ← add !captchaToken here
+                    disabled={isLoading || !captchaToken || !!dobError}
                     className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
                     style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
-                    onMouseEnter={(e) => { if (!isLoading && captchaToken) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
-                    onMouseLeave={(e) => { if (!isLoading && captchaToken) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
+                    onMouseEnter={(e) => { if (!isLoading && captchaToken && !dobError) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                    onMouseLeave={(e) => { if (!isLoading && captchaToken && !dobError) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}
                   >
                     {isLoading ? (
                       <span className="flex items-center gap-2">
