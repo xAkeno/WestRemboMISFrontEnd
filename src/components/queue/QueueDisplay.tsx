@@ -3,143 +3,99 @@ import api from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface ServiceItem {
+interface BackendQueueItem {
   id: number;
-  first_name: string;
-  middle_name: string | null;
-  surname: string;
-  status: string;
-  schedule_date: string | null;
-  schedule_time: string | null;
-  business_name: string | null;
-  business_type: string | null;
-  _serviceType: string;
-  _refNumber: string;
-  _serviceColor: string;
-  _serviceBg: string;
-  establishment?: string | null;
+  document_type: string;
+  document_id: number;
+  reference_number: string;
+  status: "waiting" | "serving" | "done";
+  queue_date: string;
+  manual_added: boolean;
 }
 
-interface RawItem {
-  id: number;
-  first_name: string;
-  middle_name?: string | null;
-  surname: string;
-  status: string;
-  bcert_number?: string;
-  brgy_business_no?: string;
-  business_name?: string | null;
-  business_type?: string | null;
-  schedule?: {
-    schedule_date?: string | null;
-    schedule_time?: string | null;
-  } | null;
-  [key: string]: unknown;
+export interface DisplayItem {
+  queueId:        number;
+  queueStatus:    string;
+  refNumber:      string;
+  documentType:   string;
+  documentId:     number;
+  firstName?:     string;
+  middleName?:    string | null;
+  surname?:       string;
+  businessName?:  string | null;
+  businessType?:  string | null;
+  establishment?: string | null;
+  serviceLabel:   string;
+  serviceColor:   string;
+  serviceBg:      string;
+  releasedDate?:  string;
+  queueDate?:     string;
 }
 
 interface QueueDisplayProps {
   pollInterval?: number;
+  enrichDetails?: boolean;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const POLL_MS = 8_000;
 
-const SERVICE_CONFIG = [
-  { endpoint: "api/barangay-clearances",   label: "Barangay Clearance",  color: "#0C447C", bg: "#E6F1FB" },
-  { endpoint: "api/barangay-certificates", label: "Barangay Certificate", color: "#085041", bg: "#E1F5EE" },
-  { endpoint: "api/building-clearances",   label: "Building Clearance",  color: "#633806", bg: "#FAEEDA" },
-  { endpoint: "api/business-clearances",   label: "Business Clearance",  color: "#712B13", bg: "#FAECE7" },
-] as const;
-
-const DONE_STATUSES = new Set(["RELEASED", "COMPLETED", "REJECTED", "NO_SHOW", "CANCELLED"]);
-const isActiveStatus = (s: string) => !DONE_STATUSES.has(s);
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtTime = (t: string | null | undefined): string => {
-  if (!t) return "—";
-  const [h, m] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${ampm}`;
+// Map document types to display labels (no API endpoints needed)
+const DOCUMENT_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  'barangay_clearance':   { label: 'Barangay Clearance',  color: '#0C447C', bg: '#E6F1FB' },
+  'barangay_certificate': { label: 'Barangay Certificate', color: '#085041', bg: '#E1F5EE' },
+  'building_clearance':   { label: 'Building Clearance',  color: '#633806', bg: '#FAEEDA' },
+  'business_clearance':   { label: 'Business Clearance',  color: '#712B13', bg: '#FAECE7' },
 };
 
-const getServiceLabel = (item: ServiceItem, fallback: string): string =>
-  item.business_name ?? item.establishment ?? fallback;
-
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  PENDING:     { bg: "#FAEEDA", color: "#633806" },
-  WAITING:     { bg: "#E6F1FB", color: "#0C447C" },
-  FOR_RELEASE: { bg: "#E1F5EE", color: "#085041" },
-  RELEASED:    { bg: "#EAF3DE", color: "#27500A" },
-  APPROVED:    { bg: "#E1F5EE", color: "#085041" },
-  REJECTED:    { bg: "#FCEBEB", color: "#791F1F" },
-  PROCESSING:  { bg: "#FBEAF0", color: "#72243E" },
-  RESCHEDULED: { bg: "#FAEEDA", color: "#633806" },
-  COMPLETED:   { bg: "#EAF3DE", color: "#27500A" },
-  NO_SHOW:     { bg: "#FCEBEB", color: "#791F1F" },
-  CANCELLED:   { bg: "#FCEBEB", color: "#791F1F" },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_STYLE[status] ?? { bg: "#F1EFE8", color: "#5F5E5A" };
-  return (
-    <span
-      style={{
-        padding: "2px 10px",
-        borderRadius: 99,
-        fontSize: 11,
-        fontWeight: 500,
-        background: style.bg,
-        color: style.color,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {status}
-    </span>
-  );
-}
-
-// ─── Unified data mapping ─────────────────────────────────────────────────────
-
-function mapRawItem(
-  item: RawItem,
-  cfg: (typeof SERVICE_CONFIG)[number],
-): ServiceItem {
-  return {
-    id: item.id,
-    first_name: item.first_name,
-    middle_name: item.middle_name ?? null,
-    surname: item.surname,
-    status: item.status,
-    schedule_date: item.schedule?.schedule_date ?? null,
-    schedule_time: item.schedule?.schedule_time ?? null,
-    business_name: item.business_name ?? null,
-    business_type: item.business_type ?? null,
-    _serviceType: cfg.label,
-    _refNumber: item.bcert_number ?? item.brgy_business_no ?? `#${item.id}`,
-    _serviceColor: cfg.color,
-    _serviceBg: cfg.bg,
-    establishment: (item.establishment as string) ?? null,
+function getDocumentConfig(type: string) {
+  return DOCUMENT_TYPE_CONFIG[type] || { 
+    label: type, 
+    color: "#5F5E5A", 
+    bg: "#F1EFE8" 
   };
 }
 
-// ─── API ──────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function fetchAllItems(): Promise<ServiceItem[]> {
-  const responses = await Promise.all(
-    SERVICE_CONFIG.map((cfg) => api.get(cfg.endpoint)),
-  );
-  const items: ServiceItem[] = [];
-  responses.forEach((res, i) => {
-    const list: RawItem[] = res.data?.data?.data ?? [];
-    for (const raw of list) {
-      items.push(mapRawItem(raw, SERVICE_CONFIG[i]));
-    }
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-PH", {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
   });
-  return items;
+};
+
+const formatQueueDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) {
+    return "Today";
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  } else {
+    return formatDate(dateStr);
+  }
+};
+
+function toDisplayItem(qi: BackendQueueItem): DisplayItem {
+  const cfg = getDocumentConfig(qi.document_type);
+  return {
+    queueId:      qi.id,
+    queueStatus:  qi.status,
+    refNumber:    qi.reference_number,
+    documentType: qi.document_type,
+    documentId:   qi.document_id,
+    serviceLabel: cfg.label,
+    serviceColor: cfg.color,
+    serviceBg:    cfg.bg,
+    queueDate:    qi.queue_date,
+  };
 }
 
 // ─── Live Clock ───────────────────────────────────────────────────────────────
@@ -161,22 +117,60 @@ function LiveClock() {
   );
 }
 
-// ─── Schedule Card ────────────────────────────────────────────────────────────
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 
-function ScheduleCard({
+function ReleasedBadge() {
+  return (
+    <span
+      style={{
+        padding: "2px 10px",
+        borderRadius: 99,
+        fontSize: 11,
+        fontWeight: 500,
+        background: "#EAF3DE",
+        color: "#27500A",
+        whiteSpace: "nowrap",
+      }}
+    >
+      RELEASED
+    </span>
+  );
+}
+
+// ─── Release Card ─────────────────────────────────────────────────────────────
+
+function getDisplayName(item: DisplayItem): string {
+  return (
+    [item.firstName, item.middleName, item.surname].filter(Boolean).join(" ") ||
+    "—"
+  );
+}
+
+function getServiceSubLabel(item: DisplayItem): string {
+  return item.businessName ?? item.establishment ?? "";
+}
+
+function ReleaseCard({
   item,
   position,
+  isServing,
 }: {
-  item: ServiceItem;
+  item: DisplayItem;
   position: number;
+  isServing: boolean;
 }) {
-  const sub = getServiceLabel(item, "");
+  const sub = getServiceSubLabel(item);
+  const queueDateDisplay = item.queueDate ? formatQueueDate(item.queueDate) : "";
 
   return (
     <div
       style={{
-        background: "var(--color-background-secondary,#f5f5f3)",
-        border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.10))",
+        background: isServing
+          ? "var(--color-background-primary,#fff)"
+          : "var(--color-background-secondary,#f5f5f3)",
+        border: isServing
+          ? "1.5px solid #3B6D11"
+          : "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.10))",
         borderRadius: 12,
         padding: "14px 12px",
         textAlign: "center",
@@ -184,59 +178,71 @@ function ScheduleCard({
         flexDirection: "column",
         gap: 6,
         alignItems: "center",
+        transition: "border 0.2s, background 0.2s",
       }}
     >
+      {/* Position bubble */}
       <div
         style={{
           width: 22,
           height: 22,
           borderRadius: "50%",
-          background: "var(--color-background-primary,#fff)",
-          border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+          background: isServing
+            ? "#3B6D11"
+            : "var(--color-background-primary,#fff)",
+          border:
+            "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: 10,
           fontWeight: 600,
-          color: "var(--color-text-secondary)",
+          color: isServing ? "#fff" : "var(--color-text-secondary)",
         }}
       >
-        {position}
+        {isServing ? "▶" : position}
       </div>
 
+      {/* Ref number */}
       <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3 }}>
-        {item._refNumber}
+        {item.refNumber}
       </div>
 
-      {item.schedule_time && (
+      {/* Applicant name */}
+      {(item.firstName || item.surname) && (
         <div
           style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--color-text-primary)",
+            fontSize: 11,
+            color: "var(--color-text-secondary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            maxWidth: "100%",
           }}
         >
-          🕐 {fmtTime(item.schedule_time)}
+          {getDisplayName(item)}
         </div>
       )}
 
+      {/* Service type pill */}
       <div
         style={{
           fontSize: 10,
           fontWeight: 500,
           padding: "2px 8px",
           borderRadius: 99,
-          background: item._serviceBg,
-          color: item._serviceColor,
+          background: item.serviceBg,
+          color: item.serviceColor,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           maxWidth: "100%",
         }}
       >
-        {item._serviceType}
+        {item.serviceLabel}
       </div>
 
+      {/* Business / establishment */}
       {sub && (
         <div
           style={{
@@ -252,53 +258,149 @@ function ScheduleCard({
         </div>
       )}
 
-      <StatusBadge status={item.status} />
+      <ReleasedBadge />
+      
+      {/* Queue Date - when it was added to queue */}
+      {queueDateDisplay && (
+        <div
+          style={{
+            fontSize: 9,
+            color: isServing ? "#3B6D11" : "var(--color-text-tertiary)",
+            marginTop: 2,
+            fontWeight: isServing ? 500 : 400,
+          }}
+        >
+          📅 Queued: {queueDateDisplay}
+        </div>
+      )}
+      
+      {/* Released Date - when document was released */}
+      {item.releasedDate && (
+        <div
+          style={{
+            fontSize: 9,
+            color: "var(--color-text-tertiary)",
+            marginTop: 2,
+          }}
+        >
+          ✓ Released: {item.releasedDate}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
-  const [queueItems, setQueueItems] = useState<ServiceItem[]>([]);
-  const [flash, setFlash] = useState(false);
-  const prevServingRef = useRef<string | null>(null);
+export function QueueDisplay({
+  pollInterval = POLL_MS,
+  enrichDetails = true,
+}: QueueDisplayProps) {
+  const [nowServing, setNowServing] = useState<DisplayItem | null>(null);
+  const [upNext,     setUpNext]     = useState<DisplayItem[]>([]);
+  const [flash,      setFlash]      = useState(false);
+  const [todayDate,  setTodayDate]  = useState(new Date().toDateString());
+  const prevRefRef = useRef<string | null>(null);
+
+  const allItems = nowServing ? [nowServing, ...upNext] : upNext;
 
   const load = useCallback(async () => {
     try {
-      const allItems = await fetchAllItems();
-      const today = new Date().toISOString().slice(0, 10);
+      // STEP 1: Fetch all queue items (NO auto-add)
+      const res = await api.get("api/queue");
 
-      const merged = allItems.filter(
-        (item) =>
-          (item.schedule_date === today && isActiveStatus(item.status)) ||
-          item.status === "RELEASED",
-      );
+      // Support both paginated and flat responses
+      const payload = res.data?.data;
+      let items: BackendQueueItem[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(res.data)
+            ? res.data
+            : [];
 
-      merged.sort((a, b) => {
-        const aActive = isActiveStatus(a.status) ? 0 : 1;
-        const bActive = isActiveStatus(b.status) ? 0 : 1;
-        if (aActive !== bActive) return aActive - bActive;
-        return (a.schedule_time ?? "99:99").localeCompare(
-          b.schedule_time ?? "99:99",
-        );
+      // STEP 2: Filter only today's queue items
+      const today = new Date().toDateString();
+      items = items.filter(item => {
+        const queueDate = new Date(item.queue_date).toDateString();
+        return queueDate === today;
       });
 
-      const nowServingRef = merged.find((item) =>
-        isActiveStatus(item.status),
-      )?._refNumber ?? null;
+      console.log(`[QueueDisplay] Found ${items.length} queue items for ${today}`);
 
-      if (nowServingRef !== prevServingRef.current) {
-        setFlash(true);
-        setTimeout(() => setFlash(false), 500);
-        prevServingRef.current = nowServingRef;
+      // STEP 3: Split into "serving" and "waiting"
+      const rawServing = items.find((i) => i.status === "serving") ?? null;
+      const rawWaiting = items
+        .filter((i) => i.status === "waiting")
+        .sort((a, b) => a.id - b.id);
+
+      // STEP 4: Map to display items
+      let serving: DisplayItem | null = rawServing
+        ? toDisplayItem(rawServing)
+        : null;
+      let waiting: DisplayItem[] = rawWaiting.map(toDisplayItem);
+
+      // STEP 5: Optionally hydrate applicant / business details
+      if (enrichDetails && (serving || waiting.length > 0)) {
+        const allItemsToEnrich = [...(serving ? [serving] : []), ...waiting];
+        
+        // Fetch details for each item from their respective endpoints
+        const enrichedItems = await Promise.all(
+          allItemsToEnrich.map(async (item) => {
+            try {
+              const endpoint = getDocumentConfig(item.documentType).endpoint || 
+                `api/${item.documentType}s`;
+              
+              // Try to fetch the actual document details
+              const docRes = await api.get(`${endpoint}/${item.documentId}`);
+              const doc = docRes.data?.data;
+              
+              if (doc) {
+                return {
+                  ...item,
+                  firstName: doc.first_name,
+                  middleName: doc.middle_name,
+                  surname: doc.surname,
+                  businessName: doc.business_name ?? doc.establishment ?? null,
+                  businessType: doc.business_type ?? null,
+                  establishment: doc.establishment ?? null,
+                  releasedDate: doc.released_at || doc.updated_at 
+                    ? formatDate(doc.released_at || doc.updated_at) 
+                    : undefined,
+                };
+              }
+            } catch (err) {
+              console.warn(`Could not fetch details for ${item.documentType} #${item.documentId}`);
+            }
+            return item;
+          })
+        );
+        
+        if (serving) {
+          serving = enrichedItems[0] ?? null;
+          waiting = enrichedItems.slice(1);
+        } else {
+          waiting = enrichedItems;
+        }
       }
 
-      setQueueItems(merged);
-    } catch {
-      /* keep last state */
+      // STEP 6: Flash animation when "now serving" changes
+      const newRef = serving?.refNumber ?? null;
+      if (newRef !== prevRefRef.current) {
+        setFlash(true);
+        setTimeout(() => setFlash(false), 500);
+        prevRefRef.current = newRef;
+      }
+
+      setNowServing(serving);
+      setUpNext(waiting);
+      setTodayDate(today);
+      
+      console.log(`[QueueDisplay] Loaded ${items.length} items for ${today}`);
+    } catch (e) {
+      console.error("[QueueDisplay] load error", e);
     }
-  }, []);
+  }, [enrichDetails]);
 
   useEffect(() => {
     load();
@@ -306,14 +408,16 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
     return () => clearInterval(id);
   }, [load, pollInterval]);
 
-  const activeItems = queueItems.filter((item) => isActiveStatus(item.status));
-  const nowServing = activeItems[0] ?? null;
-  const totalWaiting = activeItems.length;
+  // ── Derived ───────────────────────────────────────────────────────────────
+
+  const totalInQueue = allItems.length;
 
   const breakdown: Record<string, number> = {};
-  for (const item of activeItems) {
-    breakdown[item._serviceType] = (breakdown[item._serviceType] ?? 0) + 1;
+  for (const item of allItems) {
+    breakdown[item.serviceLabel] = (breakdown[item.serviceLabel] ?? 0) + 1;
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -357,7 +461,7 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
               color: "var(--color-text-secondary)",
             }}
           >
-            Queue Display · Live
+            Dry Seal Release · Live
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -387,7 +491,8 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
       <div
         style={{
           background: "var(--color-background-primary,#fff)",
-          border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+          border:
+            "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
           borderRadius: 16,
           padding: "52px 32px 48px",
           textAlign: "center",
@@ -419,7 +524,7 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
             transform: flash ? "scale(0.97)" : "scale(1)",
           }}
         >
-          {nowServing?._refNumber ?? "---"}
+          {nowServing?.refNumber ?? "---"}
         </div>
 
         {nowServing ? (
@@ -430,6 +535,7 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
                 gap: 10,
                 justifyContent: "center",
                 flexWrap: "wrap",
+                marginBottom: 10,
               }}
             >
               <span
@@ -438,28 +544,56 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
                   borderRadius: 99,
                   fontSize: 14,
                   fontWeight: 500,
-                  background: nowServing._serviceBg,
-                  color: nowServing._serviceColor,
+                  background: nowServing.serviceBg,
+                  color: nowServing.serviceColor,
                 }}
               >
-                {nowServing._serviceType}
+                {nowServing.serviceLabel}
               </span>
-              {nowServing.schedule_time && (
-                <span
-                  style={{
-                    padding: "6px 20px",
-                    borderRadius: 99,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    background: "#F1EFE8",
-                    color: "#5F5E5A",
-                  }}
-                >
-                  🕐 {fmtTime(nowServing.schedule_time)}
-                </span>
-              )}
-              <StatusBadge status={nowServing.status} />
+              <ReleasedBadge />
             </div>
+            {(nowServing.firstName || nowServing.surname) && (
+              <div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>
+                {getDisplayName(nowServing)}
+              </div>
+            )}
+            {getServiceSubLabel(nowServing) && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--color-text-secondary)",
+                  marginTop: 4,
+                }}
+              >
+                {getServiceSubLabel(nowServing)}
+                {nowServing.businessType
+                  ? ` · ${nowServing.businessType}`
+                  : ""}
+              </div>
+            )}
+            {nowServing.queueDate && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#3B6D11",
+                  marginTop: 6,
+                  fontWeight: 500,
+                }}
+              >
+                📅 Queued: {formatQueueDate(nowServing.queueDate)}
+              </div>
+            )}
+            {nowServing.releasedDate && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-text-tertiary)",
+                  marginTop: 2,
+                }}
+              >
+                ✓ Released: {nowServing.releasedDate}
+              </div>
+            )}
           </div>
         ) : (
           <div
@@ -469,66 +603,71 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
               color: "var(--color-text-tertiary)",
             }}
           >
-            Waiting for next ticket…
+            No documents currently being served
           </div>
         )}
       </div>
 
-      {/* ── Service type summary ── */}
+      {/* ── Per-service breakdown strip ── */}
       {Object.keys(breakdown).length > 0 && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {SERVICE_CONFIG.filter((cfg) => breakdown[cfg.label]).map(
-            (cfg) => (
-              <div
-                key={cfg.label}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  background: "var(--color-background-primary,#fff)",
-                  border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <span
+          {Object.entries(DOCUMENT_TYPE_CONFIG).map(([type, cfg]) => {
+            if (breakdown[cfg.label]) {
+              return (
+                <div
+                  key={type}
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: cfg.color,
-                    display: "inline-block",
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ color: "var(--color-text-secondary)" }}>
-                  {cfg.label}
-                </span>
-                <span
-                  style={{
-                    padding: "1px 8px",
-                    borderRadius: 99,
-                    fontSize: 12,
-                    background: cfg.bg,
-                    color: cfg.color,
-                    fontWeight: 600,
+                    padding: "8px 16px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    background: "var(--color-background-primary,#fff)",
+                    border:
+                      "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  {breakdown[cfg.label]}
-                </span>
-              </div>
-            ),
-          )}
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: cfg.color,
+                      display: "inline-block",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ color: "var(--color-text-secondary)" }}>
+                    {cfg.label}
+                  </span>
+                  <span
+                    style={{
+                      padding: "1px 8px",
+                      borderRadius: 99,
+                      fontSize: 12,
+                      background: cfg.bg,
+                      color: cfg.color,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {breakdown[cfg.label]}
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          })}
         </div>
       )}
 
-      {/* ── Scheduled Queue ── */}
+      {/* ── Queue grid ── */}
       <div
         style={{
           background: "var(--color-background-primary,#fff)",
-          border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
+          border:
+            "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
           borderRadius: 16,
           padding: 20,
         }}
@@ -545,7 +684,7 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 500 }}>
-            Today's Schedule
+            Awaiting Dry Seal ({todayDate})
           </span>
           <span
             style={{
@@ -554,20 +693,20 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
               fontSize: 12,
               fontWeight: 500,
               background:
-                totalWaiting > 0
-                  ? "#E6F1FB"
+                totalInQueue > 0
+                  ? "#EAF3DE"
                   : "var(--color-background-secondary,#f5f5f3)",
               color:
-                totalWaiting > 0
-                  ? "#0C447C"
+                totalInQueue > 0
+                  ? "#27500A"
                   : "var(--color-text-tertiary)",
             }}
           >
-            {totalWaiting} in queue
+            {totalInQueue} in queue
           </span>
         </div>
 
-        {queueItems.length === 0 ? (
+        {allItems.length === 0 ? (
           <div
             style={{
               textAlign: "center",
@@ -576,21 +715,22 @@ export function QueueDisplay({ pollInterval = POLL_MS }: QueueDisplayProps) {
               color: "var(--color-text-tertiary)",
             }}
           >
-            No scheduled appointments for today
+            No documents awaiting dry seal for today
           </div>
         ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 10,
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 12,
             }}
           >
-            {queueItems.map((item, i) => (
-              <ScheduleCard
-                key={`${item._serviceType}-${item.id}`}
+            {allItems.map((item, i) => (
+              <ReleaseCard
+                key={item.queueId}
                 item={item}
                 position={i + 1}
+                isServing={item.queueStatus === "serving"}
               />
             ))}
           </div>
