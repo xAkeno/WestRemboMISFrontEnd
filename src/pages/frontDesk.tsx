@@ -73,7 +73,11 @@ const getAutoTimeGroup = (): "morning" | "afternoon" => {
 };
 
 const getTodayDateString = (): string => {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const tzOffsetMinutes = now.getTimezoneOffset();
+  const tzOffsetMilliseconds = tzOffsetMinutes * 60000;
+  const localDate = new Date(now.valueOf() - tzOffsetMilliseconds);
+  return localDate.toISOString().split("T")[0];
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
