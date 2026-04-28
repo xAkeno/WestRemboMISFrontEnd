@@ -247,7 +247,6 @@ const allMenuItems = [
   { title: "Contact",           path: "/contact-admin",     icon: Phone,        permission: "settings" },
   { title: "Events Calendar",   path: "/events-calendar",   icon: CalendarCog,  permission: "settings" },
   { title: "Document Settings", path: "/document-setting",  icon: FileCheck,    permission: "settings" },
-  { title: "Pricing",           path: "/pricing",           icon: LayoutList,   permission: "settings" },
   { title: "Contact Cms",       path: "/contactCms",        icon: NotebookTabs, permission: "settings" },
   { title: "Service Cms",       path: "/serviceCms",        icon: NotebookTabs, permission: "settings" },
   { title: "Reports",           path: "/reports",           icon: BarChart3,    permission: "reports" },

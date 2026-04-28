@@ -29,14 +29,12 @@ const serviceColors: Record<string, string> = {
   "Business Clearance":    "#22c55e",
   "Building Clearance":    "#ef4444",
   "Barangay Certificate":  "#10b981",
-  "Resident Registration": "#f97316",
 };
 
 const serviceChartColors: Record<string, string> = {
   Business:    serviceColors["Business Clearance"],
   Building:    serviceColors["Building Clearance"],
   Barangay:    serviceColors["Barangay Clearance"],
-  Resident:    serviceColors["Resident Registration"],
   Certificate: serviceColors["Barangay Certificate"],
 };
 
@@ -140,14 +138,12 @@ const Dashboard = () => {
       const businessData    = data.business_clearances?.data   || [];
       const buildingData    = data.building_clearances?.data   || [];
       const barangayData    = data.barangay_clearances?.data   || [];
-      const residentData    = data.residents?.data             || [];
       const certificateData = data.barangay_certificates?.data || [];
 
       const periods = Array.from(new Set([
         ...businessData.map((d: any)    => d.period),
         ...buildingData.map((d: any)    => d.period),
         ...barangayData.map((d: any)    => d.period),
-        ...residentData.map((d: any)    => d.period),
         ...certificateData.map((d: any) => d.period),
       ])).sort() as string[];
 
@@ -156,7 +152,6 @@ const Dashboard = () => {
         Business:    businessData.find((d: any)    => d.period === period)?.count || 0,
         Building:    buildingData.find((d: any)    => d.period === period)?.count || 0,
         Barangay:    barangayData.find((d: any)    => d.period === period)?.count || 0,
-        Resident:    residentData.find((d: any)    => d.period === period)?.count || 0,
         Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
       })));
 
@@ -184,7 +179,6 @@ const Dashboard = () => {
       (data.business_clearances_list   ?? []).forEach((r: any) => push(r, "Business Clearance",    r.brgy_business_no));
       (data.building_clearances_list   ?? []).forEach((r: any) => push(r, "Building Clearance",    r.bcert_number));
       (data.barangay_certificates_list ?? []).forEach((r: any) => push(r, "Barangay Certificate",  r.bcert_number));
-      (data.residents_list             ?? []).forEach((r: any) => push(r, "Resident Registration", r.resident_no ?? `RES-${r.id}`));
 
       // ── Sort: Morning (slot 0) first, then Afternoon (slot 1), then Unknown.
       //          Within each slot, sort by schedule_time ascending.
@@ -358,7 +352,7 @@ const Dashboard = () => {
                           .replace("Business Clearance",    "Business")
                           .replace("Building Clearance",    "Building")
                           .replace("Barangay Certificate",  "Certificate")
-                          .replace("Resident Registration", "Resident")}
+                          }
                   </Button>
                 ))}
               </div>
@@ -525,7 +519,6 @@ const Dashboard = () => {
                   <Line type="monotone" dataKey="Business"    stroke={serviceChartColors.Business}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Building"    stroke={serviceChartColors.Building}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Barangay"    stroke={serviceChartColors.Barangay}    strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="Resident"    stroke={serviceChartColors.Resident}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Certificate" stroke={serviceChartColors.Certificate} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>

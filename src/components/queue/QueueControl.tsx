@@ -1,147 +1,185 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface Serviceable {
+export interface ServiceItem {
   id: number;
-  service_type: string;
+  bcert_number?: string;
+  brgy_business_no?: string;
   first_name: string;
-  last_name: string;
-  middle_name?: string;
+  middle_name?: string | null;
+  surname: string;
+  status: string;
+  schedule_date?: string | null;
+  schedule_time?: string | null;
+  street?: string | null;
+  zone?: string | null;
+  pob?: string | null;
+  contact_no?: string | null;
+  dob?: string | null;
+  business_name?: string | null;
+  business_type?: string | null;
+  establishment?: string | null;
+  // Injected fields
+  _serviceType: string;
+  _serviceColor: string;
+  _serviceBg: string;
+  _refNumber: string;
+}
+
+interface RawItem {
+  id: number;
+  bcert_number?: string;
+  brgy_business_no?: string;
+  first_name: string;
+  middle_name?: string | null;
+  surname: string;
+  status: string;
+  schedule_date?: string | null;
+  schedule_time?: string | null;
   [key: string]: unknown;
 }
 
-export interface Ticket {
+export interface NowServing {
   id: number;
   ticket_number: string;
   service_type: string;
   status: string;
-  priority: string;
-  position?: number;
-  submitted_at: string;
-  created_at: string;
-  updated_at: string;
-  approved_at: string | null;
-  rejected_at: string | null;
-  released_at: string | null;
-  in_progress_at: string | null;
-  processed_by: string | null;
-  requester_id: number | null;
-  serviceable: Serviceable | null;
+  scheduled_time?: string | null;
+  priority?: string;
   missed_attempts?: number;
+  schedule_id?: number;
+}
+
+interface DashboardData {
+  now_serving: NowServing | null;
+  barangay_clearances_list: RawItem[];
+  barangay_certificates_list: RawItem[];
+  building_clearances_list: RawItem[];
+  business_clearances_list: RawItem[];
+  total_released_today: number;
+  pending_counts: Record<string, number>;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const POLL_MS   = 10_000;
-const MAX_MISSED = 3;
+const POLL_MS = 10_000;
 
-// ─── Normalize ────────────────────────────────────────────────────────────────
+const SERVICE_CONFIG = [
+  { key: "barangay_clearances_list",   label: "Barangay Clearance",   color: "#0C447C", bg: "#E6F1FB" },
+  { key: "barangay_certificates_list", label: "Barangay Certificate",  color: "#085041", bg: "#E1F5EE" },
+  { key: "building_clearances_list",   label: "Building Clearance",   color: "#633806", bg: "#FAEEDA" },
+  { key: "business_clearances_list",   label: "Business Clearance",   color: "#712B13", bg: "#FAECE7" },
+] as const;
 
-const normalizeStatus = (s: string) => s.toLowerCase().replace(/\s+/g, "_");
+// Backend sends UPPERCASE statuses — always normalize before comparing
+const normalizeStatus = (s: string) => s.toLowerCase().replace(/[\s-]+/g, "_");
 
-// ─── Style maps ───────────────────────────────────────────────────────────────
+// Active = still needs to be served
+const ACTIVE_NS = new Set(["pending", "waiting", "for_release", "processing", "approved", "rescheduled"]);
+const DONE_NS   = new Set(["released", "completed", "rejected", "no_show", "cancelled"]);
+
+const isActiveStatus = (s: string) => ACTIVE_NS.has(normalizeStatus(s));
+const isDoneStatus   = (s: string) => DONE_NS.has(normalizeStatus(s));
+
+// ─── Status style map ─────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   waiting:     { bg: "#E6F1FB", color: "#0C447C" },
   pending:     { bg: "#FAEEDA", color: "#633806" },
   processing:  { bg: "#FAEEDA", color: "#633806" },
-  completed:   { bg: "#EAF3DE", color: "#27500A" },
-  released:    { bg: "#EAF3DE", color: "#085041" },
+  for_release: { bg: "#E1F5EE", color: "#085041" },
+  released:    { bg: "#EAF3DE", color: "#27500A" },
   approved:    { bg: "#E1F5EE", color: "#085041" },
   rejected:    { bg: "#FCEBEB", color: "#791F1F" },
   no_show:     { bg: "#FCEBEB", color: "#791F1F" },
-  in_progress: { bg: "#FBEAF0", color: "#72243E" },
-  late:        { bg: "#FCEBEB", color: "#501313" },
+  rescheduled: { bg: "#FAEEDA", color: "#633806" },
+  cancelled:   { bg: "#FCEBEB", color: "#791F1F" },
 };
 
-const PRIORITY_STYLE: Record<string, { bg: string; color: string }> = {
-  normal:   { bg: "#F1EFE8", color: "#5F5E5A" },
-  priority: { bg: "#FBEAF0", color: "#72243E" },
-  senior:   { bg: "#E1F5EE", color: "#085041" },
-  pwd:      { bg: "#FAECE7", color: "#712B13" },
-};
-
-const statusStyle   = (s: string) => STATUS_STYLE[normalizeStatus(s)]   ?? { bg: "#F1EFE8", color: "#5F5E5A" };
-const priorityStyle = (p: string) => PRIORITY_STYLE[p.toLowerCase()]    ?? { bg: "#F1EFE8", color: "#5F5E5A" };
-
-// ─── Requester type ───────────────────────────────────────────────────────────
-
-const getRequesterType = (t: Ticket): { label: string; bg: string; color: string } => {
-  if (t.serviceable !== null && t.requester_id === null)
-    return { label: "Walk-in", bg: "#E1F5EE", color: "#085041" };
-  if (t.requester_id !== null && t.serviceable === null)
-    return { label: "Online", bg: "#E6F1FB", color: "#0C447C" };
-  return { label: "Unknown", bg: "#F1EFE8", color: "#5F5E5A" };
-};
+const statusStyle = (s: string) =>
+  STATUS_STYLE[normalizeStatus(s)] ?? { bg: "#F1EFE8", color: "#5F5E5A" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmtDate = (iso: string | null) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-PH", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+/** "HH:MM:SS" or "HH:MM" → "9:30 AM" */
+const fmtTime = (t: string | null | undefined): string => {
+  if (!t) return "—";
+  const parts = t.split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] ?? "0", 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
 };
 
-const fmtTime = (iso: string | null) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
-};
+const getRefNumber = (item: RawItem): string =>
+  item.bcert_number ?? item.brgy_business_no ?? `#${item.id}`;
 
-const getApplicantName = (t: Ticket) => {
-  if (t.serviceable) {
-    const { first_name, middle_name, last_name } = t.serviceable;
-    return [first_name, middle_name, last_name].filter(Boolean).join(" ");
-  }
-  return "—";
-};
+const getFullName = (item: RawItem | ServiceItem): string =>
+  [item.first_name, (item as any).middle_name, item.surname].filter(Boolean).join(" ");
 
-const DONE_STATUSES   = ["released", "completed", "rejected", "no_show"];
-const ACTIVE_STATUSES = ["pending", "waiting", "called", "processing", "in_progress", "late"];
+// ─── Build merged queue ───────────────────────────────────────────────────────
 
-const isDone       = (t: Ticket) => DONE_STATUSES.includes(normalizeStatus(t.status));
-const isActive     = (t: Ticket) => ACTIVE_STATUSES.includes(normalizeStatus(t.status));
-const isLate       = (t: Ticket) => normalizeStatus(t.status) === "late";
-const isProcessing = (t: Ticket) =>
-  ["called", "processing", "in_progress"].includes(normalizeStatus(t.status));
+function buildQueue(data: DashboardData): ServiceItem[] {
+  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const result: ServiceItem[] = [];
 
-// ─── Sort queue ───────────────────────────────────────────────────────────────
-
-const getSortedQueueWithDisplayStatus = (tickets: Ticket[]) => {
-  const queueTickets = tickets.filter(t => !isDone(t));
-  const sorted = [...queueTickets].sort((a, b) => {
-    const aLate = isLate(a) ? 1 : 0;
-    const bLate = isLate(b) ? 1 : 0;
-    if (aLate !== bLate) return aLate - bLate;
-    const ap = isProcessing(a) ? 0 : 1;
-    const bp = isProcessing(b) ? 0 : 1;
-    if (ap !== bp) return ap - bp;
-    const aPos = a.position ?? 999999;
-    const bPos = b.position ?? 999999;
-    return aPos - bPos;
-  });
-  let pendingAssigned = false;
-  return sorted.map((t) => {
-    if (isLate(t))       return { ...t, _displayStatus: "Late" };
-    if (isProcessing(t)) return { ...t, _displayStatus: t.status };
-    if (!pendingAssigned) {
-      pendingAssigned = true;
-      return { ...t, _displayStatus: "Pending" };
+  for (const cfg of SERVICE_CONFIG) {
+    const list: RawItem[] = (data as any)[cfg.key] ?? [];
+    for (const item of list) {
+      // Keep items scheduled today (backend may already filter, but be safe)
+      if (item.schedule_date && item.schedule_date !== today) continue;
+      result.push({
+        ...(item as any),
+        _serviceType:  cfg.label,
+        _serviceColor: cfg.color,
+        _serviceBg:    cfg.bg,
+        _refNumber:    getRefNumber(item),
+      });
     }
-    return { ...t, _displayStatus: "Waiting" };
+  }
+
+  // Active first, then by schedule_time asc
+  result.sort((a, b) => {
+    const aDone = isDoneStatus(a.status) ? 1 : 0;
+    const bDone = isDoneStatus(b.status) ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return (a.schedule_time ?? "99:99").localeCompare(b.schedule_time ?? "99:99");
   });
-};
+
+  return result;
+}
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
-const getQueue      = async () => { const res = await api.get("api/tickets/pending", { params: { per_page: 50 } }); return res.data; };
-const patchStatus   = async (id: number, status: string) => { const res = await api.patch(`api/tickets/${id}/status`, { status }); return res.data; };
-const postMoveBack  = async (id: number) => { const res = await api.post(`api/tickets/${id}/move-back`); return res.data; };
-const postCallNext  = async () => { const res = await api.post(`api/tickets/call-next`); return res.data; };
-const postRequeue   = async (id: number) => { const res = await api.post(`api/tickets/${id}/requeue-late`); return res.data; };
+const getDashboard = async (): Promise<DashboardData> => {
+  const res = await api.get("api/dashboard");
+  // Response shape: { data: { barangay_clearances_list: [...], now_serving: {...}, ... } }
+  const raw = res.data?.data ?? res.data ?? {};
+  return {
+    now_serving:                raw.now_serving                ?? null,
+    barangay_clearances_list:   Array.isArray(raw.barangay_clearances_list)   ? raw.barangay_clearances_list   : [],
+    barangay_certificates_list: Array.isArray(raw.barangay_certificates_list) ? raw.barangay_certificates_list : [],
+    building_clearances_list:   Array.isArray(raw.building_clearances_list)   ? raw.building_clearances_list   : [],
+    business_clearances_list:   Array.isArray(raw.business_clearances_list)   ? raw.business_clearances_list   : [],
+    total_released_today:       raw.total_released_today ?? 0,
+    pending_counts:             raw.pending_counts        ?? {},
+  };
+};
+
+const postCallNext = async () => (await api.post("api/tickets/call-next")).data;
+
+const patchServiceStatus = async (item: ServiceItem, newStatus: string) => {
+  const endpointMap: Record<string, string> = {
+    "Barangay Clearance":  `api/barangay-clearances/${item.id}/status`,
+    "Barangay Certificate":`api/barangay-certificates/${item.id}/status`,
+    "Building Clearance":  `api/building-clearances/${item.id}/status`,
+    "Business Clearance":  `api/business-clearances/${item.id}/status`,
+  };
+  const url = endpointMap[item._serviceType] ?? `api/services/${item.id}/status`;
+  return (await api.patch(url, { status: newStatus })).data;
+};
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
@@ -162,7 +200,7 @@ const metaRow: React.CSSProperties = {
   borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.07))",
 };
 
-// ─── Pill ─────────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Pill({ label, style }: { label: string; style: { bg: string; color: string } }) {
   return (
@@ -174,8 +212,6 @@ function Pill({ label, style }: { label: string; style: { bg: string; color: str
     </span>
   );
 }
-
-// ─── Action button ────────────────────────────────────────────────────────────
 
 function ActionBtn({ label, onClick, disabled, variant }: {
   label: string; onClick: () => void; disabled?: boolean;
@@ -204,8 +240,6 @@ function ActionBtn({ label, onClick, disabled, variant }: {
   );
 }
 
-// ─── Icon button ──────────────────────────────────────────────────────────────
-
 function IconBtn({ label, title, onClick, color }: {
   label: string; title: string; onClick: () => void; color?: string;
 }) {
@@ -222,90 +256,49 @@ function IconBtn({ label, title, onClick, color }: {
   );
 }
 
-// ─── Late Banner ──────────────────────────────────────────────────────────────
+// ─── Item Detail Panel ────────────────────────────────────────────────────────
 
-function LateBanner({ ticket, onRequeue, busy }: {
-  ticket: Ticket; onRequeue: (t: Ticket) => void; busy: string | null;
-}) {
-  return (
-    <div style={{
-      background: "#FCEBEB",
-      border: "0.5px solid #A32D2D",
-      borderRadius: 10, padding: "12px 16px", marginBottom: 8,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#791F1F" }}>
-            {ticket.ticket_number} — Late
-          </div>
-          <div style={{ fontSize: 12, color: "#A32D2D", marginTop: 2 }}>
-            {getApplicantName(ticket)} · {ticket.missed_attempts}× missed
-          </div>
-        </div>
-        <button
-          disabled={!!busy}
-          onClick={() => onRequeue(ticket)}
-          style={{
-            padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
-            cursor: busy ? "not-allowed" : "pointer",
-            opacity: busy ? 0.5 : 1,
-            background: "#534AB7", color: "#EEEDFE",
-            border: "0.5px solid #534AB7", whiteSpace: "nowrap",
-          }}
-        >
-          ↺ Re-admit
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Ticket Detail ────────────────────────────────────────────────────────────
-
-function TicketDetail({ ticket, onClose, onAct, onRequeue, busy }: {
-  ticket: Ticket & { _displayStatus?: string };
+function ItemDetail({ item, onClose, onAct, busy }: {
+  item: ServiceItem;
   onClose: () => void;
-  onAct: (t: Ticket, action: string) => void;
-  onRequeue: (t: Ticket) => void;
+  onAct: (item: ServiceItem, action: string) => void;
   busy: string | null;
 }) {
-  const ns            = normalizeStatus(ticket.status);
-  const rt            = getRequesterType(ticket);
-  const displayStatus = (ticket as any)._displayStatus ?? ticket.status;
-  const ticketIsLate  = ns === "late";
+  const active = isActiveStatus(item.status);
 
   return (
     <div style={{ ...cardStyle, border: "0.5px solid #378ADD" }}>
       <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>{ticket.ticket_number}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>{item._refNumber}</div>
           <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            <Pill label={displayStatus}   style={statusStyle(displayStatus)} />
-            <Pill label={ticket.priority} style={priorityStyle(ticket.priority)} />
-            <Pill label={rt.label}        style={{ bg: rt.bg, color: rt.color }} />
+            <Pill label={item.status} style={statusStyle(item.status)} />
+            <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
           </div>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-tertiary)", padding: 4 }}>✕</button>
+        <button onClick={onClose} style={{
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: 18, color: "var(--color-text-tertiary)", padding: 4,
+        }}>✕</button>
       </div>
 
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Applicant</div>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>{getApplicantName(ticket)}</div>
-        {ticket.serviceable && <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{ticket.serviceable.service_type}</div>}
+        <div style={{ fontSize: 15, fontWeight: 600 }}>{getFullName(item)}</div>
+        {item.contact_no && (
+          <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{item.contact_no}</div>
+        )}
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Timeline</div>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Schedule</div>
         {[
-          { label: "Submitted",   value: fmtDate(ticket.submitted_at) },
-          { label: "In Progress", value: fmtDate(ticket.in_progress_at) },
-          { label: "Approved",    value: fmtDate(ticket.approved_at) },
-          { label: "Released",    value: fmtDate(ticket.released_at) },
-          { label: "Rejected",    value: fmtDate(ticket.rejected_at) },
+          { label: "Date", value: item.schedule_date ?? "—" },
+          { label: "Time", value: fmtTime(item.schedule_time) },
         ].map(row => (
           <div key={row.label} style={metaRow}>
             <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
-            <span style={{ fontWeight: row.value !== "—" ? 500 : 400, color: row.value !== "—" ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{row.value}</span>
+            <span style={{ fontWeight: 500 }}>{row.value}</span>
           </div>
         ))}
       </div>
@@ -313,42 +306,25 @@ function TicketDetail({ ticket, onClose, onAct, onRequeue, busy }: {
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Details</div>
         {[
-          { label: "Type",         value: rt.label },
-          { label: "Service Type", value: ticket.service_type },
-          { label: "Processed By", value: ticket.processed_by ?? "—" },
-          { label: "Last Updated", value: fmtDate(ticket.updated_at) },
-        ].map(row => (
+          { label: "Service",       value: item._serviceType },
+          { label: "Address",       value: [item.street, item.zone].filter(Boolean).join(", ") || null },
+          { label: "Business",      value: item.business_name ?? item.establishment ?? null },
+          { label: "Business Type", value: item.business_type ?? null },
+        ].filter(r => r.value).map(row => (
           <div key={row.label} style={metaRow}>
             <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
-            <span style={{ fontWeight: 500 }}>{String(row.value)}</span>
+            <span style={{ fontWeight: 500 }}>{row.value}</span>
           </div>
         ))}
-        {(ticket.missed_attempts ?? 0) > 0 && (
-          <div style={metaRow}>
-            <span style={{ color: "#A32D2D" }}>Missed Attempts</span>
-            <span style={{ fontWeight: 600, color: "#A32D2D" }}>{ticket.missed_attempts}×</span>
-          </div>
-        )}
       </div>
 
-      {/* Late ticket — show re-admit button */}
-      {ticketIsLate && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 12, color: "#A32D2D", marginBottom: 8, padding: "8px 12px", background: "#FCEBEB", borderRadius: 8, border: "0.5px solid #F09595" }}>
-            This ticket was marked late after {ticket.missed_attempts} missed calls. Re-admit if the applicant has arrived.
-          </div>
-          <ActionBtn label="↺ Re-admit to Queue" variant="info" disabled={!!busy} onClick={() => onRequeue(ticket)} />
-        </div>
-      )}
-
-      {/* Active (non-late) ticket actions */}
-      {(isProcessing(ticket) || ns === "waiting" || ns === "pending") && (
+      {active && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <ActionBtn label="✓ Complete" variant="success" disabled={!!busy} onClick={() => onAct(ticket, "completed")} />
-            <ActionBtn label="✕ No Show"  variant="danger"  disabled={!!busy} onClick={() => onAct(ticket, "no_show")} />
+            <ActionBtn label="✓ Complete" variant="success" disabled={!!busy} onClick={() => onAct(item, "completed")} />
+            <ActionBtn label="✕ No Show"  variant="danger"  disabled={!!busy} onClick={() => onAct(item, "no_show")} />
           </div>
-          <ActionBtn label="↩ Move to Back (missed)" variant="warning" disabled={!!busy} onClick={() => onAct(ticket, "move_back")} />
+          <ActionBtn label="↩ Move to Back" variant="warning" disabled={!!busy} onClick={() => onAct(item, "move_back")} />
         </div>
       )}
     </div>
@@ -358,27 +334,56 @@ function TicketDetail({ ticket, onClose, onAct, onRequeue, busy }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function QueueControl() {
-  const [tickets,  setTickets]  = useState<Ticket[]>([]);
-  const [busy,     setBusy]     = useState<string | null>(null);
-  const [filter,   setFilter]   = useState("all");
-  const [search,   setSearch]   = useState("");
-  const [selected, setSelected] = useState<Ticket | null>(null);
-  const [log,      setLog]      = useState<{ msg: string; type: string; time: string }[]>([]);
-  const [toast,    setToast]    = useState<{ msg: string; ok: boolean } | null>(null);
-  const [calling,  setCalling]  = useState(false);
+  const [allItems,      setAllItems]      = useState<ServiceItem[]>([]);
+  const [nowServing,    setNowServing]    = useState<NowServing | null>(null);
+  const [releasedToday, setReleasedToday] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+  const [busy,          setBusy]          = useState<string | null>(null);
+  const [filter,        setFilter]        = useState("all");
+  const [search,        setSearch]        = useState("");
+  const [selected,      setSelected]      = useState<ServiceItem | null>(null);
+  const [log,           setLog]           = useState<{ msg: string; type: string; time: string }[]>([]);
+  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
+  const [calling,       setCalling]       = useState(false);
 
-  const sortedQueueWithDisplay = getSortedQueueWithDisplayStatus(tickets);
-  const activeQueue            = sortedQueueWithDisplay.filter(t => !isLate(t));
-  const lateTickets            = sortedQueueWithDisplay.filter(t => isLate(t));
-  const calledTicket           = activeQueue[0] ?? null;
-  const waitingCount           = activeQueue.filter(t => (t as any)._displayStatus === "Waiting").length;
-  const processingCount        = activeQueue.filter(t => isProcessing(t)).length;
-  const doneCount              = tickets.filter(t => isDone(t)).length;
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const activeItems = allItems.filter(t => isActiveStatus(t.status));
+
+  // Match serving item from active list — fall back to first active
+  const servingItem: ServiceItem | null = (() => {
+    if (!nowServing) return null;
+    const byRef = activeItems.find(t =>
+      t._refNumber === nowServing.ticket_number ||
+      t.bcert_number === nowServing.ticket_number ||
+      t.brgy_business_no === nowServing.ticket_number
+    );
+    return byRef ?? activeItems[0] ?? null;
+  })();
+
+  const upNext = activeItems.filter(t =>
+    !(t.id === servingItem?.id && t._serviceType === servingItem?._serviceType)
+  );
 
   const breakdown: Record<string, number> = {};
-  activeQueue.forEach(t => { breakdown[t.service_type] = (breakdown[t.service_type] ?? 0) + 1; });
+  activeItems.forEach(t => { breakdown[t._serviceType] = (breakdown[t._serviceType] ?? 0) + 1; });
   const bTotal = Math.max(Object.values(breakdown).reduce((a, b) => a + b, 0), 1);
 
+  const allStatuses = Array.from(new Set(allItems.map(t => normalizeStatus(t.status))));
+
+  const filtered = allItems.filter(t => {
+    const ns = normalizeStatus(t.status);
+    const mf = filter === "all" || ns === filter;
+    const q  = search.toLowerCase();
+    const ms = !search
+      || t._refNumber.toLowerCase().includes(q)
+      || t._serviceType.toLowerCase().includes(q)
+      || getFullName(t).toLowerCase().includes(q)
+      || (t.business_name ?? "").toLowerCase().includes(q)
+      || (t.establishment ?? "").toLowerCase().includes(q);
+    return mf && ms;
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const addLog = useCallback((msg: string, type = "info") => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setLog(prev => [{ msg, type, time }, ...prev].slice(0, 60));
@@ -389,11 +394,17 @@ export function QueueControl() {
     setTimeout(() => setToast(null), 2600);
   }, []);
 
+  // ── Load ───────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
-      const res = await getQueue();
-      setTickets(res.data ?? res);
-    } catch { /* keep last state */ }
+      const data = await getDashboard();
+      setNowServing(data.now_serving);
+      setReleasedToday(data.total_released_today);
+      setPendingCounts(data.pending_counts);
+      setAllItems(buildQueue(data));
+    } catch (e) {
+      console.error("Dashboard load failed", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -403,99 +414,59 @@ export function QueueControl() {
     return () => clearInterval(id);
   }, [load, addLog]);
 
+  // Keep selected fresh
   useEffect(() => {
     if (selected) {
-      const fresh = tickets.find(t => t.id === selected.id);
+      const fresh = allItems.find(t => t.id === selected.id && t._serviceType === selected._serviceType);
       if (fresh) setSelected(fresh);
     }
-  }, [tickets]);
+  }, [allItems]);
 
-  // ── Auto-call next when nothing is being served and queue has pending ─────
-  const autoCallFired = useRef<boolean>(false);
-
-  useEffect(() => {
-    if (calledTicket) {
-      autoCallFired.current = false;
-      return;
-    }
-
-    const hasPending = activeQueue.some(t => {
-      const ns = normalizeStatus(t.status);
-      return ns === "pending" || ns === "waiting";
-    });
-
-    if (!hasPending || autoCallFired.current) return;
-
-    autoCallFired.current = true;
-    addLog("No active ticket — auto-calling next", "info");
-
-    postCallNext()
-      .then(load)
-      .catch(() => {
-        autoCallFired.current = false;
-        addLog("Auto-call failed", "error");
-      });
-  }, [calledTicket?.id, activeQueue.length]);
-
-  // ── Act ───────────────────────────────────────────────────────────────────
-  async function act(ticket: Ticket, action: string) {
-    setBusy(ticket.id + action);
-    const labels: Record<string, string> = {
-      completed: "Completed", no_show: "Marked no show",
-      move_back: "Moved to back", released: "Released",
+  // ── Act ────────────────────────────────────────────────────────────────────
+  async function act(item: ServiceItem, action: string) {
+    const key = `${item.id}-${item._serviceType}-${action}`;
+    setBusy(key);
+    const ACTION_LABELS: Record<string, string> = {
+      completed: "Completed", no_show: "Marked No Show",
+      move_back: "Moved to Back", released: "Released",
       approved: "Approved", rejected: "Rejected",
     };
     try {
-      if (action === "move_back") await postMoveBack(ticket.id);
-      else await patchStatus(ticket.id, action);
-
-      const msg = `${ticket.ticket_number} → ${labels[action] ?? action}`;
+      const newStatus = action === "move_back" ? "pending" : action;
+      await patchServiceStatus(item, newStatus);
+      const msg = `${item._refNumber} → ${ACTION_LABELS[action] ?? action}`;
       showToast(msg, true);
       addLog(msg, "success");
       await load();
     } catch {
       showToast("Action failed", false);
-      addLog(`Failed: ${action} on ${ticket.ticket_number}`, "error");
+      addLog(`Failed: ${action} on ${item._refNumber}`, "error");
     } finally {
       setBusy(null);
     }
   }
 
-  // ── Re-admit late ticket ──────────────────────────────────────────────────
-  async function requeue(ticket: Ticket) {
-    setBusy(ticket.id + "requeue");
+  // ── Call Next ──────────────────────────────────────────────────────────────
+  async function handleCallNext() {
+    setCalling(true);
     try {
-      await postRequeue(ticket.id);
-      const msg = `${ticket.ticket_number} → Re-admitted to queue`;
-      showToast(msg, true);
-      addLog(msg, "success");
+      await postCallNext();
+      addLog("Called next", "success");
+      showToast("Next called", true);
       await load();
     } catch {
-      showToast("Re-admit failed", false);
-      addLog(`Failed: requeue on ${ticket.ticket_number}`, "error");
+      showToast("Failed to call next", false);
+      addLog("Failed to call next", "error");
     } finally {
-      setBusy(null);
+      setCalling(false);
     }
   }
-
-  const allDisplayStatuses = Array.from(new Set(
-    sortedQueueWithDisplay.map(t => normalizeStatus((t as any)._displayStatus ?? t.status))
-  ));
-
-  const filtered = sortedQueueWithDisplay.filter(t => {
-    const ds = normalizeStatus((t as any)._displayStatus ?? t.status);
-    const mf = filter === "all" || ds === filter;
-    const ms = !search
-      || t.ticket_number.toLowerCase().includes(search.toLowerCase())
-      || t.service_type.toLowerCase().includes(search.toLowerCase())
-      || getApplicantName(t).toLowerCase().includes(search.toLowerCase());
-    return mf && ms;
-  });
 
   const logColor: Record<string, string> = {
     info: "var(--color-text-secondary)", success: "#3B6D11", error: "#A32D2D", warn: "#854F0B",
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "var(--font-sans,system-ui)", color: "var(--color-text-primary,#111)", position: "relative" }}>
 
@@ -511,12 +482,17 @@ export function QueueControl() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 320px 300px" : "1fr 300px", gap: 16, padding: 16 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: selected ? "1fr 320px 300px" : "1fr 300px",
+        gap: 16, padding: 16,
+      }}>
 
-        {/* ══ LEFT ══ */}
+        {/* ══ LEFT ══════════════════════════════════════════════════════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           <div style={cardStyle}>
+            {/* Title row */}
             <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 17, fontWeight: 500 }}>Queue Admin</span>
@@ -525,117 +501,133 @@ export function QueueControl() {
               <ActionBtn
                 label={calling ? "Calling…" : "▶  Call Next"}
                 variant="primary"
-                disabled={calling || activeQueue.length === 0}
+                disabled={calling || activeItems.length === 0}
                 onClick={handleCallNext}
               />
             </div>
 
             {/* Metrics */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               {[
-                { label: "Waiting",    value: waitingCount },
-                { label: "Processing", value: processingCount },
-                { label: "Done Today", value: doneCount },
-                { label: "Late",       value: lateTickets.length },
+                { label: "Active",     value: activeItems.length },
+                { label: "Done Today", value: releasedToday },
+                { label: "Total",      value: allItems.length },
               ].map(m => (
                 <div key={m.label} style={{
-                  flex: 1,
-                  background: m.label === "Late" && m.value > 0 ? "#FCEBEB" : "var(--color-background-secondary,#f5f5f3)",
-                  borderRadius: 8, padding: "10px 12px",
+                  flex: 1, borderRadius: 8, padding: "10px 12px",
+                  background: "var(--color-background-secondary,#f5f5f3)",
                 }}>
-                  <div style={{ fontSize: 11, color: m.label === "Late" && m.value > 0 ? "#A32D2D" : "var(--color-text-secondary)", marginBottom: 3 }}>{m.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 500, color: m.label === "Late" && m.value > 0 ? "#A32D2D" : "inherit" }}>{m.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginBottom: 3 }}>{m.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 500 }}>{m.value}</div>
                 </div>
               ))}
             </div>
 
-            {/* Now Serving */}
+            {/* Pending counts per service type */}
+            {Object.keys(pendingCounts).filter(k => pendingCounts[k] > 0).length > 0 && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                {Object.entries(pendingCounts)
+                  .filter(([, count]) => count > 0)
+                  .map(([svc, count]) => {
+                    const cfg = SERVICE_CONFIG.find(c => c.label === svc);
+                    return (
+                      <div key={svc} style={{
+                        padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 500,
+                        background: cfg?.bg ?? "#F1EFE8",
+                        color: cfg?.color ?? "#5F5E5A",
+                      }}>
+                        {svc}: <strong>{count}</strong>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Now Serving display */}
             <div style={{
               background: "var(--color-background-secondary,#f5f5f3)",
               border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.18))",
               borderRadius: 10, padding: "20px 16px", textAlign: "center", marginBottom: 14,
             }}>
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-secondary)", marginBottom: 10 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 500, letterSpacing: "0.08em",
+                textTransform: "uppercase", color: "var(--color-text-secondary)", marginBottom: 10,
+              }}>
                 Now Serving
               </div>
               <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1, letterSpacing: -3 }}>
-                {calledTicket?.ticket_number ?? "---"}
+                {nowServing?.ticket_number ?? "---"}
               </div>
-              {calledTicket ? (() => {
-                const rt            = getRequesterType(calledTicket);
-                const displayStatus = (calledTicket as any)._displayStatus ?? calledTicket.status;
-                return (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                      <Pill label={displayStatus}         style={statusStyle(displayStatus)} />
-                      <Pill label={calledTicket.priority} style={priorityStyle(calledTicket.priority)} />
-                      <Pill label={rt.label}              style={{ bg: rt.bg, color: rt.color }} />
-                      {(calledTicket.missed_attempts ?? 0) > 0 && (
-                        <Pill label={`${calledTicket.missed_attempts}× missed`} style={{ bg: "#FCEBEB", color: "#791F1F" }} />
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{getApplicantName(calledTicket)}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>{calledTicket.service_type}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 4 }}>Submitted {fmtTime(calledTicket.submitted_at)}</div>
+              {nowServing ? (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                    <Pill label={nowServing.service_type} style={{ bg: "#E6F1FB", color: "#0C447C" }} />
+                    {nowServing.scheduled_time && (
+                      <Pill label={`🕐 ${fmtTime(nowServing.scheduled_time)}`} style={{ bg: "#F1EFE8", color: "#5F5E5A" }} />
+                    )}
+                    {nowServing.priority && normalizeStatus(nowServing.priority) !== "normal" && (
+                      <Pill label={nowServing.priority} style={{ bg: "#FBEAF0", color: "#72243E" }} />
+                    )}
+                    {(nowServing.missed_attempts ?? 0) > 0 && (
+                      <Pill label={`${nowServing.missed_attempts}× missed`} style={{ bg: "#FCEBEB", color: "#791F1F" }} />
+                    )}
                   </div>
-                );
-              })() : (
-                <div style={{ marginTop: 10, fontSize: 13, color: "var(--color-text-tertiary)" }}>No ticket currently being served</div>
+                  {servingItem && (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{servingItem._refNumber}</div>
+                      <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>{servingItem._serviceType}</div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div style={{ marginTop: 10, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                  No appointment currently being served
+                </div>
               )}
             </div>
 
-            {calledTicket ? (
+            {/* Actions */}
+            {servingItem ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <ActionBtn label="✓  Complete" variant="success" disabled={!!busy} onClick={() => act(calledTicket, "completed")} />
-                  <ActionBtn label="✕  No Show"  variant="danger"  disabled={!!busy} onClick={() => act(calledTicket, "no_show")} />
+                  <ActionBtn label="✓  Complete" variant="success" disabled={!!busy} onClick={() => act(servingItem, "completed")} />
+                  <ActionBtn label="✕  No Show"  variant="danger"  disabled={!!busy} onClick={() => act(servingItem, "no_show")} />
                 </div>
-                <ActionBtn label="↩  Move to Back (missed attempt)" variant="warning" disabled={!!busy} onClick={() => act(calledTicket, "move_back")} />
+                <ActionBtn label="↩  Move to Back (missed attempt)" variant="warning" disabled={!!busy} onClick={() => act(servingItem, "move_back")} />
               </div>
             ) : (
-              <div style={{ textAlign: "center", fontSize: 13, color: "var(--color-text-tertiary)", padding: "10px 0", border: "0.5px dashed var(--color-border-tertiary,rgba(0,0,0,0.12))", borderRadius: 8 }}>
-                No tickets in queue
+              <div style={{
+                textAlign: "center", fontSize: 13, color: "var(--color-text-tertiary)",
+                padding: "10px 0",
+                border: "0.5px dashed var(--color-border-tertiary,rgba(0,0,0,0.12))",
+                borderRadius: 8,
+              }}>
+                No appointments in queue
               </div>
             )}
           </div>
 
-          {/* Late Tickets Section */}
-          {lateTickets.length > 0 && (
-            <div style={{ ...cardStyle, border: "0.5px solid #F09595" }}>
-              <div style={{ ...sectionDivider, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 500, color: "#791F1F" }}>Late Arrivals</span>
-                <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 99, background: "#FCEBEB", color: "#A32D2D", fontWeight: 500 }}>
-                  {lateTickets.length}
-                </span>
-                <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginLeft: 4 }}>
-                  — Re-admit if the applicant has arrived
-                </span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {lateTickets.map(t => (
-                  <LateBanner key={t.id} ticket={t} onRequeue={requeue} busy={busy} />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Queue List */}
           <div style={cardStyle}>
             <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Queue List</span>
+              <span style={{ fontSize: 15, fontWeight: 500 }}>Today's Queue</span>
               <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search ticket, name, type…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search ref, name, service…"
                 style={{
                   padding: "5px 10px", fontSize: 12, width: 180,
                   border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.2))",
-                  borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary)",
+                  borderRadius: 8,
+                  background: "var(--color-background-primary,#fff)",
+                  color: "var(--color-text-primary)",
                 }}
               />
             </div>
 
+            {/* Filter tabs */}
             <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              {["all", ...allDisplayStatuses].map(f => (
+              {["all", ...allStatuses].map(f => (
                 <button key={f} onClick={() => setFilter(f)} style={{
                   padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500, cursor: "pointer",
                   border: `0.5px solid ${filter === f ? "#185FA5" : "rgba(0,0,0,0.14)"}`,
@@ -647,68 +639,65 @@ export function QueueControl() {
               ))}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 420, overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 480, overflowY: "auto" }}>
               {filtered.length === 0 && (
-                <div style={{ textAlign: "center", padding: 32, fontSize: 13, color: "var(--color-text-tertiary)" }}>No tickets found</div>
+                <div style={{ textAlign: "center", padding: 32, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                  No appointments found
+                </div>
               )}
-              {filtered.map((t, i) => {
-                const isSelected         = selected?.id === t.id;
-                const rt                 = getRequesterType(t);
-                const displayStatus      = (t as any)._displayStatus ?? t.status;
-                const isCurrentlyServing = calledTicket?.id === t.id;
-                const ticketIsLate       = isLate(t);
+              {filtered.map((item, i) => {
+                const isSelected = selected?.id === item.id && selected?._serviceType === item._serviceType;
+                const isServing  = servingItem?.id === item.id && servingItem?._serviceType === item._serviceType;
+                const active     = isActiveStatus(item.status);
+                const done       = isDoneStatus(item.status);
 
                 return (
                   <div
-                    key={t.id}
-                    onClick={() => setSelected(isSelected ? null : t)}
+                    key={`${item._serviceType}-${item.id}`}
+                    onClick={() => setSelected(isSelected ? null : item)}
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "10px 12px", borderRadius: 8, cursor: "pointer",
-                      border: `0.5px solid ${isSelected ? "#185FA5" : ticketIsLate ? "#F09595" : isCurrentlyServing ? "#378ADD" : "var(--color-border-tertiary,rgba(0,0,0,0.12))"}`,
-                      background: isSelected ? "#EBF3FC" : ticketIsLate ? "#FEF5F5" : isCurrentlyServing ? "#E6F1FB" : "var(--color-background-primary,#fff)",
+                      opacity: done ? 0.55 : 1,
+                      border: `0.5px solid ${isSelected ? "#185FA5" : isServing ? "#378ADD" : "var(--color-border-tertiary,rgba(0,0,0,0.12))"}`,
+                      background: isSelected ? "#EBF3FC" : isServing ? "#E6F1FB" : "var(--color-background-primary,#fff)",
                       transition: "background 0.12s",
                     }}
                   >
                     <div style={{
                       width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                      background: ticketIsLate ? "#FCEBEB" : isCurrentlyServing ? "#378ADD" : "var(--color-background-secondary,#f5f5f3)",
+                      background: isServing ? "#378ADD" : "var(--color-background-secondary,#f5f5f3)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 11, fontWeight: 500,
-                      color: ticketIsLate ? "#A32D2D" : isCurrentlyServing ? "#fff" : "var(--color-text-secondary)",
+                      color: isServing ? "#fff" : "var(--color-text-secondary)",
                     }}>
-                      {ticketIsLate ? "!" : isCurrentlyServing ? "▶" : i + 1}
+                      {isServing ? "▶" : done ? "✓" : i + 1}
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{t.ticket_number}</span>
-                        <Pill label={displayStatus} style={statusStyle(displayStatus)} />
-                        <Pill label={rt.label} style={{ bg: rt.bg, color: rt.color }} />
-                        {(t.missed_attempts ?? 0) > 0 && (
-                          <span style={{ fontSize: 11, color: "#A32D2D" }}>{t.missed_attempts}× missed</span>
-                        )}
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{item._refNumber}</span>
+                        <Pill label={item.status} style={statusStyle(item.status)} />
+                        <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <span>{getApplicantName(t)}</span>
-                        <span style={{ color: "var(--color-text-tertiary)" }}>·</span>
-                        <span>{t.service_type}</span>
+                      <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>
+                        {item.schedule_time ? `🕐 ${fmtTime(item.schedule_time)}` : "No schedule time"}
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                        Submitted {fmtTime(t.submitted_at)}
-                      </div>
+                      {(item.business_name ?? item.establishment) && (
+                        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 1 }}>
+                          {item.business_name ?? item.establishment}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
-                      {ticketIsLate ? (
-                        <IconBtn label="↺" title="Re-admit to queue" onClick={() => requeue(t)} color="#534AB7" />
-                      ) : isActive(t) ? (
+                      {active && (
                         <>
-                          <IconBtn label="✓" title="Complete"     onClick={() => act(t, "completed")} color="#3B6D11" />
-                          <IconBtn label="✕" title="No Show"      onClick={() => act(t, "no_show")}   color="#A32D2D" />
-                          <IconBtn label="↩" title="Move to back" onClick={() => act(t, "move_back")} color="#854F0B" />
+                          <IconBtn label="✓" title="Complete"     onClick={() => act(item, "completed")} color="#3B6D11" />
+                          <IconBtn label="✕" title="No Show"      onClick={() => act(item, "no_show")}   color="#A32D2D" />
+                          <IconBtn label="↩" title="Move to back" onClick={() => act(item, "move_back")} color="#854F0B" />
                         </>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 );
@@ -717,71 +706,111 @@ export function QueueControl() {
           </div>
         </div>
 
-        {/* ══ MIDDLE — Detail ══ */}
+        {/* ══ MIDDLE — Detail ═══════════════════════════════════════════════ */}
         {selected && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <TicketDetail
-              ticket={sortedQueueWithDisplay.find(t => t.id === selected.id) as any ?? selected}
+            <ItemDetail
+              item={allItems.find(t => t.id === selected.id && t._serviceType === selected._serviceType) ?? selected}
               onClose={() => setSelected(null)}
               onAct={act}
-              onRequeue={requeue}
               busy={busy}
             />
           </div>
         )}
 
-        {/* ══ RIGHT ══ */}
+        {/* ══ RIGHT ═════════════════════════════════════════════════════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+          {/* Active by Service */}
           <div style={cardStyle}>
-            <div style={sectionDivider}><span style={{ fontSize: 15, fontWeight: 500 }}>Active by Service</span></div>
+            <div style={sectionDivider}>
+              <span style={{ fontSize: 15, fontWeight: 500 }}>Active by Service</span>
+            </div>
             {Object.keys(breakdown).length === 0 ? (
-              <div style={{ textAlign: "center", padding: 24, fontSize: 13, color: "var(--color-text-tertiary)" }}>No active tickets</div>
+              <div style={{ textAlign: "center", padding: 24, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                No active appointments
+              </div>
             ) : (
-              Object.entries(breakdown).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-                <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: "#E6F1FB", color: "#0C447C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{type}</span>
+              SERVICE_CONFIG.filter(cfg => breakdown[cfg.label] != null).map(cfg => (
+                <div key={cfg.label} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 0",
+                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 99,
+                    background: cfg.bg, color: cfg.color,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110,
+                  }}>
+                    {cfg.label}
+                  </span>
                   <div style={{ flex: 1, height: 4, background: "rgba(0,0,0,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.round((count / bTotal) * 100)}%`, background: "#378ADD", borderRadius: 2 }} />
+                    <div style={{
+                      height: "100%",
+                      width: `${Math.round(((breakdown[cfg.label] ?? 0) / bTotal) * 100)}%`,
+                      background: cfg.color, borderRadius: 2,
+                    }} />
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 500, minWidth: 18, textAlign: "right" }}>{count}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, minWidth: 18, textAlign: "right" }}>
+                    {breakdown[cfg.label] ?? 0}
+                  </span>
                 </div>
               ))
             )}
           </div>
 
+          {/* Up Next */}
           <div style={cardStyle}>
-            <div style={sectionDivider}><span style={{ fontSize: 15, fontWeight: 500 }}>Up Next</span></div>
-            {activeQueue.filter((_, i) => i > 0).slice(0, 6).map((t, i) => {
-              const rt = getRequesterType(t);
-              return (
-                <div key={t.id} style={{ padding: "8px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
+            <div style={sectionDivider}>
+              <span style={{ fontSize: 15, fontWeight: 500 }}>Up Next</span>
+            </div>
+            {upNext.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                Queue is empty
+              </div>
+            ) : (
+              upNext.slice(0, 6).map((item, i) => (
+                <div key={`${item._serviceType}-${item.id}`} style={{
+                  padding: "8px 0",
+                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 11, color: "var(--color-text-tertiary)", width: 16 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{t.ticket_number}</span>
-                    <Pill label={rt.label} style={{ bg: rt.bg, color: rt.color }} />
+                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{item._refNumber}</span>
+                    <Pill label={item._serviceType} style={{ bg: item._serviceBg, color: item._serviceColor }} />
                   </div>
                   <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginLeft: 24, marginTop: 2 }}>
-                    {getApplicantName(t)} · {fmtTime(t.submitted_at)}
+                    {item.schedule_time ? `🕐 ${fmtTime(item.schedule_time)}` : "No time set"}
+                    {(item.business_name ?? item.establishment) ? ` · ${item.business_name ?? item.establishment}` : ""}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginLeft: 24 }}>{t.service_type}</div>
                 </div>
-              );
-            })}
-            {activeQueue.filter((_, i) => i > 0).length === 0 && (
-              <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>Queue is empty</div>
+              ))
             )}
           </div>
 
+          {/* Activity Log */}
           <div style={{ ...cardStyle, flex: 1 }}>
             <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 15, fontWeight: 500 }}>Activity</span>
-              <button onClick={() => setLog([])} style={{ fontSize: 11, cursor: "pointer", border: "0.5px solid rgba(0,0,0,0.14)", borderRadius: 6, background: "none", padding: "3px 8px", color: "var(--color-text-secondary)" }}>Clear</button>
+              <button onClick={() => setLog([])} style={{
+                fontSize: 11, cursor: "pointer",
+                border: "0.5px solid rgba(0,0,0,0.14)", borderRadius: 6,
+                background: "none", padding: "3px 8px", color: "var(--color-text-secondary)",
+              }}>
+                Clear
+              </button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
-              {log.length === 0 && <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>No activity yet</div>}
+              {log.length === 0 && (
+                <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>
+                  No activity yet
+                </div>
+              )}
               {log.map((e, i) => (
-                <div key={i} style={{ display: "flex", gap: 7, alignItems: "flex-start", fontSize: 12, padding: "5px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
+                <div key={i} style={{
+                  display: "flex", gap: 7, alignItems: "flex-start",
+                  fontSize: 12, padding: "5px 0",
+                  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))",
+                }}>
                   <span style={{ color: logColor[e.type] ?? "var(--color-text-secondary)", flexShrink: 0, marginTop: 1 }}>●</span>
                   <span style={{ flex: 1 }}>{e.msg}</span>
                   <span style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }}>{e.time}</span>
@@ -793,21 +822,6 @@ export function QueueControl() {
       </div>
     </div>
   );
-
-  async function handleCallNext() {
-    setCalling(true);
-    try {
-      await postCallNext();
-      addLog("Called next ticket", "success");
-      showToast("Next ticket called", true);
-      await load();
-    } catch {
-      showToast("Failed to call next", false);
-      addLog("Failed to call next ticket", "error");
-    } finally {
-      setCalling(false);
-    }
-  }
 }
 
 export default QueueControl;

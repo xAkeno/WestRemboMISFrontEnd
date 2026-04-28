@@ -19,7 +19,7 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
 
   return (
     <div className="space-y-4 p-3">
-      
+
       {/* Field Type Selector */}
       <div>
         <Label className="text-xs text-muted-foreground">Field Type</Label>
@@ -49,8 +49,6 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
               onValueChange={(streetName) => {
                 const selected = streets.find((s) => s.name === streetName);
                 if (!selected) return;
-
-                // Update only the value to the selected street
                 update({ value: selected.name });
               }}
             >
@@ -63,7 +61,7 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
                   <SelectItem key={s.id} value={s.name}>
                     {s.name}
                     {s.formerly ? ` (formerly ${s.formerly})` : ''}
-                    {" - "}
+                    {' - '}
                     {s.sitio}
                   </SelectItem>
                 ))}
@@ -79,7 +77,7 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
           )}
         </div>
       )}
-      
+
       {field.fieldType === 'ZONE' && streets && streets.length > 0 && (
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Select Zone (Sitio)</Label>
@@ -96,7 +94,7 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
 
             <SelectContent className="max-h-60">
               {streets
-                .filter((s) => s.sitio && s.sitio.trim() !== '') // <-- remove empty
+                .filter((s) => s.sitio && s.sitio.trim() !== '')
                 .map((s) => (
                   <SelectItem key={s.id} value={s.sitio}>
                     {s.sitio} {s.name ? `(${s.name})` : ''}
@@ -106,46 +104,6 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
           </Select>
         </div>
       )}
-
-      {/* Address 3-in-1 */}
-      {/* {field.fieldType === 'ADDRESS' && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Address Parts</Label>
-
-          <Input
-            placeholder="House / Block / Lot"
-            value={field.addressFields?.house ?? ''}
-            onChange={(e) =>
-              update({
-                addressFields: { ...field.addressFields, house: e.target.value },
-              })
-            }
-            className="h-8 text-xs"
-          />
-
-          <Input
-            placeholder="Street"
-            value={field.addressFields?.street ?? ''}
-            onChange={(e) =>
-              update({
-                addressFields: { ...field.addressFields, street: e.target.value },
-              })
-            }
-            className="h-8 text-xs"
-          />
-
-          <Input
-            placeholder="Barangay"
-            value={field.addressFields?.barangay ?? ''}
-            onChange={(e) =>
-              update({
-                addressFields: { ...field.addressFields, barangay: e.target.value },
-              })
-            }
-            className="h-8 text-xs"
-          />
-        </div>
-      )} */}
 
       {/* Value Input */}
       <div>
@@ -226,7 +184,48 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
           );
         })}
       </div>
-        {/* Visibility Toggle */}
+
+      {/* ── Auto-Center Toggle ───────────────────────────────────────────────── */}
+      <div className="rounded-md border border-blue-200 bg-blue-50/60 p-2.5 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs font-semibold text-blue-800">
+              Auto-Center
+            </Label>
+            <p className="text-[10px] text-blue-600 leading-snug">
+              {field.autoCenter
+                ? 'Text anchors to center — stays balanced regardless of length.'
+                : 'Enable to pin text to a fixed horizontal center point.'}
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            variant={field.autoCenter ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => update({ autoCenter: !field.autoCenter })}
+            className={
+              field.autoCenter
+                ? 'h-7 text-xs bg-blue-600 hover:bg-blue-700 border-blue-600'
+                : 'h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50'
+            }
+          >
+            {field.autoCenter ? '⊕ On' : '⊕ Off'}
+          </Button>
+        </div>
+
+        {field.autoCenter && (
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <div className="h-px flex-1 bg-blue-200" />
+            <span className="text-[10px] text-blue-500 font-mono">
+              center anchor: {Math.round(field.x)} pt
+            </span>
+            <div className="h-px flex-1 bg-blue-200" />
+          </div>
+        )}
+      </div>
+
+      {/* Visibility Toggle */}
       <div className="flex items-center justify-between">
         <Label className="text-xs text-muted-foreground">
           Hide Field
@@ -234,18 +233,21 @@ export function FieldEditor({ field, onChange, streets }: FieldEditorProps) {
 
         <Button
           type="button"
-          variant={field.hidden ? "default" : "outline"}
+          variant={field.hidden ? 'default' : 'outline'}
           size="sm"
           onClick={() => update({ hidden: !field.hidden })}
           className="h-7 text-xs"
         >
-          {field.hidden ? "Hidden" : "Visible"}
+          {field.hidden ? 'Hidden' : 'Visible'}
         </Button>
       </div>
+
       {/* Position */}
       <div className="flex gap-2">
         <div className="flex-1">
-          <Label className="text-xs text-muted-foreground">X</Label>
+          <Label className="text-xs text-muted-foreground">
+            {field.autoCenter ? 'X (center anchor)' : 'X'}
+          </Label>
           <Input
             type="number"
             value={Math.round(field.x)}
