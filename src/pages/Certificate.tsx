@@ -1335,7 +1335,7 @@ function EditableDetailModal({
                     label="Issued Date"
                   />
                 </div>
-                <div>
+                {/* <div>
                   <FormField 
                     name="or_no"
                     value={formData.or_no || ''}
@@ -1344,7 +1344,7 @@ function EditableDetailModal({
                     isEditing={isEditing}
                     label="OR No."
                   />
-                </div>
+                </div> */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>

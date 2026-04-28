@@ -135,6 +135,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Weight must be a positive number.",
     "err.invalidCapital":     "Capital must be a positive number.",
     "err.invalidResidency":   "Please enter a valid period (e.g., 5 years, 6 months).",
+    "err.selectDoc": "Please select a document type before continuing.",
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -537,6 +538,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Ang timbang kinahanglan nga positibo nga numero.",
     "err.invalidCapital":     "Ang kapital kinahanglan nga positibo nga numero.",
     "err.invalidResidency":   "Palihug pagbutang og balido nga panahon (pananglitan, 5 ka tuig, 6 ka bulan).",
+    "err.selectDoc": "Palihug pagpili sa matang sa dokumento sa wala pa magpadayon.",
     "a11y.language":          "Pinulongan",
     "a11y.fontSize":          "Gidak-on sa teksto",
     "a11y.small":             "A",
@@ -656,7 +658,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Isumite ang hangyo",
     "btn.newRequest":         "Magsugod og bag-ong hangyo",
     "btn.cancel":             "Ikansela",
-    "err.selectDoc":          "Palihug pilia ang matang sa dokumento.",
+    
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
@@ -987,6 +989,25 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
   );
 };
 
+////////////
+////////////
+///////////
+// Add this new function near the top with other helper functions
+const getDefaultAdultYear = (): number => {
+  const currentYear = new Date().getFullYear();
+  // Default to 18 years ago (ensures age >= 18)
+  return currentYear - 18;
+};
+
+// Also add a function to get the default date string with the adult year
+const getDefaultAdultDateString = (): string => {
+  const defaultYear = getDefaultAdultYear();
+  const defaultMonth = "01"; // January
+  const defaultDay = "01"; // 1st day
+  return `${defaultYear}-${defaultMonth}-${defaultDay}`;
+};
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // PURE UI HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1260,55 +1281,72 @@ const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
   "barangay-certificate":  { label: "doc.bcert.label",     sub: "doc.bcert.sub"     },
 };
 
-const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => (
-  <Card eyebrow={tr("step1.eyebrow")} title={tr("step1.title")} subtitle={tr("step1.subtitle")}>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {DOC_TYPE_KEYS.map((d) => {
-        const keys = DOC_TR_KEYS[d.type];
-        return (
-          <button
-            key={d.type}
-            onClick={() => setDocType(d.type)}
-            className="flex items-center gap-3 p-4 text-left transition-all duration-150"
-            style={{
-              borderRadius: 2,
-              border:       docType === d.type ? `1.5px solid ${NAVY}` : "1px solid #e5e7eb",
-              background:   docType === d.type ? "#f0f4ff" : "transparent",
-            }}
-            aria-pressed={docType === d.type}
-          >
-            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0" style={{ background: d.bg, borderRadius: 4, color: NAVY }}>
-              {d.icon("h-5 w-5")}
-            </div>
-            <div>
-              <div className="font-bold text-foreground" style={{ fontSize: "0.9em" }}>{tr(keys.label)}</div>
-              <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{tr(keys.sub)}</div>
-            </div>
-            {docType === d.type && (
-              <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
-                <Check className="h-3 w-3 text-white" />
+const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => {
+  const [localError, setLocalError] = useState("");
+  
+  const handleNext = () => {
+    if (!docType) {
+      setLocalError(tr("err.selectDoc"));
+    } else {
+      setLocalError("");
+      onNext();
+    }
+  };
+  
+  return (
+    <Card eyebrow={tr("step1.eyebrow")} title={tr("step1.title")} subtitle={tr("step1.subtitle")}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {DOC_TYPE_KEYS.map((d) => {
+          const keys = DOC_TR_KEYS[d.type];
+          return (
+            <button
+              key={d.type}
+              onClick={() => {
+                setDocType(d.type);
+                setLocalError("");
+              }}
+              className="flex items-center gap-3 p-4 text-left transition-all duration-150"
+              style={{
+                borderRadius: 2,
+                border:       docType === d.type ? `1.5px solid ${NAVY}` : "1px solid #e5e7eb",
+                background:   docType === d.type ? "#f0f4ff" : "transparent",
+              }}
+              aria-pressed={docType === d.type}
+            >
+              <div className="w-10 h-10 flex items-center justify-center flex-shrink-0" style={{ background: d.bg, borderRadius: 4, color: NAVY }}>
+                {d.icon("h-5 w-5")}
               </div>
-            )}
+              <div>
+                <div className="font-bold text-foreground" style={{ fontSize: "0.9em" }}>{tr(keys.label)}</div>
+                <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{tr(keys.sub)}</div>
+              </div>
+              {docType === d.type && (
+                <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
+                  <Check className="h-3 w-3 text-white" />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {localError && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{localError}</p>}
+      {error && !localError && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
+      <Actions
+        extraLeft={
+          <button
+            onClick={onHome}
+            className="px-5 py-2.5 font-bold uppercase tracking-wider text-foreground border border-border hover:border-gray-400 transition-all"
+            style={{ borderRadius: 1, fontSize: "0.75em" }}
+          >
+            {tr("btn.backHome")}
           </button>
-        );
-      })}
-    </div>
-    {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions
-      extraLeft={
-        <button
-          onClick={onHome}
-          className="px-5 py-2.5 font-bold uppercase tracking-wider text-foreground border border-border hover:border-gray-400 transition-all"
-          style={{ borderRadius: 1, fontSize: "0.75em" }}
-        >
-          {tr("btn.backHome")}
-        </button>
-      }
-      onNext={onNext}
-      nextLabel={tr("btn.continue")}
-    />
-  </Card>
-);
+        }
+        onNext={handleNext}
+        nextLabel={tr("btn.continue")}
+      />
+    </Card>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 1: PERSONAL INFORMATION
@@ -1326,6 +1364,7 @@ interface CommonStepProps {
 
 const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const validateAndSet = (field: string, value: string) => {
     const textFields = ["first_name", "middle_name", "surname", "ext_name", "place_of_birth", "nickname", "religion", "name_of_spouse"];
@@ -1354,6 +1393,24 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
       case "weight_kg":      errorMsg = validatePositiveNumber(processedValue, "Weight", tr, false); break;
     }
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
+  };
+
+  // Handle calendar opening - set default date if field is empty
+  const handleCalendarOpen = (e: React.MouseEvent<HTMLInputElement>) => {
+    const target = e.target as HTMLInputElement;
+    if (target.showPicker && !formData.date_of_birth) {
+      // Set default adult date before opening calendar
+      const defaultDate = getDefaultAdultDateString();
+      validateAndSet("date_of_birth", defaultDate);
+    }
+  };
+
+  // Alternative: Use the onClick event to pre-populate when clicking the calendar icon
+  const handleDateInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (!formData.date_of_birth) {
+      const defaultDate = getDefaultAdultDateString();
+      validateAndSet("date_of_birth", defaultDate);
+    }
   };
 
   const validateStep = (): boolean => {
@@ -1390,14 +1447,23 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
           <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)} placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.dob")}`} error={fieldErrors.date_of_birth} required>
-          <MaskedInput type="date" value={formData.date_of_birth || ""} onValueChange={(v) => validateAndSet("date_of_birth", v)} placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }} />
+          <MaskedInput 
+            type="date" 
+            value={formData.date_of_birth || ""} 
+            onValueChange={(v) => validateAndSet("date_of_birth", v)}
+            onClick={handleDateInputClick}
+            onFocus={handleDateInputClick}
+            placeholder={tr("field.dob")} 
+            className={inputCls} 
+            style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }}
+            ref={dateInputRef}
+          />
         </Field>
         <div className="md:col-span-2">
           <Field label={`${tr("field.pob")}`} error={fieldErrors.place_of_birth} required>
             <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => validateAndSet("place_of_birth", v)} placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: fieldErrors.place_of_birth ? PINK : "#d1d5db" }} />
           </Field>
         </div>
-
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
       <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />

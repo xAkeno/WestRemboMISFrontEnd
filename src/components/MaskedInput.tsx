@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 interface MaskedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   value?: string;
   onValueChange?: (value: string) => void;
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
 }
 
 export const MaskedInput = forwardRef<HTMLInputElement, MaskedInputProps>(

@@ -1513,13 +1513,13 @@ function EditableDetailModal({
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField 
+                {/* <FormField 
                   name="or_no"
                   value={formData.or_no || ''}
                   onChange={handleInputChange}
                   isEditing={isEditing}
                   label="OR No."
-                />
+                /> */}
                 <FormField 
                   name="ctc_vrr_no"
                   value={formData.ctc_vrr_no || ''}

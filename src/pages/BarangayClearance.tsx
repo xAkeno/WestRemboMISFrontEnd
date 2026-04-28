@@ -1345,7 +1345,7 @@ function EditableDetailModal({
                 <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Purpose Details" />
                 <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
                 <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
-                <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing} label="OR No." />
+                {/* <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing} label="OR No." /> */}
                 <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
                 
                 {/* bcert_number - ALWAYS read-only (matches Certificate component) */}

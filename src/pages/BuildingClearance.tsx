@@ -1390,14 +1390,14 @@ function EditableDetailModal({
                   label="Issued At"
                 />
                 
-                <FormField 
+                {/* <FormField 
                   name="or_no"
                   value={formData.or_no || ''}
                   onChange={handleInputChange}
                   type="text"
                   isEditing={isEditing}
                   label="OR No."
-                />
+                /> */}
                 
                 {/* <FormField 
                   name="ctc_vrr_no"
