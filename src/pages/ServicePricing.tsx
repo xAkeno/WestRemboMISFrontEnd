@@ -69,7 +69,7 @@ const ServicePricing = () => {
     useEffect(() => {
         const fetchPrices = async () => {
             try {
-                const res = await axios.get("http://127.0.0.1:8000/api/service-prices", {
+                const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", {
                     withCredentials: true,
                 });
 
@@ -159,7 +159,7 @@ const ServicePricing = () => {
         setSaving((prev) => new Set(prev).add(service.type));
         try {
             await axios.put(
-                `http://127.0.0.1:8000/api/service-prices/${service.type}`,
+                `https://westrembomis.onrender.com/api/service-prices/${service.type}`,
                 { amount: service.amount },
                 { withCredentials: true }
             );

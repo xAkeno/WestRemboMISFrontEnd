@@ -31,7 +31,7 @@ const ProcessFrontDesk = () => {
     }
     setIsSearching(true);
     try {
-      const res = await axios.post("http://127.0.0.1:8000/api/kiosk/search", searchData, { withCredentials: true });
+      const res = await axios.post("https://westrembomis.onrender.com/api/kiosk/search", searchData, { withCredentials: true });
       if (res.data.kiosk) {
         setFoundData(res.data.kiosk);
         setEditData(res.data.kiosk);
@@ -50,7 +50,7 @@ const ProcessFrontDesk = () => {
 
   const handleSubmit = async () => {
     try {
-      await axios.post("http://127.0.0.1:8000/api/kiosk/update", editData, { withCredentials: true });
+      await axios.post("https://westrembomis.onrender.com/api/kiosk/update", editData, { withCredentials: true });
       toast({ title: "Application Updated", description: "Your application has been resubmitted successfully" });
       setShowDetailModal(false); setShowSearchModal(false);
       setFoundData(null); setEditData(null);
@@ -61,7 +61,7 @@ const ProcessFrontDesk = () => {
 
   const handleResubmit = async () => {
     try {
-      await axios.post("http://127.0.0.1:8000/api/kiosk/submit", foundData, { withCredentials: true });
+      await axios.post("https://westrembomis.onrender.com/api/kiosk/submit", foundData, { withCredentials: true });
       toast({ title: "Application Resubmitted", description: "Your application has been submitted again successfully" });
       setShowSearchModal(false); setFoundData(null); setEditData(null);
       setSearchData({ first_name: "", last_name: "", date_of_birth: "" });
