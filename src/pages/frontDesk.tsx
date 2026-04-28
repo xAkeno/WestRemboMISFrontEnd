@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   FileText, Building2, Briefcase, Users, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
-  Shield, ArrowRight, Clock, Calendar,
+  Shield, ArrowRight,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
@@ -31,43 +31,10 @@ const SERVICE_TYPE_MAP: Record<string, string> = {
   "resident-registration": "Resident Registration",
 };
 
-// ─── Document-type → backend document_type string ─────────────────────────────
-const DOC_TYPE_TO_SCHEDULE_TYPE: Record<string, string> = {
-  "clearance":             "barangay_clearance",
-  "building-clearance":    "building_clearance",
-  "business-clearance":    "business_clearance",
-  "barangay-certificate":  "barangay_certificate",
-  "resident-registration": "barangay_clearance",
-};
-
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
 
 // Prefix options for the combobox
 const PREFIX_OPTIONS = ["Mr.", "Ms.", "Mrs.", "Dr.", "Atty.", "Engr.", "Prof."];
-
-// ─── PH Holidays 2026 ─────────────────────────────────────────────────────────
-const PH_HOLIDAYS_2026 = [
-  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
-  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
-];
-
-const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-const isHoliday = (s: string) => PH_HOLIDAYS_2026.includes(s);
-
-const validateScheduleDate = (value: string): string => {
-  if (!value) return "Schedule date is required.";
-  const date = new Date(value);
-  if (isWeekend(date)) return "Weekends (Saturday/Sunday) are not allowed.";
-  if (isHoliday(value)) return "Selected date is a Philippine holiday. Please choose another date.";
-  return "";
-};
-
-// ─── Auto-detect current time slot ────────────────────────────────────────────
-const getAutoTimeGroup = (): "morning" | "afternoon" => {
-  const hour = new Date().getHours();
-  // Morning: before 12:00; Afternoon: 12:00 onwards
-  return hour < 12 ? "morning" : "afternoon";
-};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSLATIONS
@@ -143,7 +110,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Address",
     "step.details":           "Details",
-    "step.schedule":          "Schedule",
     "step.review":            "Review",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "General purpose clearance",
@@ -155,24 +121,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Official barangay certificate",
     "doc.resident.label":     "Resident Registration",
     "doc.resident.sub":       "Register as a barangay resident",
-    "step1.eyebrow":          "Step 1 of 6",
+    "step1.eyebrow":          "Step 1 of 5",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
-    "step2.eyebrow":          "Step 2 of 6",
+    "step2.eyebrow":          "Step 2 of 5",
     "step2.title":            "Personal information",
     "step2.subtitle":         "Please fill in your complete name and birth details",
-    "step3.eyebrow":          "Step 3 of 6",
+    "step3.eyebrow":          "Step 3 of 5",
     "step3.title":            "Address & residency",
     "step3.subtitle":         "Provide your current address and residency information",
-    "step4.eyebrow":          "Step 4 of 6",
+    "step4.eyebrow":          "Step 4 of 5",
     "step4.title":            "Contact & purpose",
     "step4.subtitle":         "Your contact number and the reason for this request",
-    "step5.eyebrow":          "Step 5 of 6",
-    "step5.title":            "Schedule appointment",
-    "step5.subtitle":         "Pick a date to claim your document at the barangay hall",
-    "step6.eyebrow":          "Step 6 of 6",
-    "step6.title":            "Review your information",
-    "step6.subtitle":         "Please verify all details before submitting",
+    "step5.eyebrow":          "Step 5 of 5",
+    "step5.title":            "Review your information",
+    "step5.subtitle":         "Please verify all details before submitting",
     "field.prefix":           "Prefix",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name (Optional)",
@@ -226,7 +189,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
-    "review.schedule":        "Appointment schedule",
     "review.firstName":       "First name",
     "review.middleName":      "Middle name",
     "review.Surname":         "Last name",
@@ -243,8 +205,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
-    "review.scheduleDate":    "Appointment date",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
@@ -260,7 +220,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
-    "err.scheduleDate":       "Please select a valid appointment date.",
     "success.title":          "Request submitted!",
     "success.sub":            "Your request has been successfully received. Kindly wait for your turn to be served.",
     "addr.preview":           "Full address:",
@@ -352,7 +311,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Tirahan",
     "step.details":           "Detalye",
-    "step.schedule":          "Iskedyul",
     "step.review":            "Suriin",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Pangkalahatang layunin na clearance",
@@ -364,24 +322,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Opisyal na sertipiko ng barangay",
     "doc.resident.label":     "Pagpaparehistro ng Residente",
     "doc.resident.sub":       "Magparehistro bilang residente ng barangay",
-    "step1.eyebrow":          "Hakbang 1 ng 6",
+    "step1.eyebrow":          "Hakbang 1 ng 5",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
-    "step2.eyebrow":          "Hakbang 2 ng 6",
+    "step2.eyebrow":          "Hakbang 2 ng 5",
     "step2.title":            "Personal na impormasyon",
     "step2.subtitle":         "Punan ang iyong kumpletong pangalan at mga detalye ng kapanganakan",
-    "step3.eyebrow":          "Hakbang 3 ng 6",
+    "step3.eyebrow":          "Hakbang 3 ng 5",
     "step3.title":            "Tirahan at paninirahan",
     "step3.subtitle":         "Ibigay ang iyong kasalukuyang tirahan at impormasyon sa paninirahan",
-    "step4.eyebrow":          "Hakbang 4 ng 6",
+    "step4.eyebrow":          "Hakbang 4 ng 5",
     "step4.title":            "Pakikipag-ugnayan at layunin",
     "step4.subtitle":         "Ang iyong numero sa pakikipag-ugnayan at dahilan ng kahilingang ito",
-    "step5.eyebrow":          "Hakbang 5 ng 6",
-    "step5.title":            "Iskedyul ng appointment",
-    "step5.subtitle":         "Pumili ng petsa para kunin ang iyong dokumento sa barangay hall",
-    "step6.eyebrow":          "Hakbang 6 ng 6",
-    "step6.title":            "Suriin ang iyong impormasyon",
-    "step6.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
+    "step5.eyebrow":          "Hakbang 5 ng 5",
+    "step5.title":            "Suriin ang iyong impormasyon",
+    "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan (Opsyonal)",
@@ -435,7 +390,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal na impormasyon",
     "review.address":         "Tirahan at paninirahan",
     "review.contact":         "Pakikipag-ugnayan at layunin",
-    "review.schedule":        "Iskedyul ng appointment",
     "review.firstName":       "Unang pangalan",
     "review.middleName":      "Gitnang pangalan",
     "review.Surname":         "Apelyido",
@@ -452,8 +406,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa may-ari",
     "review.contact":         "Numero sa pakikipag-ugnayan",
     "review.purpose":         "Layunin",
-    "review.scheduleDate":    "Petsa ng appointment",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy ng Data",
     "consent.text":           "Ang iyong personal na impormasyon ay kokolektahin at ipoproseso lamang para sa layunin ng kahilingang ito ng dokumento ng barangay, alinsunod sa Batas sa Privacy ng Data ng 2012 (RA 10173). Hindi ito ibabahagi sa mga hindi awtorisadong third party.",
     "consent.checkbox":       "Nauunawaan ko at pumapayag ako sa pagkolekta at pagproseso ng aking personal na impormasyon para sa kahilingang ito.",
@@ -469,7 +421,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Mangyaring punan ang lahat ng kinakailangang field.",
     "err.fillAddress":        "Mangyaring punan ang lahat ng kinakailangang field kasama ang kalye at zone.",
     "err.consent":            "Mangyaring tanggapin ang pahintulot sa privacy ng data upang magpatuloy.",
-    "err.scheduleDate":       "Mangyaring pumili ng wastong petsa ng appointment.",
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "addr.preview":           "Buong tirahan:",
@@ -561,7 +512,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Adres",
     "step.details":           "Detalye",
-    "step.schedule":          "Iskedyul",
     "step.review":            "Susihon",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Kinatibuk-ang katuyoan nga clearance",
@@ -573,24 +523,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.bcert.sub":          "Opisyal nga sertipiko sa barangay",
     "doc.resident.label":     "Rehistrasyon sa Residente",
     "doc.resident.sub":       "Magparehistro isip residente sa barangay",
-    "step1.eyebrow":          "Lakang 1 sa 6",
+    "step1.eyebrow":          "Lakang 1 sa 5",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
-    "step2.eyebrow":          "Lakang 2 sa 6",
+    "step2.eyebrow":          "Lakang 2 sa 5",
     "step2.title":            "Personal nga impormasyon",
     "step2.subtitle":         "Palihug pun-a ang imong tibuok ngalan ug mga detalye sa pagkatawo",
-    "step3.eyebrow":          "Lakang 3 sa 6",
+    "step3.eyebrow":          "Lakang 3 sa 5",
     "step3.title":            "Adres ug pagpuyo",
     "step3.subtitle":         "Ihatag ang imong kasamtangang adres ug impormasyon sa pagpuyo",
-    "step4.eyebrow":          "Lakang 4 sa 6",
+    "step4.eyebrow":          "Lakang 4 sa 5",
     "step4.title":            "Kontak ug katuyoan",
     "step4.subtitle":         "Ang imong numero sa kontak ug rason niini nga hangyo",
-    "step5.eyebrow":          "Lakang 5 sa 6",
-    "step5.title":            "Iskedyul sa appointment",
-    "step5.subtitle":         "Pilia ang petsa aron makuha ang imong dokumento sa barangay hall",
-    "step6.eyebrow":          "Lakang 6 sa 6",
-    "step6.title":            "Susihon ang imong impormasyon",
-    "step6.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
+    "step5.eyebrow":          "Lakang 5 sa 5",
+    "step5.title":            "Susihon ang imong impormasyon",
+    "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan (Opsyonal)",
@@ -644,7 +591,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal nga impormasyon",
     "review.address":         "Adres ug pagpuyo",
     "review.contact":         "Kontak ug katuyoan",
-    "review.schedule":        "Iskedyul sa appointment",
     "review.firstName":       "Una nga ngalan",
     "review.middleName":      "Tungatunga nga ngalan",
     "review.Surname":         "Apelyido",
@@ -661,8 +607,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa tag-iya",
     "review.contact":         "Numero sa kontak",
     "review.purpose":         "Katuyoan",
-    "review.scheduleDate":    "Petsa sa appointment",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy sa Data",
     "consent.text":           "Ang imong personal nga impormasyon makolekta ug maproseso lamang alang sa katuyoan niini nga hangyo sa dokumento sa barangay, subay sa Data Privacy Act of 2012 (RA 10173). Dili kini ibahin sa mga wala'y awtorisasyon nga ikatulo nga partido.",
     "consent.checkbox":       "Nasabtan nako ug nagkauyon ako sa pagkolekta ug pagproseso sa akong personal nga impormasyon alang niini nga hangyo.",
@@ -678,7 +622,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
-    "err.scheduleDate":       "Palihug pilia og balido nga petsa sa appointment.",
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "addr.preview":           "Tibuok adres:",
@@ -723,9 +666,9 @@ const makeKioskProfileKey = (fn: string, ln: string, dob: string) =>
   `${LS_KIOSK_PROFILE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
 
 // Auto-reset the success screen back to the kiosk welcome after this idle
-// window ("Wait for approximately 5 seconds" — also covers the inactivity
-// case described in the spec).
-const SUCCESS_AUTO_RESET_MS = 5000;
+// window. Covers both the explicit "Wait" requirement and the inactivity
+// case described in the spec.
+const SUCCESS_AUTO_RESET_MS = 15000;
 
 // Welcome page (Yes/No) lives at /frontdesk; the kiosk form lives at /kiosk.
 const KIOSK_WELCOME_ROUTE = "/frontdesk";
@@ -1769,169 +1712,11 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 4: SCHEDULE APPOINTMENT  (NEW)
-// ═══════════════════════════════════════════════════════════════════════════════
-interface SlotInfo { available: boolean; remaining: number; }
-interface AvailableSlots { morning: SlotInfo; afternoon: SlotInfo; }
-
-interface StepScheduleProps extends CommonStepProps {
-  scheduleDate: string;
-  setScheduleDate: (d: string) => void;
-  timeGroup: "morning" | "afternoon";
-  setTimeGroup: (t: "morning" | "afternoon") => void;
-  availableSlots: AvailableSlots | null;
-  loadingSlots: boolean;
-  onDateChange: (d: string) => void;
-}
-
-const StepSchedule = ({
-  onBack, onNext, tr, scheduleDate, timeGroup, setTimeGroup,
-  availableSlots, loadingSlots, onDateChange,
-}: StepScheduleProps) => {
-  const [dateError, setDateError] = useState("");
-
-  const getMinDate = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  };
-
-  const handleDateChange = (value: string) => {
-    const err = validateScheduleDate(value);
-    setDateError(err);
-    if (!err) onDateChange(value);
-    else onDateChange("");
-  };
-
-  const handleNext = () => {
-    if (!scheduleDate) { setDateError(tr("err.scheduleDate")); toast.error(tr("err.scheduleDate")); return; }
-    const err = validateScheduleDate(scheduleDate);
-    if (err) { setDateError(err); toast.error(err); return; }
-    onNext();
-  };
-
-  const slotCard = (
-    id: "morning" | "afternoon",
-    label: string,
-    hours: string,
-    slot: SlotInfo | undefined,
-  ) => {
-    const isSelected = timeGroup === id;
-    const isDisabled = slot ? !slot.available : false;
-    return (
-      <button
-        type="button"
-        disabled={isDisabled}
-        onClick={() => !isDisabled && setTimeGroup(id)}
-        className="w-full flex items-center gap-4 p-4 text-left transition-all duration-150"
-        style={{
-          borderRadius: 6,
-          border: isSelected ? `2px solid ${NAVY}` : "1.5px solid #e5e7eb",
-          background: isSelected ? "#f0f4ff" : isDisabled ? "#f9fafb" : "transparent",
-          opacity: isDisabled ? 0.5 : 1,
-          cursor: isDisabled ? "not-allowed" : "pointer",
-        }}
-        aria-pressed={isSelected}
-      >
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: isSelected ? NAVY : "#f0f4ff", color: isSelected ? "#fff" : NAVY }}
-        >
-          <Clock className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <div className="font-bold" style={{ fontSize: "0.9em", color: NAVY }}>{label}</div>
-          <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{hours}</div>
-          {slot && (
-            <div className="mt-1 text-xs font-medium" style={{ color: slot.available ? "#16a34a" : "#ef4444" }}>
-              {slot.available ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available` : "No slots available"}
-            </div>
-          )}
-        </div>
-        {isSelected && (
-          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
-            <Check className="h-3 w-3 text-white" />
-          </div>
-        )}
-      </button>
-    );
-  };
-
-  // Auto-highlight which slot is current based on time of day
-  const autoSlot = getAutoTimeGroup();
-
-  return (
-    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
-      <div className="space-y-6">
-        {/* Date picker */}
-        <Field label="Appointment date" error={dateError} required>
-          <div className="relative">
-            <MaskedInput
-              type="date"
-              value={scheduleDate}
-              onValueChange={handleDateChange}
-              className="w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200"
-              style={{ borderColor: dateError ? PINK : "#d1d5db" }}
-              // @ts-ignore – min attribute passthrough
-              min={getMinDate()}
-            />
-          </div>
-        </Field>
-
-        {/* Auto-selection notice */}
-        <div className="p-4 rounded-lg flex items-start gap-3" style={{ background: "#f0f4ff", border: `1px solid #dde3ed` }}>
-          <Calendar className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: NAVY }} />
-          <p style={{ color: NAVY, fontSize: "0.82em" }}>
-            Based on the current time, your appointment has been automatically set to the{" "}
-            <strong>{autoSlot === "morning" ? "Morning" : "Afternoon"} slot</strong>.
-            You may change it below if slots are available.
-          </p>
-        </div>
-
-        {/* Time slot selection */}
-        {scheduleDate ? (
-          loadingSlots ? (
-            <div className="flex items-center gap-2 text-muted-foreground py-4">
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span style={{ fontSize: "0.85em" }}>Loading available slots…</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
-                Select time slot
-              </p>
-              {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", availableSlots?.morning)}
-              {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  availableSlots?.afternoon)}
-            </div>
-          )
-        ) : (
-          <div className="space-y-3">
-            <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
-              Select time slot
-            </p>
-            {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", undefined)}
-            {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  undefined)}
-            <p className="text-muted-foreground text-xs mt-1">Select a date first to check slot availability.</p>
-          </div>
-        )}
-      </div>
-
-      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
-    </Card>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STEP 5: REVIEW
+// STEP 4: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
   docType: string;
   formData: Record<string, string>;
-  scheduleDate: string;
-  timeGroup: "morning" | "afternoon";
   consentChecked: boolean;
   setConsentChecked: (v: boolean) => void;
   error: string;
@@ -1943,7 +1728,7 @@ interface StepReviewProps {
 }
 
 const StepReview = ({
-  docType, formData, scheduleDate, timeGroup,
+  docType, formData,
   consentChecked, setConsentChecked, error, onBack, onSubmit, onEdit, tr, isSubmitting,
 }: StepReviewProps) => {
   const docKeys   = docType ? DOC_TR_KEYS[docType] : null;
@@ -1958,10 +1743,8 @@ const StepReview = ({
     onSubmit();
   };
 
-  const timeLabel = timeGroup === "morning" ? "Morning (8:00 AM – 11:50 AM)" : "Afternoon (1:00 PM – 5:50 PM)";
-
   return (
-    <Card eyebrow={tr("step6.eyebrow")} title={tr("step6.title")} subtitle={tr("step6.subtitle")}>
+    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
       {docKeys && (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
           style={{ background: "#f0f4ff", border: "1px solid #dde3ed", borderRadius: 4, color: NAVY, fontSize: "0.75em" }}>
@@ -2029,11 +1812,6 @@ const StepReview = ({
         )}
       </ReviewSection>
 
-      <ReviewSection title={tr("review.schedule")}>
-        <ReviewRow label={tr("review.scheduleDate")} value={scheduleDate} />
-        <ReviewRow label={tr("review.scheduleTime")} value={timeLabel} />
-      </ReviewSection>
-
       {error && <p className="mb-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
 
       <Actions
@@ -2065,14 +1843,11 @@ interface SuccessScreenProps {
   bcertNumber: string | null;
   serviceLabel: string;
   applicantName: string;
-  scheduleDate: string;
-  timeGroup: "morning" | "afternoon";
   autoResetSeconds: number;
 }
 
 const SuccessScreen = ({
-  onReset, tr, bcertNumber, serviceLabel, applicantName,
-  scheduleDate, timeGroup, autoResetSeconds,
+  onReset, tr, bcertNumber, serviceLabel, applicantName, autoResetSeconds,
 }: SuccessScreenProps) => {
   // Live countdown so the resident can see how long until the kiosk resets.
   const [secondsLeft, setSecondsLeft] = useState(autoResetSeconds);
@@ -2129,7 +1904,6 @@ const SuccessScreen = ({
       <div className="text-left max-w-sm mx-auto mb-6">
         {summaryRow("Service", serviceLabel)}
         {summaryRow("Applicant", applicantName)}
-        {summaryRow("Schedule", scheduleDate ? `${scheduleDate} · ${timeGroup}` : "")}
       </div>
 
       <p className="text-muted-foreground mb-3" style={{ fontSize: "0.78em" }}>
@@ -2203,13 +1977,12 @@ const FrontDesk = () => {
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // 6 steps now
+  // 5 steps (scheduling removed)
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
     tr("step.address"),
     tr("step.details"),
-    tr("step.schedule"),
     tr("step.review"),
   ], [tr]);
 
@@ -2233,13 +2006,6 @@ const FrontDesk = () => {
   const [streets, setStreets]               = useState<StreetRecord[]>([]);
   const [bcertNumber, setBcertNumber]       = useState<string | null>(null);
 
-  // ── Schedule state ─────────────────────────────────────────────────────────
-  // Default time group auto-detected from current wall-clock time
-  const [scheduleDate, setScheduleDate]     = useState("");
-  const [timeGroup, setTimeGroup]           = useState<"morning" | "afternoon">(getAutoTimeGroup);
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlots | null>(null);
-  const [loadingSlots, setLoadingSlots]     = useState(false);
-
   // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
@@ -2256,44 +2022,6 @@ const FrontDesk = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── Fetch available slots when date changes ────────────────────────────────
-  const fetchSlots = useCallback(async (date: string) => {
-    if (!date || !docType) return;
-    setLoadingSlots(true);
-    try {
-      const documentType = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
-      const res = await api.get("api/schedules/available-slots", {
-        params: { document_type: documentType, date },
-        withCredentials: true,
-      });
-      const slots: AvailableSlots = res.data?.data ?? null;
-      setAvailableSlots(slots);
-
-      // Auto-select the current time's slot if available; otherwise fall back
-      const auto = getAutoTimeGroup();
-      if (slots) {
-        if (slots[auto].available) {
-          setTimeGroup(auto);
-        } else {
-          // Try the other slot
-          const other: "morning" | "afternoon" = auto === "morning" ? "afternoon" : "morning";
-          if (slots[other].available) setTimeGroup(other);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch slots:", e);
-      setAvailableSlots(null);
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, [docType]);
-
-  const handleDateChange = useCallback((date: string) => {
-    setScheduleDate(date);
-    setAvailableSlots(null);
-    if (date) fetchSlots(date);
-  }, [fetchSlots]);
-
   // ── Step navigation ────────────────────────────────────────────────────────
   const goNext = useCallback(() => { setErrors(""); setCurrentStep((s) => s + 1); }, []);
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
@@ -2301,7 +2029,6 @@ const FrontDesk = () => {
   // ── Submit (mirrors BarangayClearanceForm logic exactly) ───────────────────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-    if (!scheduleDate)   { setErrors(tr("err.scheduleDate")); return; }
 
     setIsSubmitting(true);
 
@@ -2399,24 +2126,6 @@ const FrontDesk = () => {
       if (docRes.status === 201 || docRes.status === 200) {
         // Extract the document number (bcert_number) from the response
         const documentNumber = docRes.data?.data?.service?.bcert_number ?? null;
-        const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
-
-        // ── Step 2: Create the schedule appointment ─────────────────────────
-        try {
-          await api.post(
-            "api/schedules",
-            {
-              document_type:   documentType,
-              document_number: documentNumber,
-              schedule_date:   scheduleDate,
-              time_group:      timeGroup,
-            },
-            { withCredentials: true }
-          );
-        } catch (schedErr) {
-          // Schedule creation failure should not block document success
-          console.error("Schedule creation failed:", schedErr);
-        }
 
         // Persist the resident's full formData so a future Yes-flow lookup
         // can auto-fill every step. Backend write is best-effort; we always
@@ -2447,7 +2156,7 @@ const FrontDesk = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [consentChecked, docType, formData, scheduleDate, timeGroup, tr]);
+  }, [consentChecked, docType, formData, tr]);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
   // After submission we hand control back to the kiosk welcome page (the
@@ -2456,16 +2165,15 @@ const FrontDesk = () => {
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
-    setScheduleDate(""); setTimeGroup(getAutoTimeGroup()); setAvailableSlots(null);
     setBcertNumber(null);
     navigate(KIOSK_WELCOME_ROUTE, { replace: true });
   }, [navigate]);
 
   // ── Auto-reset to welcome after success ─────────────────────────────
-  // Spec: return to the welcome page after ≈5s on the confirmation screen,
-  // and also after the resident remains inactive there. A single timer
-  // satisfies both — there's no interactive UI on the success screen aside
-  // from the manual "new request" button, which calls handleReset directly.
+  // Returns to the welcome page after a fixed idle window so the kiosk is
+  // ready for the next resident. The success screen has no interactive UI
+  // aside from the manual "new request" button, which calls handleReset
+  // directly.
   useEffect(() => {
     if (!submitted) return;
     const id = window.setTimeout(handleReset, SUCCESS_AUTO_RESET_MS);
@@ -2512,8 +2220,6 @@ const FrontDesk = () => {
               bcertNumber={bcertNumber}
               serviceLabel={getServiceType(docType)}
               applicantName={[formData.first_name, formData.surname].filter(Boolean).join(" ")}
-              scheduleDate={scheduleDate}
-              timeGroup={timeGroup}
               autoResetSeconds={Math.round(SUCCESS_AUTO_RESET_MS / 1000)}
             />
 
@@ -2547,24 +2253,9 @@ const FrontDesk = () => {
               tr={tr} inputCls={inputCls} docType={docType}
             />
 
-          ) : currentStep === 4 ? (
-            <StepSchedule
-              formData={formData} set={set} error={errors}
-              onBack={goBack} onNext={goNext}
-              tr={tr} inputCls={inputCls} docType={docType}
-              scheduleDate={scheduleDate}
-              setScheduleDate={setScheduleDate}
-              timeGroup={timeGroup}
-              setTimeGroup={setTimeGroup}
-              availableSlots={availableSlots}
-              loadingSlots={loadingSlots}
-              onDateChange={handleDateChange}
-            />
-
           ) : (
             <StepReview
               docType={docType} formData={formData}
-              scheduleDate={scheduleDate} timeGroup={timeGroup}
               consentChecked={consentChecked} setConsentChecked={setConsentChecked}
               error={errors} onBack={goBack} onSubmit={handleSubmit}
               onEdit={() => { setCurrentStep(0); setErrors(""); }}
