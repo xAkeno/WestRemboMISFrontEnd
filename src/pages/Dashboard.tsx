@@ -38,6 +38,14 @@ const serviceChartColors: Record<string, string> = {
   Certificate: serviceColors["Barangay Certificate"],
 };
 
+// Route paths for each service type
+const serviceRoutes: Record<string, string> = {
+  "Barangay Clearance":   "/clearancehome/clearance",
+  "Business Clearance":   "/clearancehome/bussinessclearance",
+  "Building Clearance":   "/clearancehome/buildingclearance",
+  "Barangay Certificate": "/certificatehome",
+};
+
 /**
  * Parse "HH:MM:SS" or "HH:MM" string → hour integer, or null.
  */
@@ -168,9 +176,9 @@ const Dashboard = () => {
           status:       r.status      ?? "",
           zone:         r.zone        ?? null,
           street:       r.street      ?? null,
-          createdAt:    r.created_at  ?? null,   // ISO – submission date
-          scheduleTime: r.schedule_time ?? null,  // "HH:MM:SS"
-          scheduleDate: r.schedule_date ?? null,  // "YYYY-MM-DD"
+          createdAt:    r.created_at  ?? null,
+          scheduleTime: r.schedule_time ?? null,
+          scheduleDate: r.schedule_date ?? null,
           serviceType,
           raw: r,
         });
@@ -181,7 +189,6 @@ const Dashboard = () => {
       (data.barangay_certificates_list ?? []).forEach((r: any) => push(r, "Barangay Certificate",  r.bcert_number));
 
       // ── Sort: Morning (slot 0) first, then Afternoon (slot 1), then Unknown.
-      //          Within each slot, sort by schedule_time ascending.
       merged.sort((a, b) => {
         const slotA = getTimeSlot(parseHour(a.scheduleTime));
         const slotB = getTimeSlot(parseHour(b.scheduleTime));
@@ -238,10 +245,20 @@ const Dashboard = () => {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleProcessNow = (record: ClearanceRecord) =>
-    navigate("/clearancehome/clearance", {
-      state: { record: record.raw, serviceType: record.serviceType },
+  const handleProcessNow = (record: ClearanceRecord) => {
+    // Get the correct route based on service type
+    const route = serviceRoutes[record.serviceType];
+    
+    if (!route) {
+      console.error("Unknown service type:", record.serviceType);
+      return;
+    }
+    
+    // Navigate to the specific clearance page with the record data
+    navigate(route, {
+      state: { record: record.raw, serviceType: record.serviceType }
     });
+  };
 
   const statusClass = (status: string) => {
     const s = status?.toUpperCase();
