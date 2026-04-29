@@ -672,7 +672,7 @@ export default function BackupRecovery() {
           </div>
         </Modal>
 
-        {/* ── RESTORE CONFIRM ── */}
+        {/* ── RESTORE CONFIGGGRM ── */}
         <AlertModal
           open={!!restoreFromFilename}
           onClose={() => !isRestoringFromFile && setRestoreFromFilename(null)}
