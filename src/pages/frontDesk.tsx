@@ -1,14 +1,30 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+// Auto-reset the success screen back to the kiosk welcome page after this idle
+// window. Spec: "Wait for approximately 5 seconds." Also acts as the inactivity
+// timeout if the resident leaves the success screen untouched.
+const SUCCESS_AUTO_RESET_MS = 5000;
+// Route that renders the SearchResident landing page (Yes/No prompt). The
+// kiosk navigates back here after a successful submission so the next
+// resident lands on the proper start-of-flow.
+const KIOSK_WELCOME_ROUTE = "/frontdesk";
+
+// ── Local kiosk profile cache ─────────────────────────────────────────────────
+// Mirrors SearchResident.tsx so the Yes-flow can look up a resident's last
+// submission entirely on-device when the backend search misses. The key is
+// normalised so casing / whitespace differences don't break lookups.
+const KIOSK_CACHE_PREFIX = "kiosk:profile:";
+const makeKioskCacheKey = (fn: string, ln: string, dob: string) =>
+  `${KIOSK_CACHE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
 import api from "@/lib/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
 import { toast } from "sonner";
 import {
-  FileText, Building2, Briefcase, Users, Check,
+  FileText, Building2, Briefcase, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
-  Shield, ArrowRight, Clock, Calendar,
+  Shield, ArrowRight,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -28,7 +44,6 @@ const SERVICE_TYPE_MAP: Record<string, string> = {
   "building-clearance":    "Building Clearance",
   "business-clearance":    "Business Clearance",
   "barangay-certificate":  "Barangay Certificate",
-  "resident-registration": "Resident Registration",
 };
 
 // ─── Document-type → backend document_type string ─────────────────────────────
@@ -37,7 +52,6 @@ const DOC_TYPE_TO_SCHEDULE_TYPE: Record<string, string> = {
   "building-clearance":    "building_clearance",
   "business-clearance":    "business_clearance",
   "barangay-certificate":  "barangay_certificate",
-  "resident-registration": "barangay_clearance",
 };
 
 const getServiceType = (tab: string): string => SERVICE_TYPE_MAP[tab] ?? "Barangay Clearance";
@@ -51,22 +65,19 @@ const PH_HOLIDAYS_2026 = [
   "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
 ];
 
-const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-const isHoliday = (s: string) => PH_HOLIDAYS_2026.includes(s);
-
-const validateScheduleDate = (value: string): string => {
-  if (!value) return "Schedule date is required.";
-  const date = new Date(value);
-  if (isWeekend(date)) return "Weekends (Saturday/Sunday) are not allowed.";
-  if (isHoliday(value)) return "Selected date is a Philippine holiday. Please choose another date.";
-  return "";
-};
-
-// ─── Auto-detect current time slot ────────────────────────────────────────────
+// ─── Auto-detect current time slot & today's date ─────────────────────────────
+// Morning: 12:00 AM – 11:59 AM  |  Afternoon: 12:00 PM – 11:59 PM
 const getAutoTimeGroup = (): "morning" | "afternoon" => {
   const hour = new Date().getHours();
-  // Morning: before 12:00; Afternoon: 12:00 onwards
   return hour < 12 ? "morning" : "afternoon";
+};
+
+const getTodayDateString = (): string => {
+  const now = new Date();
+  const tzOffsetMinutes = now.getTimezoneOffset();
+  const tzOffsetMilliseconds = tzOffsetMinutes * 60000;
+  const localDate = new Date(now.valueOf() - tzOffsetMilliseconds);
+  return localDate.toISOString().split("T")[0];
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -128,6 +139,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Weight must be a positive number.",
     "err.invalidCapital":     "Capital must be a positive number.",
     "err.invalidResidency":   "Please enter a valid period (e.g., 5 years, 6 months).",
+    "err.selectDoc": "Please select a document type before continuing.",
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -143,7 +155,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Address",
     "step.details":           "Details",
-    "step.schedule":          "Schedule",
     "step.review":            "Review",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "General purpose clearance",
@@ -153,26 +164,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "For business registration",
     "doc.bcert.label":        "Barangay Certificate",
     "doc.bcert.sub":          "Official barangay certificate",
-    "doc.resident.label":     "Resident Registration",
-    "doc.resident.sub":       "Register as a barangay resident",
-    "step1.eyebrow":          "Step 1 of 6",
+    "step1.eyebrow":          "Step 1 of 5",
     "step1.title":            "Select document type",
     "step1.subtitle":         "Choose the document you need from the options below",
-    "step2.eyebrow":          "Step 2 of 6",
+    "step2.eyebrow":          "Step 2 of 5",
     "step2.title":            "Personal information",
     "step2.subtitle":         "Please fill in your complete name and birth details",
-    "step3.eyebrow":          "Step 3 of 6",
+    "step3.eyebrow":          "Step 3 of 5",
     "step3.title":            "Address & residency",
     "step3.subtitle":         "Provide your current address and residency information",
-    "step4.eyebrow":          "Step 4 of 6",
+    "step4.eyebrow":          "Step 4 of 5",
     "step4.title":            "Contact & purpose",
     "step4.subtitle":         "Your contact number and the reason for this request",
-    "step5.eyebrow":          "Step 5 of 6",
-    "step5.title":            "Schedule appointment",
-    "step5.subtitle":         "Pick a date to claim your document at the barangay hall",
-    "step6.eyebrow":          "Step 6 of 6",
-    "step6.title":            "Review your information",
-    "step6.subtitle":         "Please verify all details before submitting",
+    "step5.eyebrow":          "Step 5 of 5",
+    "step5.title":            "Review your information",
+    "step5.subtitle":         "Please verify all details before submitting",
     "field.prefix":           "Prefix",
     "field.firstName":        "First name",
     "field.middleName":       "Middle name (Optional)",
@@ -226,7 +232,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal information",
     "review.address":         "Address & residency",
     "review.contact":         "Contact & purpose",
-    "review.schedule":        "Appointment schedule",
     "review.firstName":       "First name",
     "review.middleName":      "Middle name",
     "review.Surname":         "Last name",
@@ -243,8 +248,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relation to owner",
     "review.contact":         "Contact number",
     "review.purpose":         "Purpose",
-    "review.scheduleDate":    "Appointment date",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Data Privacy Notice",
     "consent.text":           "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "consent.checkbox":       "I understand and consent to the collection and processing of my personal information for this request.",
@@ -260,9 +263,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Please fill in all required fields.",
     "err.fillAddress":        "Please fill in all required fields including street and zone.",
     "err.consent":            "Please accept the data privacy consent to proceed.",
-    "err.scheduleDate":       "Please select a valid appointment date.",
     "success.title":          "Request submitted!",
     "success.sub":            "Your request has been successfully received. Kindly wait for your turn to be served.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Returning to home in {n}s…",
     "addr.preview":           "Full address:",
     "field.spouse":           "Name of spouse (Optional)",
     "field.bloodType":        "Blood type (Optional)",
@@ -352,7 +356,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Tirahan",
     "step.details":           "Detalye",
-    "step.schedule":          "Iskedyul",
     "step.review":            "Suriin",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Pangkalahatang layunin na clearance",
@@ -362,26 +365,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa pagpaparehistro ng negosyo",
     "doc.bcert.label":        "Sertipiko ng Barangay",
     "doc.bcert.sub":          "Opisyal na sertipiko ng barangay",
-    "doc.resident.label":     "Pagpaparehistro ng Residente",
-    "doc.resident.sub":       "Magparehistro bilang residente ng barangay",
-    "step1.eyebrow":          "Hakbang 1 ng 6",
+    "step1.eyebrow":          "Hakbang 1 ng 5",
     "step1.title":            "Piliin ang uri ng dokumento",
     "step1.subtitle":         "Piliin ang dokumentong kailangan mo mula sa mga pagpipilian sa ibaba",
-    "step2.eyebrow":          "Hakbang 2 ng 6",
+    "step2.eyebrow":          "Hakbang 2 ng 5",
     "step2.title":            "Personal na impormasyon",
     "step2.subtitle":         "Punan ang iyong kumpletong pangalan at mga detalye ng kapanganakan",
-    "step3.eyebrow":          "Hakbang 3 ng 6",
+    "step3.eyebrow":          "Hakbang 3 ng 5",
     "step3.title":            "Tirahan at paninirahan",
     "step3.subtitle":         "Ibigay ang iyong kasalukuyang tirahan at impormasyon sa paninirahan",
-    "step4.eyebrow":          "Hakbang 4 ng 6",
+    "step4.eyebrow":          "Hakbang 4 ng 5",
     "step4.title":            "Pakikipag-ugnayan at layunin",
     "step4.subtitle":         "Ang iyong numero sa pakikipag-ugnayan at dahilan ng kahilingang ito",
-    "step5.eyebrow":          "Hakbang 5 ng 6",
-    "step5.title":            "Iskedyul ng appointment",
-    "step5.subtitle":         "Pumili ng petsa para kunin ang iyong dokumento sa barangay hall",
-    "step6.eyebrow":          "Hakbang 6 ng 6",
-    "step6.title":            "Suriin ang iyong impormasyon",
-    "step6.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
+    "step5.eyebrow":          "Hakbang 5 ng 5",
+    "step5.title":            "Suriin ang iyong impormasyon",
+    "step5.subtitle":         "Pakiverify ang lahat ng detalye bago isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Unang pangalan",
     "field.middleName":       "Gitnang pangalan (Opsyonal)",
@@ -435,7 +433,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal na impormasyon",
     "review.address":         "Tirahan at paninirahan",
     "review.contact":         "Pakikipag-ugnayan at layunin",
-    "review.schedule":        "Iskedyul ng appointment",
     "review.firstName":       "Unang pangalan",
     "review.middleName":      "Gitnang pangalan",
     "review.Surname":         "Apelyido",
@@ -452,8 +449,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa may-ari",
     "review.contact":         "Numero sa pakikipag-ugnayan",
     "review.purpose":         "Layunin",
-    "review.scheduleDate":    "Petsa ng appointment",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy ng Data",
     "consent.text":           "Ang iyong personal na impormasyon ay kokolektahin at ipoproseso lamang para sa layunin ng kahilingang ito ng dokumento ng barangay, alinsunod sa Batas sa Privacy ng Data ng 2012 (RA 10173). Hindi ito ibabahagi sa mga hindi awtorisadong third party.",
     "consent.checkbox":       "Nauunawaan ko at pumapayag ako sa pagkolekta at pagproseso ng aking personal na impormasyon para sa kahilingang ito.",
@@ -469,9 +464,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.fillRequired":       "Mangyaring punan ang lahat ng kinakailangang field.",
     "err.fillAddress":        "Mangyaring punan ang lahat ng kinakailangang field kasama ang kalye at zone.",
     "err.consent":            "Mangyaring tanggapin ang pahintulot sa privacy ng data upang magpatuloy.",
-    "err.scheduleDate":       "Mangyaring pumili ng wastong petsa ng appointment.",
     "success.title":          "Naisumite na ang kahilingan!",
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Babalik sa home sa {n}s…",
     "addr.preview":           "Buong tirahan:",
     "field.spouse":           "Pangalan ng asawa (Opsyonal)",
     "field.bloodType":        "Uri ng dugo (Opsyonal)",
@@ -546,6 +542,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Ang timbang kinahanglan nga positibo nga numero.",
     "err.invalidCapital":     "Ang kapital kinahanglan nga positibo nga numero.",
     "err.invalidResidency":   "Palihug pagbutang og balido nga panahon (pananglitan, 5 ka tuig, 6 ka bulan).",
+    "err.selectDoc": "Palihug pagpili sa matang sa dokumento sa wala pa magpadayon.",
     "a11y.language":          "Pinulongan",
     "a11y.fontSize":          "Gidak-on sa teksto",
     "a11y.small":             "A",
@@ -561,7 +558,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "step.personal":          "Personal",
     "step.address":           "Adres",
     "step.details":           "Detalye",
-    "step.schedule":          "Iskedyul",
     "step.review":            "Susihon",
     "doc.clearance.label":    "Barangay Clearance",
     "doc.clearance.sub":      "Kinatibuk-ang katuyoan nga clearance",
@@ -571,26 +567,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "doc.business.sub":       "Para sa rehistrasyon sa negosyo",
     "doc.bcert.label":        "Sertipiko sa Barangay",
     "doc.bcert.sub":          "Opisyal nga sertipiko sa barangay",
-    "doc.resident.label":     "Rehistrasyon sa Residente",
-    "doc.resident.sub":       "Magparehistro isip residente sa barangay",
-    "step1.eyebrow":          "Lakang 1 sa 6",
+    "step1.eyebrow":          "Lakang 1 sa 5",
     "step1.title":            "Pilia ang matang sa dokumento",
     "step1.subtitle":         "Pilia ang dokumento nga imong gikinahanglan gikan sa mga kapilian sa ubos",
-    "step2.eyebrow":          "Lakang 2 sa 6",
+    "step2.eyebrow":          "Lakang 2 sa 5",
     "step2.title":            "Personal nga impormasyon",
     "step2.subtitle":         "Palihug pun-a ang imong tibuok ngalan ug mga detalye sa pagkatawo",
-    "step3.eyebrow":          "Lakang 3 sa 6",
+    "step3.eyebrow":          "Lakang 3 sa 5",
     "step3.title":            "Adres ug pagpuyo",
     "step3.subtitle":         "Ihatag ang imong kasamtangang adres ug impormasyon sa pagpuyo",
-    "step4.eyebrow":          "Lakang 4 sa 6",
+    "step4.eyebrow":          "Lakang 4 sa 5",
     "step4.title":            "Kontak ug katuyoan",
     "step4.subtitle":         "Ang imong numero sa kontak ug rason niini nga hangyo",
-    "step5.eyebrow":          "Lakang 5 sa 6",
-    "step5.title":            "Iskedyul sa appointment",
-    "step5.subtitle":         "Pilia ang petsa aron makuha ang imong dokumento sa barangay hall",
-    "step6.eyebrow":          "Lakang 6 sa 6",
-    "step6.title":            "Susihon ang imong impormasyon",
-    "step6.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
+    "step5.eyebrow":          "Lakang 5 sa 5",
+    "step5.title":            "Susihon ang imong impormasyon",
+    "step5.subtitle":         "Palihug i-verify ang tanan nga detalye sa wala pa isumite",
     "field.prefix":           "Titulo",
     "field.firstName":        "Una nga ngalan",
     "field.middleName":       "Tungatunga nga ngalan (Opsyonal)",
@@ -644,7 +635,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.personal":        "Personal nga impormasyon",
     "review.address":         "Adres ug pagpuyo",
     "review.contact":         "Kontak ug katuyoan",
-    "review.schedule":        "Iskedyul sa appointment",
     "review.firstName":       "Una nga ngalan",
     "review.middleName":      "Tungatunga nga ngalan",
     "review.Surname":         "Apelyido",
@@ -661,8 +651,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "review.relation":        "Relasyon sa tag-iya",
     "review.contact":         "Numero sa kontak",
     "review.purpose":         "Katuyoan",
-    "review.scheduleDate":    "Petsa sa appointment",
-    "review.scheduleTime":    "Time slot",
     "consent.heading":        "Abiso sa Privacy sa Data",
     "consent.text":           "Ang imong personal nga impormasyon makolekta ug maproseso lamang alang sa katuyoan niini nga hangyo sa dokumento sa barangay, subay sa Data Privacy Act of 2012 (RA 10173). Dili kini ibahin sa mga wala'y awtorisasyon nga ikatulo nga partido.",
     "consent.checkbox":       "Nasabtan nako ug nagkauyon ako sa pagkolekta ug pagproseso sa akong personal nga impormasyon alang niini nga hangyo.",
@@ -674,13 +662,14 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Isumite ang hangyo",
     "btn.newRequest":         "Magsugod og bag-ong hangyo",
     "btn.cancel":             "Ikansela",
-    "err.selectDoc":          "Palihug pilia ang matang sa dokumento.",
+    
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
-    "err.scheduleDate":       "Palihug pilia og balido nga petsa sa appointment.",
     "success.title":          "Naisumite na ang hangyo!",
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
+    "success.refLabel":       "Reference number",
+    "success.autoReset":      "Mobalik sa home sulod sa {n}s…",
     "addr.preview":           "Tibuok adres:",
     "field.spouse":           "Ngalan sa asawa (Opsyonal)",
     "field.bloodType":        "Matang sa dugo (Opsyonal)",
@@ -938,7 +927,6 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
                 { icon: <Building2 className="h-4 w-4" />, label: "Building Clearance" },
                 { icon: <Briefcase className="h-4 w-4" />, label: "Business Clearance" },
                 { icon: <ScrollText className="h-4 w-4" />, label: "Barangay Certificate" },
-                { icon: <Users className="h-4 w-4" />, label: "Resident Registration" },
               ].map((item, i) => (
                 <div
                   key={i}
@@ -1004,6 +992,25 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
     </div>
   );
 };
+
+////////////
+////////////
+///////////
+// Add this new function near the top with other helper functions
+const getDefaultAdultYear = (): number => {
+  const currentYear = new Date().getFullYear();
+  // Default to 18 years ago (ensures age >= 18)
+  return currentYear - 18;
+};
+
+// Also add a function to get the default date string with the adult year
+const getDefaultAdultDateString = (): string => {
+  const defaultYear = getDefaultAdultYear();
+  const defaultMonth = "01"; // January
+  const defaultDay = "01"; // 1st day
+  return `${defaultYear}-${defaultMonth}-${defaultDay}`;
+};
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PURE UI HELPERS
@@ -1269,7 +1276,6 @@ const DOC_TYPE_KEYS = [
   { type: "building-clearance",    bg: "#e8f8f0", icon: (cls: string) => <Building2  className={cls} /> },
   { type: "business-clearance",    bg: "#fef4e8", icon: (cls: string) => <Briefcase  className={cls} /> },
   { type: "barangay-certificate",  bg: "#f0e8fe", icon: (cls: string) => <ScrollText className={cls} /> },
-  { type: "resident-registration", bg: "#fce8f0", icon: (cls: string) => <Users      className={cls} /> },
 ];
 
 const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
@@ -1277,58 +1283,74 @@ const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
   "building-clearance":    { label: "doc.building.label",  sub: "doc.building.sub"  },
   "business-clearance":    { label: "doc.business.label",  sub: "doc.business.sub"  },
   "barangay-certificate":  { label: "doc.bcert.label",     sub: "doc.bcert.sub"     },
-  "resident-registration": { label: "doc.resident.label",  sub: "doc.resident.sub"  },
 };
 
-const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => (
-  <Card eyebrow={tr("step1.eyebrow")} title={tr("step1.title")} subtitle={tr("step1.subtitle")}>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {DOC_TYPE_KEYS.map((d) => {
-        const keys = DOC_TR_KEYS[d.type];
-        return (
-          <button
-            key={d.type}
-            onClick={() => setDocType(d.type)}
-            className="flex items-center gap-3 p-4 text-left transition-all duration-150"
-            style={{
-              borderRadius: 2,
-              border:       docType === d.type ? `1.5px solid ${NAVY}` : "1px solid #e5e7eb",
-              background:   docType === d.type ? "#f0f4ff" : "transparent",
-            }}
-            aria-pressed={docType === d.type}
-          >
-            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0" style={{ background: d.bg, borderRadius: 4, color: NAVY }}>
-              {d.icon("h-5 w-5")}
-            </div>
-            <div>
-              <div className="font-bold text-foreground" style={{ fontSize: "0.9em" }}>{tr(keys.label)}</div>
-              <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{tr(keys.sub)}</div>
-            </div>
-            {docType === d.type && (
-              <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
-                <Check className="h-3 w-3 text-white" />
+const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => {
+  const [localError, setLocalError] = useState("");
+  
+  const handleNext = () => {
+    if (!docType) {
+      setLocalError(tr("err.selectDoc"));
+    } else {
+      setLocalError("");
+      onNext();
+    }
+  };
+  
+  return (
+    <Card eyebrow={tr("step1.eyebrow")} title={tr("step1.title")} subtitle={tr("step1.subtitle")}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {DOC_TYPE_KEYS.map((d) => {
+          const keys = DOC_TR_KEYS[d.type];
+          return (
+            <button
+              key={d.type}
+              onClick={() => {
+                setDocType(d.type);
+                setLocalError("");
+              }}
+              className="flex items-center gap-3 p-4 text-left transition-all duration-150"
+              style={{
+                borderRadius: 2,
+                border:       docType === d.type ? `1.5px solid ${NAVY}` : "1px solid #e5e7eb",
+                background:   docType === d.type ? "#f0f4ff" : "transparent",
+              }}
+              aria-pressed={docType === d.type}
+            >
+              <div className="w-10 h-10 flex items-center justify-center flex-shrink-0" style={{ background: d.bg, borderRadius: 4, color: NAVY }}>
+                {d.icon("h-5 w-5")}
               </div>
-            )}
+              <div>
+                <div className="font-bold text-foreground" style={{ fontSize: "0.9em" }}>{tr(keys.label)}</div>
+                <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{tr(keys.sub)}</div>
+              </div>
+              {docType === d.type && (
+                <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
+                  <Check className="h-3 w-3 text-white" />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {localError && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{localError}</p>}
+      {error && !localError && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
+      <Actions
+        extraLeft={
+          <button
+            onClick={onHome}
+            className="px-5 py-2.5 font-bold uppercase tracking-wider text-foreground border border-border hover:border-gray-400 transition-all"
+            style={{ borderRadius: 1, fontSize: "0.75em" }}
+          >
+            {tr("btn.backHome")}
           </button>
-        );
-      })}
-    </div>
-    {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
-    <Actions
-      extraLeft={
-        <button
-          onClick={onHome}
-          className="px-5 py-2.5 font-bold uppercase tracking-wider text-foreground border border-border hover:border-gray-400 transition-all"
-          style={{ borderRadius: 1, fontSize: "0.75em" }}
-        >
-          {tr("btn.backHome")}
-        </button>
-      }
-      onNext={onNext}
-      nextLabel={tr("btn.continue")}
-    />
-  </Card>
-);
+        }
+        onNext={handleNext}
+        nextLabel={tr("btn.continue")}
+      />
+    </Card>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 1: PERSONAL INFORMATION
@@ -1344,9 +1366,9 @@ interface CommonStepProps {
   docType: string;
 }
 
-const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
-  const isResident = docType === "resident-registration";
+const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: CommonStepProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const validateAndSet = (field: string, value: string) => {
     const textFields = ["first_name", "middle_name", "surname", "ext_name", "place_of_birth", "nickname", "religion", "name_of_spouse"];
@@ -1377,18 +1399,30 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
   };
 
+  // Handle calendar opening - set default date if field is empty
+  const handleCalendarOpen = (e: React.MouseEvent<HTMLInputElement>) => {
+    const target = e.target as HTMLInputElement;
+    if (target.showPicker && !formData.date_of_birth) {
+      // Set default adult date before opening calendar
+      const defaultDate = getDefaultAdultDateString();
+      validateAndSet("date_of_birth", defaultDate);
+    }
+  };
+
+  // Alternative: Use the onClick event to pre-populate when clicking the calendar icon
+  const handleDateInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (!formData.date_of_birth) {
+      const defaultDate = getDefaultAdultDateString();
+      validateAndSet("date_of_birth", defaultDate);
+    }
+  };
+
   const validateStep = (): boolean => {
     const newErrors: Record<string, string> = {};
     newErrors.first_name     = validateName(formData.first_name || "", tr("field.firstName"), tr);
     newErrors.surname        = validateName(formData.surname || "", tr("field.Surname"), tr);
     newErrors.date_of_birth  = validateDob(formData.date_of_birth || "", tr);
     newErrors.place_of_birth = validateRequired(formData.place_of_birth || "", "Place of birth");
-    if (isResident) {
-      newErrors.sex          = validateRequired(formData.sex || "", "Sex");
-      newErrors.marital_status = validateRequired(formData.marital_status || "", "Marital status");
-      if (formData.height_cm?.trim()) newErrors.height_cm = validatePositiveNumber(formData.height_cm, "Height", tr, false);
-      if (formData.weight_kg?.trim()) newErrors.weight_kg = validatePositiveNumber(formData.weight_kg, "Weight", tr, false);
-    }
     setFieldErrors(newErrors);
     return !Object.values(newErrors).some(err => err);
   };
@@ -1417,85 +1451,23 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls, docT
           <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)} placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.dob")}`} error={fieldErrors.date_of_birth} required>
-          <MaskedInput type="date" value={formData.date_of_birth || ""} onValueChange={(v) => validateAndSet("date_of_birth", v)} placeholder={tr("field.dob")} className={inputCls} style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }} />
+          <MaskedInput 
+            type="date" 
+            value={formData.date_of_birth || ""} 
+            onValueChange={(v) => validateAndSet("date_of_birth", v)}
+            onClick={handleDateInputClick}
+            onFocus={handleDateInputClick}
+            placeholder={tr("field.dob")} 
+            className={inputCls} 
+            style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }}
+            ref={dateInputRef}
+          />
         </Field>
         <div className="md:col-span-2">
           <Field label={`${tr("field.pob")}`} error={fieldErrors.place_of_birth} required>
             <MaskedInput value={formData.place_of_birth || ""} onValueChange={(v) => validateAndSet("place_of_birth", v)} placeholder={tr("ph.pob")} className={inputCls} style={{ borderColor: fieldErrors.place_of_birth ? PINK : "#d1d5db" }} />
           </Field>
         </div>
-
-        {isResident && (
-          <>
-            <Field label={tr("field.nickname")}>
-              <MaskedInput value={formData.nickname || ""} onValueChange={(v) => validateAndSet("nickname", v)} placeholder={tr("ph.nickname")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <Field label={`${tr("field.sex")}`} error={fieldErrors.sex} required>
-              <SelectField value={formData.sex || ""} onChange={(v) => validateAndSet("sex", v)} inputCls={inputCls} error={fieldErrors.sex}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="Male">{tr("opt.male")}</option>
-                <option value="Female">{tr("opt.female")}</option>
-              </SelectField>
-            </Field>
-            <Field label={`${tr("field.civilStatus")}`} error={fieldErrors.marital_status} required>
-              <SelectField value={formData.marital_status || ""} onChange={(v) => validateAndSet("marital_status", v)} inputCls={inputCls} error={fieldErrors.marital_status}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="Single">{tr("opt.single")}</option>
-                <option value="Married">{tr("opt.married")}</option>
-                <option value="Widowed">{tr("opt.widowed")}</option>
-                <option value="Separated">{tr("opt.separated")}</option>
-              </SelectField>
-            </Field>
-            {formData.marital_status === "Married" && (
-              <div className="md:col-span-2">
-                <Field label={tr("field.spouse")}>
-                  <MaskedInput value={formData.name_of_spouse || ""} onValueChange={(v) => validateAndSet("name_of_spouse", v)} placeholder={tr("ph.spouse")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-                </Field>
-              </div>
-            )}
-            <Field label={tr("field.age")}>
-              <input type="text" readOnly
-                value={formData.date_of_birth ? (() => {
-                  const dob = new Date(formData.date_of_birth); const today = new Date();
-                  let age = today.getFullYear() - dob.getFullYear();
-                  const m = today.getMonth() - dob.getMonth();
-                  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-                  return age >= 0 ? String(age) : "";
-                })() : ""}
-                placeholder={tr("ph.agePlaceholder")} className={inputCls}
-                style={{ borderColor: "#d1d5db", color: "#6b7280", cursor: "not-allowed" }} />
-            </Field>
-            <Field label={tr("field.bloodType")}>
-              <SelectField value={formData.blood_type || ""} onChange={(v) => validateAndSet("blood_type", v)} inputCls={inputCls}>
-                <option value="">{tr("opt.select")}</option>
-                {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
-              </SelectField>
-            </Field>
-            <Field label={tr("field.complexion")}>
-              <Combobox value={formData.complexion || ""} onChange={(v) => validateAndSet("complexion", v)}
-                options={[tr("opt.veryFair"), tr("opt.fair"), tr("opt.morena"), tr("opt.brown"), tr("opt.dark"), tr("opt.veryDark")]}
-                placeholder={tr("ph.complexion")} inputCls={inputCls} />
-            </Field>
-            <Field label={tr("field.height")} error={fieldErrors.height_cm}>
-              <MaskedInput value={formData.height_cm || ""} onValueChange={(v) => validateAndSet("height_cm", v)} placeholder={tr("ph.height")} className={inputCls} style={{ borderColor: fieldErrors.height_cm ? PINK : "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.weight")} error={fieldErrors.weight_kg}>
-              <MaskedInput value={formData.weight_kg || ""} onValueChange={(v) => validateAndSet("weight_kg", v)} placeholder={tr("ph.weight")} className={inputCls} style={{ borderColor: fieldErrors.weight_kg ? PINK : "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.religion")}>
-              <Combobox value={formData.religion || ""} onChange={(v) => validateAndSet("religion", v)}
-                options={["Roman Catholic", "Iglesia Ni Cristo", "Born Again Christian", "Muslim", "Buddhist", "Other"]}
-                placeholder={tr("ph.religion")} inputCls={inputCls} />
-            </Field>
-            <Field label={tr("field.pwd")}>
-              <SelectField value={formData.pwd ?? ""} onChange={(v) => validateAndSet("pwd", v)} inputCls={inputCls}>
-                <option value="">{tr("opt.select")}</option>
-                <option value="true">PWD</option>
-                <option value="false">Not PWD</option>
-              </SelectField>
-            </Field>
-          </>
-        )}
       </div>
       {error && <p className="mt-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
       <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.continue")} backLabel={tr("btn.back")} />
@@ -1512,7 +1484,6 @@ interface StepAddressProps extends CommonStepProps {
 interface StreetRecord { id: number; name: string; sitio?: string; formerly?: string | null; }
 
 const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputCls, docType }: StepAddressProps) => {
-  const isResident = docType === "resident-registration";
   const streetNames = Array.from(new Set(streets.map((s) => s.name))).sort();
   const zoneOptions = Array.from(
     new Set(
@@ -1602,11 +1573,6 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
             <MaskedInput value={formData.precinct_no || ""} onValueChange={(v) => validateAndSet("precinct_no", v)} placeholder={tr("ph.precinctNo")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
           </Field>
         )}
-        {isResident && (
-          <Field label={tr("field.residentStatus")}>
-            <MaskedInput value={formData.resident_status || ""} onValueChange={(v) => validateAndSet("resident_status", v)} placeholder={tr("ph.residentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-          </Field>
-        )}
         <Field label={`${tr("field.houseOwner")}`} error={fieldErrors.house_owner} required>
           <MaskedInput value={formData.house_owner || ""} onValueChange={(v) => validateAndSet("house_owner", v)} placeholder={tr("field.houseOwner")} className={inputCls} style={{ borderColor: fieldErrors.house_owner ? PINK : "#d1d5db" }} />
         </Field>
@@ -1635,7 +1601,6 @@ const StepAddress = ({ formData, set, streets, error, onBack, onNext, tr, inputC
 const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docType }: CommonStepProps) => {
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
-  const isResident = docType === "resident-registration";
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateAndSet = (field: string, value: string) => {
@@ -1705,27 +1670,6 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
               className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
           </Field>
         </div>
-        {isResident && (
-          <>
-            <Field label={tr("field.occupation")}>
-              <MaskedInput value={formData.occupation || ""} onValueChange={(v) => validateAndSet("occupation", v)} placeholder={tr("ph.occupation")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <Field label={tr("field.position")}>
-              <MaskedInput value={formData.position || ""} onValueChange={(v) => validateAndSet("position", v)} placeholder={tr("ph.position")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-            </Field>
-            <div className="md:col-span-2">
-              <Field label={tr("field.employmentStatus")}>
-                <MaskedInput value={formData.employment_status || ""} onValueChange={(v) => validateAndSet("employment_status", v)} placeholder={tr("ph.employmentStatus")} className={inputCls} style={{ borderColor: "#d1d5db" }} />
-              </Field>
-            </div>
-            <div className="md:col-span-2">
-              <Field label={tr("field.notes")}>
-                <textarea value={formData.notes || ""} onChange={(e) => validateAndSet("notes", e.target.value)}
-                  placeholder={tr("ph.notes")} rows={3} className={inputCls} style={{ resize: "vertical", fontSize: "inherit" }} />
-              </Field>
-            </div>
-          </>
-        )}
         {isBusiness && (
           <>
             <Field label={`${tr("field.businessName")}`} error={fieldErrors.business_name} required>
@@ -1754,181 +1698,23 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 4: SCHEDULE APPOINTMENT  (NEW)
-// ═══════════════════════════════════════════════════════════════════════════════
-interface SlotInfo { available: boolean; remaining: number; }
-interface AvailableSlots { morning: SlotInfo; afternoon: SlotInfo; }
-
-interface StepScheduleProps extends CommonStepProps {
-  scheduleDate: string;
-  setScheduleDate: (d: string) => void;
-  timeGroup: "morning" | "afternoon";
-  setTimeGroup: (t: "morning" | "afternoon") => void;
-  availableSlots: AvailableSlots | null;
-  loadingSlots: boolean;
-  onDateChange: (d: string) => void;
-}
-
-const StepSchedule = ({
-  onBack, onNext, tr, scheduleDate, timeGroup, setTimeGroup,
-  availableSlots, loadingSlots, onDateChange,
-}: StepScheduleProps) => {
-  const [dateError, setDateError] = useState("");
-
-  const getMinDate = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  };
-
-  const handleDateChange = (value: string) => {
-    const err = validateScheduleDate(value);
-    setDateError(err);
-    if (!err) onDateChange(value);
-    else onDateChange("");
-  };
-
-  const handleNext = () => {
-    if (!scheduleDate) { setDateError(tr("err.scheduleDate")); toast.error(tr("err.scheduleDate")); return; }
-    const err = validateScheduleDate(scheduleDate);
-    if (err) { setDateError(err); toast.error(err); return; }
-    onNext();
-  };
-
-  const slotCard = (
-    id: "morning" | "afternoon",
-    label: string,
-    hours: string,
-    slot: SlotInfo | undefined,
-  ) => {
-    const isSelected = timeGroup === id;
-    const isDisabled = slot ? !slot.available : false;
-    return (
-      <button
-        type="button"
-        disabled={isDisabled}
-        onClick={() => !isDisabled && setTimeGroup(id)}
-        className="w-full flex items-center gap-4 p-4 text-left transition-all duration-150"
-        style={{
-          borderRadius: 6,
-          border: isSelected ? `2px solid ${NAVY}` : "1.5px solid #e5e7eb",
-          background: isSelected ? "#f0f4ff" : isDisabled ? "#f9fafb" : "transparent",
-          opacity: isDisabled ? 0.5 : 1,
-          cursor: isDisabled ? "not-allowed" : "pointer",
-        }}
-        aria-pressed={isSelected}
-      >
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: isSelected ? NAVY : "#f0f4ff", color: isSelected ? "#fff" : NAVY }}
-        >
-          <Clock className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <div className="font-bold" style={{ fontSize: "0.9em", color: NAVY }}>{label}</div>
-          <div className="text-muted-foreground mt-0.5" style={{ fontSize: "0.78em" }}>{hours}</div>
-          {slot && (
-            <div className="mt-1 text-xs font-medium" style={{ color: slot.available ? "#16a34a" : "#ef4444" }}>
-              {slot.available ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available` : "No slots available"}
-            </div>
-          )}
-        </div>
-        {isSelected && (
-          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: NAVY }}>
-            <Check className="h-3 w-3 text-white" />
-          </div>
-        )}
-      </button>
-    );
-  };
-
-  // Auto-highlight which slot is current based on time of day
-  const autoSlot = getAutoTimeGroup();
-
-  return (
-    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
-      <div className="space-y-6">
-        {/* Date picker */}
-        <Field label="Appointment date" error={dateError} required>
-          <div className="relative">
-            <MaskedInput
-              type="date"
-              value={scheduleDate}
-              onValueChange={handleDateChange}
-              className="w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200"
-              style={{ borderColor: dateError ? PINK : "#d1d5db" }}
-              // @ts-ignore – min attribute passthrough
-              min={getMinDate()}
-            />
-          </div>
-        </Field>
-
-        {/* Auto-selection notice */}
-        <div className="p-4 rounded-lg flex items-start gap-3" style={{ background: "#f0f4ff", border: `1px solid #dde3ed` }}>
-          <Calendar className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: NAVY }} />
-          <p style={{ color: NAVY, fontSize: "0.82em" }}>
-            Based on the current time, your appointment has been automatically set to the{" "}
-            <strong>{autoSlot === "morning" ? "Morning" : "Afternoon"} slot</strong>.
-            You may change it below if slots are available.
-          </p>
-        </div>
-
-        {/* Time slot selection */}
-        {scheduleDate ? (
-          loadingSlots ? (
-            <div className="flex items-center gap-2 text-muted-foreground py-4">
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span style={{ fontSize: "0.85em" }}>Loading available slots…</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
-                Select time slot
-              </p>
-              {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", availableSlots?.morning)}
-              {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  availableSlots?.afternoon)}
-            </div>
-          )
-        ) : (
-          <div className="space-y-3">
-            <p className="font-bold uppercase tracking-[0.14em]" style={{ color: PINK, fontSize: "0.65em" }}>
-              Select time slot
-            </p>
-            {slotCard("morning",   "Morning Slot",   "8:00 AM – 11:50 AM", undefined)}
-            {slotCard("afternoon", "Afternoon Slot", "1:00 PM – 5:50 PM",  undefined)}
-            <p className="text-muted-foreground text-xs mt-1">Select a date first to check slot availability.</p>
-          </div>
-        )}
-      </div>
-
-      <Actions onBack={onBack} onNext={handleNext} nextLabel={tr("btn.review")} backLabel={tr("btn.back")} />
-    </Card>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STEP 5: REVIEW
+// STEP 4: REVIEW  (was Step 5, now Step 4 — schedule removed from UI)
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
   docType: string;
   formData: Record<string, string>;
-  scheduleDate: string;
-  timeGroup: "morning" | "afternoon";
   consentChecked: boolean;
   setConsentChecked: (v: boolean) => void;
   error: string;
   onBack: () => void;
   onSubmit: () => void;
-  onEdit: () => void;
+  onEdit: () => void; 
   tr: (k: string) => string;
   isSubmitting: boolean;
 }
 
 const StepReview = ({
-  docType, formData, scheduleDate, timeGroup,
+  docType, formData,
   consentChecked, setConsentChecked, error, onBack, onSubmit, onEdit, tr, isSubmitting,
 }: StepReviewProps) => {
   const docKeys   = docType ? DOC_TR_KEYS[docType] : null;
@@ -1936,17 +1722,10 @@ const StepReview = ({
   const isBusiness = docType === "business-clearance";
   const isBuilding = docType === "building-clearance";
   const isBCert    = docType === "barangay-certificate";
-  const isResident = docType === "resident-registration";
   const addressPreview = [formData.house_block_lot_no, formData.street, formData.zone].filter(Boolean).join(", ");
 
-  const handleSubmitWithValidation = () => {
-    onSubmit();
-  };
-
-  const timeLabel = timeGroup === "morning" ? "Morning (8:00 AM – 11:50 AM)" : "Afternoon (1:00 PM – 5:50 PM)";
-
   return (
-    <Card eyebrow={tr("step6.eyebrow")} title={tr("step6.title")} subtitle={tr("step6.subtitle")}>
+    <Card eyebrow={tr("step5.eyebrow")} title={tr("step5.title")} subtitle={tr("step5.subtitle")}>
       {docKeys && (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 font-bold uppercase tracking-wider"
           style={{ background: "#f0f4ff", border: "1px solid #dde3ed", borderRadius: 4, color: NAVY, fontSize: "0.75em" }}>
@@ -1961,22 +1740,6 @@ const StepReview = ({
         <ReviewRow label={tr("review.Surname")}    value={formData.surname} />
         <ReviewRow label={tr("review.dob")}        value={formData.date_of_birth} />
         <div className="col-span-2"><ReviewRow label={tr("review.pob")} value={formData.place_of_birth} /></div>
-        {isResident && (
-          <>
-            <ReviewRow label={tr("review.sex")}         value={formData.sex} />
-            <ReviewRow label={tr("review.civilStatus")}  value={formData.marital_status} />
-            {formData.name_of_spouse && (
-              <div className="col-span-2"><ReviewRow label={tr("review.spouse")} value={formData.name_of_spouse} /></div>
-            )}
-            <ReviewRow label={tr("review.nickname")}    value={formData.nickname} />
-            <ReviewRow label={tr("review.bloodType")}   value={formData.blood_type} />
-            <ReviewRow label={tr("review.height")}      value={formData.height_cm} />
-            <ReviewRow label={tr("review.weight")}      value={formData.weight_kg} />
-            <ReviewRow label={tr("review.complexion")}  value={formData.complexion} />
-            <ReviewRow label={tr("review.religion")}    value={formData.religion} />
-            <ReviewRow label={tr("review.pwd")}         value={formData.pwd === "true" ? "PWD" : formData.pwd === "false" ? "Not PWD" : formData.pwd} />
-          </>
-        )}
       </ReviewSection>
 
       <ReviewSection title={tr("review.address")}>
@@ -1986,7 +1749,6 @@ const StepReview = ({
         <ReviewRow label={tr("review.residency")} value={formData.period_of_residency} />
         <ReviewRow label={tr("review.voter")}     value={formData.registered_voter} />
         {formData.precinct_no && <ReviewRow label={tr("review.precinctNo")} value={formData.precinct_no} />}
-        {isResident && <ReviewRow label={tr("review.residentStatus")} value={formData.resident_status} />}
         <ReviewRow label={tr("review.houseOwner")} value={formData.house_owner} />
         <ReviewRow label={tr("review.relation")}   value={formData.relationship_to_owner} />
       </ReviewSection>
@@ -2004,26 +1766,13 @@ const StepReview = ({
         {isBuilding && <ReviewRow label={tr("field.establishment")} value={formData.establishment} />}
         {isBCert    && <ReviewRow label={tr("field.bcertNumber")}   value={formData.bcert_number} />}
         <ReviewRow label={tr("review.email")} value={formData.email} />
-        {isResident && (
-          <>
-            <ReviewRow label={tr("review.occupation")}       value={formData.occupation} />
-            <ReviewRow label={tr("review.position")}         value={formData.position} />
-            <ReviewRow label={tr("review.employmentStatus")} value={formData.employment_status} />
-            {formData.notes && <div className="col-span-2"><ReviewRow label={tr("review.notes")} value={formData.notes} /></div>}
-          </>
-        )}
-      </ReviewSection>
-
-      <ReviewSection title={tr("review.schedule")}>
-        <ReviewRow label={tr("review.scheduleDate")} value={scheduleDate} />
-        <ReviewRow label={tr("review.scheduleTime")} value={timeLabel} />
       </ReviewSection>
 
       {error && <p className="mb-3" style={{ color: PINK, fontSize: "0.8em" }}>{error}</p>}
 
       <Actions
         onBack={onBack}
-        onNext={handleSubmitWithValidation}
+        onNext={onSubmit}
         nextLabel={isSubmitting ? "Submitting…" : tr("btn.submit")}
         backLabel={tr("btn.back")}
         disabled={isSubmitting}
@@ -2044,33 +1793,86 @@ const StepReview = ({
 };
 
 // ─── Success screen ────────────────────────────────────────────────────────────
-const SuccessScreen = ({ onReset, tr }: { onReset: () => void; tr: (k: string) => string }) => (
-  <div
-    className="bg-card border border-border overflow-hidden text-center py-16 px-8"
-    style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
-    role="alert"
-    aria-live="polite"
-  >
-    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#e8f0fe" }}>
-      <Check className="h-6 w-6" style={{ color: NAVY }} />
-    </div>
-    <h2 className="font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: NAVY, fontSize: "1.3em" }}>
-      {tr("success.title")}
-    </h2>
-    <p className="text-muted-foreground mb-8" style={{ fontSize: "0.9em" }}>{tr("success.sub")}</p>
-    <button
-      onClick={onReset}
-      className="px-6 py-2.5 font-bold uppercase tracking-wider text-white transition-all duration-200"
-      style={{ backgroundColor: NAVY, borderRadius: 1, fontSize: "0.8em" }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
-    >
-      {tr("btn.newRequest")}
-    </button>
-  </div>  
-);
+interface SuccessScreenProps {
+  onReset: () => void;
+  tr: (k: string) => string;
+  bcertNumber: string | null;
+  serviceLabel: string;
+  applicantName: string;
+  autoResetSeconds: number;
+}
 
-// ─── Step Bar (now 6 steps) ────────────────────────────────────────────────────
+const SuccessScreen = ({
+  onReset, tr, bcertNumber, serviceLabel, applicantName, autoResetSeconds,
+}: SuccessScreenProps) => {
+  // Live countdown so the resident can see how long until the kiosk resets.
+  // Drives the visible "Returning to home in Ns" text. The actual reset is
+  // triggered by the parent's auto-reset timer; we only mirror the value
+  // here for display.
+  const [secondsLeft, setSecondsLeft] = useState(autoResetSeconds);
+  useEffect(() => {
+    setSecondsLeft(autoResetSeconds);
+    const id = setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [autoResetSeconds]);
+
+  return (
+    <div
+      className="bg-card border border-border overflow-hidden text-center py-12 px-8"
+      style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
+      role="alert"
+      aria-live="polite"
+    >
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#e8f0fe" }}>
+        <Check className="h-6 w-6" style={{ color: NAVY }} />
+      </div>
+      <h2 className="font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: NAVY, fontSize: "1.3em" }}>
+        {tr("success.title")}
+      </h2>
+      <p className="text-muted-foreground mb-6" style={{ fontSize: "0.9em" }}>{tr("success.sub")}</p>
+
+      {bcertNumber && (
+        <div
+          className="inline-flex flex-col items-center px-6 py-4 mb-6"
+          style={{ background: "#f8faff", border: `1px solid ${NAVY}22`, borderRadius: 4 }}
+        >
+          <span className="font-bold uppercase tracking-[0.18em]" style={{ color: PINK, fontSize: "0.6em" }}>
+            {tr("success.refLabel")}
+          </span>
+          <span
+            className="font-bold mt-1"
+            style={{ color: NAVY, fontFamily: "'Georgia', serif", fontSize: "1.4em", letterSpacing: "0.04em" }}
+          >
+            {bcertNumber}
+          </span>
+          {(applicantName || serviceLabel) && (
+            <span className="text-muted-foreground mt-2" style={{ fontSize: "0.78em" }}>
+              {applicantName}{applicantName && serviceLabel ? " · " : ""}{serviceLabel}
+            </span>
+          )}
+        </div>
+      )}
+
+      <p className="text-muted-foreground mb-4" style={{ fontSize: "0.78em" }}>
+        {tr("success.autoReset").replace("{n}", String(secondsLeft))}
+      </p>
+
+      <button
+        onClick={onReset}
+        className="px-6 py-2.5 font-bold uppercase tracking-wider text-white transition-all duration-200"
+        style={{ backgroundColor: NAVY, borderRadius: 1, fontSize: "0.8em" }}
+        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+      >
+        {tr("btn.newRequest")}
+      </button>
+    </div>
+  );
+};
+
+// ─── Step Bar (now 5 steps) ────────────────────────────────────────────────────
 interface StepBarProps { currentStep: number; steps: string[]; }
 const StepBar = ({ currentStep, steps }: StepBarProps) => (
   <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
@@ -2115,6 +1917,17 @@ const StepBar = ({ currentStep, steps }: StepBarProps) => (
 // ═══════════════════════════════════════════════════════════════════════════════
 const FrontDesk = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Yes-flow handoff: SearchResident.tsx pushes a normalised `prefill` blob
+  // into router state when a returning resident is matched. Pull it once on
+  // mount; subsequent renders keep working off `formData`.
+  const initialPrefill = useMemo<Record<string, string> | null>(() => {
+    const state = location.state as { prefill?: Record<string, string> } | null;
+    const p = state?.prefill;
+    if (p && typeof p === "object" && Object.keys(p).length > 0) return p;
+    return null;
+  }, [location.state]);
 
   const [lang, setLang]         = useState<Lang>(() => (localStorage.getItem(LS_LANG) as Lang) || "en");
   const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem(LS_FONT) as FontSize) || "md");
@@ -2123,35 +1936,38 @@ const FrontDesk = () => {
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // 6 steps now
+  // 5 steps now (schedule removed from UI)
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
     tr("step.address"),
     tr("step.details"),
-    tr("step.schedule"),
     tr("step.review"),
   ], [tr]);
 
   // ── App stage ──────────────────────────────────────────────────────────────
-  const [stage, setStage]                   = useState<"welcome" | "form">("welcome");
+  // Prefilled residents skip the welcome / privacy gate and land directly on
+  // the document picker so they can pick a service and breeze through the
+  // pre-populated steps. Fresh residents still see the welcome screen.
+  const [stage, setStage]                   = useState<"welcome" | "form">(
+    initialPrefill ? "form" : "welcome"
+  );
 
   // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
   const [docType, setDocType]               = useState("");
-  const [formData, setFormData]             = useState<Record<string, string>>({});
-  const [consentChecked, setConsentChecked] = useState(false);
+  const [formData, setFormData]             = useState<Record<string, string>>(
+    () => initialPrefill ?? {}
+  );
+  // Already-consented Yes-flow residents inherit the privacy acknowledgement
+  // they accepted on the previous submission so they don't have to re-tick
+  // the review-step consent box.
+  const [consentChecked, setConsentChecked] = useState(initialPrefill !== null);
   const [errors, setErrors]                 = useState("");
   const [submitted, setSubmitted]           = useState(false);
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [streets, setStreets]               = useState<StreetRecord[]>([]);
-
-  // ── Schedule state ─────────────────────────────────────────────────────────
-  // Default time group auto-detected from current wall-clock time
-  const [scheduleDate, setScheduleDate]     = useState("");
-  const [timeGroup, setTimeGroup]           = useState<"morning" | "afternoon">(getAutoTimeGroup);
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlots | null>(null);
-  const [loadingSlots, setLoadingSlots]     = useState(false);
+  const [bcertNumber, setBcertNumber]       = useState<string | null>(null);
 
   // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2169,55 +1985,20 @@ const FrontDesk = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── Fetch available slots when date changes ────────────────────────────────
-  const fetchSlots = useCallback(async (date: string) => {
-    if (!date || !docType) return;
-    setLoadingSlots(true);
-    try {
-      const documentType = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
-      const res = await api.get("api/schedules/available-slots", {
-        params: { document_type: documentType, date },
-        withCredentials: true,
-      });
-      const slots: AvailableSlots = res.data?.data ?? null;
-      setAvailableSlots(slots);
-
-      // Auto-select the current time's slot if available; otherwise fall back
-      const auto = getAutoTimeGroup();
-      if (slots) {
-        if (slots[auto].available) {
-          setTimeGroup(auto);
-        } else {
-          // Try the other slot
-          const other: "morning" | "afternoon" = auto === "morning" ? "afternoon" : "morning";
-          if (slots[other].available) setTimeGroup(other);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch slots:", e);
-      setAvailableSlots(null);
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, [docType]);
-
-  const handleDateChange = useCallback((date: string) => {
-    setScheduleDate(date);
-    setAvailableSlots(null);
-    if (date) fetchSlots(date);
-  }, [fetchSlots]);
-
   // ── Step navigation ────────────────────────────────────────────────────────
   const goNext = useCallback(() => { setErrors(""); setCurrentStep((s) => s + 1); }, []);
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit (mirrors BarangayClearanceForm logic exactly) ───────────────────
+  // ── Submit — schedule auto-computed from wall-clock time at submission ─────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-    if (!scheduleDate)   { setErrors(tr("err.scheduleDate")); return; }
-
+  
+    // ── Derive schedule values at the moment of submission ──────────────────
+    const submissionTimeGroup = getAutoTimeGroup();
+    const submissionDate      = getTodayDateString();
+  
     setIsSubmitting(true);
-
+  
     // ── Build base payload ──────────────────────────────────────────────────
     const base = {
       requester_type:        "Walk-in",
@@ -2242,11 +2023,11 @@ const FrontDesk = () => {
       purpose:               formData.purpose               || "",
       purpose_details:       formData.purpose_details       || null,
     };
-
+  
     // ── Pick endpoint per document type ────────────────────────────────────
     type EndpointCfg = { url: string; payload: Record<string, unknown> };
     let cfg: EndpointCfg;
-
+  
     switch (docType) {
       case "clearance":
         cfg = {
@@ -2296,7 +2077,6 @@ const FrontDesk = () => {
           },
         };
         break;
-      case "resident-registration":
       default:
         cfg = {
           url: "api/barangay-clearances",
@@ -2304,33 +2084,93 @@ const FrontDesk = () => {
         };
         break;
     }
-
+  
     try {
       // ── Step 1: Submit the document ────────────────────────────────────────
       const docRes = await api.post(cfg.url, cfg.payload, { withCredentials: true });
-
+  
       if (docRes.status === 201 || docRes.status === 200) {
-        // Extract the document number (bcert_number) from the response
-        const documentNumber = docRes.data?.data?.service?.bcert_number ?? null;
+        // ✅ FIX: Extract document number based on document type
+        const service = docRes.data?.data?.service;
+        let documentNumber: string | null = null;
+  
+        if (docType === "business-clearance") {
+          documentNumber = service?.brgy_business_no ?? null;
+        } else if (docType === "building-clearance") {
+          documentNumber = service?.bcert_number ?? null;
+        } else if (docType === "barangay-certificate") {
+          documentNumber = service?.bcert_number ?? null;
+        } else {
+          
+          documentNumber = service?.bcert_number ?? null;
+        }
+  
         const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
+  
+        // ── Step 2: Auto-schedule based on wall-clock time at submission ────
+        if (docType !== "business-clearance") {
+          try {
+            await api.post(
+              "api/schedules",
+              {
+                document_type:   documentType,
+                document_number: documentNumber,
+                schedule_date:   submissionDate,   // today
+                time_group:      submissionTimeGroup, // "morning" or "afternoon"
+              },
+              { withCredentials: true }
+            );
+          } catch (schedErr) {
+            // Non-blocking — document already submitted successfully
+            console.error("Auto-schedule creation failed:", schedErr);
+          }
+        }
+  
+        // ── Step 3: Persist the resident's profile so future Yes-flow lookups
+        // (FN/LN/DOB) auto-fill every step. We mirror to localStorage (keyed
+        // by normalised FN|LN|DOB so SearchResident.tsx finds it) AND, best-
+        // effort, push to a backend endpoint so the lookup survives across
+        // browsers / kiosks. Both writes are non-blocking.
+        const fn  = formData.first_name    || "";
+        const ln  = formData.surname       || formData.last_name || "";
+        const dob = formData.date_of_birth || "";
+        if (fn && ln && dob) {
+          const profileSnapshot: Record<string, string> = {};
+          Object.entries(formData).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && String(v).trim() !== "") {
+              profileSnapshot[k] = String(v);
+            }
+          });
+          // Make sure both surname and last_name keys are populated so
+          // either spelling resolves on the next lookup.
+          if (!profileSnapshot.surname    && profileSnapshot.last_name)  profileSnapshot.surname   = profileSnapshot.last_name;
+          if (!profileSnapshot.last_name  && profileSnapshot.surname)    profileSnapshot.last_name = profileSnapshot.surname;
 
-        // ── Step 2: Create the schedule appointment ─────────────────────────
-        try {
-          await api.post(
-            "api/schedules",
-            {
-              document_type:   documentType,
-              document_number: documentNumber,
-              schedule_date:   scheduleDate,
-              time_group:      timeGroup,
-            },
-            { withCredentials: true }
-          );
-        } catch (schedErr) {
-          // Schedule creation failure should not block document success
-          console.error("Schedule creation failed:", schedErr);
+          try {
+            window.localStorage.setItem(
+              makeKioskCacheKey(fn, ln, dob),
+              JSON.stringify(profileSnapshot),
+            );
+          } catch (lsErr) {
+            console.error("Local kiosk profile cache failed:", lsErr);
+          }
+
+          try {
+            
+            // so we send `surname` here to keep the kiosk-profile upsert
+            // aligned with the kiosk-search lookup payload.
+            await api.post(
+              "api/kiosk/profile",
+              { first_name: fn, surname: ln, date_of_birth: dob, payload: profileSnapshot },
+              { withCredentials: true },
+            );
+          } catch (profileErr) {
+            // Non-blocking — local cache still works for next Yes-flow.
+            console.error("Backend kiosk profile save failed:", profileErr);
+          }
         }
 
+        setBcertNumber(documentNumber);
         toast.success(tr("success.title"));
         setSubmitted(true);
       }
@@ -2339,15 +2179,28 @@ const FrontDesk = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [consentChecked, docType, formData, scheduleDate, timeGroup, tr]);
+  }, [consentChecked, docType, formData, tr]);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
-    setScheduleDate(""); setTimeGroup(getAutoTimeGroup()); setAvailableSlots(null);
+    setBcertNumber(null);
     setStage("welcome");
-  }, []);
+    // Also bounce back to the SearchResident landing page so the next
+    // resident starts on the Yes/No prompt instead of the privacy gate.
+    navigate(KIOSK_WELCOME_ROUTE, { replace: true });
+  }, [navigate]);
+
+  // ── Auto-reset after success ────────────────────────────────────────────────
+  // The success screen shows a live countdown; this timer is the source of
+  // truth that actually fires the reset. Cleared if the resident hits
+  // "Start new request" early.
+  useEffect(() => {
+    if (!submitted) return;
+    const id = setTimeout(() => { handleReset(); }, SUCCESS_AUTO_RESET_MS);
+    return () => clearTimeout(id);
+  }, [submitted, handleReset]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   if (stage === "welcome") {
@@ -2383,7 +2236,14 @@ const FrontDesk = () => {
           {!submitted && <StepBar currentStep={currentStep} steps={STEPS_TR} />}
 
           {submitted ? (
-            <SuccessScreen onReset={handleReset} tr={tr} />
+            <SuccessScreen
+              onReset={handleReset}
+              tr={tr}
+              bcertNumber={bcertNumber}
+              serviceLabel={getServiceType(docType)}
+              applicantName={[formData.first_name, formData.surname || formData.last_name].filter(Boolean).join(" ").trim()}
+              autoResetSeconds={Math.round(SUCCESS_AUTO_RESET_MS / 1000)}
+            />
 
           ) : currentStep === 0 ? (
             <StepDocument
@@ -2415,24 +2275,9 @@ const FrontDesk = () => {
               tr={tr} inputCls={inputCls} docType={docType}
             />
 
-          ) : currentStep === 4 ? (
-            <StepSchedule
-              formData={formData} set={set} error={errors}
-              onBack={goBack} onNext={goNext}
-              tr={tr} inputCls={inputCls} docType={docType}
-              scheduleDate={scheduleDate}
-              setScheduleDate={setScheduleDate}
-              timeGroup={timeGroup}
-              setTimeGroup={setTimeGroup}
-              availableSlots={availableSlots}
-              loadingSlots={loadingSlots}
-              onDateChange={handleDateChange}
-            />
-
           ) : (
             <StepReview
               docType={docType} formData={formData}
-              scheduleDate={scheduleDate} timeGroup={timeGroup}
               consentChecked={consentChecked} setConsentChecked={setConsentChecked}
               error={errors} onBack={goBack} onSubmit={handleSubmit}
               onEdit={() => { setCurrentStep(0); setErrors(""); }}

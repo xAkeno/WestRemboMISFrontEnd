@@ -16,7 +16,7 @@ import axios from "axios";
       setLoading(true);
 
       // Fetch tickets
-      const ticketsRes = await axios.get("http://127.0.0.1:8000/api/tickets/pending", {
+      const ticketsRes = await axios.get("https://westrembomis.onrender.com/api/tickets/pending", {
         params: { page: 1, per_page: 100 },
         withCredentials: true,
       });
@@ -33,7 +33,7 @@ import axios from "axios";
 
       // Fetch now serving
       const nowServingRes = await axios.get(
-        "http://127.0.0.1:8000/api/tickets/now-serving",
+        "https://westrembomis.onrender.com/api/tickets/now-serving",
         { withCredentials: true }
       );
 
@@ -58,7 +58,7 @@ import axios from "axios";
   const handleCallNext = async () => {
     try {
       // Call your API to move to next ticket
-      await axios.post("http://127.0.0.1:8000/api/tickets/call-next", {}, {
+      await axios.post("https://westrembomis.onrender.com/api/tickets/call-next", {}, {
         withCredentials: true,
       });
       await fetchQueueData();
@@ -70,7 +70,7 @@ import axios from "axios";
 
   const handleSkip = async (ticketId: string) => {
     try {
-      await axios.post(`http://127.0.0.1:8000/api/tickets/${ticketId}/skip`, {}, {
+      await axios.post(`https://westrembomis.onrender.com/api/tickets/${ticketId}/skip`, {}, {
         withCredentials: true,
       });
       await fetchQueueData();
@@ -82,7 +82,7 @@ import axios from "axios";
 
   const handleComplete = async (ticketId: string) => {
     try {
-      await axios.post(`http://127.0.0.1:8000/api/tickets/${ticketId}/complete`, {}, {
+      await axios.post(`https://westrembomis.onrender.com/api/tickets/${ticketId}/complete`, {}, {
         withCredentials: true,
       });
       await fetchQueueData();
@@ -94,7 +94,7 @@ import axios from "axios";
 
   const handleReject = async (ticketId: string) => {
     try {
-      await axios.post(`http://127.0.0.1:8000/api/tickets/${ticketId}/reject`, {}, {
+      await axios.post(`https://westrembomis.onrender.com/api/tickets/${ticketId}/reject`, {}, {
         withCredentials: true,
       });
       await fetchQueueData();

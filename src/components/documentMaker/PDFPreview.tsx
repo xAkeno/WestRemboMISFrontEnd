@@ -85,6 +85,12 @@ export function PDFPreview({
   const [qrSelected, setQrSelected] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
 
+  // ── STEP 1: pageRef ────────────────────────────────────────────────────────
+  // Points at the element whose bounding rect matches the rendered PDF surface.
+  // Because we use <iframe> (can't ref inside), we target the canvasWrap div,
+  // which is sized to the PDF page dimensions — so its origin IS the page origin.
+  const pageRef = useRef<HTMLElement | null>(null);
+
   // The ratio of rendered container size to actual PDF page size.
   const [scale, setScale] = useState(1);
 
@@ -178,8 +184,17 @@ export function PDFPreview({
       onClick={() => { onDeselect(); setQrSelected(false); }}
     >
       <div className="flex flex-1 items-center justify-center p-4 overflow-hidden">
+        {/*
+         * STEP 2-C: <iframe> cannot be ref'd inside, so we attach pageRef to
+         * this wrapper div. It is already sized to match the PDF page exactly
+         * (width/height = pageInfo dimensions, constrained by maxWidth/maxHeight),
+         * making its top-left corner the true PDF origin for coordinate math.
+         */}
         <div
-          ref={canvasWrapRef}
+          ref={(el) => {
+            (canvasWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            pageRef.current = el;          // ← STEP 2: wire pageRef here
+          }}
           className="relative shadow-lg"
           style={{
             width:     pageInfo.width,
@@ -229,14 +244,18 @@ export function PDFPreview({
           </div>
 
           {showQR && (
+            // STEP 3: pass pageRef so QRCodeField uses the correct bounding rect
             <QRCodeField
               bcertNumber={bcertNumber}
-              field={qrField!}
+              field={qrField}
               onChange={onQRChange}
               onRemove={onQRRemove}
-              containerRef={canvasWrapRef}
+              containerRef={containerRef}
+              pageRef={pageRef}                    
               isSelected={qrSelected}
               onSelect={() => setQrSelected(true)}
+              pageWidth={templateInfo?.pages[currentPage]?.width   ?? 595}
+              pageHeight={templateInfo?.pages[currentPage]?.height ?? 842}
             />
           )}
         </div>

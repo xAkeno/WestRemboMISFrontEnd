@@ -28,6 +28,7 @@ export interface TextField {
   // For DATE
   isDate?: boolean;
   dateFormat?: 'YYYY-MM-DD' | 'MM/DD/YYYY' | 'WORD';
+  autoCenter?: boolean;
 }
 
 export interface PDFTemplateInfo {
@@ -52,7 +53,7 @@ export const DEFAULT_FIELD: Omit<TextField, 'id' | 'label' | 'value'> = {
   addressFields: { house: '', street: '', barangay: '' },
   isDate: false,
   dateFormat: 'YYYY-MM-DD',
-  
+  autoCenter: false,
 };
 
 export const PREDEFINED_FIELD_GROUPS = {

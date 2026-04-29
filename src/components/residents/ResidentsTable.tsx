@@ -49,7 +49,7 @@ interface NewRequestNotification {
 
 // ─── API instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -296,13 +296,13 @@ export const ResidentsTable = ({
   };
 
   useEffect(() => {
-    const url = filterValue === '' ? 'http://127.0.0.1:8000/api/residents' : filterValue;
+    const url = filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue;
     fetchResidents(url);
   }, [filterValue]);
 
   // Poll every 30 s
   useEffect(() => {
-    const url = filterValue === '' ? 'http://127.0.0.1:8000/api/residents' : filterValue;
+    const url = filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue;
     const id = setInterval(() => fetchResidents(url), 30_000);
     return () => clearInterval(id);
   }, [filterValue]);
@@ -319,9 +319,9 @@ export const ResidentsTable = ({
   const handleDelete = async (residentId: string) => {
     if (!window.confirm('Are you sure you want to delete this resident?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/residents/${residentId}`, { withCredentials: true });
+      await axios.delete(`https://westrembomis.onrender.com/api/residents/${residentId}`, { withCredentials: true });
       toast.success('Resident deleted successfully.');
-      fetchResidents(filterValue === '' ? 'http://127.0.0.1:8000/api/residents' : filterValue);
+      fetchResidents(filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete resident');
       console.error(error);
@@ -340,7 +340,7 @@ export const ResidentsTable = ({
   };
 
   const handleScheduled = (residentId?: string) => {
-    fetchResidents(filterValue === '' ? 'http://127.0.0.1:8000/api/residents' : filterValue);
+    fetchResidents(filterValue === '' ? 'https://westrembomis.onrender.com/api/residents' : filterValue);
     if (residentId)
       setScheduledKeys(prev => ({ ...prev, [residentId]: (prev[residentId] ?? 0) + 1 }));
   };

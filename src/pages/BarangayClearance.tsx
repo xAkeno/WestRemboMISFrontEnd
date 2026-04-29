@@ -16,16 +16,18 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
+import type { QRCodeFieldData }from '@/components/documentMaker/QRCodeField';
+import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
 
 interface StreetOption {
   id: number;
   name: string;
-  sitio: string;
+  zone?: string;
   formerly?: string;
 }
 
-// Sitio options for dropdown
-const SITIO_OPTIONS = [
+// Zone options for dropdown
+const ZONE_OPTIONS = [
   'Sitio 1',
   'Sitio 2',
   'Sitio 3',
@@ -53,7 +55,7 @@ const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
   },
   {
     label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Sitio'],
+    members: ['House Block Lot No', 'Street', 'Zone'],
     separator: ', ',
   },
 ];
@@ -85,7 +87,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Sitio': 'sitio',
+  'Zone': 'zone',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -143,7 +145,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 };
 
 const NON_DATE_KEYS = new Set([
-  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -155,7 +157,7 @@ const NON_DATE_KEYS = new Set([
   'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
   'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
   'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
-  'extension',
+  'extension', 
 ]);
 
 const FIELD_WRAP_CONFIG: Record<string, number> = {
@@ -163,7 +165,7 @@ const FIELD_WRAP_CONFIG: Record<string, number> = {
   'Address': 50,
   'House Block Lot No': 40,
   'Street': 35,
-  'Sitio': 20,
+  'Zone': 20,
   'Full Name': 40,
   'Purpose': 45,
   'Purpose Details': 55,
@@ -198,22 +200,28 @@ function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
   return lines;
 }
 
-function cleanSitioNumber(value: string): string {
+function cleanZoneNumber(value: string): string {
   if (!value) return '';
   
-  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
+  // Handle "SITIO 2" -> "Zone 2" or just extract number
+  const sitioMatch = value.match(/SITIO\s*(\d+)/i);
   if (sitioMatch) {
-    return sitioMatch[1];
+    return `Sitio ${sitioMatch[1]}`;
+  }
+  
+  const zoneMatch = value.match(/Zone\s*(\d+)/i);
+  if (zoneMatch) {
+    return `Sitio ${zoneMatch[1]}`;
   }
   
   const numberMatch = value.match(/^\d+$/);
   if (numberMatch) {
-    return numberMatch[0];
+    return `Sitio ${numberMatch[0]}`;
   }
   
   const anyNumberMatch = value.match(/\d+/);
   if (anyNumberMatch) {
-    return anyNumberMatch[0];
+    return `Sitio ${anyNumberMatch[0]}`;
   }
   
   return value.trim();
@@ -239,13 +247,13 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   
   const houseBlockLot = formData.house_block_lot_no ?? '';
   const street = formData.street ?? '';
-  let sitio = formData.sitio ?? '';
-  sitio = cleanSitioNumber(sitio);
+  let zone = formData.zone ?? '';
+  zone = cleanZoneNumber(zone);
   
   const addressParts = [];
   if (houseBlockLot) addressParts.push(houseBlockLot);
   if (street) addressParts.push(street);
-  if (sitio) addressParts.push(sitio);
+  if (zone) addressParts.push(zone);
   const fullAddress = addressParts.join(', ');
   
   return {
@@ -258,7 +266,7 @@ function buildLabelValueMap(formData: any): Record<string, string> {
     'Full Name':    fullName,
     'House Block Lot No': houseBlockLot,
     'Street':       street,
-    'Sitio':        sitio,
+    'Zone':         zone,
     'Full Address': fullAddress,
     'Age':          formData.age                  ?? '',
     'Date of Birth': formData.dob                 ?? '',
@@ -290,7 +298,7 @@ function buildReleasePDFFields(
 
   const fieldsToSuppress = [
     'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
-    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'sitio'
+    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'zone'
   ];
 
   for (const group of RELEASE_CONCAT_GROUPS) {
@@ -346,7 +354,7 @@ interface FilterState {
   filter_date: string;
   from: string;
   to: string;
-  sitio: string;
+  zone: string;
   street: string;
   purpose: string;
   schedule_filter: string;
@@ -354,7 +362,7 @@ interface FilterState {
 
 const EMPTY_FILTERS: FilterState = {
   status: '', filter_date: '', from: '', to: '',
-  sitio: '', street: '', purpose: '', schedule_filter: '',
+  zone: '', street: '', purpose: '', schedule_filter: '',
 };
 
 const PURPOSE_OPTIONS = [
@@ -364,7 +372,7 @@ const PURPOSE_OPTIONS = [
 
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   status: 'status', filter_date: 'date', from: 'from', to: 'to',
-  sitio: 'sitio', street: 'street', purpose: 'purpose', schedule_filter: 'schedule',
+  zone: 'zone', street: 'street', purpose: 'purpose', schedule_filter: 'schedule',
 };
 
 function filtersFromParams(params: URLSearchParams): FilterState {
@@ -373,7 +381,7 @@ function filtersFromParams(params: URLSearchParams): FilterState {
     filter_date:     params.get('date')     ?? '',
     from:            params.get('from')     ?? '',
     to:              params.get('to')       ?? '',
-    sitio:           params.get('sitio')    ?? '',
+    zone:            params.get('zone')     ?? '',
     street:          params.get('street')   ?? '',
     purpose:         params.get('purpose')  ?? '',
     schedule_filter: params.get('schedule') ?? '',
@@ -392,7 +400,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -435,7 +443,7 @@ function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
     f.filter_date === 'custom' && f.from ? 'from' : '',
-    f.sitio, f.street, f.purpose, f.schedule_filter,
+    f.zone, f.street, f.purpose, f.schedule_filter,
   ].filter(Boolean).length;
 }
 
@@ -551,7 +559,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -861,7 +869,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -871,7 +879,7 @@ function EditableDetailModal({
   const [formData, setFormData] = useState<any>({
     first_name: '', middle_name: '', surname: '', ext_name: '',
     dob: '', pob: '', contact_no: '', email: '', prefix: '',
-    sitio: '', street: '', house_block_lot_no: '',
+    zone: '', street: '', house_block_lot_no: '',
     period_of_residency: '', house_owner: '', relationship_to_owner: '',
     registered_voter: '', purpose: '', purpose_details: '',
     status: '', requester_type: '', remarks: '',
@@ -893,7 +901,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/barangay-clearances?search=${record.bcert_number}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -909,7 +917,7 @@ function EditableDetailModal({
         contact_no:               full.contact_no               || '',
         email:                    full.email                    || '',
         prefix:                   full.prefix                   || '',
-        sitio:                    full.sitio                    || '',
+        zone:                     full.zone                     || '',
         street:                   full.street                   || '',
         house_block_lot_no:       full.house_block_lot_no       || '',
         period_of_residency:      full.period_of_residency      || '',
@@ -973,7 +981,7 @@ function EditableDetailModal({
     setActionLoading('to_pay');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
@@ -990,7 +998,7 @@ function EditableDetailModal({
     setActionLoading('paid');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'PAID' },
         { withCredentials: true }
       );
@@ -1007,7 +1015,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1031,7 +1039,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/api/barangay-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1058,7 +1066,7 @@ function EditableDetailModal({
     setShowDispositionModal(true);
   };
 
-  // ─── handleReleaseAndSave with CONCAT_GROUPS fix ──────────────────────────────────────────────────
+  // ─── handleReleaseAndSave — now includes QR from saved layout ────────────────
   const handleReleaseAndSave = async () => {
     if (!record?.id) {
       toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
@@ -1066,8 +1074,9 @@ function EditableDetailModal({
     }
     setIsReleasing(true);
     try {
+      // 1. Fetch template metadata (file URL + saved layout which may contain qrField)
       const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/2`,
+        `https://westrembomis.onrender.com/api/documents/single/2`,
         { withCredentials: true }
       );
       const fileUrl = metaRes.data?.file_url;
@@ -1077,24 +1086,40 @@ function EditableDetailModal({
         ? fileUrl
         : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
 
+      // 2. Download the PDF template bytes
       const pdfRes = await axios.get(resolvedUrl, {
         responseType: 'arraybuffer',
         withCredentials: true,
       });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
-      let savedLayout: TextField[] = [];
+      // 3. Parse the saved layout — extract both fields and qrField
+      let savedFields: TextField[] = [];
+      let savedQrField: QRCodeFieldData | null = null;
+
       if (metaRes.data?.layout) {
         try {
-          savedLayout = Array.isArray(metaRes.data.layout)
+          const parsed = Array.isArray(metaRes.data.layout)
             ? metaRes.data.layout
             : JSON.parse(metaRes.data.layout);
+
+          if (Array.isArray(parsed)) {
+            // Legacy format: plain TextField[]
+            savedFields  = parsed;
+            savedQrField = null;
+          } else if (parsed.fields !== undefined) {
+            // New SavedLayout format: { fields, qrField?, version }
+            const layout = parsed as SavedLayout;
+            savedFields  = layout.fields ?? [];
+            savedQrField = layout.qrField ?? null;
+          }
         } catch {
           console.error('Could not parse template layout JSON');
         }
       }
 
-      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+      // 4. Map form data values onto the layout fields
+      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
 
@@ -1109,15 +1134,17 @@ function EditableDetailModal({
       });
 
       const labelValueMap = buildLabelValueMap(formData);
-      const finalFields = buildReleasePDFFields(fieldsWithValues, labelValueMap);
+      const finalFields   = buildReleasePDFFields(fieldsWithValues, labelValueMap);
 
+      // 5. Generate the PDF — pass savedQrField so the QR stamp is embedded
       const renderedBytes = await generatePDF(
         templateBytes,
         finalFields,
-        null,
+        savedQrField,
         record.bcert_number ?? null
       );
 
+      // 6. Upload the rendered PDF to the server
       const filename = `barangay-clearances-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
       const blob = new Blob(
         [new Uint8Array(renderedBytes).buffer],
@@ -1127,7 +1154,7 @@ function EditableDetailModal({
       fd.append('file', blob, filename);
 
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}`,
         fd,
         { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -1157,7 +1184,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/documents/release/barangay-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1180,7 +1207,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/barangay-clearances?search=${record.bcert_number}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1189,7 +1216,7 @@ function EditableDetailModal({
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/barangay-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
           { ...formData, requester_type: formData.requester_type || 'Online' },
           { withCredentials: true }
         );
@@ -1284,220 +1311,60 @@ function EditableDetailModal({
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              <UserIdViewer
-                userId={record?.schedule?.user_id}
-                onZoom={url => setLightboxUrl(url)}
-              />
+              {formData.requester_type === 'Online' && (
+                <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-                <FormField 
-                  name="first_name"
-                  value={formData.first_name || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="First Name"
-                />
-                <FormField 
-                  name="middle_name"
-                  value={formData.middle_name || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Middle Name"
-                />
-                <FormField 
-                  name="surname"
-                  value={formData.surname || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Surname"
-                />
-                <FormField 
-                  name="ext_name"
-                  value={formData.ext_name || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Extension Name"
-                />
-                <FormField 
-                  name="prefix"
-                  value={formData.prefix || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']}
-                  isEditing={isEditing}
-                  label="Prefix"
-                />
-                <FormField 
-                  name="dob"
-                  value={formData.dob || ''}
-                  onChange={handleInputChange}
-                  type="date"
-                  isEditing={isEditing}
-                  label="Date of Birth"
-                />
-                <FormField 
-                  name="pob"
-                  value={formData.pob || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Place of Birth"
-                />
-                <FormField 
-                  name="contact_no"
-                  value={formData.contact_no || ''}
-                  onChange={handleInputChange}
-                  type="tel"
-                  isEditing={isEditing}
-                  label="Contact Number"
-                />
-                <FormField 
-                  name="email"
-                  value={formData.email || ''}
-                  onChange={handleInputChange}
-                  type="email"
-                  isEditing={isEditing}
-                  label="Email"
-                />
+                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing} label="First Name" />
+                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Middle Name" />
+                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing} label="Surname" />
+                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Extension Name" />
+                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} isEditing={isEditing} label="Prefix" />
+                <FormField name="dob" value={formData.dob || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Date of Birth" />
+                <FormField name="pob" value={formData.pob || ''} onChange={handleInputChange} isEditing={isEditing} label="Place of Birth" />
+                <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing} label="Contact Number" />
+                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing} label="Email" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-                <FormField 
-                  name="sitio"
-                  value={formData.sitio || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={SITIO_OPTIONS}
-                  isEditing={isEditing}
-                  label="Sitio"
-                />
-                <FormField 
-                  name="street"
-                  value={formData.street || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={streets.map(s => s.name)}
-                  isEditing={isEditing}
-                  label="Street"
-                />
-                <FormField 
-                  name="house_block_lot_no"
-                  value={formData.house_block_lot_no || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="House/Block/Lot No."
-                />
-                <FormField 
-                  name="period_of_residency"
-                  value={formData.period_of_residency || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Period of Residency"
-                />
-                <FormField 
-                  name="house_owner"
-                  value={formData.house_owner || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="House Owner"
-                />
-                <FormField 
-                  name="relationship_to_owner"
-                  value={formData.relationship_to_owner || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Relationship to Owner"
-                />
-                <FormField 
-                  name="registered_voter"
-                  value={formData.registered_voter || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={['Yes', 'No']}
-                  isEditing={isEditing}
-                  label="Registered Voter"
-                />
+                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing} label="Zone" />
+                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing} label="Street" />
+                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing} label="House/Block/Lot No." />
+                <FormField name="period_of_residency" value={formData.period_of_residency || ''} onChange={handleInputChange} isEditing={isEditing} label="Period of Residency" />
+                <FormField name="house_owner" value={formData.house_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="House Owner" />
+                <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="Relationship to Owner" />
+                <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes', 'No']} isEditing={isEditing} label="Registered Voter" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
+                <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing} label="Purpose" />
+                <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Purpose Details" />
+                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
+                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
+                {/* <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing} label="OR No." /> */}
+                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
+                
+                {/* bcert_number - ALWAYS read-only (matches Certificate component) */}
                 <FormField 
-                  name="purpose"
-                  value={formData.purpose || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={PURPOSE_OPTIONS}
-                  isEditing={isEditing}
-                  label="Purpose"
+                  name="bcert_number" 
+                  value={formData.bcert_number || ''} 
+                  onChange={handleInputChange} 
+                  isEditing={false} 
+                  label="Barangay Clearance No." 
                 />
-                <FormField 
-                  name="purpose_details"
-                  value={formData.purpose_details || ''}
-                  onChange={handleInputChange}
-                  isTextArea={true}
-                  isEditing={isEditing}
-                  label="Purpose Details"
-                />
-                <FormField 
-                  name="issued_on"
-                  value={formData.issued_on || ''}
-                  onChange={handleInputChange}
-                  type="date"
-                  isEditing={isEditing}
-                  label="Issued On"
-                />
-                <FormField 
-                  name="issued_at"
-                  value={formData.issued_at || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Issued At"
-                />
-                <FormField 
-                  name="or_no"
-                  value={formData.or_no || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="OR No."
-                />
-                <FormField 
-                  name="ctc_vrr_no"
-                  value={formData.ctc_vrr_no || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="CTC/VRR No."
-                />
-                <FormField 
-                  name="bcert_number"
-                  value={formData.bcert_number || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  label="Barangay Clearance No."
-                />
+                
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>
                 </div>
                 {formData.rejection_reason && (
-                  <FormField 
-                    name="rejection_reason"
-                    value={formData.rejection_reason || ''}
-                    onChange={handleInputChange}
-                    isTextArea={true}
-                    isEditing={isEditing}
-                    label="Reason of rejection"
-                  />
+                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Reason of rejection" />
                 )}
-                <FormField 
-                  name="requester_type"
-                  value={formData.requester_type || ''}
-                  onChange={handleInputChange}
-                  type="select"
-                  options={['Online', 'Walk-in']}
-                  isEditing={isEditing}
-                  label="Requester Type"
-                />
+                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online', 'Walk-in']} isEditing={isEditing} label="Requester Type" />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
@@ -1530,14 +1397,7 @@ function EditableDetailModal({
                     )}
                   </>
                 )}
-                <FormField 
-                  name="remarks"
-                  value={formData.remarks || ''}
-                  onChange={handleInputChange}
-                  isTextArea={true}
-                  isEditing={isEditing}
-                  label="Remarks"
-                />
+                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Remarks" />
               </div>
 
             </div>
@@ -1749,10 +1609,10 @@ function FilterBar({
             <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
-        {filters.sitio && (
+        {filters.zone && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
-            Sitio: <strong>{filters.sitio}</strong>
-            <button onClick={() => onChange({ sitio: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
+            Zone: <strong>{filters.zone}</strong>
+            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.street && (
@@ -1843,10 +1703,10 @@ function FilterBar({
             </div>
 
             <div className="p-4 border-l border-b border-gray-100">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Sitio</label>
-              <input type="text" placeholder="e.g. Sitio 1, Sitio 2…"
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
+              <input type="text" placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
-                value={filters.sitio} onChange={e => onChange({ sitio: e.target.value })} />
+                value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
             </div>
 
             <div className="p-4 border-r border-gray-100">
@@ -1940,7 +1800,7 @@ const BarangayClearance = () => {
         ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:     filters.filter_date }     : {}),
         ...(filters.filter_date === 'custom' && filters.from        ? { from:            filters.from }            : {}),
         ...(filters.filter_date === 'custom' && filters.to          ? { to:              filters.to }              : {}),
-        ...(filters.sitio                                           ? { sitio:           filters.sitio }           : {}),
+        ...(filters.zone                                            ? { zone:            filters.zone }            : {}),
         ...(filters.street                                          ? { street:          filters.street }          : {}),
         ...(filters.purpose                                         ? { purpose:         filters.purpose }         : {}),
         ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
@@ -2072,7 +1932,7 @@ const BarangayClearance = () => {
                       <SortHeader field="fullName">Full Name</SortHeader>
                       <SortHeader field="bcertNumber">BCert No.</SortHeader>
                       <SortHeader field="created_at">Created At</SortHeader>
-                      <SortHeader field="sitio">Sitio</SortHeader>
+                      <SortHeader field="zone">Zone</SortHeader>
                       <SortHeader field="street">Street</SortHeader>
                       <SortHeader field="dateOfBirth">Date of Birth</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
@@ -2107,7 +1967,7 @@ const BarangayClearance = () => {
                               {isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.sitio ?? '—'}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{(item as any).zone ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
                             {`${item.house_block_lot_no ? item.house_block_lot_no + ' ' : ''}${item.street ?? ''}`.trim() || '—'}
                           </td>
@@ -2158,7 +2018,7 @@ const BarangayClearance = () => {
           <ClearancePagination
             currentPage={currentPage}
             totalPages={totalPages}
-            total={total}
+            total={total} 
             onPageChange={setCurrentPage}
           />
 

@@ -16,26 +16,28 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
+import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
+import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
 
 interface StreetOption {
   id: number;
   name: string;
-  sitio: string;
+  zone?: string;
   formerly?: string;
 }
 
-// Sitio options for dropdown
-const SITIO_OPTIONS = [
-  'Sitio 1',
-  'Sitio 2',
-  'Sitio 3',
-  'Sitio 4',
-  'Sitio 5',
-  'Sitio 6',
-  'Sitio 7',
-  'Sitio 8',
-  'Sitio 9',
-  'Sitio 10',
+// Zone options for dropdown
+const ZONE_OPTIONS = [
+  'Zone 1',
+  'Zone 2',
+  'Zone 3',
+  'Zone 4',
+  'Zone 5',
+  'Zone 6',
+  'Zone 7',
+  'Zone 8',
+  'Zone 9',
+  'Zone 10',
 ];
 
 // ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
   },
   {
     label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Sitio'],
+    members: ['House Block Lot No', 'Street', 'Zone'],
     separator: ', ',
   },
 ];
@@ -84,7 +86,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Sitio': 'sitio',
+  'Zone': 'zone',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -142,7 +144,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 };
 
 const NON_DATE_KEYS = new Set([
-  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -156,22 +158,27 @@ const NON_DATE_KEYS = new Set([
   'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
 ]);
 
-function cleanSitioNumber(value: string): string {
+function cleanZoneNumber(value: string): string {
   if (!value) return '';
   
-  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
+  const sitioMatch = value.match(/SITIO\s*(\d+)/i);
   if (sitioMatch) {
-    return sitioMatch[1];
+    return `Zone ${sitioMatch[1]}`;
+  }
+  
+  const zoneMatch = value.match(/Zone\s*(\d+)/i);
+  if (zoneMatch) {
+    return `Zone ${zoneMatch[1]}`;
   }
   
   const numberMatch = value.match(/^\d+$/);
   if (numberMatch) {
-    return numberMatch[0];
+    return `Zone ${numberMatch[0]}`;
   }
   
   const anyNumberMatch = value.match(/\d+/);
   if (anyNumberMatch) {
-    return anyNumberMatch[0];
+    return `Zone ${anyNumberMatch[0]}`;
   }
   
   return value.trim();
@@ -195,13 +202,13 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   
   const houseNo = formData.house_block_lot_no ?? '';
   const street = formData.street ?? '';
-  let sitio = formData.sitio ?? '';
-  sitio = cleanSitioNumber(sitio);
+  let zone = formData.zone ?? '';
+  zone = cleanZoneNumber(zone);
   
   const addressParts = [];
   if (houseNo) addressParts.push(houseNo);
   if (street) addressParts.push(street);
-  if (sitio) addressParts.push(sitio);
+  if (zone) addressParts.push(zone);
   const fullAddress = addressParts.join(', ');
   
   return {
@@ -215,7 +222,7 @@ function buildLabelValueMap(formData: any): Record<string, string> {
     'Nickname':    formData.nick_name        ?? '',
     'House Block Lot No': houseNo,
     'Street':             street,
-    'Sitio':              sitio,
+    'Zone':               zone,
     'Full Address':       fullAddress,
     'Date of Birth':      formData.dob                ?? '',
     'Place of Birth':     formData.pob                ?? '',
@@ -290,7 +297,7 @@ function buildReleasePDFFields(
         normalizedLabel === 'house block lot no' ||
         normalizedLabel === 'house block lot' ||
         normalizedLabel === 'street' ||
-        normalizedLabel === 'sitio') {
+        normalizedLabel === 'zone') {
       return false;
     }
     return !suppressedNorm.has(normalizedLabel);
@@ -320,7 +327,7 @@ interface FilterState {
   filter_date: string;
   from: string;
   to: string;
-  sitio: string;
+  zone: string;
   street: string;
   purpose: string;
   schedule_filter: string;
@@ -328,7 +335,7 @@ interface FilterState {
 
 const EMPTY_FILTERS: FilterState = {
   status: '', filter_date: '', from: '', to: '',
-  sitio: '', street: '', purpose: '', schedule_filter: '',
+  zone: '', street: '', purpose: '', schedule_filter: '',
 };
 
 const PURPOSE_OPTIONS = [
@@ -345,7 +352,7 @@ const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   filter_date:     'date',
   from:            'from',
   to:              'to',
-  sitio:           'sitio',
+  zone:            'zone',
   street:          'street',
   purpose:         'purpose',
   schedule_filter: 'schedule',
@@ -357,7 +364,7 @@ function filtersFromParams(params: URLSearchParams): FilterState {
     filter_date:     params.get('date')     ?? '',
     from:            params.get('from')     ?? '',
     to:              params.get('to')       ?? '',
-    sitio:           params.get('sitio')    ?? '',
+    zone:            params.get('zone')     ?? '',
     street:          params.get('street')   ?? '',
     purpose:         params.get('purpose')  ?? '',
     schedule_filter: params.get('schedule') ?? '',
@@ -376,7 +383,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -419,7 +426,7 @@ function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
     f.filter_date === 'custom' && f.from ? 'from' : '',
-    f.sitio, f.street, f.purpose, f.schedule_filter,
+    f.zone, f.street, f.purpose, f.schedule_filter,
   ].filter(Boolean).length;
 }
 
@@ -538,7 +545,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -708,15 +715,18 @@ const FormField = memo(({
     }
   }, [isEditing, name]);
   
-  if (!isEditing) {
-    if (type === 'date' && value) return <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>;
-    return <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>;
-  }
-  
-  if (type === 'select' && options) {
-    return (
-      <div>
-        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+  return (
+    <div>
+      <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+      {!isEditing ? (
+        type === 'date' && value ? (
+          <p className="text-sm text-gray-700 mt-1">{new Date(value).toLocaleDateString()}</p>
+        ) : type === 'number' && value ? (
+          <p className="text-sm text-gray-700 mt-1">{value}</p>
+        ) : (
+          <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
+        )
+      ) : type === 'select' && options ? (
         <select 
           ref={inputRef as any}
           id={inputId}
@@ -728,14 +738,7 @@ const FormField = memo(({
           <option value="">Select {label}</option>
           {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
-      </div>
-    );
-  }
-  
-  if (isTextArea) {
-    return (
-      <div>
-        <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
+      ) : isTextArea ? (
         <textarea 
           ref={inputRef as any}
           id={inputId}
@@ -745,23 +748,18 @@ const FormField = memo(({
           rows={3} 
           className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
         />
-      </div>
-    );
-  }
-  
-  return (
-    <div>
-      <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
-      <input 
-        ref={inputRef as any}
-        id={inputId}
-        type={type} 
-        name={name} 
-        value={value} 
-        onChange={onChange} 
-        className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-        autoComplete="off"
-      />
+      ) : (
+        <input 
+          ref={inputRef as any}
+          id={inputId}
+          type={type} 
+          name={name} 
+          value={value} 
+          onChange={onChange} 
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
+          autoComplete="off"
+        />
+      )}
     </div>
   );
 });
@@ -800,7 +798,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -818,7 +816,7 @@ function EditableDetailModal({
     purpose_details: '',
     house_block_lot_no: '',
     street: '',
-    sitio: '',
+    zone: '',
     or_no: '',
     remarks: '',
     status: '',
@@ -849,7 +847,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+        `https://westrembomis.onrender.com/api/building-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -866,7 +864,7 @@ function EditableDetailModal({
         purpose_details:    full.purpose_details    || '',
         house_block_lot_no: full.house_block_lot_no || '',
         street:             full.street             || '',
-        sitio:              full.sitio              || '',
+        zone:               full.zone               || '',
         or_no:              full.or_no              || '',
         remarks:            full.remarks            || '',
         status:             full.status             || '',
@@ -926,7 +924,7 @@ function EditableDetailModal({
     setActionLoading('to_pay');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/building-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
@@ -943,7 +941,7 @@ function EditableDetailModal({
     setActionLoading('paid');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/building-clearances/${record.id}`,
         { status: 'PAID' },
         { withCredentials: true }
       );
@@ -960,7 +958,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/building-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -984,7 +982,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/api/building-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/building-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1021,7 +1019,7 @@ function EditableDetailModal({
     setIsReleasing(true);
     try {
       const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/3`,
+        `https://westrembomis.onrender.com/api/documents/single/3`,
         { withCredentials: true }
       );
       const fileUrl = metaRes.data?.file_url;
@@ -1037,18 +1035,29 @@ function EditableDetailModal({
       });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
-      let savedLayout: TextField[] = [];
+      let savedFields: TextField[] = [];
+      let savedQrField: QRCodeFieldData | null = null;
+
       if (metaRes.data?.layout) {
         try {
-          savedLayout = Array.isArray(metaRes.data.layout)
+          const parsed = Array.isArray(metaRes.data.layout)
             ? metaRes.data.layout
             : JSON.parse(metaRes.data.layout);
+
+          if (Array.isArray(parsed)) {
+            savedFields = parsed;
+            savedQrField = null;
+          } else if (parsed.fields !== undefined) {
+            const layout = parsed as SavedLayout;
+            savedFields = layout.fields ?? [];
+            savedQrField = layout.qrField ?? null;
+          }
         } catch {
           console.error('Could not parse template layout JSON');
         }
       }
 
-      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
 
@@ -1068,7 +1077,7 @@ function EditableDetailModal({
       const renderedBytes = await generatePDF(
         templateBytes,
         finalFields,
-        null,
+        savedQrField,
         record.bcert_number ?? null
       );
 
@@ -1081,7 +1090,7 @@ function EditableDetailModal({
       fd.append('file', blob, filename);
 
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/documents/release/building-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/documents/release/building-clearances/${record.id}`,
         fd,
         { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -1111,7 +1120,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/documents/release/building-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/building-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1134,7 +1143,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/building-clearances?search=${record.bcert_number}`,
+          `https://westrembomis.onrender.com/api/building-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1143,7 +1152,7 @@ function EditableDetailModal({
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/building-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/building-clearances/${existingId}`,
           { ...formData },
           { withCredentials: true }
         );
@@ -1233,10 +1242,9 @@ function EditableDetailModal({
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              <UserIdViewer
-                userId={record?.schedule?.user_id}
-                onZoom={url => setLightboxUrl(url)}
-              />
+              {formData.requester_type === 'Online' && (
+                <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
@@ -1245,221 +1253,183 @@ function EditableDetailModal({
                   { label: 'Middle Name', name: 'middle_name' },
                   { label: 'Surname', name: 'surname' },
                   { label: 'Extension Name', name: 'ext_name' },
-                  
                 ].map(f => (
                   <div key={f.name}>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">{f.label}</label>
                     <FormField 
                       name={f.name}
                       value={formData[f.name] || ''}
                       onChange={handleInputChange}
-                      type={f.type || 'text'}
                       isEditing={isEditing}
                       label={f.label}
                     />
                   </div>
                 ))}
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Prefix</label>
-                  <FormField 
-                    name="prefix"
-                    value={formData.prefix || ''}
-                    onChange={handleInputChange}
-                    type="select"
-                    options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']}
-                    isEditing={isEditing}
-                    label="Prefix"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Email</label>
-                  <FormField 
-                    name="email"
-                    value={formData.email || ''}
-                    onChange={handleInputChange}
-                    type="email"
-                    isEditing={isEditing}
-                    label="Email"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Requester Type</label>
-                  <FormField 
-                    name="requester_type"
-                    value={formData.requester_type || ''}
-                    onChange={handleInputChange}
-                    type="select"
-                    options={['Online', 'Walk-in']}
-                    isEditing={isEditing}
-                    label="Requester Type"
-                  />
-                </div>
+                <FormField 
+                  name="prefix"
+                  value={formData.prefix || ''}
+                  onChange={handleInputChange}
+                  type="select"
+                  options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']}
+                  isEditing={isEditing}
+                  label="Prefix"
+                />
+                <FormField 
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={handleInputChange}
+                  type="email"
+                  isEditing={isEditing}
+                  label="Email"
+                />
+                <FormField 
+                  name="requester_type"
+                  value={formData.requester_type || ''}
+                  onChange={handleInputChange}
+                  type="select"
+                  options={['Online', 'Walk-in']}
+                  isEditing={isEditing}
+                  label="Requester Type"
+                />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Property Information</h3>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Establishment</label>
-                  <FormField 
-                    name="establishment"
-                    value={formData.establishment || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="Establishment"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">House/Block/Lot No.</label>
-                  <FormField 
-                    name="house_block_lot_no"
-                    value={formData.house_block_lot_no || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="House/Block/Lot No."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Street</label>
-                  <FormField 
-                    name="street"
-                    value={formData.street || ''}
-                    onChange={handleInputChange}
-                    type="select"
-                    options={streets.map(s => s.name)}
-                    isEditing={isEditing}
-                    label="Street"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Sitio</label>
-                  <FormField 
-                    name="sitio"
-                    value={formData.sitio || ''}
-                    onChange={handleInputChange}
-                    type="select"
-                    options={SITIO_OPTIONS}
-                    isEditing={isEditing}
-                    label="Sitio"
-                  />
-                </div>
+                <FormField 
+                  name="establishment"
+                  value={formData.establishment || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={isEditing}
+                  label="Establishment"
+                />
+                <FormField 
+                  name="house_block_lot_no"
+                  value={formData.house_block_lot_no || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={isEditing}
+                  label="House/Block/Lot No."
+                />
+                <FormField 
+                  name="street"
+                  value={formData.street || ''}
+                  onChange={handleInputChange}
+                  type="select"
+                  options={streets.map(s => s.name)}
+                  isEditing={isEditing}
+                  label="Street"
+                />
+                <FormField 
+                  name="zone"
+                  value={formData.zone || ''}
+                  onChange={handleInputChange}
+                  type="select"
+                  options={ZONE_OPTIONS}
+                  isEditing={isEditing}
+                  label="Zone"
+                />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose</label>
-                  <FormField 
-                    name="purpose"
-                    value={formData.purpose || ''}
-                    onChange={handleInputChange}
-                    type="select"
-                    options={PURPOSE_OPTIONS}
-                    isEditing={isEditing}
-                    label="Purpose"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Purpose Details</label>
-                  <FormField 
-                    name="purpose_details"
-                    value={formData.purpose_details || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isTextArea={true}
-                    isEditing={isEditing}
-                    label="Purpose Details"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued Date</label>
-                  <FormField 
-                    name="issued_date"
-                    value={formData.issued_date || ''}
-                    onChange={handleInputChange}
-                    type="date"
-                    isEditing={isEditing}
-                    label="Issued Date"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued On</label>
-                  <FormField 
-                    name="issued_on"
-                    value={formData.issued_on || ''}
-                    onChange={handleInputChange}
-                    type="date"
-                    isEditing={isEditing}
-                    label="Issued On"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Issued At</label>
-                  <FormField 
-                    name="issued_at"
-                    value={formData.issued_at || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="Issued At"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">OR No.</label>
-                  <FormField 
-                    name="or_no"
-                    value={formData.or_no || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="OR No."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">CTC/VRR No.</label>
-                  <FormField 
-                    name="ctc_vrr_no"
-                    value={formData.ctc_vrr_no || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="CTC/VRR No."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Building Clearance No.</label>
-                  <FormField 
-                    name="bcert_number"
-                    value={formData.bcert_number || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isEditing={isEditing}
-                    label="Building Clearance No."
-                  />
-                </div>
+                
+                {/* bcert_number - ALWAYS read-only */}
+                <FormField 
+                  name="bcert_number"
+                  value={formData.bcert_number || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={false}
+                  label="Building Clearance No."
+                />
+                
+                <FormField 
+                  name="purpose"
+                  value={formData.purpose || ''}
+                  onChange={handleInputChange}
+                  type="select"
+                  options={PURPOSE_OPTIONS}
+                  isEditing={isEditing}
+                  label="Purpose"
+                />
+                
+                <FormField 
+                  name="purpose_details"
+                  value={formData.purpose_details || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isTextArea={true}
+                  isEditing={isEditing}
+                  label="Purpose Details"
+                />
+                
+                <FormField 
+                  name="issued_date"
+                  value={formData.issued_date || ''}
+                  onChange={handleInputChange}
+                  type="date"
+                  isEditing={isEditing}
+                  label="Issued Date"
+                />
+                
+                <FormField 
+                  name="issued_on"
+                  value={formData.issued_on || ''}
+                  onChange={handleInputChange}
+                  type="date"
+                  isEditing={isEditing}
+                  label="Issued On"
+                />
+                
+                <FormField 
+                  name="issued_at"
+                  value={formData.issued_at || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={isEditing}
+                  label="Issued At"
+                />
+                
+                {/* <FormField 
+                  name="or_no"
+                  value={formData.or_no || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={isEditing}
+                  label="OR No."
+                /> */}
+                
+                {/* <FormField 
+                  name="ctc_vrr_no"
+                  value={formData.ctc_vrr_no || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isEditing={isEditing}
+                  label="CTC/VRR No."
+                /> */}
+                
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>
                 </div>
+                
                 {formData.rejection_reason && (
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Reason of rejection</label>
-                    <FormField 
-                      name="rejection_reason"
-                      value={formData.rejection_reason || ''}
-                      onChange={handleInputChange}
-                      type="text"
-                      isTextArea={true}
-                      isEditing={isEditing}
-                      label="Reason of rejection"
-                    />
-                  </div>
+                  <FormField 
+                    name="rejection_reason"
+                    value={formData.rejection_reason || ''}
+                    onChange={handleInputChange}
+                    type="text"
+                    isTextArea={true}
+                    isEditing={isEditing}
+                    label="Reason of rejection"
+                  />
                 )}
+                
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
+                
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
                   <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
@@ -1486,18 +1456,15 @@ function EditableDetailModal({
                     )}
                   </>
                 )}
-                <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Remarks</label>
-                  <FormField 
-                    name="remarks"
-                    value={formData.remarks || ''}
-                    onChange={handleInputChange}
-                    type="text"
-                    isTextArea={true}
-                    isEditing={isEditing}
-                    label="Remarks"
-                  />
-                </div>
+                <FormField 
+                  name="remarks"
+                  value={formData.remarks || ''}
+                  onChange={handleInputChange}
+                  type="text"
+                  isTextArea={true}
+                  isEditing={isEditing}
+                  label="Remarks"
+                />
               </div>
 
             </div>
@@ -1709,10 +1676,10 @@ function FilterBar({
             <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
-        {filters.sitio && (
+        {filters.zone && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
-            Sitio: <strong>{filters.sitio}</strong>
-            <button onClick={() => onChange({ sitio: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
+            Zone: <strong>{filters.zone}</strong>
+            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.street && (
@@ -1814,13 +1781,13 @@ function FilterBar({
             </div>
 
             <div className="p-4 border-l border-b border-gray-100">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Sitio</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
               <input
                 type="text"
-                placeholder="e.g. Sitio 1, Sitio 2…"
+                placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
-                value={filters.sitio}
-                onChange={e => onChange({ sitio: e.target.value })}
+                value={filters.zone}
+                onChange={e => onChange({ zone: e.target.value })}
               />
             </div>
 
@@ -1936,7 +1903,7 @@ const BuildingClearance = () => {
         ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:      filters.filter_date }     : {}),
         ...(filters.filter_date === 'custom' && filters.from        ? { from:             filters.from }            : {}),
         ...(filters.filter_date === 'custom' && filters.to          ? { to:               filters.to }              : {}),
-        ...(filters.sitio                                           ? { sitio:            filters.sitio }           : {}),
+        ...(filters.zone                                            ? { zone:             filters.zone }            : {}),
         ...(filters.street                                          ? { street:           filters.street }          : {}),
         ...(filters.purpose                                         ? { purpose:          filters.purpose }         : {}),
         ...(filters.schedule_filter                                 ? { schedule_filter:  filters.schedule_filter } : {}),
@@ -1958,7 +1925,7 @@ const BuildingClearance = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this building clearance?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/building-clearances/${id}`, { withCredentials: true });
+      await axios.delete(`https://westrembomis.onrender.com/api/building-clearances/${id}`, { withCredentials: true });
       toast({ title: 'Deleted', description: 'Building clearance deleted successfully.' });
       loadData();
     } catch {
@@ -2074,6 +2041,7 @@ const BuildingClearance = () => {
                       <SortHeader field="bcert_number">BCert No.</SortHeader>
                       <SortHeader field="created_at">Issue Date</SortHeader>
                       <SortHeader field="establishment">Establishment</SortHeader>
+                      <SortHeader field="zone">Zone</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1">
@@ -2112,11 +2080,12 @@ const BuildingClearance = () => {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm font-medium">{item.establishment ?? '—'}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{(item as any).zone ?? '—'}</td>
                           <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
                           <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">
-                            {[item.house_block_lot_no, item.street, (item as any).sitio].filter(Boolean).join(', ') || '—'}
+                            {[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>

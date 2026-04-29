@@ -307,7 +307,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     const loadServiceInfo = async () => {
       setLoadingServiceInfo(true);
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/services", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
         const services: any[] = res.data?.data ?? res.data ?? [];
         const building = services.find((s) => s.name === "Building Clearance");
         if (building) {
@@ -353,7 +353,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await axios.get("http://127.0.0.1:8000/api/schedules/available-slots", {
+      const res = await axios.get("https://westrembomis.onrender.com/api/schedules/available-slots", {
         params: { document_type: formData.document_type, date },
         withCredentials: true,
       });
@@ -376,7 +376,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
 
   const getMinScheduleDate = () => {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
+    d.setDate(d.getDate());
     return d.toISOString().split("T")[0];
   };
 
@@ -422,7 +422,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
         const documentNumber = res.data?.data?.service?.bcert_number;
         const scheduleRes = await axios.post(
-          "http://127.0.0.1:8000/api/schedules",
+          "https://westrembomis.onrender.com/api/schedules",
           { document_type: formData.document_type, document_number: documentNumber, schedule_date: formData.schedule_date, time_group: formData.time_group },
           { withCredentials: true }
         );
@@ -446,7 +446,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
         const user = res.data.data;
         const normalizedDob = user.date_of_birth ? user.date_of_birth.split("T")[0] : "";
         const addressParts = parseAddress(user.address || "");
@@ -880,9 +880,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
                                 </div>
-                                <p className="text-xs" style={{ color: slot.available ? "#16a34a" : "#9ca3af" }}>
-                                  {slot.available ? `${slot.remaining} slot${slot.remaining !== 1 ? "s" : ""} available` : "No slots available"}
-                                </p>
+                          
                               </label>
                             </div>
                           );

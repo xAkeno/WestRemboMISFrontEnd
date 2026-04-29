@@ -21,8 +21,8 @@ const DEFAULT_DOCS: DocItem[] = [
   { name: "Barangay Clearance", file_url: null, file_name: null },
   { name: "Building Clearance", file_url: null, file_name: null },
   { name: "Business Clearance", file_url: null, file_name: null },
-  { name: "Resident Certificate", file_url: null, file_name: null },
-  { name: "Cedula", file_url: null, file_name: null },
+  // { name: "Resident Certificate", file_url: null, file_name: null },
+  // { name: "Cedula", file_url: null, file_name: null },
 ];
 
 export function DocumentGrid() {
@@ -32,7 +32,7 @@ export function DocumentGrid() {
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const API_BASE = "http://127.0.0.1:8000/api";
+  const API_BASE = "https://westrembomis.onrender.com/api";
 
   // Fetch documents from backend and merge with defaults
   useEffect(() => {

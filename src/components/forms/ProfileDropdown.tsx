@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "../ui/sonner";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-export default function ProfileDropdown({ self }: { self: { url_photo: string, first_name: string, surname: string, email: string, role: string } | null }) {
+export default function ProfileDropdown({ self, onSignOut }: { self: { url_photo: string, first_name: string, surname: string, email: string, role: string, } | null; onSignOut: () => void; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -23,14 +23,17 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
   }, []);
 
   const signout = async () => {
+     navigate("/home");  // navigate immediately
+    setIsOpen(false);
+     onSignOut(); 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/logout",
+        "https://westrembomis.onrender.com/api/logout",
         {},
         { withCredentials: true }
       );
 
-      navigate("/home");
+      
       toast.success("You have been signed out.");
     } catch (error) {
       toast.error("Failed to sign out.");
@@ -166,7 +169,7 @@ export default function ProfileDropdown({ self }: { self: { url_photo: string, f
             <li>
               <a onClick={() => {
                 signout();
-                navigate("/logout")
+                
               }} className="cursor-pointer flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 hover:bg-red-50" style={{ color: "#e11d48" }}>
                 <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H8m12 0-4 4m4-4-4-4M9 4H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h2"/>

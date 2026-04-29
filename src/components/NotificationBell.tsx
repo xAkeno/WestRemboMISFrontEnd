@@ -3,7 +3,7 @@ import axios from "axios";
 import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const api = axios.create({ baseURL: "http://127.0.0.1:8000/api", withCredentials: true });
+const api = axios.create({ baseURL: "https://westrembomis.onrender.com/api", withCredentials: true });
 
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);

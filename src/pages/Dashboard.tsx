@@ -12,7 +12,7 @@ import { Layout } from "../components/Layout";
 import axios from "axios";
 import { startOfWeek, startOfMonth, format } from "date-fns";
 
-const BASE = "http://127.0.0.1:8000/api";
+const BASE = "https://westrembomis.onrender.com/api";
 
 const statuses    = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
@@ -29,15 +29,21 @@ const serviceColors: Record<string, string> = {
   "Business Clearance":    "#22c55e",
   "Building Clearance":    "#ef4444",
   "Barangay Certificate":  "#10b981",
-  "Resident Registration": "#f97316",
 };
 
 const serviceChartColors: Record<string, string> = {
   Business:    serviceColors["Business Clearance"],
   Building:    serviceColors["Building Clearance"],
   Barangay:    serviceColors["Barangay Clearance"],
-  Resident:    serviceColors["Resident Registration"],
   Certificate: serviceColors["Barangay Certificate"],
+};
+
+// Route paths for each service type
+const serviceRoutes: Record<string, string> = {
+  "Barangay Clearance":   "/clearancehome/clearance",
+  "Business Clearance":   "/clearancehome/bussinessclearance",
+  "Building Clearance":   "/clearancehome/buildingclearance",
+  "Barangay Certificate": "/certificatehome",
 };
 
 /**
@@ -117,6 +123,7 @@ const Dashboard = () => {
   const [allRecords,         setAllRecords]          = useState<ClearanceRecord[]>([]);
   const [latestActivities,   setLatestActivities]    = useState<any[]>([]);
   const [totalReleasedToday, setTotalReleasedToday]  = useState(0);
+  const [isLoading,          setIsLoading]           = useState(true);
 
   const [queueSearch,        setQueueSearch]         = useState("");
   const [queueTypeFilter,    setQueueTypeFilter]     = useState("All");
@@ -124,6 +131,7 @@ const Dashboard = () => {
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
   const fetchDashboard = async () => {
+    setIsLoading(true);
     try {
       const params: any = {
         filter_date: timeFilter,
@@ -140,14 +148,12 @@ const Dashboard = () => {
       const businessData    = data.business_clearances?.data   || [];
       const buildingData    = data.building_clearances?.data   || [];
       const barangayData    = data.barangay_clearances?.data   || [];
-      const residentData    = data.residents?.data             || [];
       const certificateData = data.barangay_certificates?.data || [];
 
       const periods = Array.from(new Set([
         ...businessData.map((d: any)    => d.period),
         ...buildingData.map((d: any)    => d.period),
         ...barangayData.map((d: any)    => d.period),
-        ...residentData.map((d: any)    => d.period),
         ...certificateData.map((d: any) => d.period),
       ])).sort() as string[];
 
@@ -156,45 +162,60 @@ const Dashboard = () => {
         Business:    businessData.find((d: any)    => d.period === period)?.count || 0,
         Building:    buildingData.find((d: any)    => d.period === period)?.count || 0,
         Barangay:    barangayData.find((d: any)    => d.period === period)?.count || 0,
-        Resident:    residentData.find((d: any)    => d.period === period)?.count || 0,
         Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
       })));
 
-      // ── Merge clearance lists using schedule_time + created_at directly ────
+      // ── Merge clearance lists ──────────────────────────────────────────────
       const merged: ClearanceRecord[] = [];
 
-      const push = (r: any, serviceType: string, docNumber: string) =>
+      const push = (r: any, serviceType: string, docNumber: string) => {
+        if (!r) return;
         merged.push({
           id:           r.id,
-          docNumber,
-          firstName:    r.first_name  ?? "",
-          middleName:   r.middle_name ?? null,
-          surname:      r.surname     ?? "",
-          status:       r.status      ?? "",
+          docNumber:    docNumber || r.bcert_number || r.brgy_business_no || `ID-${r.id}`,
+          firstName:    r.first_name  ?? r.firstName ?? "",
+          middleName:   r.middle_name ?? r.middleName ?? null,
+          surname:      r.surname     ?? r.lastName  ?? "",
+          status:       r.status      ?? "Pending",
           zone:         r.zone        ?? null,
           street:       r.street      ?? null,
-          createdAt:    r.created_at  ?? null,   // ISO – submission date
-          scheduleTime: r.schedule_time ?? null,  // "HH:MM:SS"
-          scheduleDate: r.schedule_date ?? null,  // "YYYY-MM-DD"
+          createdAt:    r.created_at  ?? r.createdAt ?? null,
+          scheduleTime: r.schedule_time ?? r.scheduleTime ?? null,
+          scheduleDate: r.schedule_date ?? r.scheduleDate ?? null,
           serviceType,
           raw: r,
         });
+      };
 
+      // Push records from each list (these are already filtered for today's schedule)
       (data.barangay_clearances_list   ?? []).forEach((r: any) => push(r, "Barangay Clearance",    r.bcert_number));
       (data.business_clearances_list   ?? []).forEach((r: any) => push(r, "Business Clearance",    r.brgy_business_no));
       (data.building_clearances_list   ?? []).forEach((r: any) => push(r, "Building Clearance",    r.bcert_number));
       (data.barangay_certificates_list ?? []).forEach((r: any) => push(r, "Barangay Certificate",  r.bcert_number));
-      (data.residents_list             ?? []).forEach((r: any) => push(r, "Resident Registration", r.resident_no ?? `RES-${r.id}`));
 
-      // ── Sort: Morning (slot 0) first, then Afternoon (slot 1), then Unknown.
-      //          Within each slot, sort by schedule_time ascending.
+      // If no scheduled records, also fetch all pending/encoded records that might need processing
+      if (merged.length === 0) {
+        console.log("No scheduled records for today, fetching pending records...");
+        await fetchPendingRecords(push);
+      }
+
+      // Sort records: Morning (slot 0) first, then Afternoon (slot 1), then Unknown
+      // Within same slot, sort by schedule time (earlier first)
+      // If no schedule time, put them at the end
       merged.sort((a, b) => {
         const slotA = getTimeSlot(parseHour(a.scheduleTime));
         const slotB = getTimeSlot(parseHour(b.scheduleTime));
         if (slotA !== slotB) return slotA - slotB;
+        
+        // Same slot, sort by time
         const tA = a.scheduleTime ?? "99:99:99";
         const tB = b.scheduleTime ?? "99:99:99";
-        return tA.localeCompare(tB);
+        if (tA !== tB) return tA.localeCompare(tB);
+        
+        // If still equal, sort by creation date (older first)
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateA - dateB;
       });
 
       setAllRecords(merged);
@@ -209,6 +230,39 @@ const Dashboard = () => {
       setTotalReleasedToday(data.total_released_today ?? 0);
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fallback: fetch all pending records if no scheduled ones exist
+  const fetchPendingRecords = async (push: Function) => {
+    try {
+      const endpoints = [
+        { url: `${BASE}/barangay-clearance`, type: "Barangay Clearance", docField: "bcert_number" },
+        { url: `${BASE}/business-clearance`, type: "Business Clearance", docField: "brgy_business_no" },
+        { url: `${BASE}/building-clearance`, type: "Building Clearance", docField: "bcert_number" },
+        { url: `${BASE}/certificate`, type: "Barangay Certificate", docField: "bcert_number" },
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await axios.get(endpoint.url, { withCredentials: true });
+          const records = res.data.data || res.data || [];
+          const pendingRecords = records.filter((r: any) => {
+            const status = (r.status || "").toLowerCase();
+            return ["pending", "encoded", "for review", "new"].includes(status);
+          });
+          
+          pendingRecords.forEach((r: any) => {
+            push(r, endpoint.type, r[endpoint.docField]);
+          });
+        } catch (err) {
+          console.error(`Failed to fetch ${endpoint.type}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch pending records:", error);
     }
   };
 
@@ -244,10 +298,18 @@ const Dashboard = () => {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleProcessNow = (record: ClearanceRecord) =>
-    navigate("/clearancehome/clearance", {
-      state: { record: record.raw, serviceType: record.serviceType },
+  const handleProcessNow = (record: ClearanceRecord) => {
+    const route = serviceRoutes[record.serviceType];
+    
+    if (!route) {
+      console.error("Unknown service type:", record.serviceType);
+      return;
+    }
+    
+    navigate(route, {
+      state: { record: record.raw, serviceType: record.serviceType }
     });
+  };
 
   
 
@@ -257,11 +319,26 @@ const Dashboard = () => {
     if (s === "RELEASED") return "bg-green-100  text-green-800";
     if (s === "ENCODED")  return "bg-blue-100   text-blue-800";
     if (s === "REJECTED") return "bg-red-100    text-red-800";
+    if (s === "SCHEDULED") return "bg-purple-100 text-purple-800";
     return "bg-gray-100 text-gray-700";
   };
 
   const nowHour   = new Date().getHours();
   const isMorning = nowHour >= 7 && nowHour < 12;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -270,196 +347,198 @@ const Dashboard = () => {
       <div className="space-y-4">
 
         {/* ── Queue Card ────────────────────────────────────────────────────── */}
-        {allRecords.length > 0 && (
-          <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-background shadow-lg rounded-2xl overflow-hidden">
-            <CardContent className="py-4 px-5">
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-background shadow-lg rounded-2xl overflow-hidden">
+          <CardContent className="py-4 px-5">
 
-              {/* Header */}
-              <div className="flex items-center gap-4 mb-3 flex-wrap">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
-                    <Clock className="w-6 h-6 text-primary-foreground" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-3 flex-wrap">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+                  <Clock className="w-6 h-6 text-primary-foreground" />
                 </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                      Now Serving
-                    </p>
-                    <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full
-                      ${isMorning ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"}`}
-                    >
-                      {isMorning ? <Sun className="w-3 h-3" /> : <Cloud className="w-3 h-3" />}
-                      {isMorning ? "Morning Queue" : "Afternoon Queue"}
-                    </span>
-                  </div>
-                  {filteredRecords[0] && (
-                    <>
-                      <p className="text-2xl font-bold text-foreground tracking-tight truncate">
-                        {filteredRecords[0].docNumber}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate font-medium">
-                        {filteredRecords[0].firstName}{" "}
-                        {filteredRecords[0].middleName ? filteredRecords[0].middleName + " " : ""}
-                        {filteredRecords[0].surname}
-                        {" · "}
-                        <span style={{ color: serviceColors[filteredRecords[0].serviceType] }}>
-                          {filteredRecords[0].serviceType}
-                        </span>
-                        {filteredRecords[0].scheduleTime && (
-                          <> · Sched: <strong>{formatTime(filteredRecords[0].scheduleTime)}</strong></>
-                        )}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Total in Queue</p>
-                    <p className="text-xl font-bold text-primary">{filteredRecords.length}</p>
-                  </div>
-                  {filteredRecords[0] && (
-                    <Button
-                      size="sm"
-                      className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
-                      onClick={() => handleProcessNow(filteredRecords[0])}
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      Process Now
-                    </Button>
-                  )}
-                </div>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
               </div>
 
-              {/* Search + Type Filters */}
-              <div className="flex flex-wrap gap-2 items-center mb-3">
-                <div className="relative flex-1 min-w-[200px] max-w-xs">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input
-                    className="pl-8 h-8 text-xs"
-                    placeholder="Search by name, number, zone…"
-                    value={queueSearch}
-                    onChange={(e) => setQueueSearch(e.target.value)}
-                  />
-                </div>
-                {["All", ...Object.keys(serviceColors)].map((type) => (
-                  <Button
-                    key={type}
-                    size="sm"
-                    variant={queueTypeFilter === type ? "default" : "outline"}
-                    className="h-8 text-xs px-3"
-                    onClick={() => setQueueTypeFilter(type)}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  {/* <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                    Now Serving
+                  </p> */}
+                  <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full
+                    ${isMorning ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"}`}
                   >
-                    {type === "All"
-                      ? "All"
-                      : type
-                          .replace("Barangay Clearance",    "Barangay")
-                          .replace("Business Clearance",    "Business")
-                          .replace("Building Clearance",    "Building")
-                          .replace("Barangay Certificate",  "Certificate")
-                          .replace("Resident Registration", "Resident")}
-                  </Button>
-                ))}
+                    {isMorning ? <Sun className="w-3 h-3" /> : <Cloud className="w-3 h-3" />}
+                    {isMorning ? "Morning Queue" : "Afternoon Queue"}
+                  </span>
+                </div>
+                {filteredRecords.length > 0 ? (
+                  <>
+                    {/* <p className="text-2xl font-bold text-foreground tracking-tight truncate">
+                      {filteredRecords[0].docNumber}
+                    </p> */}
+                    <p className="text-xs text-muted-foreground truncate font-medium">
+                      {filteredRecords[0].firstName}{" "}
+                      {filteredRecords[0].middleName ? filteredRecords[0].middleName + " " : ""}
+                      {filteredRecords[0].surname}
+                      {" · "}
+                      <span style={{ color: serviceColors[filteredRecords[0].serviceType] }}>
+                        {filteredRecords[0].serviceType}
+                      </span>
+                      {filteredRecords[0].scheduleTime && (
+                        <> · Sched: <strong>{formatTime(filteredRecords[0].scheduleTime)}</strong></>
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No records in queue</p>
+                )}
               </div>
 
-              {/* Scrollable record cards */}
-              <div className="flex overflow-x-auto gap-3 py-1">
-                {filteredRecords.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-4 px-2">No matching records.</p>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Total in Queue</p>
+                  <p className="text-xl font-bold text-primary">{filteredRecords.length}</p>
+                </div>
+                {filteredRecords.length > 0 && (
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
+                    onClick={() => handleProcessNow(filteredRecords[0])}
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Process Now
+                  </Button>
                 )}
+              </div>
+            </div>
 
-                {filteredRecords.map((record, index) => {
-                  const hour = parseHour(record.scheduleTime);
-                  const slot = getTimeSlot(hour);
+            {/* Search + Type Filters */}
+            <div className="flex flex-wrap gap-2 items-center mb-3">
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-8 text-xs"
+                  placeholder="Search by name, number, zone…"
+                  value={queueSearch}
+                  onChange={(e) => setQueueSearch(e.target.value)}
+                />
+              </div>
+              {["All", ...Object.keys(serviceColors)].map((type) => (
+                <Button
+                  key={type}
+                  size="sm"
+                  variant={queueTypeFilter === type ? "default" : "outline"}
+                  className="h-8 text-xs px-3"
+                  onClick={() => setQueueTypeFilter(type)}
+                >
+                  {type === "All"
+                    ? "All"
+                    : type
+                        .replace("Barangay Clearance",    "Barangay")
+                        .replace("Business Clearance",    "Business")
+                        .replace("Building Clearance",    "Building")
+                        .replace("Barangay Certificate",  "Certificate")
+                        }
+                </Button>
+              ))}
+            </div>
 
-                  return (
-                    <div
-                      key={`${record.serviceType}-${record.id}`}
-                      className={`relative flex-shrink-0 w-52 flex flex-col gap-1.5 p-2.5 rounded-xl border transition-all group
+            {/* Scrollable record cards */}
+            <div className="flex overflow-x-auto gap-3 py-1">
+              {filteredRecords.length === 0 && (
+                <p className="text-xs text-muted-foreground py-4 px-2">
+                  No matching records. {allRecords.length === 0 ? "No scheduled appointments for today." : "Try adjusting your search."}
+                </p>
+              )}
+
+              {filteredRecords.map((record, index) => {
+                const hour = parseHour(record.scheduleTime);
+                const slot = getTimeSlot(hour);
+
+                return (
+                  <div
+                    key={`${record.serviceType}-${record.id}`}
+                    className={`relative flex-shrink-0 w-52 flex flex-col gap-1.5 p-2.5 rounded-xl border transition-all group
+                      ${index === 0
+                        ? "border-primary bg-primary/10 shadow-md"
+                        : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
+                      }`}
+                  >
+                    {/* Doc number + status */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-bold flex-shrink-0
+                          ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                          {index + 1}
+                        </span>
+                        <p className="text-xs font-semibold text-foreground truncate">
+                          {record.docNumber}
+                        </p>
+                      </div>
+                      <Badge className={`text-[9px] px-1.5 py-0 h-4 shrink-0 border-0 ${statusClass(record.status)}`}>
+                        {toTitleCase(record.status)}
+                      </Badge>
+                    </div>
+
+                    {/* Full name of requester */}
+                    <p className="text-[11px] font-semibold text-foreground truncate leading-tight">
+                      {record.firstName}{" "}
+                      {record.middleName ? record.middleName + " " : ""}
+                      {record.surname}
+                    </p>
+
+                    {/* Service type pill */}
+                    <span
+                      className="text-[9px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
+                      style={{ backgroundColor: serviceColors[record.serviceType] || "#9ca3af" }}
+                    >
+                      {record.serviceType}
+                    </span>
+
+                    {/* Morning / Afternoon + scheduled time */}
+                    <div className="flex items-center gap-1 text-[9px]">
+                      {slot === 0
+                        ? <Sun   className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        : <Cloud className="w-3 h-3 text-indigo-400 flex-shrink-0" />}
+                      <span className={`font-semibold ${slot === 0 ? "text-amber-600" : slot === 1 ? "text-indigo-500" : "text-muted-foreground"}`}>
+                        {slot === 0 ? "Morning" : slot === 1 ? "Afternoon" : "No schedule"}
+                      </span>
+                      {record.scheduleTime && (
+                        <span className="ml-auto text-muted-foreground font-medium">
+                          {formatTime(record.scheduleTime)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Submitted date + schedule date */}
+                    <div className="flex flex-col gap-0.5 text-[9px] text-muted-foreground">
+                      <span>Submitted: <span className="font-medium text-foreground">{formatDate(record.createdAt)}</span></span>
+                      {record.scheduleDate && (
+                        <span>Sched date: <span className="font-medium text-foreground">{formatDate(record.scheduleDate)}</span></span>
+                      )}
+                    </div>
+
+                    {/* Process Now */}
+                    <button
+                      onClick={() => handleProcessNow(record)}
+                      className={`flex items-center justify-center gap-1 w-full py-1 rounded-lg text-[10px] font-semibold transition-all
                         ${index === 0
-                          ? "border-primary bg-primary/10 shadow-md"
-                          : "border-border/50 bg-card hover:border-primary/40 hover:shadow-sm"
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                          : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
                         }`}
                     >
-                      {/* Doc number + status */}
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-bold flex-shrink-0
-                            ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                            {index + 1}
-                          </span>
-                          <p className="text-xs font-semibold text-foreground truncate">
-                            {record.docNumber}
-                          </p>
-                        </div>
-                        <Badge className={`text-[9px] px-1.5 py-0 h-4 shrink-0 border-0 ${statusClass(record.status)}`}>
-                          {toTitleCase(record.status)}
-                        </Badge>
-                      </div>
+                      <ArrowRight className="w-3 h-3" />
+                      Process Now
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
 
-                      {/* Full name of requester */}
-                      <p className="text-[11px] font-semibold text-foreground truncate leading-tight">
-                        {record.firstName}{" "}
-                        {record.middleName ? record.middleName + " " : ""}
-                        {record.surname}
-                      </p>
+          </CardContent>
+        </Card>
 
-                      {/* Service type pill */}
-                      <span
-                        className="text-[9px] text-white font-medium px-2 py-0.5 rounded-md w-fit max-w-full truncate"
-                        style={{ backgroundColor: serviceColors[record.serviceType] || "#9ca3af" }}
-                      >
-                        {record.serviceType}
-                      </span>
-
-                      {/* Morning / Afternoon + scheduled time */}
-                      <div className="flex items-center gap-1 text-[9px]">
-                        {slot === 0
-                          ? <Sun   className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                          : <Cloud className="w-3 h-3 text-indigo-400 flex-shrink-0" />}
-                        <span className={`font-semibold ${slot === 0 ? "text-amber-600" : slot === 1 ? "text-indigo-500" : "text-muted-foreground"}`}>
-                          {slot === 0 ? "Morning" : slot === 1 ? "Afternoon" : "No schedule"}
-                        </span>
-                        {record.scheduleTime && (
-                          <span className="ml-auto text-muted-foreground font-medium">
-                            {formatTime(record.scheduleTime)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Submitted date + schedule date */}
-                      <div className="flex flex-col gap-0.5 text-[9px] text-muted-foreground">
-                        <span>Submitted: <span className="font-medium text-foreground">{formatDate(record.createdAt)}</span></span>
-                        {record.scheduleDate && (
-                          <span>Sched date: <span className="font-medium text-foreground">{formatDate(record.scheduleDate)}</span></span>
-                        )}
-                      </div>
-
-                      {/* Process Now */}
-                      <button
-                        onClick={() => handleProcessNow(record)}
-                        className={`flex items-center justify-center gap-1 w-full py-1 rounded-lg text-[10px] font-semibold transition-all
-                          ${index === 0
-                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                            : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground opacity-0 group-hover:opacity-100"
-                          }`}
-                      >
-                        <ArrowRight className="w-3 h-3" />
-                        Process Now
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Chart + Side Cards ────────────────────────────────────────────── */}
+        {/* ── Chart + Side Cards (unchanged) ────────────────────────────────────────────── */}
         <div className="flex gap-4 w-full items-start">
 
           <Card className="flex-1 min-w-0">
@@ -527,7 +606,6 @@ const Dashboard = () => {
                   <Line type="monotone" dataKey="Business"    stroke={serviceChartColors.Business}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Building"    stroke={serviceChartColors.Building}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Barangay"    stroke={serviceChartColors.Barangay}    strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="Resident"    stroke={serviceChartColors.Resident}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Certificate" stroke={serviceChartColors.Certificate} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -558,28 +636,32 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto pr-1 pb-3">
                 <div className="space-y-1.5">
-                  {latestActivities.map((activity, index) => (
-                    <div
-                      key={index}
-                      className={`flex flex-col gap-0.5 p-2 border rounded-lg hover:bg-muted/50 transition-colors
-                        ${activity.type === "status_update" ? "border-l-2 border-l-blue-400"   : ""}
-                        ${activity.type === "create"        ? "border-l-2 border-l-green-400"  : ""}
-                        ${activity.type === "update"        ? "border-l-2 border-l-yellow-400" : ""}
-                      `}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-semibold text-foreground leading-tight">
-                          {activity.action}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                          {activity.date}
+                  {latestActivities.length > 0 ? (
+                    latestActivities.map((activity, index) => (
+                      <div
+                        key={index}
+                        className={`flex flex-col gap-0.5 p-2 border rounded-lg hover:bg-muted/50 transition-colors
+                          ${activity.type === "status_update" ? "border-l-2 border-l-blue-400"   : ""}
+                          ${activity.type === "create"        ? "border-l-2 border-l-green-400"  : ""}
+                          ${activity.type === "update"        ? "border-l-2 border-l-yellow-400" : ""}
+                        `}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-semibold text-foreground leading-tight">
+                            {activity.action}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground flex-shrink-0">
+                            {activity.date}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-tight truncate">
+                          {activity.description}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight truncate">
-                        {activity.description}
-                      </p>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-4">No recent activity</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

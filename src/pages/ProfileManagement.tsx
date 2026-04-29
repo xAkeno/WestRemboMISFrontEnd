@@ -99,7 +99,7 @@ const ProfileManagement = () => {
   // Fetch streets first
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/streets", { withCredentials: true })
+      .get("https://westrembomis.onrender.com/api/streets", { withCredentials: true })
       .then((res) => setStreets(res.data?.data ?? res.data ?? []))
       .catch((e) => console.error("Failed to fetch streets:", e));
   }, []);
@@ -120,7 +120,7 @@ const ProfileManagement = () => {
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+      const response = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
       if (response.status === 200) {
         const user = response.data.data;
         
@@ -224,7 +224,7 @@ const ProfileManagement = () => {
     fd.append("profileImage", file);
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/api/uploadProfileImage",
+        "https://westrembomis.onrender.com/api/uploadProfileImage",
         fd,
         { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -275,7 +275,7 @@ const ProfileManagement = () => {
 
     try {
       setIsSaving(true);
-      await axios.put("http://127.0.0.1:8000/api/updateProfile", payload, { withCredentials: true });
+      await axios.put("https://westrembomis.onrender.com/api/updateProfile", payload, { withCredentials: true });
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");

@@ -329,7 +329,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) {
         console.error("Failed to fetch streets:", e);
@@ -383,7 +383,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
     setLoadingSlots(true);
     try {
       const res = await axios.get(
-        "http://127.0.0.1:8000/api/schedules/available-slots",
+        "https://westrembomis.onrender.com/api/schedules/available-slots",
         {
           params: { document_type: formData.document_type, date },
           withCredentials: true,
@@ -426,7 +426,7 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/details", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
         const user = res.data.data;
         const filledFields: string[] = [];
 
@@ -554,14 +554,14 @@ const ResidentRegistrationForm = ({ onBack }: ResidentRegistrationFormProps) => 
       const payload = new FormData();
       Object.entries(formData).forEach(([k, v]) => payload.append(k, String(v)));
       if (residentImage) payload.append("photo", residentImage);
-      const res = await axios.post("http://127.0.0.1:8000/api/residents", payload, { withCredentials: true });
+      const res = await axios.post("https://westrembomis.onrender.com/api/residents", payload, { withCredentials: true });
       if (res.status === 201 || res.status === 200) {
         const newId = res.data?.data?.service?.id ?? res.data?.data?.id ?? res.data?.id;
         const documentNumber = res.data?.data?.service?.bcert_number;
 
         // Create schedule appointment
         const scheduleRes = await axios.post(
-          "http://127.0.0.1:8000/api/schedules",
+          "https://westrembomis.onrender.com/api/schedules",
           {
             document_type: formData.document_type,
             document_number: documentNumber,

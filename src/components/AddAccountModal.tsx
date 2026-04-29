@@ -103,7 +103,7 @@ export function AddAccountModal({ open, onOpenChange, onAccountAdded }: AddAccou
         permissions: data.permissions,
       };
 
-      const response = await axios.post("http://127.0.0.1:8000/api/register", payload,{withCredentials:true});
+      const response = await axios.post("https://westrembomis.onrender.com/api/register", payload,{withCredentials:true});
 
       toast({
         title: "Account created successfully",

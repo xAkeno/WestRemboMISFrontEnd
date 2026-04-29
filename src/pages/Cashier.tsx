@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const TYPE_MAP: { [key: string]: string } = {
-    "Resident":             "resident",
     "Barangay Clearance":   "barangay_clearance",
     "Business Clearance":   "business_clearance",
     "Building Clearance":   "building_clearance",
@@ -45,7 +44,7 @@ const ConfirmModal = ({
 
 const Cashier = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [choose, setChoose] = useState("Resident");
+    const [choose, setChoose] = useState("Barangay Clearance");
     const [loadedColumn, setLoadedColumn] = useState<string[]>([]);
     const [tableData, setTableData] = useState<any[]>([]);
     const [search, setSearch] = useState("");
@@ -67,7 +66,7 @@ const Cashier = () => {
     useEffect(() => {
         const fetchPrices = async () => {
             try {
-                const res = await axios.get("http://127.0.0.1:8000/api/service-prices", { withCredentials: true });
+                const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", { withCredentials: true });
                 const data: { type: string; amount: string | number }[] = res.data?.data ?? res.data ?? [];
                 const map: { [type: string]: number } = {};
                 data.forEach((d) => { map[d.type] = parseFloat(String(d.amount)); });
@@ -84,7 +83,7 @@ const Cashier = () => {
 
         setFetchingTin((prev) => new Set(prev).add(rowIndex));
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/official-receipts/by-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
                 params: { or_number: orNumber },
                 withCredentials: true,
             });
@@ -143,32 +142,29 @@ const Cashier = () => {
     };
 
     const getEndpoint = () => {
-        if (choose === "Resident")             return "http://127.0.0.1:8000/api/residents";
-        if (choose === "Barangay Clearance")   return "http://127.0.0.1:8000/api/barangay-clearances";
-        if (choose === "Business Clearance")   return "http://127.0.0.1:8000/api/business-clearances";
-        if (choose === "Building Clearance")   return "http://127.0.0.1:8000/api/building-clearances";
-        if (choose === "Barangay Certificate") return "http://127.0.0.1:8000/api/barangay-certificates";
+        if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
+        if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
+        if (choose === "Building Clearance")   return "https://westrembomis.onrender.com/api/building-clearances";
+        if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
     };
 
     const getRowEndpoint = (row: any): string => {
         switch (choose) {
-            case "Resident":             return `http://127.0.0.1:8000/api/residents/${row.id}`;
-            case "Barangay Clearance":   return `http://127.0.0.1:8000/api/barangay-clearances/${row.id}`;
-            case "Business Clearance":   return `http://127.0.0.1:8000/api/business-clearances/${row.id}`;
-            case "Building Clearance":   return `http://127.0.0.1:8000/api/building-clearances/${row.id}`;
-            case "Barangay Certificate": return `http://127.0.0.1:8000/api/barangay-certificates/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/${row.id}`;
             default: return "";
         }
     };
 
     const getStatusEndpoint = (row: any): string => {
         switch (choose) {
-            case "Barangay Clearance":   return `http://127.0.0.1:8000/api/barangay-clearances/status/${row.id}`;
-            case "Business Clearance":   return `http://127.0.0.1:8000/api/business-clearances/status/${row.id}`;
-            case "Building Clearance":   return `http://127.0.0.1:8000/api/building-clearances/status/${row.id}`;
-            case "Barangay Certificate": return `http://127.0.0.1:8000/api/barangay-certificates/status/${row.id}`;
-            case "Resident":             return `http://127.0.0.1:8000/api/residents/status/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/status/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/status/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/status/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/status/${row.id}`;
             default:                     return getRowEndpoint(row);
         }
     };
@@ -189,7 +185,7 @@ const Cashier = () => {
         setSettingStart((prev) => ({ ...prev, [type]: true }));
         try {
             await axios.post(
-                "http://127.0.0.1:8000/api/or-starting-number",
+                "https://westrembomis.onrender.com/api/or-starting-number",
                 { type, starting_number: parseInt(value, 10) },
                 { withCredentials: true }
             );
@@ -211,7 +207,7 @@ const Cashier = () => {
 
         setGeneratingOr((prev) => new Set(prev).add(rowIndex));
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/generate-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/generate-or", {
                 params: {
                     type,
                     reference_id: row.id,
@@ -271,7 +267,7 @@ const Cashier = () => {
                 const orForTin = newOrNo;
                 if (orForTin && tinValue.trim() !== "") {
                     await axios.patch(
-                        "http://127.0.0.1:8000/api/official-receipts/by-or",
+                        "https://westrembomis.onrender.com/api/official-receipts/by-or",
                         { or_number: orForTin, tin_no: tinValue.trim() },
                         { withCredentials: true }
                     );
@@ -295,8 +291,6 @@ const Cashier = () => {
             const toPay = row.to_pay ?? null;
             const paid  = row.paid   ?? null;
             switch (entity) {
-                case "Resident":
-                    return { id: row.id, first_name: row.first_name, last_name: row.surname, status: row.status, to_pay: toPay, paid, or_no: row.or_no ?? null };
                 case "Barangay Clearance":
                     return { id: row.id, first_name: row.first_name, last_name: row.surname, purpose: row.purpose, status: row.status, to_pay: toPay, paid, or_no: row.or_no ?? null };
                 case "Business Clearance":
@@ -323,11 +317,10 @@ const Cashier = () => {
     };
 
     useEffect(() => {
-        if (choose === "Resident")                  setLoadedColumn(["ID", "First Name", "Last Name", "Status", "To Pay", "Paid", "Action"]);
-        else if (choose === "Barangay Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "To Pay", "Paid", "Action"]);
-        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "Status", "To Pay", "Paid", "Action"]);
-        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "To Pay", "Paid", "Action"]);
-        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "Status", "To Pay", "Paid", "Action"]);
+        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
+        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "To Pay", "Paid", "Status", "Action"]);
+        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
+        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "To Pay", "Paid", "Status", "Action"]);
 
         const fetchData = async () => {
             const endpoint = getEndpoint();
@@ -387,7 +380,7 @@ const Cashier = () => {
                         {dropdownOpen && (
                             <div className="absolute top-16 right-4 z-10 bg-neutral-primary-medium border bg-gray-100 rounded-base shadow-lg w-44">
                                 <ul className="p-2 text-sm text-body">
-                                    {["Resident", "Barangay Clearance", "Building Clearance", "Business Clearance", "Barangay Certificate"].map((item) => (
+                                    {["Barangay Clearance", "Building Clearance", "Business Clearance", "Barangay Certificate"].map((item) => (
                                         <li key={item}>
                                             <button onClick={() => { setChoose(item); setDropdownOpen(false); }}
                                                 className="w-full p-2 hover:bg-neutral-tertiary-medium rounded text-left">{item}</button>
@@ -452,7 +445,7 @@ const Cashier = () => {
                                             <td key={colIndex} className="px-6 py-3">
                                                 <div className="flex flex-col gap-2 min-w-[150px]">
 
-                                                    {/* Paid / Not Paid dropdown only */}
+                                                    {/* Paid / Not Paid dropdown */}
                                                     <select
                                                         className="px-2 py-1 border rounded text-sm w-full"
                                                         value={(row.status ?? "").toUpperCase() === "PAID" ? "PAID" : "NOT_PAID"}
@@ -477,80 +470,76 @@ const Cashier = () => {
                                                         {/* TIN Number */}
                                                         <div className="flex flex-col flex-1">
                                                             <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-semibold text-gray-500">
-                                                                TIN Number (optional)
-                                                            </span>
-
-                                                            {fetchingTin.has(rowIndex) && (
-                                                                <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                </svg>
-                                                                Loading...
+                                                                <span className="text-xs font-semibold text-gray-500">
+                                                                    TIN Number (optional)
                                                                 </span>
-                                                            )}
+                                                                {fetchingTin.has(rowIndex) && (
+                                                                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                                        </svg>
+                                                                        Loading...
+                                                                    </span>
+                                                                )}
                                                             </div>
-
                                                             <input
-                                                            type="text"
-                                                            placeholder="Enter TIN"
-                                                            className="w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
-                                                            value={getDisplayTin(row, rowIndex)}
-                                                            onChange={(e) =>
-                                                                setTinInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))
-                                                            }
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                            }}
+                                                                type="text"
+                                                                placeholder="Enter TIN"
+                                                                className="w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
+                                                                value={getDisplayTin(row, rowIndex)}
+                                                                onChange={(e) =>
+                                                                    setTinInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))
+                                                                }
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
+                                                                }}
                                                             />
                                                         </div>
 
                                                         {/* OR Number */}
                                                         <div className="flex flex-col flex-1">
                                                             <span className="text-xs font-semibold text-gray-500">
-                                                            OR Number
+                                                                OR Number
                                                             </span>
-
                                                             <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="text"
-                                                                placeholder="No OR yet"
-                                                                className="flex-1 px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
-                                                                value={
-                                                                orInputs[rowIndex] !== undefined
-                                                                    ? orInputs[rowIndex]
-                                                                    : row.or_no ?? ""
-                                                                }
-                                                                onChange={(e) =>
-                                                                setOrInputs((prev) => ({
-                                                                    ...prev,
-                                                                    [rowIndex]: e.target.value,
-                                                                }))
-                                                                }
-                                                                onKeyDown={(e) => {
-                                                                if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                                }}
-                                                            />
-
-                                                            {/* Generate Button */}
-                                                            <button
-                                                                onClick={() => handleAutoGenerateOr(row, rowIndex)}
-                                                                disabled={generatingOr.has(rowIndex)}
-                                                                className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
-                                                            >
-                                                                {generatingOr.has(rowIndex) ? (
-                                                                <>
-                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                    </svg>
-                                                                    ...
-                                                                </>
-                                                                ) : (
-                                                                "Generate"
-                                                                )}
-                                                            </button>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="No OR yet"
+                                                                    className="flex-1 px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
+                                                                    value={
+                                                                        orInputs[rowIndex] !== undefined
+                                                                            ? orInputs[rowIndex]
+                                                                            : row.or_no ?? ""
+                                                                    }
+                                                                    onChange={(e) =>
+                                                                        setOrInputs((prev) => ({
+                                                                            ...prev,
+                                                                            [rowIndex]: e.target.value,
+                                                                        }))
+                                                                    }
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
+                                                                    }}
+                                                                />
+                                                                {/* Generate Button */}
+                                                                <button
+                                                                    onClick={() => handleAutoGenerateOr(row, rowIndex)}
+                                                                    disabled={generatingOr.has(rowIndex)}
+                                                                    className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
+                                                                >
+                                                                    {generatingOr.has(rowIndex) ? (
+                                                                        <>
+                                                                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                                            </svg>
+                                                                            ...
+                                                                        </>
+                                                                    ) : (
+                                                                        "Generate"
+                                                                    )}
+                                                                </button>
                                                             </div>
                                                         </div>
 
@@ -561,29 +550,27 @@ const Cashier = () => {
                                                             className="inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
                                                         >
                                                             {savingRow.has(rowIndex) ? (
-                                                            <>
-                                                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                </svg>
-                                                                Saving...
-                                                            </>
+                                                                <>
+                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                                    </svg>
+                                                                    Saving...
+                                                                </>
                                                             ) : (
-                                                            <>
                                                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                                <path
-                                                                    stroke="currentColor"
-                                                                    strokeWidth="2.5"
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    d="M5 12l5 5L19 7"
-                                                                />
+                                                                    <path
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2.5"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        d="M5 12l5 5L19 7"
+                                                                    />
                                                                 </svg>
-                                                            </>
                                                             )}
                                                         </button>
 
-                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                         );

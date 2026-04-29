@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 
 interface SidebarProps {
@@ -56,7 +56,7 @@ export function EditorSidebar({
   onToggleQR,
 }: SidebarProps) {
   const selectedField = fields.find((f) => f.id === selectedId);
-  const hasNumber = !!bcertNumber && bcertNumber !== 'new';
+  const hasNumber     = !!bcertNumber && bcertNumber !== 'new';
 
   return (
     <div className="flex h-full w-72 flex-col border-r border-border bg-sidebar text-sidebar-foreground">
@@ -115,7 +115,7 @@ export function EditorSidebar({
         </div>
       </ScrollArea>
 
-      {/* ── QR Code Panel (Auto-Generated) ─────────────────────────────────────────── */}
+      {/* ── QR Code Panel ──────────────────────────────────────────────────────── */}
       <div className="border-t border-sidebar-border p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -123,9 +123,19 @@ export function EditorSidebar({
             <span className="text-xs font-semibold">QR Code</span>
           </div>
 
-          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-            Auto ✓
-          </span>
+          {hasNumber && (
+            <button
+              onClick={onToggleQR}
+              className={cn(
+                'text-xs font-semibold px-2 py-1 rounded transition-colors',
+                qrEnabled
+                  ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              )}
+            >
+              {qrEnabled ? 'QR Active ✓' : 'Add QR'}
+            </button>
+          )}
         </div>
 
         {!hasNumber && (
@@ -134,7 +144,13 @@ export function EditorSidebar({
           </p>
         )}
 
-        {hasNumber && (
+        {hasNumber && !qrEnabled && (
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            Click "Add QR" to place a draggable QR code on the document.
+          </p>
+        )}
+
+        {hasNumber && qrEnabled && (
           <div className="space-y-2">
             <p className="text-[11px] text-muted-foreground font-mono truncate">
               {bcertNumber}
@@ -145,7 +161,7 @@ export function EditorSidebar({
             </div>
 
             <p className="text-[11px] text-muted-foreground text-center">
-              QR code is active. Drag it on the preview to reposition.
+              Drag the QR code on the preview to reposition it.
             </p>
           </div>
         )}

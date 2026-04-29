@@ -16,26 +16,28 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
+import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
+import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
 
 interface StreetOption {
   id: number;
   name: string;
-  sitio: string;
+  zone: string;
   formerly?: string;
 }
 
-// Sitio options for dropdown
-const SITIO_OPTIONS = [
-  'Sitio 1',
-  'Sitio 2',
-  'Sitio 3',
-  'Sitio 4',
-  'Sitio 5',
-  'Sitio 6',
-  'Sitio 7',
-  'Sitio 8',
-  'Sitio 9',
-  'Sitio 10',
+// Zone options for dropdown
+const ZONE_OPTIONS = [
+  'Zone 1',
+  'Zone 2',
+  'Zone 3',
+  'Zone 4',
+  'Zone 5',
+  'Zone 6',
+  'Zone 7',
+  'Zone 8',
+  'Zone 9',
+  'Zone 10',
 ];
 
 // ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
   },
   {
     label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Sitio'],
+    members: ['House Block Lot No', 'Street', 'Zone'],
     separator: ', ',
   },
 ];
@@ -85,7 +87,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Date': 'created_at',
   'House Block Lot No': 'house_block_lot_no',
   'Street': 'street',
-  'Sitio': 'sitio',
+  'Zone': 'zone',
   'Resident Status': 'resident_status',
   'Period of Residency': 'period_of_residency',
   'House Owner': 'house_owner',
@@ -144,7 +146,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 };
 
 const NON_DATE_KEYS = new Set([
-  'sitio', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
+  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
   'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
   'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
@@ -164,7 +166,7 @@ const FIELD_WRAP_CONFIG: Record<string, number> = {
   'Address': 50,
   'House Block Lot No': 40,
   'Street': 35,
-  'Sitio': 20,
+  'Zone': 20,
   'Full Name': 40,
   'Purpose': 45,
   'Purpose Details': 55,
@@ -199,12 +201,12 @@ function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
   return lines;
 }
 
-function cleanSitioNumber(value: string): string {
+function cleanZoneNumber(value: string): string {
   if (!value) return '';
   
-  const sitioMatch = value.match(/Sitio\s*(\d+)/i);
-  if (sitioMatch) {
-    return sitioMatch[1];
+  const zoneMatch = value.match(/(?:Zone|Sitio)\s*(\d+)/i);
+  if (zoneMatch) {
+    return zoneMatch[1];
   }
   
   const numberMatch = value.match(/^\d+$/);
@@ -240,13 +242,13 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   
   const houseBlockLot = formData.house_block_lot_no ?? '';
   const street = formData.street ?? '';
-  let sitio = formData.sitio ?? '';
-  sitio = cleanSitioNumber(sitio);
+  let zone = formData.zone ?? '';
+  zone = cleanZoneNumber(zone);
   
   const addressParts = [];
   if (houseBlockLot) addressParts.push(houseBlockLot);
   if (street) addressParts.push(street);
-  if (sitio) addressParts.push(sitio);
+  if (zone) addressParts.push(zone);
   const fullAddress = addressParts.join(', ');
   
   return {
@@ -259,7 +261,7 @@ function buildLabelValueMap(formData: any): Record<string, string> {
     'Full Name':    fullName,
     'House Block Lot No': houseBlockLot,
     'Street':       street,
-    'Sitio':        sitio,
+    'Zone':         zone,
     'Full Address': fullAddress,
     'Age':          formData.age                  ?? '',
     'Date of Birth': formData.dob                 ?? '',
@@ -298,7 +300,7 @@ function buildReleasePDFFields(
 
   const fieldsToSuppress = [
     'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
-    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'sitio'
+    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'zone'
   ];
 
   for (const group of RELEASE_CONCAT_GROUPS) {
@@ -354,7 +356,7 @@ interface FilterState {
   filter_date: string;
   from: string;
   to: string;
-  sitio: string;
+  zone: string;
   street: string;
   business_type: string;
   schedule_filter: string;
@@ -362,7 +364,7 @@ interface FilterState {
 
 const EMPTY_FILTERS: FilterState = {
   status: '', filter_date: '', from: '', to: '',
-  sitio: '', street: '', business_type: '', schedule_filter: '',
+  zone: '', street: '', business_type: '', schedule_filter: '',
 };
 
 const BUSINESS_TYPE_OPTIONS = [
@@ -378,7 +380,7 @@ const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   filter_date:     'date',
   from:            'from',
   to:              'to',
-  sitio:           'sitio',
+  zone:            'zone',
   street:          'street',
   business_type:   'business_type',
   schedule_filter: 'schedule',
@@ -390,7 +392,7 @@ function filtersFromParams(params: URLSearchParams): FilterState {
     filter_date:     params.get('date')          ?? '',
     from:            params.get('from')          ?? '',
     to:              params.get('to')            ?? '',
-    sitio:           params.get('sitio')         ?? '',
+    zone:            params.get('zone')          ?? '',
     street:          params.get('street')        ?? '',
     business_type:   params.get('business_type') ?? '',
     schedule_filter: params.get('schedule')      ?? '',
@@ -409,7 +411,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -456,7 +458,7 @@ function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
     f.filter_date === 'custom' && f.from ? 'from' : '',
-    f.sitio, f.street, f.business_type, f.schedule_filter,
+    f.zone, f.street, f.business_type, f.schedule_filter,
   ].filter(Boolean).length;
 }
 
@@ -572,7 +574,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `http://127.0.0.1:8000/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -885,7 +887,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -907,7 +909,7 @@ function EditableDetailModal({
     capital: '',
     house_block_lot_no: '',
     street: '',
-    sitio: '',
+    zone: '',
     or_no: '',
     ctc_vrr_no: '',
     inspected_by: '',
@@ -931,7 +933,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/business-clearances?search=${record.brgy_business_no}`,
+        `https://westrembomis.onrender.com/api/business-clearances?search=${record.brgy_business_no}`,
         { withCredentials: true }
       );
       const fullRecord = response.data.data.data[0];
@@ -952,7 +954,7 @@ function EditableDetailModal({
         capital:            fullRecord.capital            || '',
         house_block_lot_no: fullRecord.house_block_lot_no || '',
         street:             fullRecord.street             || '',
-        sitio:              fullRecord.sitio              || '',
+        zone:               fullRecord.zone               || '',
         or_no:              fullRecord.or_no              || '',
         ctc_vrr_no:         fullRecord.ctc_vrr_no         || '',
         inspected_by:       fullRecord.inspected_by       || '',
@@ -1005,7 +1007,7 @@ function EditableDetailModal({
     setActionLoading('to_pay');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
@@ -1022,7 +1024,7 @@ function EditableDetailModal({
     setActionLoading('paid');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { status: 'PAID' },
         { withCredentials: true }
       );
@@ -1039,7 +1041,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `http://127.0.0.1:8000/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1063,7 +1065,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/api/business-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1100,7 +1102,7 @@ function EditableDetailModal({
     setIsReleasing(true);
     try {
       const metaRes = await axios.get(
-        `http://127.0.0.1:8000/api/documents/single/4`,
+        `https://westrembomis.onrender.com/api/documents/single/4`,
         { withCredentials: true }
       );
       const fileUrl = metaRes.data?.file_url;
@@ -1116,18 +1118,29 @@ function EditableDetailModal({
       });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
-      let savedLayout: TextField[] = [];
+      let savedFields: TextField[] = [];
+      let savedQrField: QRCodeFieldData | null = null;
+
       if (metaRes.data?.layout) {
         try {
-          savedLayout = Array.isArray(metaRes.data.layout)
+          const parsed = Array.isArray(metaRes.data.layout)
             ? metaRes.data.layout
             : JSON.parse(metaRes.data.layout);
+
+          if (Array.isArray(parsed)) {
+            savedFields = parsed;
+            savedQrField = null;
+          } else if (parsed.fields !== undefined) {
+            const layout = parsed as SavedLayout;
+            savedFields = layout.fields ?? [];
+            savedQrField = layout.qrField ?? null;
+          }
         } catch {
           console.error('Could not parse template layout JSON');
         }
       }
 
-      const fieldsWithValues: TextField[] = savedLayout.map((field: TextField) => {
+      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
 
@@ -1147,7 +1160,7 @@ function EditableDetailModal({
       const renderedBytes = await generatePDF(
         templateBytes,
         finalFields,
-        null,
+        savedQrField,
         record.brgy_business_no ?? null
       );
 
@@ -1160,7 +1173,7 @@ function EditableDetailModal({
       fd.append('file', blob, filename);
 
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/documents/release/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/documents/release/business-clearances/${record.id}`,
         fd,
         { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -1190,7 +1203,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/documents/release/business-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/business-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1213,7 +1226,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `http://127.0.0.1:8000/api/business-clearances?search=${record.brgy_business_no}`,
+          `https://westrembomis.onrender.com/api/business-clearances?search=${record.brgy_business_no}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1222,7 +1235,7 @@ function EditableDetailModal({
 
       if (existingId) {
         await axios.put(
-          `http://127.0.0.1:8000/api/business-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/business-clearances/${existingId}`,
           { ...formData },
           { withCredentials: true }
         );
@@ -1310,10 +1323,13 @@ function EditableDetailModal({
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              <UserIdViewer
-                userId={record?.schedule?.user_id}
-                onZoom={url => setLightboxUrl(url)}
-              />
+              {/* Only show UserIdViewer if requester_type is 'Online' */}
+              {formData.requester_type === 'Online' && (
+                <UserIdViewer
+                  userId={record?.schedule?.user_id}
+                  onZoom={url => setLightboxUrl(url)}
+                />
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Owner Information</h3>
@@ -1379,7 +1395,7 @@ function EditableDetailModal({
                   name="brgy_business_no"
                   value={formData.brgy_business_no || ''}
                   onChange={handleInputChange}
-                  isEditing={isEditing}
+                  isEditing={false}
                   label="Business No."
                 />
                 <FormField 
@@ -1450,13 +1466,13 @@ function EditableDetailModal({
                   label="Street"
                 />
                 <FormField 
-                  name="sitio"
-                  value={formData.sitio || ''}
+                  name="zone"
+                  value={formData.zone || ''}
                   onChange={handleInputChange}
                   type="select"
-                  options={SITIO_OPTIONS}
+                  options={ZONE_OPTIONS}
                   isEditing={isEditing}
-                  label="Sitio"
+                  label="Zone"
                 />
               </div>
 
@@ -1497,13 +1513,13 @@ function EditableDetailModal({
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField 
+                {/* <FormField 
                   name="or_no"
                   value={formData.or_no || ''}
                   onChange={handleInputChange}
                   isEditing={isEditing}
                   label="OR No."
-                />
+                /> */}
                 <FormField 
                   name="ctc_vrr_no"
                   value={formData.ctc_vrr_no || ''}
@@ -1781,10 +1797,10 @@ function FilterBar({
             <button onClick={() => onChange({ filter_date: '', from: '', to: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
-        {filters.sitio && (
+        {filters.zone && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
-            Sitio: <strong>{filters.sitio}</strong>
-            <button onClick={() => onChange({ sitio: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
+            Zone: <strong>{filters.zone}</strong>
+            <button onClick={() => onChange({ zone: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button>
           </span>
         )}
         {filters.street && (
@@ -1888,10 +1904,10 @@ function FilterBar({
             </div>
 
             <div className="p-4 border-r border-gray-100">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Sitio</label>
-              <input type="text" placeholder="e.g. Sitio 1, Sitio 2…"
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
+              <input type="text" placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
-                value={filters.sitio} onChange={e => onChange({ sitio: e.target.value })} />
+                value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
             </div>
 
             <div className="p-4 border-l border-gray-100">
@@ -1980,7 +1996,7 @@ const BusinessClearance = () => {
         ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:      filters.filter_date }     : {}),
         ...(filters.filter_date === 'custom' && filters.from        ? { from:             filters.from }            : {}),
         ...(filters.filter_date === 'custom' && filters.to          ? { to:               filters.to }              : {}),
-        ...(filters.sitio                                           ? { sitio:            filters.sitio }           : {}),
+        ...(filters.zone                                            ? { zone:             filters.zone }            : {}),
         ...(filters.street                                          ? { street:           filters.street }          : {}),
         ...(filters.business_type                                   ? { business_type:    filters.business_type }   : {}),
         ...(filters.schedule_filter                                 ? { schedule_filter:  filters.schedule_filter } : {}),
@@ -2001,7 +2017,7 @@ const BusinessClearance = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this business clearance?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/business-clearances/${id}`, { withCredentials: true });
+      await axios.delete(`https://westrembomis.onrender.com/api/business-clearances/${id}`, { withCredentials: true });
       toast({ title: 'Deleted', description: 'Business clearance deleted successfully.' });
       loadData();
     } catch {
@@ -2143,7 +2159,7 @@ const BusinessClearance = () => {
                         <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
                         <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
                         <td className="py-3 px-4 text-sm text-gray-600">
-                          {[item.house_block_lot_no, item.street, (item as any).sitio].filter(Boolean).join(', ') || '—'}
+                          {[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}
                         </td>
                         <td className="py-3 px-4 text-sm font-medium">
                           {item.capital != null ? formatCurrency(item.capital) : '—'}
@@ -2182,7 +2198,7 @@ const BusinessClearance = () => {
                     );
                   })}
                 </tbody>
-                </table>
+              </table>
               </div>
             )}
           </div>

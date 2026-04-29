@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = 'https://westrembomis.onrender.com/api';
 
 interface ContactMessage {
   id: number;
@@ -36,6 +36,22 @@ const statusConfig = {
   new: { label: 'New', icon: AlertCircle, className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
   replied: { label: 'Replied', icon: Reply, className: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
   resolved: { label: 'Resolved', icon: CheckCircle, className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+};
+
+// Utility function to format dates
+const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    // Format as "MMM D, YYYY" (e.g., "Apr 16, 2026")
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    // Fallback: return original string if parsing fails
+    return dateString;
+  }
 };
 
 const ContactAdmin = () => {
@@ -182,7 +198,7 @@ const ContactAdmin = () => {
                         <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{msg.message}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{msg.created_at}</span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.created_at)}</span>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -216,7 +232,7 @@ const ContactAdmin = () => {
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium">{viewMessage.name}</span>
                     <span className="text-muted-foreground">({viewMessage.email})</span>
-                    <span className="text-xs text-muted-foreground ml-auto">{viewMessage.created_at}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{formatDate(viewMessage.created_at)}</span>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Subject</p>

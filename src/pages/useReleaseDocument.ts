@@ -5,7 +5,7 @@ import { generatePDF } from "@/utils/pdfGenerator";
 import type { TextField } from "@/types/certificate";
 import type { QRCodeFieldData } from "@/components/documentMaker/QRCodeField";
 
-const API = "http://127.0.0.1:8000/api";
+const API = "https://westrembomis.onrender.com/api";
 
 const DOCUMENT_TYPE_MAP: Record<string, string> = {
   "1": "barangay-certificates",

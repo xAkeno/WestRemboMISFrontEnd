@@ -1,387 +1,452 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Html5Qrcode } from "html5-qrcode";
+import { X, Camera, AlertTriangle, CheckCircle, QrCode, User, ChevronRight, Search } from "lucide-react";
 import api from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface Serviceable {
+export interface QueueItem {
   id: number;
-  service_type: string;
-  first_name: string;
-  last_name: string;
-  middle_name?: string;
-  [key: string]: unknown;
+  document_type: string;
+  document_id: number;
+  reference_number: string;
+  status: "waiting" | "serving" | "done";
+  queue_date: string;
+  manual_added: boolean;
+  applicant_name?: string;
+  business_name?: string | null;
 }
 
-export interface Ticket {
-  id: number;
-  ticket_number: string;
-  service_type: string;
-  status: string;
-  priority: string;
-  position?: number;
-  submitted_at: string;
-  created_at: string;
-  updated_at: string;
-  approved_at: string | null;
-  rejected_at: string | null;
-  released_at: string | null;
-  in_progress_at: string | null;
-  processed_by: string | null;
-  requester_id: number | null;
-  serviceable: Serviceable | null;
-  missed_attempts?: number;
+export interface DisplayQueueItem {
+  queueId: number;
+  queueStatus: string;
+  refNumber: string;
+  documentType: string;
+  documentId: number;
+  applicantName?: string;
+  businessName?: string | null;
+  serviceLabel: string;
+  queueDate: string;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const POLL_MS   = 10_000;
-const MAX_MISSED = 3;
+const POLL_MS = 5000;
 
-// ─── Normalize ────────────────────────────────────────────────────────────────
-
-const normalizeStatus = (s: string) => s.toLowerCase().replace(/\s+/g, "_");
-
-// ─── Style maps ───────────────────────────────────────────────────────────────
+const DOCUMENT_TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  'barangay_clearance': { label: 'Barangay Clearance', color: '#0C447C', bg: '#E6F1FB' },
+  'barangay_certificate': { label: 'Barangay Certificate', color: '#085041', bg: '#E1F5EE' },
+  'building_clearance': { label: 'Building Clearance', color: '#633806', bg: '#FAEEDA' },
+  'business_clearance': { label: 'Business Clearance', color: '#712B13', bg: '#FAECE7' },
+};
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  waiting:     { bg: "#E6F1FB", color: "#0C447C" },
-  pending:     { bg: "#FAEEDA", color: "#633806" },
-  processing:  { bg: "#FAEEDA", color: "#633806" },
-  completed:   { bg: "#EAF3DE", color: "#27500A" },
-  released:    { bg: "#EAF3DE", color: "#085041" },
-  approved:    { bg: "#E1F5EE", color: "#085041" },
-  rejected:    { bg: "#FCEBEB", color: "#791F1F" },
-  no_show:     { bg: "#FCEBEB", color: "#791F1F" },
-  in_progress: { bg: "#FBEAF0", color: "#72243E" },
-  late:        { bg: "#FCEBEB", color: "#501313" },
+  WAITING:     { bg: "#E6F1FB", color: "#0C447C" },
+  SERVING:     { bg: "#EAF3DE", color: "#27500A" },
+  DONE:        { bg: "#FCEBEB", color: "#791F1F" },
 };
 
-const PRIORITY_STYLE: Record<string, { bg: string; color: string }> = {
-  normal:   { bg: "#F1EFE8", color: "#5F5E5A" },
-  priority: { bg: "#FBEAF0", color: "#72243E" },
-  senior:   { bg: "#E1F5EE", color: "#085041" },
-  pwd:      { bg: "#FAECE7", color: "#712B13" },
-};
+const statusStyle = (s: string) =>
+  STATUS_STYLE[s.toUpperCase()] ?? { bg: "#F1EFE8", color: "#5F5E5A" };
 
-const statusStyle   = (s: string) => STATUS_STYLE[normalizeStatus(s)]   ?? { bg: "#F1EFE8", color: "#5F5E5A" };
-const priorityStyle = (p: string) => PRIORITY_STYLE[p.toLowerCase()]    ?? { bg: "#F1EFE8", color: "#5F5E5A" };
+// ─── API Functions ────────────────────────────────────────────────────────────
 
-// ─── Requester type ───────────────────────────────────────────────────────────
-
-const getRequesterType = (t: Ticket): { label: string; bg: string; color: string } => {
-  if (t.serviceable !== null && t.requester_id === null)
-    return { label: "Walk-in", bg: "#E1F5EE", color: "#085041" };
-  if (t.requester_id !== null && t.serviceable === null)
-    return { label: "Online", bg: "#E6F1FB", color: "#0C447C" };
-  return { label: "Unknown", bg: "#F1EFE8", color: "#5F5E5A" };
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmtDate = (iso: string | null) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-PH", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+async function fetchQueueItems(): Promise<DisplayQueueItem[]> {
+  const queueRes = await api.get("api/queue");
+  const rawData = queueRes.data?.data;
+  let queueItems: QueueItem[] = Array.isArray(rawData)
+    ? rawData
+    : (rawData?.data ?? []);
+  
+  const today = new Date().toDateString();
+  queueItems = queueItems.filter(item => {
+    const queueDate = new Date(item.queue_date).toDateString();
+    return queueDate === today;
   });
-};
-
-const fmtTime = (iso: string | null) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
-};
-
-const getApplicantName = (t: Ticket) => {
-  if (t.serviceable) {
-    const { first_name, middle_name, last_name } = t.serviceable;
-    return [first_name, middle_name, last_name].filter(Boolean).join(" ");
-  }
-  return "—";
-};
-
-const DONE_STATUSES   = ["released", "completed", "rejected", "no_show"];
-const ACTIVE_STATUSES = ["pending", "waiting", "called", "processing", "in_progress", "late"];
-
-const isDone       = (t: Ticket) => DONE_STATUSES.includes(normalizeStatus(t.status));
-const isActive     = (t: Ticket) => ACTIVE_STATUSES.includes(normalizeStatus(t.status));
-const isLate       = (t: Ticket) => normalizeStatus(t.status) === "late";
-const isProcessing = (t: Ticket) =>
-  ["called", "processing", "in_progress"].includes(normalizeStatus(t.status));
-
-// ─── Sort queue ───────────────────────────────────────────────────────────────
-
-const getSortedQueueWithDisplayStatus = (tickets: Ticket[]) => {
-  const queueTickets = tickets.filter(t => !isDone(t));
-  const sorted = [...queueTickets].sort((a, b) => {
-    const aLate = isLate(a) ? 1 : 0;
-    const bLate = isLate(b) ? 1 : 0;
-    if (aLate !== bLate) return aLate - bLate;
-    const ap = isProcessing(a) ? 0 : 1;
-    const bp = isProcessing(b) ? 0 : 1;
-    if (ap !== bp) return ap - bp;
-    const aPos = a.position ?? 999999;
-    const bPos = b.position ?? 999999;
-    return aPos - bPos;
+  
+  return queueItems.map(item => {
+    const docConfig = DOCUMENT_TYPE_LABELS[item.document_type] || { 
+      label: item.document_type, 
+      color: "#5F5E5A", 
+      bg: "#F1EFE8" 
+    };
+    
+    return {
+      queueId: item.id,
+      queueStatus: item.status,
+      refNumber: item.reference_number,
+      documentType: item.document_type,
+      documentId: item.document_id,
+      applicantName: item.applicant_name,
+      businessName: item.business_name,
+      serviceLabel: docConfig.label,
+      queueDate: item.queue_date,
+    };
   });
-  let pendingAssigned = false;
-  return sorted.map((t) => {
-    if (isLate(t))       return { ...t, _displayStatus: "Late" };
-    if (isProcessing(t)) return { ...t, _displayStatus: t.status };
-    if (!pendingAssigned) {
-      pendingAssigned = true;
-      return { ...t, _displayStatus: "Pending" };
-    }
-    return { ...t, _displayStatus: "Waiting" };
-  });
-};
-
-// ─── API ──────────────────────────────────────────────────────────────────────
-
-const getQueue      = async () => { const res = await api.get("api/tickets/pending", { params: { per_page: 50 } }); return res.data; };
-const patchStatus   = async (id: number, status: string) => { const res = await api.patch(`api/tickets/${id}/status`, { status }); return res.data; };
-const postMoveBack  = async (id: number) => { const res = await api.post(`api/tickets/${id}/move-back`); return res.data; };
-const postCallNext  = async () => { const res = await api.post(`api/tickets/call-next`); return res.data; };
-const postRequeue   = async (id: number) => { const res = await api.post(`api/tickets/${id}/requeue-late`); return res.data; };
-
-// ─── Shared styles ────────────────────────────────────────────────────────────
-
-const cardStyle: React.CSSProperties = {
-  background: "var(--color-background-primary,#fff)",
-  border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
-  borderRadius: 12, padding: 16,
-};
-
-const sectionDivider: React.CSSProperties = {
-  paddingBottom: 12, marginBottom: 12,
-  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.10))",
-};
-
-const metaRow: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "space-between",
-  fontSize: 12, padding: "5px 0",
-  borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.07))",
-};
-
-// ─── Pill ─────────────────────────────────────────────────────────────────────
-
-function Pill({ label, style }: { label: string; style: { bg: string; color: string } }) {
-  return (
-    <span style={{
-      padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
-      background: style.bg, color: style.color, whiteSpace: "nowrap",
-    }}>
-      {label}
-    </span>
-  );
 }
 
-// ─── Action button ────────────────────────────────────────────────────────────
+// ─── QR Scanner Modal Component ───────────────────────────────────────────────
 
-function ActionBtn({ label, onClick, disabled, variant }: {
-  label: string; onClick: () => void; disabled?: boolean;
-  variant: "success" | "danger" | "warning" | "primary" | "outline" | "info";
-}) {
-  const V = {
-    success: { bg: "#3B6D11", color: "#EAF3DE", border: "#3B6D11" },
-    danger:  { bg: "#A32D2D", color: "#FCEBEB", border: "#A32D2D" },
-    warning: { bg: "#854F0B", color: "#FAEEDA", border: "#854F0B" },
-    primary: { bg: "#185FA5", color: "#E6F1FB", border: "#185FA5" },
-    outline: { bg: "transparent", color: "var(--color-text-primary)", border: "rgba(0,0,0,0.18)" },
-    info:    { bg: "#534AB7", color: "#EEEDFE", border: "#534AB7" },
-  }[variant];
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      width: "100%", padding: "10px 0", borderRadius: 8,
-      fontSize: 13, fontWeight: 500,
-      cursor: disabled ? "not-allowed" : "pointer",
-      opacity: disabled ? 0.4 : 1,
-      background: V.bg, color: V.color, border: `0.5px solid ${V.border}`,
-      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-      transition: "opacity 0.15s",
-    }}>
-      {label}
-    </button>
-  );
-}
-
-// ─── Icon button ──────────────────────────────────────────────────────────────
-
-function IconBtn({ label, title, onClick, color }: {
-  label: string; title: string; onClick: () => void; color?: string;
-}) {
-  return (
-    <button onClick={onClick} title={title} style={{
-      width: 28, height: 28, borderRadius: 6, cursor: "pointer",
-      border: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.12))",
-      background: "none", fontSize: 13,
-      color: color ?? "var(--color-text-secondary)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      {label}
-    </button>
-  );
-}
-
-// ─── Late Banner ──────────────────────────────────────────────────────────────
-
-function LateBanner({ ticket, onRequeue, busy }: {
-  ticket: Ticket; onRequeue: (t: Ticket) => void; busy: string | null;
-}) {
-  return (
-    <div style={{
-      background: "#FCEBEB",
-      border: "0.5px solid #A32D2D",
-      borderRadius: 10, padding: "12px 16px", marginBottom: 8,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#791F1F" }}>
-            {ticket.ticket_number} — Late
-          </div>
-          <div style={{ fontSize: 12, color: "#A32D2D", marginTop: 2 }}>
-            {getApplicantName(ticket)} · {ticket.missed_attempts}× missed
-          </div>
-        </div>
-        <button
-          disabled={!!busy}
-          onClick={() => onRequeue(ticket)}
-          style={{
-            padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
-            cursor: busy ? "not-allowed" : "pointer",
-            opacity: busy ? 0.5 : 1,
-            background: "#534AB7", color: "#EEEDFE",
-            border: "0.5px solid #534AB7", whiteSpace: "nowrap",
-          }}
-        >
-          ↺ Re-admit
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Ticket Detail ────────────────────────────────────────────────────────────
-
-function TicketDetail({ ticket, onClose, onAct, onRequeue, busy }: {
-  ticket: Ticket & { _displayStatus?: string };
+function QRScannerModal({ onClose, onScanSuccess }: { 
   onClose: () => void;
-  onAct: (t: Ticket, action: string) => void;
-  onRequeue: (t: Ticket) => void;
-  busy: string | null;
+  onScanSuccess: (result: { documentType: string; referenceNumber: string }) => void;
 }) {
-  const ns            = normalizeStatus(ticket.status);
-  const rt            = getRequesterType(ticket);
-  const displayStatus = (ticket as any)._displayStatus ?? ticket.status;
-  const ticketIsLate  = ns === "late";
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const containerId = "qr-scanner-container-queue";
+  const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [scanned, setScanned] = useState<{ type: string; ref: string } | null>(null);
+
+  const startScanner = async () => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode(containerId);
+      }
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          let documentType = "";
+          let referenceNumber = decodedText;
+          
+          if (decodedText.includes("|")) {
+            const parts = decodedText.split("|");
+            documentType = parts[0];
+            referenceNumber = parts[1];
+          } else if (decodedText.includes(":")) {
+            const parts = decodedText.split(":");
+            documentType = parts[0];
+            referenceNumber = parts[1];
+          } else {
+            const upperRef = decodedText.toUpperCase();
+            if (upperRef.startsWith("BCERT-")) {
+              documentType = "barangay_certificate";
+              referenceNumber = decodedText;
+            } else if (upperRef.startsWith("BCLEAR-")) {
+              documentType = "barangay_clearance";
+              referenceNumber = decodedText;
+            } else if (upperRef.startsWith("BBUILDINGCLE-")) {
+              documentType = "building_clearance";
+              referenceNumber = decodedText;
+            } else if (upperRef.startsWith("BBUSINESS-")) {
+              documentType = "business_clearance";
+              referenceNumber = decodedText;
+            }
+          }
+          
+          setScanned({ type: documentType, ref: referenceNumber });
+          setScanning(false);
+        },
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message ?? "Camera access denied or not available.");
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    startScanner();
+    return () => { stopScanner(); };
+  }, []);
+
+  const handleScanAgain = async () => {
+    setScanned(null);
+    setScanning(true);
+    setError(null);
+    await stopScanner();
+    setTimeout(() => startScanner(), 300);
+  };
+
+  const handleConfirm = () => {
+    if (scanned) {
+      stopScanner();
+      onScanSuccess({ documentType: scanned.type, referenceNumber: scanned.ref });
+      onClose();
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    return DOCUMENT_TYPE_LABELS[type]?.label || type || "Unknown";
+  };
 
   return (
-    <div style={{ ...cardStyle, border: "0.5px solid #378ADD" }}>
-      <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.5 }}>{ticket.ticket_number}</div>
-          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            <Pill label={displayStatus}   style={statusStyle(displayStatus)} />
-            <Pill label={ticket.priority} style={priorityStyle(ticket.priority)} />
-            <Pill label={rt.label}        style={{ bg: rt.bg, color: rt.color }} />
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl overflow-hidden w-full max-w-sm mx-4 shadow-2xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-semibold text-gray-900">Scan QR Code</span>
           </div>
+          <button onClick={() => { stopScanner(); onClose(); }} className="p-1 hover:bg-gray-100 rounded-md">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-tertiary)", padding: 4 }}>✕</button>
-      </div>
-
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Applicant</div>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>{getApplicantName(ticket)}</div>
-        {ticket.serviceable && <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{ticket.serviceable.service_type}</div>}
-      </div>
-
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Timeline</div>
-        {[
-          { label: "Submitted",   value: fmtDate(ticket.submitted_at) },
-          { label: "In Progress", value: fmtDate(ticket.in_progress_at) },
-          { label: "Approved",    value: fmtDate(ticket.approved_at) },
-          { label: "Released",    value: fmtDate(ticket.released_at) },
-          { label: "Rejected",    value: fmtDate(ticket.rejected_at) },
-        ].map(row => (
-          <div key={row.label} style={metaRow}>
-            <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
-            <span style={{ fontWeight: row.value !== "—" ? 500 : 400, color: row.value !== "—" ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{row.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 6 }}>Details</div>
-        {[
-          { label: "Type",         value: rt.label },
-          { label: "Service Type", value: ticket.service_type },
-          { label: "Processed By", value: ticket.processed_by ?? "—" },
-          { label: "Last Updated", value: fmtDate(ticket.updated_at) },
-        ].map(row => (
-          <div key={row.label} style={metaRow}>
-            <span style={{ color: "var(--color-text-secondary)" }}>{row.label}</span>
-            <span style={{ fontWeight: 500 }}>{String(row.value)}</span>
-          </div>
-        ))}
-        {(ticket.missed_attempts ?? 0) > 0 && (
-          <div style={metaRow}>
-            <span style={{ color: "#A32D2D" }}>Missed Attempts</span>
-            <span style={{ fontWeight: 600, color: "#A32D2D" }}>{ticket.missed_attempts}×</span>
-          </div>
-        )}
-      </div>
-
-      {/* Late ticket — show re-admit button */}
-      {ticketIsLate && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 12, color: "#A32D2D", marginBottom: 8, padding: "8px 12px", background: "#FCEBEB", borderRadius: 8, border: "0.5px solid #F09595" }}>
-            This ticket was marked late after {ticket.missed_attempts} missed calls. Re-admit if the applicant has arrived.
-          </div>
-          <ActionBtn label="↺ Re-admit to Queue" variant="info" disabled={!!busy} onClick={() => onRequeue(ticket)} />
+        <div className="relative bg-black" style={{ minHeight: 300 }}>
+          <div id={containerId} className="w-full" />
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 px-6">
+              <Camera className="h-8 w-8 text-gray-400" />
+              <p className="text-xs text-gray-300 text-center">{error}</p>
+            </div>
+          )}
+          {scanned && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-900/80 p-4">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+              <p className="text-xs font-bold text-white uppercase tracking-wider">QR Detected</p>
+              <div className="text-center">
+                <p className="text-sm font-mono text-green-200 break-all">{scanned.ref}</p>
+                {scanned.type && (
+                  <p className="text-xs text-green-300 mt-1">
+                    Type: {getTypeLabel(scanned.type)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Active (non-late) ticket actions */}
-      {(isProcessing(ticket) || ns === "waiting" || ns === "pending") && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <ActionBtn label="✓ Complete" variant="success" disabled={!!busy} onClick={() => onAct(ticket, "completed")} />
-            <ActionBtn label="✕ No Show"  variant="danger"  disabled={!!busy} onClick={() => onAct(ticket, "no_show")} />
-          </div>
-          <ActionBtn label="↩ Move to Back (missed)" variant="warning" disabled={!!busy} onClick={() => onAct(ticket, "move_back")} />
+        <div className="px-4 py-3 border-t border-gray-100">
+          {scanned ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleScanAgain}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Scan Again
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 py-2 text-sm font-bold text-white rounded-lg transition-colors"
+                style={{ backgroundColor: "#0f2a5e" }}
+              >
+                Add to Queue
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400 text-center">
+              {error ? "Camera access was denied. Please allow camera permissions and try again." : "Point your camera at the QR code. Detection is automatic — no button needed."}
+            </p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Manual Add Modal Component ───────────────────────────────────────────────
+
+function ManualAddModal({ onClose, onAdd, onRefresh }: { 
+  onClose: () => void; 
+  onAdd: () => void;
+  onRefresh: () => void;
+}) {
+  const [documentType, setDocumentType] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [searchResult, setSearchResult] = useState<any>(null);
+  const [searching, setSearching] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    if (!documentType || !referenceNumber) {
+      setError("Please select document type and enter reference number");
+      return;
+    }
+
+    setSearching(true);
+    setError(null);
+    setSearchResult(null);
+
+    try {
+      const res = await api.get("api/queue/search-bcert", {
+        params: { document_type: documentType, bcert_number: referenceNumber }
+      });
+      
+      if (res.data.status === "success") {
+        setSearchResult(res.data.data);
+      }
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setError("No document found with that reference number");
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.message || "Document is not released today");
+      } else {
+        setError(err.response?.data?.message || "Search failed");
+      }
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!searchResult) return;
+
+    setAdding(true);
+    setError(null);
+
+    try {
+      await api.post("api/queue/manual-add", {
+        document_type: documentType,
+        document_id: searchResult.id,
+        reference_number: searchResult.reference_number,
+        force: searchResult.already_in_queue || searchResult.already_done
+      });
+      
+      onAdd();
+      onRefresh();
+      onClose();
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        setError(err.response?.data?.message || "Document is already in queue");
+      } else {
+        setError(err.response?.data?.message || "Failed to add to queue");
+      }
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-md bg-white overflow-hidden"
+        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed" }}
+      >
+        <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Manual Entry</p>
+            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>Add Document to Queue</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full transition-all hover:bg-white/20"
+            style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div style={{ height: 3, backgroundColor: "#c2467d" }} />
+
+        <div className="p-6 space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Document Type</label>
+            <select
+              value={documentType}
+              onChange={(e) => {
+                setDocumentType(e.target.value);
+                setSearchResult(null);
+                setError(null);
+              }}
+              className="w-full rounded-none border-0 border-b-2 px-0 text-sm focus:ring-0"
+              style={{ borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" }}
+            >
+              <option value="">Select type...</option>
+              {Object.entries(DOCUMENT_TYPE_LABELS).map(([type, config]) => (
+                <option key={type} value={type}>{config.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Reference Number</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={referenceNumber}
+                onChange={(e) => {
+                  setReferenceNumber(e.target.value);
+                  setSearchResult(null);
+                  setError(null);
+                }}
+                placeholder="Enter reference number..."
+                className="flex-1 rounded-none border-0 border-b-2 px-0 text-sm focus:ring-0"
+                style={{ borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" }}
+              />
+              <button
+                onClick={handleSearch}
+                disabled={searching || !documentType || !referenceNumber}
+                className="px-4 py-2 text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
+              >
+                {searching ? "Searching..." : "Search"}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-lg" style={{ backgroundColor: "#FCEBEB", border: "1px solid #A32D2D" }}>
+              <AlertTriangle className="w-4 h-4" style={{ color: "#A32D2D" }} />
+              <span className="text-sm" style={{ color: "#A32D2D" }}>{error}</span>
+            </div>
+          )}
+
+          {searchResult && (
+            <>
+              <div className="p-4 rounded-lg space-y-2" style={{ 
+                backgroundColor: (searchResult.already_in_queue || searchResult.already_done) ? "#FCEBEB" : "#EAF3DE",
+                border: `1px solid ${(searchResult.already_in_queue || searchResult.already_done) ? "#A32D2D" : "#3B6D11"}`
+              }}>
+                <p className="text-xs font-bold uppercase tracking-wider">Document Found</p>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Reference:</strong> {searchResult.reference_number}</p>
+                  <p><strong>Applicant:</strong> {searchResult.applicant_name}</p>
+                  {searchResult.business_name && <p><strong>Business:</strong> {searchResult.business_name}</p>}
+                  <p><strong>Released:</strong> {searchResult.released_date}</p>
+                </div>
+                {(searchResult.already_in_queue || searchResult.already_done) && (
+                  <p className="text-xs font-semibold" style={{ color: "#A32D2D" }}>
+                    ⚠️ Already in today's queue
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={handleAdd}
+                disabled={adding || searchResult.already_in_queue || searchResult.already_done}
+                className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
+              >
+                {adding ? "Adding..." : (searchResult.already_in_queue || searchResult.already_done) ? "Already in Queue" : "Add to Queue"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function QueueControl() {
-  const [tickets,  setTickets]  = useState<Ticket[]>([]);
-  const [busy,     setBusy]     = useState<string | null>(null);
-  const [filter,   setFilter]   = useState("all");
-  const [search,   setSearch]   = useState("");
-  const [selected, setSelected] = useState<Ticket | null>(null);
-  const [log,      setLog]      = useState<{ msg: string; type: string; time: string }[]>([]);
-  const [toast,    setToast]    = useState<{ msg: string; ok: boolean } | null>(null);
-  const [calling,  setCalling]  = useState(false);
-
-  const sortedQueueWithDisplay = getSortedQueueWithDisplayStatus(tickets);
-  const activeQueue            = sortedQueueWithDisplay.filter(t => !isLate(t));
-  const lateTickets            = sortedQueueWithDisplay.filter(t => isLate(t));
-  const calledTicket           = activeQueue[0] ?? null;
-  const waitingCount           = activeQueue.filter(t => (t as any)._displayStatus === "Waiting").length;
-  const processingCount        = activeQueue.filter(t => isProcessing(t)).length;
-  const doneCount              = tickets.filter(t => isDone(t)).length;
-
-  const breakdown: Record<string, number> = {};
-  activeQueue.forEach(t => { breakdown[t.service_type] = (breakdown[t.service_type] ?? 0) + 1; });
-  const bTotal = Math.max(Object.values(breakdown).reduce((a, b) => a + b, 0), 1);
+  const [queue, setQueue] = useState<DisplayQueueItem[]>([]);
+  const [servingItem, setServingItem] = useState<DisplayQueueItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [log, setLog] = useState<{ msg: string; type: string; time: string }[]>([]);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [todayDate, setTodayDate] = useState(new Date().toDateString());
 
   const addLog = useCallback((msg: string, type = "info") => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setLog(prev => [{ msg, type, time }, ...prev].slice(0, 60));
+    setLog((prev) => [{ msg, type, time }, ...prev].slice(0, 60));
   }, []);
 
   const showToast = useCallback((msg: string, ok = true) => {
@@ -391,423 +456,415 @@ export function QueueControl() {
 
   const load = useCallback(async () => {
     try {
-      const res = await getQueue();
-      setTickets(res.data ?? res);
-    } catch { /* keep last state */ }
-  }, []);
+      const items = await fetchQueueItems();
+      const serving = items.find(item => item.queueStatus === "serving") || null;
+      const waiting = items.filter(item => item.queueStatus === "waiting").sort((a, b) => a.queueId - b.queueId);
+      
+      setQueue(items);
+      setServingItem(serving);
+      setTodayDate(new Date().toDateString());
+    } catch (e) {
+      console.error("[QueueControl] load failed", e);
+      addLog("Failed to load queue", "error");
+    }
+  }, [addLog]);
 
   useEffect(() => {
     load();
-    addLog("Admin panel ready", "info");
+    addLog("Queue control ready - Today's date: " + new Date().toDateString(), "info");
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, [load, addLog]);
 
-  useEffect(() => {
-    if (selected) {
-      const fresh = tickets.find(t => t.id === selected.id);
-      if (fresh) setSelected(fresh);
-    }
-  }, [tickets]);
+  const filtered = search
+    ? queue.filter((item) => {
+        const q = search.toLowerCase();
+        return (
+          item.refNumber.toLowerCase().includes(q) ||
+          item.serviceLabel.toLowerCase().includes(q) ||
+          (item.applicantName?.toLowerCase().includes(q) || false) ||
+          (item.businessName?.toLowerCase().includes(q) || false)
+        );
+      })
+    : queue;
 
-  // ── Auto-call next when nothing is being served and queue has pending ─────
-  const autoCallFired = useRef<boolean>(false);
-
-  useEffect(() => {
-    if (calledTicket) {
-      autoCallFired.current = false;
-      return;
-    }
-
-    const hasPending = activeQueue.some(t => {
-      const ns = normalizeStatus(t.status);
-      return ns === "pending" || ns === "waiting";
-    });
-
-    if (!hasPending || autoCallFired.current) return;
-
-    autoCallFired.current = true;
-    addLog("No active ticket — auto-calling next", "info");
-
-    postCallNext()
-      .then(load)
-      .catch(() => {
-        autoCallFired.current = false;
-        addLog("Auto-call failed", "error");
-      });
-  }, [calledTicket?.id, activeQueue.length]);
-
-  // ── Act ───────────────────────────────────────────────────────────────────
-  async function act(ticket: Ticket, action: string) {
-    setBusy(ticket.id + action);
-    const labels: Record<string, string> = {
-      completed: "Completed", no_show: "Marked no show",
-      move_back: "Moved to back", released: "Released",
-      approved: "Approved", rejected: "Rejected",
-    };
-    try {
-      if (action === "move_back") await postMoveBack(ticket.id);
-      else await patchStatus(ticket.id, action);
-
-      const msg = `${ticket.ticket_number} → ${labels[action] ?? action}`;
-      showToast(msg, true);
-      addLog(msg, "success");
-      await load();
-    } catch {
-      showToast("Action failed", false);
-      addLog(`Failed: ${action} on ${ticket.ticket_number}`, "error");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // ── Re-admit late ticket ──────────────────────────────────────────────────
-  async function requeue(ticket: Ticket) {
-    setBusy(ticket.id + "requeue");
-    try {
-      await postRequeue(ticket.id);
-      const msg = `${ticket.ticket_number} → Re-admitted to queue`;
-      showToast(msg, true);
-      addLog(msg, "success");
-      await load();
-    } catch {
-      showToast("Re-admit failed", false);
-      addLog(`Failed: requeue on ${ticket.ticket_number}`, "error");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const allDisplayStatuses = Array.from(new Set(
-    sortedQueueWithDisplay.map(t => normalizeStatus((t as any)._displayStatus ?? t.status))
-  ));
-
-  const filtered = sortedQueueWithDisplay.filter(t => {
-    const ds = normalizeStatus((t as any)._displayStatus ?? t.status);
-    const mf = filter === "all" || ds === filter;
-    const ms = !search
-      || t.ticket_number.toLowerCase().includes(search.toLowerCase())
-      || t.service_type.toLowerCase().includes(search.toLowerCase())
-      || getApplicantName(t).toLowerCase().includes(search.toLowerCase());
-    return mf && ms;
+  const breakdown: Record<string, number> = {};
+  queue.forEach((item) => { 
+    breakdown[item.serviceLabel] = (breakdown[item.serviceLabel] ?? 0) + 1; 
   });
 
-  const logColor: Record<string, string> = {
-    info: "var(--color-text-secondary)", success: "#3B6D11", error: "#A32D2D", warn: "#854F0B",
+  const handleQRScan = async (result: { documentType: string; referenceNumber: string }) => {
+    setBusy(true);
+    try {
+      const { documentType, referenceNumber } = result;
+      
+      if (!documentType) {
+        showToast("Document type not detected in QR code", false);
+        addLog(`QR Scan: No document type detected`, "error");
+        setBusy(false);
+        return;
+      }
+      
+      const searchRes = await api.get("api/queue/search-bcert", {
+        params: { 
+          document_type: documentType, 
+          bcert_number: referenceNumber 
+        }
+      });
+      
+      if (searchRes.data.status === "success") {
+        const doc = searchRes.data.data;
+        
+        if (doc.already_in_queue || doc.already_done) {
+          showToast(`Document ${doc.reference_number} is already in queue`, false);
+          addLog(`QR Scan: ${doc.reference_number} already in queue`, "warn");
+        } else {
+          await api.post("api/queue/manual-add", {
+            document_type: documentType,
+            document_id: doc.id,
+            reference_number: doc.reference_number,
+            force: false
+          });
+          
+          showToast(`Added ${doc.reference_number} to queue`);
+          addLog(`QR Scan: Added ${doc.reference_number} (${doc.applicant_name}) to queue`, "success");
+          await load();
+        }
+      }
+    } catch (err: any) {
+      console.error("QR Scan failed:", err);
+      showToast(err.response?.data?.message || "Failed to add document", false);
+      addLog("QR Scan failed", "error");
+    } finally {
+      setBusy(false);
+    }
   };
+
+  async function handleCallNext() {
+    if (queue.filter(q => q.queueStatus === "waiting").length === 0) {
+      showToast("No items waiting in queue", false);
+      return;
+    }
+    
+    setBusy(true);
+    try {
+      const res = await api.post("api/queue/next");
+
+      if (res.data?.status === "empty") {
+        showToast("No more items in queue", false);
+        addLog("Reached end of queue", "warn");
+        return;
+      }
+
+      const nextQueueItem = res.data?.data;
+      showToast(`Now serving: ${nextQueueItem.reference_number}`);
+      addLog(`Now serving: ${nextQueueItem.reference_number}`, "success");
+      await load();
+    } catch (e) {
+      console.error("[QueueControl] next failed", e);
+      showToast("Failed to call next", false);
+      addLog("Error calling next", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDone(item: DisplayQueueItem) {
+    setBusy(true);
+    try {
+      await api.post(`api/queue/${item.queueId}/done`);
+
+      showToast(`${item.refNumber} — dry seal released`);
+      addLog(`${item.refNumber} (${item.serviceLabel}) seal released`, "success");
+      await load();
+    } catch (e) {
+      console.error("[QueueControl] done failed", e);
+      showToast("Failed to mark as done", false);
+      addLog(`Error marking ${item.refNumber} done`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const logColor: Record<string, string> = {
+    info:    "#6b7280",
+    success: "#3B6D11",
+    error:   "#A32D2D",
+    warn:    "#854F0B",
+  };
+
+  const waitingItems = queue.filter(q => q.queueStatus === "waiting");
+  const upNext = waitingItems;
 
   return (
     <div style={{ fontFamily: "var(--font-sans,system-ui)", color: "var(--color-text-primary,#111)", position: "relative" }}>
-
       {toast && (
-        <div style={{
-          position: "fixed", bottom: 20, right: 20, zIndex: 9999,
-          background: "var(--color-background-primary,#fff)",
-          border: `0.5px solid ${toast.ok ? "#3B6D11" : "#A32D2D"}`,
-          borderRadius: 8, padding: "10px 16px", fontSize: 13,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          {toast.msg}
+        <div
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg"
+          style={{ 
+            backgroundColor: toast.ok ? "#EAF3DE" : "#FCEBEB",
+            border: `1px solid ${toast.ok ? "#3B6D11" : "#A32D2D"}`,
+            color: toast.ok ? "#27500A" : "#791F1F"
+          }}
+        >
+          {toast.ok ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          <span className="text-sm font-medium">{toast.msg}</span>
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 320px 300px" : "1fr 300px", gap: 16, padding: 16 }}>
+      {showManualAdd && (
+        <ManualAddModal
+          onClose={() => setShowManualAdd(false)}
+          onAdd={() => {
+            showToast("Successfully added to queue");
+            addLog("Manual item added to queue", "success");
+          }}
+          onRefresh={load}
+        />
+      )}
 
-        {/* ══ LEFT ══ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {showQRScanner && (
+        <QRScannerModal
+          onClose={() => setShowQRScanner(false)}
+          onScanSuccess={handleQRScan}
+        />
+      )}
 
-          <div style={cardStyle}>
-            <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 17, fontWeight: 500 }}>Queue Admin</span>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3B6D11", display: "inline-block" }} />
-              </div>
-              <ActionBtn
-                label={calling ? "Calling…" : "▶  Call Next"}
-                variant="primary"
-                disabled={calling || activeQueue.length === 0}
-                onClick={handleCallNext}
-              />
+      <div className="w-full max-w-7xl mx-auto my-24 px-4">
+        <div className="bg-white overflow-hidden" style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}>
+          {/* Header */}
+          <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>Barangay West Rembo</p>
+              <h1 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1.15rem" }}>Dry Seal Release Queue</h1>
             </div>
-
-            {/* Metrics */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-              {[
-                { label: "Waiting",    value: waitingCount },
-                { label: "Processing", value: processingCount },
-                { label: "Done Today", value: doneCount },
-                { label: "Late",       value: lateTickets.length },
-              ].map(m => (
-                <div key={m.label} style={{
-                  flex: 1,
-                  background: m.label === "Late" && m.value > 0 ? "#FCEBEB" : "var(--color-background-secondary,#f5f5f3)",
-                  borderRadius: 8, padding: "10px 12px",
-                }}>
-                  <div style={{ fontSize: 11, color: m.label === "Late" && m.value > 0 ? "#A32D2D" : "var(--color-text-secondary)", marginBottom: 3 }}>{m.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 500, color: m.label === "Late" && m.value > 0 ? "#A32D2D" : "inherit" }}>{m.value}</div>
-                </div>
-              ))}
+            <div className="text-right">
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.65)" }}>{todayDate}</p>
             </div>
-
-            {/* Now Serving */}
-            <div style={{
-              background: "var(--color-background-secondary,#f5f5f3)",
-              border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.18))",
-              borderRadius: 10, padding: "20px 16px", textAlign: "center", marginBottom: 14,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-secondary)", marginBottom: 10 }}>
-                Now Serving
-              </div>
-              <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1, letterSpacing: -3 }}>
-                {calledTicket?.ticket_number ?? "---"}
-              </div>
-              {calledTicket ? (() => {
-                const rt            = getRequesterType(calledTicket);
-                const displayStatus = (calledTicket as any)._displayStatus ?? calledTicket.status;
-                return (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                      <Pill label={displayStatus}         style={statusStyle(displayStatus)} />
-                      <Pill label={calledTicket.priority} style={priorityStyle(calledTicket.priority)} />
-                      <Pill label={rt.label}              style={{ bg: rt.bg, color: rt.color }} />
-                      {(calledTicket.missed_attempts ?? 0) > 0 && (
-                        <Pill label={`${calledTicket.missed_attempts}× missed`} style={{ bg: "#FCEBEB", color: "#791F1F" }} />
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{getApplicantName(calledTicket)}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>{calledTicket.service_type}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 4 }}>Submitted {fmtTime(calledTicket.submitted_at)}</div>
-                  </div>
-                );
-              })() : (
-                <div style={{ marginTop: 10, fontSize: 13, color: "var(--color-text-tertiary)" }}>No ticket currently being served</div>
-              )}
-            </div>
-
-            {calledTicket ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <ActionBtn label="✓  Complete" variant="success" disabled={!!busy} onClick={() => act(calledTicket, "completed")} />
-                  <ActionBtn label="✕  No Show"  variant="danger"  disabled={!!busy} onClick={() => act(calledTicket, "no_show")} />
-                </div>
-                <ActionBtn label="↩  Move to Back (missed attempt)" variant="warning" disabled={!!busy} onClick={() => act(calledTicket, "move_back")} />
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", fontSize: 13, color: "var(--color-text-tertiary)", padding: "10px 0", border: "0.5px dashed var(--color-border-tertiary,rgba(0,0,0,0.12))", borderRadius: 8 }}>
-                No tickets in queue
-              </div>
-            )}
           </div>
+          <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
-          {/* Late Tickets Section */}
-          {lateTickets.length > 0 && (
-            <div style={{ ...cardStyle, border: "0.5px solid #F09595" }}>
-              <div style={{ ...sectionDivider, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 500, color: "#791F1F" }}>Late Arrivals</span>
-                <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 99, background: "#FCEBEB", color: "#A32D2D", fontWeight: 500 }}>
-                  {lateTickets.length}
-                </span>
-                <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginLeft: 4 }}>
-                  — Re-admit if the applicant has arrived
-                </span>
+          <div className="p-8">
+            {/* Control Bar */}
+            <div className="flex items-center justify-between mb-8 pb-6" style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#3B6D11" }} />
+                <span className="text-sm font-semibold" style={{ color: "#0f2a5e" }}>Live Queue</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {lateTickets.map(t => (
-                  <LateBanner key={t.id} ticket={t} onRequeue={requeue} busy={busy} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Queue List */}
-          <div style={cardStyle}>
-            <div style={{ ...sectionDivider, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Queue List</span>
-              <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search ticket, name, type…"
-                style={{
-                  padding: "5px 10px", fontSize: 12, width: 180,
-                  border: "0.5px solid var(--color-border-secondary,rgba(0,0,0,0.2))",
-                  borderRadius: 8, background: "var(--color-background-primary,#fff)", color: "var(--color-text-primary)",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              {["all", ...allDisplayStatuses].map(f => (
-                <button key={f} onClick={() => setFilter(f)} style={{
-                  padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500, cursor: "pointer",
-                  border: `0.5px solid ${filter === f ? "#185FA5" : "rgba(0,0,0,0.14)"}`,
-                  background: filter === f ? "#E6F1FB" : "transparent",
-                  color: filter === f ? "#0C447C" : "var(--color-text-secondary)",
-                }}>
-                  {f.replace(/_/g, " ")}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowQRScanner(true)}
+                  disabled={busy}
+                  className="flex items-center gap-2 px-4 py-2 text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
+                >
+                  <QrCode className="w-4 h-4" />
+                  Scan QR
                 </button>
-              ))}
+                <button
+                  onClick={() => setShowManualAdd(true)}
+                  disabled={busy}
+                  className="flex items-center gap-2 px-4 py-2 text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                  style={{ borderRadius: 2, backgroundColor: "#534AB7" }}
+                >
+                  <User className="w-4 h-4" />
+                  Manual Add
+                </button>
+                <button
+                  onClick={handleCallNext}
+                  disabled={waitingItems.length === 0 || busy}
+                  className="flex items-center gap-2 px-6 py-2 text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                  style={{ borderRadius: 2, backgroundColor: "#c2467d" }}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  Call Next
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 420, overflowY: "auto" }}>
-              {filtered.length === 0 && (
-                <div style={{ textAlign: "center", padding: 32, fontSize: 13, color: "var(--color-text-tertiary)" }}>No tickets found</div>
-              )}
-              {filtered.map((t, i) => {
-                const isSelected         = selected?.id === t.id;
-                const rt                 = getRequesterType(t);
-                const displayStatus      = (t as any)._displayStatus ?? t.status;
-                const isCurrentlyServing = calledTicket?.id === t.id;
-                const ticketIsLate       = isLate(t);
-
-                return (
-                  <div
-                    key={t.id}
-                    onClick={() => setSelected(isSelected ? null : t)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px", borderRadius: 8, cursor: "pointer",
-                      border: `0.5px solid ${isSelected ? "#185FA5" : ticketIsLate ? "#F09595" : isCurrentlyServing ? "#378ADD" : "var(--color-border-tertiary,rgba(0,0,0,0.12))"}`,
-                      background: isSelected ? "#EBF3FC" : ticketIsLate ? "#FEF5F5" : isCurrentlyServing ? "#E6F1FB" : "var(--color-background-primary,#fff)",
-                      transition: "background 0.12s",
-                    }}
-                  >
-                    <div style={{
-                      width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                      background: ticketIsLate ? "#FCEBEB" : isCurrentlyServing ? "#378ADD" : "var(--color-background-secondary,#f5f5f3)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 500,
-                      color: ticketIsLate ? "#A32D2D" : isCurrentlyServing ? "#fff" : "var(--color-text-secondary)",
-                    }}>
-                      {ticketIsLate ? "!" : isCurrentlyServing ? "▶" : i + 1}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Main Queue Panel */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Now Serving Card - WITH MARK AS DONE BUTTON */}
+                <div className="p-8 text-center" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#6b7280" }}>Now Serving</p>
+                  <p className="text-7xl font-black font-mono mb-4" style={{ color: "#0f2a5e" }}>{servingItem?.refNumber ?? "---"}</p>
+                  {servingItem && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <span className="px-3 py-1 text-xs font-semibold rounded-full" style={{ backgroundColor: statusStyle(servingItem.queueStatus).bg, color: statusStyle(servingItem.queueStatus).color }}>
+                          {servingItem.queueStatus}
+                        </span>
+                        <span className="px-3 py-1 text-xs font-semibold rounded-full" style={{ backgroundColor: DOCUMENT_TYPE_LABELS[servingItem.documentType]?.bg || "#F1EFE8", color: DOCUMENT_TYPE_LABELS[servingItem.documentType]?.color || "#5F5E5A" }}>
+                          {servingItem.serviceLabel}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium">{servingItem.applicantName || "—"}</p>
+                      {servingItem.businessName && (
+                        <p className="text-xs" style={{ color: "#6b7280" }}>{servingItem.businessName}</p>
+                      )}
+                      
+                      {/* ✅ MARK AS DONE BUTTON FOR SERVING ITEM */}
+                      <button
+                        onClick={() => handleDone(servingItem)}
+                        disabled={busy}
+                        className="mt-4 flex items-center justify-center gap-2 w-full py-3 text-white text-sm font-bold uppercase tracking-wider transition-all hover:opacity-90"
+                        style={{ borderRadius: 4, backgroundColor: "#3B6D11" }}
+                      >
+                        <CheckCircle className="w-5 h-5" />
+                        {busy ? "Processing..." : "✓ Mark as Done"}
+                      </button>
                     </div>
+                  )}
+                </div>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{t.ticket_number}</span>
-                        <Pill label={displayStatus} style={statusStyle(displayStatus)} />
-                        <Pill label={rt.label} style={{ bg: rt.bg, color: rt.color }} />
-                        {(t.missed_attempts ?? 0) > 0 && (
-                          <span style={{ fontSize: 11, color: "#A32D2D" }}>{t.missed_attempts}× missed</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <span>{getApplicantName(t)}</span>
-                        <span style={{ color: "var(--color-text-tertiary)" }}>·</span>
-                        <span>{t.service_type}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                        Submitted {fmtTime(t.submitted_at)}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
-                      {ticketIsLate ? (
-                        <IconBtn label="↺" title="Re-admit to queue" onClick={() => requeue(t)} color="#534AB7" />
-                      ) : isActive(t) ? (
-                        <>
-                          <IconBtn label="✓" title="Complete"     onClick={() => act(t, "completed")} color="#3B6D11" />
-                          <IconBtn label="✕" title="No Show"      onClick={() => act(t, "no_show")}   color="#A32D2D" />
-                          <IconBtn label="↩" title="Move to back" onClick={() => act(t, "move_back")} color="#854F0B" />
-                        </>
-                      ) : null}
+                {/* Queue List */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Queue ({queue.length})</p>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#9ca3af" }} />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 pr-4 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-1"
+                        style={{ borderColor: "#e5e7eb", width: 200 }}
+                      />
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ══ MIDDLE — Detail ══ */}
-        {selected && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <TicketDetail
-              ticket={sortedQueueWithDisplay.find(t => t.id === selected.id) as any ?? selected}
-              onClose={() => setSelected(null)}
-              onAct={act}
-              onRequeue={requeue}
-              busy={busy}
-            />
-          </div>
-        )}
-
-        {/* ══ RIGHT ══ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          <div style={cardStyle}>
-            <div style={sectionDivider}><span style={{ fontSize: 15, fontWeight: 500 }}>Active by Service</span></div>
-            {Object.keys(breakdown).length === 0 ? (
-              <div style={{ textAlign: "center", padding: 24, fontSize: 13, color: "var(--color-text-tertiary)" }}>No active tickets</div>
-            ) : (
-              Object.entries(breakdown).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-                <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: "#E6F1FB", color: "#0C447C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{type}</span>
-                  <div style={{ flex: 1, height: 4, background: "rgba(0,0,0,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.round((count / bTotal) * 100)}%`, background: "#378ADD", borderRadius: 2 }} />
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {filtered.length === 0 && (
+                      <div className="text-center py-12">
+                        <p className="text-sm" style={{ color: "#9ca3af" }}>No documents in queue</p>
+                      </div>
+                    )}
+                    {filtered.map((item, i) => {
+                      const isServing = servingItem?.queueId === item.queueId;
+                      return (
+                        <div
+                          key={item.queueId}
+                          className="flex items-center justify-between p-4 transition-all hover:shadow-md"
+                          style={{ 
+                            backgroundColor: isServing ? "#E6F1FB" : "#f9fafb",
+                            border: `1px solid ${isServing ? "#378ADD" : "#e5e7eb"}`,
+                            borderRadius: 4
+                          }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: isServing ? "#378ADD" : "#e5e7eb", color: isServing ? "white" : "#6b7280" }}>
+                              {isServing ? "▶" : i + 1}
+                            </div>
+                            <div>
+                              <p className="font-mono font-bold text-sm">{item.refNumber}</p>
+                              <p className="text-xs" style={{ color: "#6b7280" }}>{item.applicantName || "—"}</p>
+                              {item.businessName && <p className="text-xs" style={{ color: "#9ca3af" }}>{item.businessName}</p>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-1 text-xs rounded-full" style={{ backgroundColor: DOCUMENT_TYPE_LABELS[item.documentType]?.bg || "#F1EFE8", color: DOCUMENT_TYPE_LABELS[item.documentType]?.color || "#5F5E5A" }}>
+                              {item.serviceLabel}
+                            </span>
+                            {/* Mark as Done button for waiting items (not serving) */}
+                            {!isServing && item.queueStatus === "waiting" && (
+                              <button
+                                onClick={() => handleDone(item)}
+                                className="p-2 rounded-full transition-colors hover:bg-white"
+                                style={{ color: "#3B6D11" }}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 500, minWidth: 18, textAlign: "right" }}>{count}</span>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
 
-          <div style={cardStyle}>
-            <div style={sectionDivider}><span style={{ fontSize: 15, fontWeight: 500 }}>Up Next</span></div>
-            {activeQueue.filter((_, i) => i > 0).slice(0, 6).map((t, i) => {
-              const rt = getRequesterType(t);
-              return (
-                <div key={t.id} style={{ padding: "8px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "var(--color-text-tertiary)", width: 16 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{t.ticket_number}</span>
-                    <Pill label={rt.label} style={{ bg: rt.bg, color: rt.color }} />
+              {/* Right Panel */}
+              <div className="space-y-6">
+                {/* Stats */}
+                <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#0f2a5e" }}>Queue Statistics</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm" style={{ color: "#6b7280" }}>In Queue</span>
+                      <span className="text-xl font-bold" style={{ color: "#0f2a5e" }}>{queue.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm" style={{ color: "#6b7280" }}>Remaining</span>
+                      <span className="text-xl font-bold" style={{ color: "#0f2a5e" }}>{waitingItems.length}</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginLeft: 24, marginTop: 2 }}>
-                    {getApplicantName(t)} · {fmtTime(t.submitted_at)}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginLeft: 24 }}>{t.service_type}</div>
                 </div>
-              );
-            })}
-            {activeQueue.filter((_, i) => i > 0).length === 0 && (
-              <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>Queue is empty</div>
-            )}
-          </div>
 
-          <div style={{ ...cardStyle, flex: 1 }}>
-            <div style={{ ...sectionDivider, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 15, fontWeight: 500 }}>Activity</span>
-              <button onClick={() => setLog([])} style={{ fontSize: 11, cursor: "pointer", border: "0.5px solid rgba(0,0,0,0.14)", borderRadius: 6, background: "none", padding: "3px 8px", color: "var(--color-text-secondary)" }}>Clear</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
-              {log.length === 0 && <div style={{ textAlign: "center", padding: 20, fontSize: 13, color: "var(--color-text-tertiary)" }}>No activity yet</div>}
-              {log.map((e, i) => (
-                <div key={i} style={{ display: "flex", gap: 7, alignItems: "flex-start", fontSize: 12, padding: "5px 0", borderBottom: "0.5px solid var(--color-border-tertiary,rgba(0,0,0,0.08))" }}>
-                  <span style={{ color: logColor[e.type] ?? "var(--color-text-secondary)", flexShrink: 0, marginTop: 1 }}>●</span>
-                  <span style={{ flex: 1 }}>{e.msg}</span>
-                  <span style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }}>{e.time}</span>
+                {/* Service Breakdown */}
+                <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#0f2a5e" }}>By Service</p>
+                  <div className="space-y-3">
+                    {Object.entries(breakdown).map(([label, count]) => {
+                      const cfg = Object.values(DOCUMENT_TYPE_LABELS).find(c => c.label === label);
+                      return (
+                        <div key={label} className="flex items-center justify-between">
+                          <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: cfg?.bg, color: cfg?.color }}>{label}</span>
+                          <span className="text-sm font-semibold">{count}</span>
+                        </div>
+                      );
+                    })}
+                    {Object.keys(breakdown).length === 0 && (
+                      <p className="text-sm text-center" style={{ color: "#9ca3af" }}>No data</p>
+                    )}
+                  </div>
                 </div>
-              ))}
+
+                {/* Up Next */}
+                <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#0f2a5e" }}>Up Next</p>
+                  <div className="space-y-2">
+                    {upNext.slice(0, 5).map((item, i) => (
+                      <div key={item.queueId} className="flex items-center justify-between py-2">
+                        <span className="text-xs font-mono" style={{ color: "#6b7280" }}>{i + 1}.</span>
+                        <span className="text-sm font-mono font-medium">{item.refNumber}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: DOCUMENT_TYPE_LABELS[item.documentType]?.bg || "#F1EFE8", color: DOCUMENT_TYPE_LABELS[item.documentType]?.color || "#5F5E5A" }}>
+                          {item.serviceLabel}
+                        </span>
+                      </div>
+                    ))}
+                    {upNext.length === 0 && (
+                      <p className="text-sm text-center py-4" style={{ color: "#9ca3af" }}>Queue is empty</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Activity Log */}
+                <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Activity</p>
+                    <button onClick={() => setLog([])} className="text-xs hover:underline" style={{ color: "#6b7280" }}>Clear</button>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {log.length === 0 && (
+                      <p className="text-sm text-center py-4" style={{ color: "#9ca3af" }}>No activity yet</p>
+                    )}
+                    {log.map((entry, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: logColor[entry.type] }} />
+                        <span className="flex-1">{entry.msg}</span>
+                        <span className="flex-shrink-0" style={{ color: "#9ca3af" }}>{entry.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-
-  async function handleCallNext() {
-    setCalling(true);
-    try {
-      await postCallNext();
-      addLog("Called next ticket", "success");
-      showToast("Next ticket called", true);
-      await load();
-    } catch {
-      showToast("Failed to call next", false);
-      addLog("Failed to call next ticket", "error");
-    } finally {
-      setCalling(false);
-    }
-  }
 }
 
 export default QueueControl;
