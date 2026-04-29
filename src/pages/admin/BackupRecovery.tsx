@@ -107,12 +107,11 @@ const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Satur
 const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const dbTypeConfig = {
-  postgresql: { label: 'PostgreSQL', pill: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
-  mysql:      { label: 'MySQL',      pill: 'bg-orange-500/10 text-orange-600 border-orange-500/20' },
-  sqlite:     { label: 'SQLite',     pill: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+  postgresql: { label: 'PostgreSQL', pill: 'bg-blue-100 text-blue-700 border-blue-200' },
+  mysql:      { label: 'MySQL',      pill: 'bg-orange-100 text-orange-700 border-orange-200' },
+  sqlite:     { label: 'SQLite',     pill: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
 };
 
-// FIX 1: "👎" typo → "n" as parameter name
 const getNextRunText = (s) => {
   if (!s.enabled) return 'Disabled';
   const [h, m] = s.time.split(':').map(Number);
@@ -120,17 +119,14 @@ const getNextRunText = (s) => {
   const next = new Date();
   if (s.frequency === 'hourly') {
     const n = new Date(now.getTime() + 3600000);
-    // FIX 2: regular quotes → backtick template literal
     return `in ~1 hour (${n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
   }
   next.setHours(h, m, 0, 0);
   if (next <= now) next.setDate(next.getDate() + 1);
   if (s.frequency === 'weekly' && s.day_of_week !== null) {
     while (next.getDay() !== s.day_of_week) next.setDate(next.getDate() + 1);
-    // FIX 3: regular quotes → backtick template literal
     return `${DAYS[s.day_of_week]}, ${next.toLocaleDateString([],{month:'short',day:'numeric'})} at ${next.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
   }
-  // FIX 4: regular quotes → backtick template literal
   return `${next.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})} at ${next.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
 };
 
@@ -138,13 +134,13 @@ const getNextRunText = (s) => {
 const Toast = ({ toasts }) => (
   <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
     {toasts.map(t => (
-      <div key={t.id} className={`flex items-start gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm max-w-xs animate-fade-in
+      <div key={t.id} className={`flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg border text-sm max-w-xs animate-fade-in
         ${t.variant === 'destructive'
-          ? 'bg-red-950 border-red-800 text-red-100'
-          : 'bg-gray-900 border-gray-700 text-gray-100'}`}>
+          ? 'bg-red-50 border-red-200 text-red-800'
+          : 'bg-white border-gray-200 text-gray-800'}`}>
         {t.variant === 'destructive'
-          ? <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-          : <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />}
+          ? <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+          : <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
         <div>
           <p className="font-semibold">{t.title}</p>
           {t.description && <p className="text-xs opacity-75 mt-0.5">{t.description}</p>}
@@ -159,8 +155,8 @@ const Modal = ({ open, onClose, children }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 z-10">
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white border border-gray-200 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 z-10">
         {children}
       </div>
     </div>
@@ -171,13 +167,13 @@ const AlertModal = ({ open, onClose, title, description, onConfirm, confirmLabel
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 z-10">
-        <h3 className="text-base font-semibold text-white mb-2">{title}</h3>
-        <p className="text-sm text-gray-400 mb-6">{description}</p>
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+      <div className="relative bg-white border border-gray-200 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 z-10">
+        <h3 className="text-base font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 mb-6">{description}</p>
         <div className="flex gap-3 justify-end">
           <button onClick={onClose} disabled={loading}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-50">
+            className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
             Cancel
           </button>
           <button onClick={onConfirm} disabled={loading}
@@ -254,11 +250,8 @@ export default function BackupRecovery() {
     setIsRunning(true);
     setBackupDialogOpen(false);
     const now = new Date();
-    // FIX 5: "👎" typo → "n" as parameter name
     const pad = (n) => String(n).padStart(2, '0');
-    // FIX 6: regular quotes → backtick template literal
     const ts = `${now.getFullYear()}_${pad(now.getMonth()+1)}_${pad(now.getDate())}_${pad(now.getHours())}_${pad(now.getMinutes())}_${pad(now.getSeconds())}`;
-    // FIX 7: regular quotes → backtick template literal
     const filename = `backup_${ts}.sql`;
 
     const temp = {
@@ -276,7 +269,6 @@ export default function BackupRecovery() {
         b.id === temp.id ? { ...b, size: '14,421 KB', status: 'completed' } : b
       ));
       setIsRunning(false);
-      // FIX 8: regular quotes → backtick template literal
       addToast({ title: 'Backup Complete', description: `${filename} saved successfully` });
     }, 2200);
   };
@@ -289,7 +281,6 @@ export default function BackupRecovery() {
       setIsRestoring(false);
       setRestoreDialogOpen(false);
       setRestoreFile(null);
-      // FIX 9: regular quotes → backtick template literal
       addToast({ title: 'Import Successful', description: `${restoreFile.name} restored to PostgreSQL` });
     }, 1800);
   };
@@ -300,7 +291,6 @@ export default function BackupRecovery() {
     setTimeout(() => {
       setIsRestoringFromFile(false);
       setRestoreFromFilename(null);
-      // FIX 10: regular quotes → backtick template literal
       addToast({ title: 'Restore Complete', description: `Restored from ${restoreFromFilename}` });
     }, 1600);
   };
@@ -326,21 +316,19 @@ export default function BackupRecovery() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
-        body { margin: 0; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
         .font-sans { font-family: 'IBM Plex Sans', sans-serif; }
         @keyframes fade-in { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
         .animate-fade-in { animation: fade-in 0.25s ease both; }
         @keyframes spin { to { transform:rotate(360deg) } }
         .animate-spin { animation: spin 1s linear infinite; }
-        @keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.4} }
-        .animate-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #111; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
       `}</style>
 
-      <div className="font-sans" style={{ minHeight:'100vh', background:'#0a0a0a', color:'#e5e7eb' }}>
+      <div className="font-sans" style={{ minHeight:'100vh', background:'#f5f7fb', color:'#1f2937' }}>
         <Toast toasts={toasts} />
 
         <div style={{ maxWidth:1200, margin:'0 auto', padding:'2rem 1.5rem' }}>
@@ -348,7 +336,7 @@ export default function BackupRecovery() {
           {/* Header */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'2rem' }}>
             <div>
-              <h1 style={{ fontSize:'1.5rem', fontWeight:600, color:'#f9fafb', margin:0, letterSpacing:'-0.02em' }}>
+              <h1 style={{ fontSize:'1.5rem', fontWeight:600, color:'#111827', margin:0, letterSpacing:'-0.02em' }}>
                 Backup & Recovery
               </h1>
               <p style={{ fontSize:'0.8125rem', color:'#6b7280', marginTop:4 }}>
@@ -356,10 +344,10 @@ export default function BackupRecovery() {
               </p>
             </div>
             <button onClick={loadData}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'0.5rem 1rem', background:'transparent',
-                border:'1px solid #374151', borderRadius:8, color:'#9ca3af', fontSize:'0.8125rem', cursor:'pointer' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#1f2937'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'0.5rem 1rem', background:'white',
+                border:'1px solid #e5e7eb', borderRadius:8, color:'#4b5563', fontSize:'0.8125rem', cursor:'pointer' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#f9fafb'}
+              onMouseLeave={e=>e.currentTarget.style.background='white'}>
               <RefreshCw size={14} /> Refresh
             </button>
           </div>
@@ -368,44 +356,43 @@ export default function BackupRecovery() {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
             {[
               {
-                icon: <FileArchive size={26} style={{color:'#60a5fa'}} />,
+                icon: <FileArchive size={26} style={{color:'#3b82f6'}} />,
                 title: 'Database Backup',
                 desc: 'Full pg_dump saved to local storage',
                 action: () => setBackupDialogOpen(true),
                 badge: isRunning ? 'Running...' : 'Run Now',
-                badgeColor: '#60a5fa',
+                badgeColor: '#3b82f6',
                 disabled: isRunning,
               },
               {
-                icon: <Database size={26} style={{color:'#34d399'}} />,
+                icon: <Database size={26} style={{color:'#10b981'}} />,
                 title: 'Import Database',
                 desc: 'Upload a .sql file to restore',
                 action: () => setRestoreDialogOpen(true),
                 badge: 'Upload',
-                badgeColor: '#34d399',
+                badgeColor: '#10b981',
                 disabled: false,
               },
               {
-                icon: <Calendar size={26} style={{color:'#a78bfa'}} />,
-                // FIX 11: regular quotes → backtick template literal
+                icon: <Calendar size={26} style={{color:'#8b5cf6'}} />,
                 title: 'Auto Schedule',
                 desc: schedule.enabled
                   ? `${schedule.frequency.charAt(0).toUpperCase()+schedule.frequency.slice(1)} at ${schedule.time}`
                   : 'Scheduled backups are off',
                 action: () => setScheduleDialogOpen(true),
                 badge: 'Configure',
-                badgeColor: schedule.enabled ? '#34d399' : '#6b7280',
+                badgeColor: schedule.enabled ? '#10b981' : '#9ca3af',
                 disabled: false,
               },
             ].map((card, i) => (
               <button key={i} onClick={card.action} disabled={card.disabled}
-                style={{ background:'#111827', border:'1px solid #1f2937', borderRadius:12,
+                style={{ background:'white', border:'1px solid #e5e7eb', borderRadius:12,
                   padding:'1.25rem', textAlign:'left', cursor: card.disabled ? 'not-allowed' : 'pointer',
-                  opacity: card.disabled ? 0.6 : 1, transition:'border-color 0.15s, background 0.15s' }}
-                onMouseEnter={e => { if (!card.disabled) { e.currentTarget.style.borderColor='#374151'; e.currentTarget.style.background='#1a2332'; } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor='#1f2937'; e.currentTarget.style.background='#111827'; }}>
+                  opacity: card.disabled ? 0.6 : 1, transition:'all 0.15s', boxShadow:'0 1px 2px rgba(0,0,0,0.05)' }}
+                onMouseEnter={e => { if (!card.disabled) { e.currentTarget.style.borderColor='#d1d5db'; e.currentTarget.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.1)'; } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.boxShadow='0 1px 2px rgba(0,0,0,0.05)'; }}>
                 <div style={{ marginBottom:12 }}>{card.icon}</div>
-                <p style={{ margin:'0 0 4px', fontSize:'0.875rem', fontWeight:500, color:'#f3f4f6' }}>{card.title}</p>
+                <p style={{ margin:'0 0 4px', fontSize:'0.875rem', fontWeight:500, color:'#111827' }}>{card.title}</p>
                 <p style={{ margin:'0 0 12px', fontSize:'0.75rem', color:'#6b7280' }}>{card.desc}</p>
                 <span style={{ fontSize:'0.75rem', fontWeight:500, color: card.badgeColor, display:'flex', alignItems:'center', gap:4 }}>
                   <Settings size={11} /> {card.badge}
@@ -415,27 +402,27 @@ export default function BackupRecovery() {
           </div>
 
           {/* Table */}
-          <div style={{ background:'#111827', border:'1px solid #1f2937', borderRadius:12, overflow:'hidden' }}>
-            <div style={{ padding:'0.875rem 1.25rem', borderBottom:'1px solid #1f2937', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <h2 style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#f3f4f6' }}>Backup History</h2>
-              <span className="font-mono" style={{ fontSize:'0.6875rem', color:'#4b5563', padding:'2px 8px',
-                background:'#1f2937', borderRadius:6 }}>{backups.length} records</span>
+          <div style={{ background:'white', border:'1px solid #e5e7eb', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ padding:'0.875rem 1.25rem', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <h2 style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#111827' }}>Backup History</h2>
+              <span className="font-mono" style={{ fontSize:'0.6875rem', color:'#6b7280', padding:'2px 8px',
+                background:'#f3f4f6', borderRadius:6 }}>{backups.length} records</span>
             </div>
 
             {isLoading ? (
               <div style={{ display:'flex', justifyContent:'center', alignItems:'center', padding:'5rem 0' }}>
-                <div style={{ width:28, height:28, border:'2px solid #1f2937', borderTop:'2px solid #60a5fa', borderRadius:'50%' }}
+                <div style={{ width:28, height:28, border:'2px solid #e5e7eb', borderTop:'2px solid #3b82f6', borderRadius:'50%' }}
                   className="animate-spin" />
               </div>
             ) : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead>
-                    <tr style={{ background:'#0f172a' }}>
+                    <tr style={{ background:'#f9fafb' }}>
                       {['Filename','DB Type','Size','Date','Status','Actions'].map(h => (
                         <th key={h} style={{ textAlign:'left', padding:'0.625rem 1rem', fontSize:'0.6875rem',
-                          fontWeight:500, color:'#4b5563', textTransform:'uppercase', letterSpacing:'0.08em',
-                          borderBottom:'1px solid #1f2937', whiteSpace:'nowrap' }}>{h}</th>
+                          fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.08em',
+                          borderBottom:'1px solid #e5e7eb', whiteSpace:'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -443,18 +430,18 @@ export default function BackupRecovery() {
                     {backups.length ? backups.map(b => {
                       const tc = dbTypeConfig[b.db_type ?? 'postgresql'];
                       return (
-                        <tr key={b.id} style={{ borderBottom:'1px solid #1a2233', transition:'background 0.1s' }}
-                          onMouseEnter={e=>e.currentTarget.style.background='#0f172a'}
+                        <tr key={b.id} style={{ borderBottom:'1px solid #f3f4f6', transition:'background 0.1s' }}
+                          onMouseEnter={e=>e.currentTarget.style.background='#f9fafb'}
                           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
 
                           <td style={{ padding:'0.75rem 1rem' }}>
-                            <span className="font-mono" style={{ fontSize:'0.8125rem', color:'#d1d5db' }}>{b.filename}</span>
+                            <span className="font-mono" style={{ fontSize:'0.8125rem', color:'#374151' }}>{b.filename}</span>
                           </td>
 
                           <td style={{ padding:'0.75rem 1rem' }}>
                             <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 10px',
                               borderRadius:9999, fontSize:'0.6875rem', fontWeight:500,
-                              background:'#1e3a5f', color:'#60a5fa', border:'1px solid #1d4ed8/30' }}>
+                              background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe' }}>
                               <Database size={10} /> {tc.label}
                             </span>
                           </td>
@@ -473,21 +460,21 @@ export default function BackupRecovery() {
                             {b.status === 'completed' && (
                               <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 10px',
                                 borderRadius:9999, fontSize:'0.6875rem', fontWeight:500,
-                                background:'#052e16', color:'#34d399', border:'1px solid #166534' }}>
+                                background:'#ecfdf5', color:'#059669', border:'1px solid #a7f3d0' }}>
                                 <CheckCircle size={10} /> Completed
                               </span>
                             )}
                             {b.status === 'in_progress' && (
                               <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 10px',
                                 borderRadius:9999, fontSize:'0.6875rem', fontWeight:500,
-                                background:'#1e3a5f', color:'#60a5fa', border:'1px solid #1d4ed8' }}>
+                                background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe' }}>
                                 <Loader size={10} className="animate-spin" /> In Progress
                               </span>
                             )}
                             {b.status === 'failed' && (
                               <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 10px',
                                 borderRadius:9999, fontSize:'0.6875rem', fontWeight:500,
-                                background:'#2d0a0a', color:'#f87171', border:'1px solid #7f1d1d' }}>
+                                background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca' }}>
                                 <XCircle size={10} /> Failed
                               </span>
                             )}
@@ -496,20 +483,20 @@ export default function BackupRecovery() {
                           <td style={{ padding:'0.75rem 1rem' }}>
                             <div style={{ display:'flex', gap:4 }}>
                               {[
-                                { icon:<Download size={14}/>, title:'Download', color:'#9ca3af', hoverColor:'#60a5fa',
+                                { icon:<Download size={14}/>, title:'Download', color:'#6b7280', hoverColor:'#3b82f6',
                                   onClick:()=>downloadBackup(b), disabled: b.status!=='completed' },
-                                { icon:<RotateCcw size={14}/>, title:'Restore', color:'#9ca3af', hoverColor:'#fbbf24',
+                                { icon:<RotateCcw size={14}/>, title:'Restore', color:'#6b7280', hoverColor:'#f59e0b',
                                   onClick:()=>setRestoreFromFilename(b.filename), disabled: b.status!=='completed' },
-                                { icon:<Trash2 size={14}/>, title:'Delete', color:'#9ca3af', hoverColor:'#f87171',
+                                { icon:<Trash2 size={14}/>, title:'Delete', color:'#6b7280', hoverColor:'#ef4444',
                                   onClick:()=>deleteBackup(b.id), disabled: b.status==='in_progress' },
                               ].map((btn, i) => (
                                 <button key={i} title={btn.title} onClick={btn.onClick} disabled={btn.disabled}
                                   style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center',
-                                    background:'transparent', border:'1px solid #1f2937', borderRadius:6,
+                                    background:'white', border:'1px solid #e5e7eb', borderRadius:6,
                                     color: btn.color, cursor: btn.disabled ? 'not-allowed' : 'pointer',
-                                    opacity: btn.disabled ? 0.3 : 1, transition:'color 0.15s, border-color 0.15s, background 0.15s' }}
-                                  onMouseEnter={e => { if (!btn.disabled) { e.currentTarget.style.color=btn.hoverColor; e.currentTarget.style.borderColor=btn.hoverColor; e.currentTarget.style.background='#1a2030'; } }}
-                                  onMouseLeave={e => { e.currentTarget.style.color=btn.color; e.currentTarget.style.borderColor='#1f2937'; e.currentTarget.style.background='transparent'; }}>
+                                    opacity: btn.disabled ? 0.3 : 1, transition:'all 0.15s' }}
+                                  onMouseEnter={e => { if (!btn.disabled) { e.currentTarget.style.color=btn.hoverColor; e.currentTarget.style.borderColor=btn.hoverColor; e.currentTarget.style.background='#f9fafb'; } }}
+                                  onMouseLeave={e => { e.currentTarget.style.color=btn.color; e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.background='white'; }}>
                                   {btn.icon}
                                 </button>
                               ))}
@@ -518,7 +505,7 @@ export default function BackupRecovery() {
                         </tr>
                       );
                     }) : (
-                      <tr><td colSpan={6} style={{ padding:'4rem', textAlign:'center', color:'#4b5563', fontSize:'0.875rem' }}>
+                      <tr><td colSpan={6} style={{ padding:'4rem', textAlign:'center', color:'#6b7280', fontSize:'0.875rem' }}>
                         No backups found
                       </td></tr>
                     )}
@@ -531,25 +518,24 @@ export default function BackupRecovery() {
 
         {/* ── BACKUP DIALOG ── */}
         <Modal open={backupDialogOpen} onClose={() => !isRunning && setBackupDialogOpen(false)}>
-          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#f9fafb' }}>Create Database Backup</h3>
+          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#111827' }}>Create Database Backup</h3>
           <p style={{ margin:'0 0 20px', fontSize:'0.8125rem', color:'#6b7280' }}>
-            Runs <code style={{color:'#60a5fa'}}>pg_dump</code> and saves a full <code style={{color:'#60a5fa'}}>.sql</code> file.
+            Runs <code style={{color:'#3b82f6'}}>pg_dump</code> and saves a full <code style={{color:'#3b82f6'}}>.sql</code> file.
           </p>
           <div style={{ marginBottom:16 }}>
-            <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#9ca3af', marginBottom:6 }}>Database Type</label>
+            <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#374151', marginBottom:6 }}>Database Type</label>
             <select value={selectedDbType} onChange={e=>setSelectedDbType(e.target.value)}
-              style={{ width:'100%', padding:'0.5rem 0.75rem', background:'#1f2937', border:'1px solid #374151',
-                borderRadius:8, color:'#f3f4f6', fontSize:'0.875rem', cursor:'pointer' }}>
+              style={{ width:'100%', padding:'0.5rem 0.75rem', background:'white', border:'1px solid #d1d5db',
+                borderRadius:8, color:'#111827', fontSize:'0.875rem', cursor:'pointer' }}>
               <option value="postgresql">PostgreSQL</option>
               <option value="mysql">MySQL</option>
               <option value="sqlite">SQLite</option>
             </select>
           </div>
-          {/* FIX 12: regular quotes → backtick template literal for border style */}
           <div style={{ padding:'0.75rem 1rem', borderRadius:8, marginBottom:20,
-            background: selectedDbType==='postgresql' ? '#1e3a5f' : selectedDbType==='mysql' ? '#431407' : '#052e16',
-            border: `1px solid ${selectedDbType==='postgresql'?'#1d4ed8':selectedDbType==='mysql'?'#9a3412':'#166534'}` }}>
-            <p style={{ margin:0, fontSize:'0.8125rem', color: selectedDbType==='postgresql'?'#93c5fd':selectedDbType==='mysql'?'#fb923c':'#86efac' }}>
+            background: selectedDbType==='postgresql' ? '#eff6ff' : selectedDbType==='mysql' ? '#fff7ed' : '#ecfdf5',
+            border: `1px solid ${selectedDbType==='postgresql'?'#bfdbfe':selectedDbType==='mysql'?'#fed7aa':'#a7f3d0'}` }}>
+            <p style={{ margin:0, fontSize:'0.8125rem', color: selectedDbType==='postgresql'?'#1e40af':selectedDbType==='mysql'?'#9a3412':'#065f46' }}>
               {selectedDbType==='postgresql' && 'Uses pg_dump to export a plain SQL file.'}
               {selectedDbType==='mysql' && 'Uses mysqldump --quick --single-transaction (no locks).'}
               {selectedDbType==='sqlite' && 'Copies the .sqlite database file directly.'}
@@ -557,10 +543,10 @@ export default function BackupRecovery() {
           </div>
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
             <button onClick={()=>setBackupDialogOpen(false)} disabled={isRunning}
-              style={{ padding:'0.5rem 1rem', background:'transparent', border:'1px solid #374151', borderRadius:8,
-                color:'#9ca3af', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
+              style={{ padding:'0.5rem 1rem', background:'white', border:'1px solid #d1d5db', borderRadius:8,
+                color:'#374151', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
             <button onClick={triggerBackup} disabled={isRunning}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'0.5rem 1rem', background:'#2563eb',
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'0.5rem 1rem', background:'#3b82f6',
                 border:'none', borderRadius:8, color:'white', fontSize:'0.875rem', cursor:'pointer', fontWeight:500 }}>
               <Play size={14} /> {isRunning ? 'Running...' : 'Start Backup'}
             </button>
@@ -569,28 +555,28 @@ export default function BackupRecovery() {
 
         {/* ── IMPORT DIALOG ── */}
         <Modal open={restoreDialogOpen} onClose={() => { if (!isRestoring) { setRestoreDialogOpen(false); setRestoreFile(null); } }}>
-          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#f9fafb' }}>Import Database</h3>
+          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#111827' }}>Import Database</h3>
           <p style={{ margin:'0 0 20px', fontSize:'0.8125rem', color:'#6b7280' }}>
-            Upload a <code style={{color:'#60a5fa'}}>.sql</code> file to restore into PostgreSQL. This will overwrite existing data.
+            Upload a <code style={{color:'#3b82f6'}}>.sql</code> file to restore into PostgreSQL. This will overwrite existing data.
           </p>
           <div style={{ marginBottom: restoreFile ? 12 : 20 }}>
-            <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#9ca3af', marginBottom:8 }}>SQL File</label>
+            <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#374151', marginBottom:8 }}>SQL File</label>
             <input type="file" accept=".sql" onChange={e=>setRestoreFile(e.target.files?.[0]??null)}
-              style={{ display:'block', width:'100%', fontSize:'0.8125rem', color:'#9ca3af',
-                padding:'0.5rem', background:'#1f2937', border:'1px solid #374151', borderRadius:8, cursor:'pointer' }} />
+              style={{ display:'block', width:'100%', fontSize:'0.8125rem', color:'#374151',
+                padding:'0.5rem', background:'white', border:'1px solid #d1d5db', borderRadius:8, cursor:'pointer' }} />
           </div>
           {restoreFile && (
-            <div style={{ padding:'0.625rem 0.875rem', background:'#052e16', border:'1px solid #166534',
-              borderRadius:8, marginBottom:20, fontSize:'0.75rem', color:'#86efac' }}>
+            <div style={{ padding:'0.625rem 0.875rem', background:'#ecfdf5', border:'1px solid #a7f3d0',
+              borderRadius:8, marginBottom:20, fontSize:'0.75rem', color:'#065f46' }}>
               ✓ {restoreFile.name} ({(restoreFile.size/1024).toFixed(1)} KB) — ready to import into PostgreSQL
             </div>
           )}
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
             <button onClick={()=>{ setRestoreDialogOpen(false); setRestoreFile(null); }} disabled={isRestoring}
-              style={{ padding:'0.5rem 1rem', background:'transparent', border:'1px solid #374151', borderRadius:8,
-                color:'#9ca3af', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
+              style={{ padding:'0.5rem 1rem', background:'white', border:'1px solid #d1d5db', borderRadius:8,
+                color:'#374151', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
             <button onClick={handleRestoreUpload} disabled={!restoreFile||isRestoring}
-              style={{ padding:'0.5rem 1rem', background: (!restoreFile||isRestoring)?'#374151':'#2563eb',
+              style={{ padding:'0.5rem 1rem', background: (!restoreFile||isRestoring)?'#d1d5db':'#10b981',
                 border:'none', borderRadius:8, color:'white', fontSize:'0.875rem', fontWeight:500,
                 cursor: (!restoreFile||isRestoring)?'not-allowed':'pointer' }}>
               {isRestoring ? 'Importing...' : 'Import'}
@@ -600,17 +586,17 @@ export default function BackupRecovery() {
 
         {/* ── SCHEDULE DIALOG ── */}
         <Modal open={scheduleDialogOpen} onClose={() => !isSavingSchedule && setScheduleDialogOpen(false)}>
-          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#f9fafb' }}>Auto Backup Schedule</h3>
+          <h3 style={{ margin:'0 0 6px', fontSize:'1rem', fontWeight:600, color:'#111827' }}>Auto Backup Schedule</h3>
           <p style={{ margin:'0 0 20px', fontSize:'0.8125rem', color:'#6b7280' }}>Configure when automatic backups run.</p>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20,
-            padding:'0.75rem 1rem', background:'#1f2937', borderRadius:8 }}>
+            padding:'0.75rem 1rem', background:'#f9fafb', borderRadius:8 }}>
             <div>
-              <p style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#f3f4f6' }}>Enable auto backup</p>
+              <p style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#111827' }}>Enable auto backup</p>
               <p style={{ margin:'2px 0 0', fontSize:'0.75rem', color:'#6b7280' }}>Run backups automatically</p>
             </div>
             <button onClick={()=>setSchedule(s=>({...s,enabled:!s.enabled}))}
               style={{ width:44, height:24, borderRadius:12, border:'none', cursor:'pointer', position:'relative',
-                background: schedule.enabled ? '#2563eb' : '#374151', transition:'background 0.2s' }}>
+                background: schedule.enabled ? '#3b82f6' : '#d1d5db', transition:'background 0.2s' }}>
               <div style={{ position:'absolute', top:2, left: schedule.enabled?22:2, width:20, height:20,
                 borderRadius:'50%', background:'white', transition:'left 0.2s' }} />
             </button>
@@ -618,10 +604,10 @@ export default function BackupRecovery() {
 
           <div style={{ opacity: schedule.enabled ? 1 : 0.4, pointerEvents: schedule.enabled ? 'all' : 'none', transition:'opacity 0.2s' }}>
             <div style={{ marginBottom:16 }}>
-              <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#9ca3af', marginBottom:6 }}>Frequency</label>
+              <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#374151', marginBottom:6 }}>Frequency</label>
               <select value={schedule.frequency} onChange={e=>setSchedule(s=>({...s,frequency:e.target.value}))}
-                style={{ width:'100%', padding:'0.5rem 0.75rem', background:'#1f2937', border:'1px solid #374151',
-                  borderRadius:8, color:'#f3f4f6', fontSize:'0.875rem' }}>
+                style={{ width:'100%', padding:'0.5rem 0.75rem', background:'white', border:'1px solid #d1d5db',
+                  borderRadius:8, color:'#111827', fontSize:'0.875rem' }}>
                 <option value="hourly">Every hour</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -630,23 +616,23 @@ export default function BackupRecovery() {
 
             {schedule.frequency !== 'hourly' && (
               <div style={{ marginBottom:16 }}>
-                <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#9ca3af', marginBottom:6 }}>Time</label>
+                <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#374151', marginBottom:6 }}>Time</label>
                 <input type="time" value={schedule.time} onChange={e=>setSchedule(s=>({...s,time:e.target.value}))}
-                  style={{ width:'100%', padding:'0.5rem 0.75rem', background:'#1f2937', border:'1px solid #374151',
-                    borderRadius:8, color:'#f3f4f6', fontSize:'0.875rem' }} />
+                  style={{ width:'100%', padding:'0.5rem 0.75rem', background:'white', border:'1px solid #d1d5db',
+                    borderRadius:8, color:'#111827', fontSize:'0.875rem' }} />
               </div>
             )}
 
             {schedule.frequency === 'weekly' && (
               <div style={{ marginBottom:16 }}>
-                <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#9ca3af', marginBottom:8 }}>Day of week</label>
+                <label style={{ display:'block', fontSize:'0.75rem', fontWeight:500, color:'#374151', marginBottom:8 }}>Day of week</label>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                   {DAYS_SHORT.map((day,i) => (
                     <button key={i} onClick={()=>setSchedule(s=>({...s,day_of_week:i}))}
                       style={{ padding:'4px 10px', borderRadius:6, fontSize:'0.75rem', fontWeight:500, cursor:'pointer',
-                        border: schedule.day_of_week===i ? '1px solid #2563eb' : '1px solid #374151',
-                        background: schedule.day_of_week===i ? '#2563eb' : '#1f2937',
-                        color: schedule.day_of_week===i ? 'white' : '#9ca3af', transition:'all 0.15s' }}>
+                        border: schedule.day_of_week===i ? '1px solid #3b82f6' : '1px solid #d1d5db',
+                        background: schedule.day_of_week===i ? '#3b82f6' : 'white',
+                        color: schedule.day_of_week===i ? 'white' : '#374151', transition:'all 0.15s' }}>
                       {day}
                     </button>
                   ))}
@@ -654,25 +640,25 @@ export default function BackupRecovery() {
               </div>
             )}
 
-            <div style={{ padding:'0.75rem 1rem', background:'#0f172a', border:'1px solid #1f2937', borderRadius:8, marginBottom:20 }}>
-              <p style={{ margin:'0 0 2px', fontSize:'0.6875rem', color:'#4b5563' }}>Next scheduled run</p>
-              <p style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#f3f4f6' }}>{getNextRunText(schedule)}</p>
+            <div style={{ padding:'0.75rem 1rem', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, marginBottom:20 }}>
+              <p style={{ margin:'0 0 2px', fontSize:'0.6875rem', color:'#6b7280' }}>Next scheduled run</p>
+              <p style={{ margin:0, fontSize:'0.875rem', fontWeight:500, color:'#111827' }}>{getNextRunText(schedule)}</p>
             </div>
           </div>
 
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
             <button onClick={()=>setScheduleDialogOpen(false)} disabled={isSavingSchedule}
-              style={{ padding:'0.5rem 1rem', background:'transparent', border:'1px solid #374151', borderRadius:8,
-                color:'#9ca3af', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
+              style={{ padding:'0.5rem 1rem', background:'white', border:'1px solid #d1d5db', borderRadius:8,
+                color:'#374151', fontSize:'0.875rem', cursor:'pointer' }}>Cancel</button>
             <button onClick={saveSchedule} disabled={isSavingSchedule}
-              style={{ padding:'0.5rem 1rem', background:'#2563eb', border:'none', borderRadius:8,
+              style={{ padding:'0.5rem 1rem', background:'#3b82f6', border:'none', borderRadius:8,
                 color:'white', fontSize:'0.875rem', fontWeight:500, cursor:'pointer' }}>
               {isSavingSchedule ? 'Saving...' : 'Save Schedule'}
             </button>
           </div>
         </Modal>
 
-        {/* ── RESTORE CONFIGGGRM ── */}
+        {/* ── RESTORE CONFIRMATION ── */}
         <AlertModal
           open={!!restoreFromFilename}
           onClose={() => !isRestoringFromFile && setRestoreFromFilename(null)}
@@ -680,7 +666,7 @@ export default function BackupRecovery() {
           description={`This will restore the PostgreSQL database from ${restoreFromFilename}. All current data will be overwritten. Are you sure?`}
           onConfirm={handleRestoreFromFile}
           confirmLabel="Yes, Restore"
-          confirmClass="bg-amber-600 hover:bg-amber-700"
+          confirmClass="bg-amber-500 hover:bg-amber-600"
           loading={isRestoringFromFile}
         />
       </div>
