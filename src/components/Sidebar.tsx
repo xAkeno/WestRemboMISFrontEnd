@@ -27,32 +27,91 @@ import axios from "axios";
 
 const BASE = "https://westrembomis.onrender.com/api";
 
-// ─── Menu items ───────────────────────────────────────────────────────────────
+// ─── Strictly classified menu sections ───────────────────────────────────────
 
-const allMenuItems = [
-  { title: "Dashboard",         path: "/dashboard",         icon: Users,        permission: null },
-  // { title: "Resident Records",  path: "/residenthome",      icon: Users,        permission: "resident" },
-  { title: "Clearances",        path: "/clearancehome",     icon: FileCheck,    permission: "doc_req" },
-  { title: "Certifications",    path: "/certificatehome",   icon: Award,        permission: "certificate" },
-  { title: "Cashier",           path: "/cashier",           icon: Coins,        permission: "cashier" },
-  { title: "Elected Officials", path: "/elected-officials", icon: Contact,      permission: "settings" },
-  { title: "Contact",           path: "/contact-admin",     icon: Phone,        permission: "settings" },
-  { title: "Events Calendar",   path: "/events-calendar",   icon: CalendarCog,  permission: "settings" },
-  { title: "Document Settings", path: "/document-setting",  icon: FileCheck,    permission: "settings" },
-  { title: "Contact Cms",       path: "/contactCms",        icon: NotebookTabs, permission: "settings" },
-  { title: "Service Cms",       path: "/serviceCms",        icon: NotebookTabs, permission: "settings" },
-  { title: "Reports",           path: "/reports",           icon: BarChart3,    permission: "reports" },
-  { title: "Account Manage",    path: "/AccountManage",     icon: UserRoundPen, permission: "settings" },
-  { title: "Backup Recovery",   path: "/backup-recovery",   icon: Database,     permission: "settings" },
-  { title: "Activity Log",      path: "/activity-log",      icon: Activity,     permission: "settings" },
-  { title: "Street Cms",        path: "/street-cms",        icon: NotebookTabs, permission: "settings" },
-  { title: "Settings",          path: "/settings",          icon: Settings,     permission: "settings" }
+const menuSections = [
+  {
+    title: "Dashboard",
+    items: [
+      { title: "Dashboard", path: "/dashboard", icon: LayoutList, permission: null },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
+      { title: "Clearances", path: "/clearancehome", icon: FileCheck, permission: "doc_req" },
+      { title: "Certifications", path: "/certificatehome", icon: Award, permission: "certificate" },
+      { title: "Document Settings", path: "/document-setting", icon: FileCheck, permission: "settings" },
+    ],
+  },
+  {
+    title: "Payments",
+    items: [
+      { title: "Cashier", path: "/cashier", icon: Coins, permission: "cashier" },
+    ],
+  },
+  {
+    title: "Content Management",
+    items: [
+      { title: "Contacts", path: "/contactCms", icon: NotebookTabs, permission: "settings" },
+      { title: "Services", path: "/serviceCms", icon: NotebookTabs, permission: "settings" },
+      { title: "Streets", path: "/street-cms", icon: NotebookTabs, permission: "settings" },
+      { title: "Elected Officials", path: "/elected-officials", icon: Contact, permission: "settings" },
+    ],
+  },
+  {
+    title: "User Management",
+    items: [
+      { title: "Account Management", path: "/AccountManage", icon: UserRoundPen, permission: "settings" },
+    ],
+  },
+  {
+    title: "Communications",
+    items: [
+      { title: "Contact", path: "/contact-admin", icon: Phone, permission: "settings" },
+      { title: "Events Calendar", path: "/events-calendar", icon: CalendarCog, permission: "settings" },
+    ],
+  },
+  {
+    title: "Analytics",
+    items: [
+      { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
+      { title: "Activity Log", path: "/activity-log", icon: Activity, permission: "settings" },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { title: "Backup Recovery", path: "/backup-recovery", icon: Database, permission: "settings" },
+      { title: "Settings", path: "/settings", icon: Settings, permission: "settings" },
+    ],
+  },
 ];
+
+// ─── Section Label Component ─────────────────────────────────────────────────
+
+function SectionLabel({ title, collapsed }: { title: string; collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="px-3 py-2">
+        <div className="border-t border-sidebar-border/40" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 pt-4 pb-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60 select-none cursor-default">
+        {title}
+      </span>
+    </div>
+  );
+}
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const [collapsed, setCollapsed]     = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const navigate = useNavigate();
 
@@ -63,9 +122,36 @@ export function Sidebar() {
       .catch((err) => console.error("Failed to fetch user permissions", err));
   }, []);
 
-  const filteredMenuItems = allMenuItems.filter(
-    (item) => !item.permission || permissions.includes(item.permission)
-  );
+  // Filter sections and their items based on permissions
+  const filteredSections = menuSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.permission || permissions.includes(item.permission)
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  // Render a single menu item
+  const renderMenuItem = (item: { title: string; path: string; icon: any }) => {
+    const Icon = item.icon;
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        end
+        className={cn(
+          "flex items-center gap-3 px-4 py-2 rounded-lg transition-all",
+          "text-sidebar-foreground hover:bg-sidebar-accent",
+          collapsed && "justify-center px-2"
+        )}
+        activeClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {!collapsed && <span className="font-medium text-sm">{item.title}</span>}
+      </NavLink>
+    );
+  };
 
   return (
     <aside
@@ -91,33 +177,35 @@ export function Sidebar() {
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
-          className="text-sidebar-foreground hover:bg-sidebar-accent"
+          className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0"
         >
           <ChevronLeft className={cn("w-5 h-5 transition-transform", collapsed && "rotate-180")} />
         </Button>
       </div>
 
-      {/* ── Nav ── takes remaining height, scrolls independently */}
-      <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-        {filteredMenuItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end
-              className={cn(
-                "flex items-center gap-3 px-4 py-2 rounded-lg transition-all",
-                "text-sidebar-foreground hover:bg-sidebar-accent",
-                collapsed && "justify-center"
+      {/* ── Nav ── */}
+      <nav className="flex-1 overflow-y-auto p-2">
+        <div className="space-y-1">
+          {filteredSections.map((section, index) => (
+            <div key={section.title}>
+              {/* Only show section label for non-Dashboard sections */}
+              {section.title !== "Dashboard" && (
+                <SectionLabel title={section.title} collapsed={collapsed} />
               )}
-              activeClassName="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="font-medium">{item.title}</span>}
-            </NavLink>
-          );
-        })}
+              
+              {/* Add divider after Dashboard section */}
+              {section.title === "Dashboard" && filteredSections.length > 1 && (
+                <div className="px-4 pb-2">
+                  <div className="border-t border-sidebar-border/30" />
+                </div>
+              )}
+
+              <div className="space-y-0.5">
+                {section.items.map((item) => renderMenuItem(item))}
+              </div>
+            </div>
+          ))}
+        </div>
       </nav>
 
       {/* ── Footer buttons ── */}
@@ -126,24 +214,24 @@ export function Sidebar() {
           className={cn(
             "flex items-center gap-3 px-6 py-3 w-full transition-all",
             "text-sidebar-foreground hover:bg-sidebar-accent",
-            collapsed && "justify-center"
+            collapsed && "justify-center px-2"
           )}
           onClick={() => navigate("/home")}
         >
           <HomeIcon className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="font-medium">Return Home</span>}
+          {!collapsed && <span className="font-medium text-sm">Return Home</span>}
         </button>
 
         <button
           className={cn(
             "flex items-center gap-3 px-6 py-3 w-full transition-all",
             "text-sidebar-foreground hover:bg-sidebar-accent",
-            collapsed && "justify-center"
+            collapsed && "justify-center px-2"
           )}
           onClick={() => navigate("/")}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="font-medium">Logout</span>}
+          {!collapsed && <span className="font-medium text-sm">Logout</span>}
         </button>
       </div>
     </aside>
