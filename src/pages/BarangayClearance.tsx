@@ -2044,4 +2044,7 @@ const BarangayClearance = () => {
   );
 };
 
+
+//////
+/////neccessary changes for testing stuff
 export default BarangayClearance;
