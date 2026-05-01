@@ -296,7 +296,7 @@ const DEFAULT_QR: Omit<QRCodeFieldData, 'page'> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CertificateEditor() {
+export function   CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
   const location  = useLocation();
   const ticket    = location.state?.ticket;

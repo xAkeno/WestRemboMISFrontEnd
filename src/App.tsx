@@ -132,7 +132,7 @@ const App = () => {
                 <Route path="/services/barangay-building-clearance/apply" element={<BuildingClearanceFormGood />} />
                 <Route path="/services/barangay-resident-registration/apply" element={<ResidentRegistrationForm />} />
                 
-                <Route path="/clearancehome/bussinessclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BusinessClearance /></ProtectedRoute>} /> 
+                <Route path="/clearancehome/bussinessclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BusinessC  learance /></ProtectedRoute>} /> 
                 <Route path="/clearancehome/bussinessclearance/create" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BussinessClearanceForm /></ProtectedRoute>} /> {/*Residents ???*/}
 
                 <Route path="/clearancehome/buildingclearance" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><BuildingClearance /></ProtectedRoute>} /> 
