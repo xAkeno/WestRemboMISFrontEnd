@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchRequestById } from "../services/api";
 import { format } from "date-fns";
@@ -9,6 +9,7 @@ import {
   Info, FileX, BadgeCheck,
   X, Copy, Check, Clock, Home, RefreshCw, ChevronRight,
   QrCode, XCircle, AlertCircle, Search,
+  CheckCircle2, Sparkles,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -165,7 +166,6 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Progress Bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ status }: { status: string }) {
-  const isRejected  = status === "rejected";
   const isBlocked   = BLOCKED_STATUSES.has(status);
   const currentStep = isBlocked ? -1 : (STATUS_TO_STEP[status] ?? 0);
 
@@ -262,7 +262,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
     catch { return dateStr; }
   })();
 
-  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const friendlyTime = (() => {
     try {
       const hour = parseInt(timeStr.split(":")[0], 10);
@@ -342,7 +341,6 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         boxShadow: "0 4px 20px rgba(15,42,94,0.2)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
@@ -361,7 +359,6 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         </div>
       </div>
 
-      {/* QR Block */}
       <div className="flex flex-col items-center gap-3 px-5 py-5">
         <span
           className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
@@ -396,7 +393,6 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         </p>
       </div>
 
-      {/* Screenshot tip */}
       <div
         className="flex items-start gap-3 mx-4 mb-4 px-4 py-3 rounded-xl"
         style={{
@@ -550,7 +546,7 @@ function DetailsModal({ request, onClose }: { request: any; onClose: () => void 
           { label: "Expires At",             value: fmtDate(r.expires_at) },
           { label: "Punong Barangay",        value: r.punong_barangay ?? r.for_the_punong_barangay },
           { label: "Barangay Position",      value: r.barangay_position },
-          { label: "Remarks",               value: r.remarks, full: true },
+          { label: "Remarks",                value: r.remarks, full: true },
           { label: "Released At",            value: fmtDate(r.released_at) },
         ]},
       ];
@@ -1004,7 +1000,6 @@ function ScheduledVisitCard({
     weekday: "long", month: "long", day: "numeric",
   });
 
-  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const timeLabel = (() => {
     try {
       const hour = parseInt(schedule.schedule_time.split(":")[0], 10);
@@ -1023,7 +1018,6 @@ function ScheduledVisitCard({
           : "0 1px 8px rgba(0,0,0,0.06)",
       }}
     >
-      {/* Card Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ borderBottom: "1px solid #f3f4f6" }}
@@ -1058,7 +1052,6 @@ function ScheduledVisitCard({
 
       <div className="px-5 py-5 flex flex-col gap-4">
 
-        {/* Missed banner */}
         {isMissed && (
           <div
             className="px-4 py-3 rounded-xl"
@@ -1070,7 +1063,6 @@ function ScheduledVisitCard({
           </div>
         )}
 
-        {/* Schedule Block */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
             {isMissed ? "Missed schedule" : "Pickup schedule"}
@@ -1103,7 +1095,6 @@ function ScheduledVisitCard({
           </div>
         </div>
 
-        {/* Reference Number */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
             Reference number
@@ -1115,11 +1106,9 @@ function ScheduledVisitCard({
             <span className="font-mono text-lg font-bold" style={{ color: "#111827", letterSpacing: "0.04em" }}>
               {refNumber}
             </span>
-            <CopyButtonLight value={refNumber} />
           </div>
         </div>
 
-        {/* Documents Checklist (only show when not missed) */}
         {!isMissed && dynamicRequirements.length > 0 && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
@@ -1148,7 +1137,6 @@ function ScheduledVisitCard({
           </div>
         )}
 
-        {/* Reschedule CTA (missed) or View Details (normal) */}
         {isMissed ? (
           <button
             onClick={onReschedule}
@@ -1176,7 +1164,6 @@ function ScheduledVisitCard({
           </button>
         )}
 
-        {/* If missed, also show a subtle "View Details" link */}
         {isMissed && (
           <button
             onClick={onViewDetails}
@@ -1193,7 +1180,7 @@ function ScheduledVisitCard({
   );
 }
 
-// ─── NEW: Rejected Status Card ─────────────────────────────────────────────────
+// ─── Rejected Status Card ──────────────────────────────────────────────────────
 function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1204,88 +1191,53 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
         boxShadow: "0 1px 8px rgba(225,29,72,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)", borderBottom: "1px solid #fecdd3" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#fee2e2" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#fee2e2" }}>
           <XCircle className="h-5 w-5" style={{ color: "#e11d48" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#9f1239" }}>Request Rejected</p>
-          <p className="text-[11px]" style={{ color: "#be123c" }}>
-            Your document request was not approved
-          </p>
+          <p className="text-[11px]" style={{ color: "#be123c" }}>Your document request was not approved</p>
         </div>
-        <span
-          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
-          style={{ background: "#fee2e2", color: "#e11d48", border: "1px solid #fecdd3" }}
-        >
+        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full" style={{ background: "#fee2e2", color: "#e11d48", border: "1px solid #fecdd3" }}>
           Rejected
         </span>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Reason Block */}
         {hasValue(reason) ? (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
-              Reason for Rejection
-            </p>
-            <div
-              className="flex items-start gap-3 px-4 py-4 rounded-xl"
-              style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#fee2e2" }}
-              >
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>Reason for Rejection</p>
+            <div className="flex items-start gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#fee2e2" }}>
                 <FileX className="h-3.5 w-3.5" style={{ color: "#e11d48" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9f1239" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9f1239" }}>{String(reason)}</p>
             </div>
           </div>
         ) : (
-          <div
-            className="flex items-start gap-3 px-4 py-3 rounded-xl"
-            style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}
-          >
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}>
             <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#e11d48" }} />
             <p className="text-xs leading-relaxed" style={{ color: "#be123c" }}>
               No specific reason was provided. Please contact the barangay office for more information.
             </p>
           </div>
         )}
-
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            What you can do
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What you can do</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             Visit the barangay hall for assistance or to clarify the grounds of rejection. You may resubmit a new request once the issue has been resolved.
           </p>
         </div>
-
         <button
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #fecdd3", background: "#fff1f2", color: "#e11d48" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ffe4e6";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ffe4e6"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2"; }}
         >
           View Full Request Details
         </button>
@@ -1294,7 +1246,7 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
   );
 }
 
-// ─── NEW: Incomplete Status Card ───────────────────────────────────────────────
+// ─── Incomplete Status Card ────────────────────────────────────────────────────
 function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1305,88 +1257,53 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
         boxShadow: "0 1px 8px rgba(234,88,12,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)", borderBottom: "1px solid #fed7aa" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#ffedd5" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#ffedd5" }}>
           <AlertCircle className="h-5 w-5" style={{ color: "#ea580c" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#9a3412" }}>Action Required</p>
-          <p className="text-[11px]" style={{ color: "#c2410c" }}>
-            Missing or incomplete documents detected
-          </p>
+          <p className="text-[11px]" style={{ color: "#c2410c" }}>Missing or incomplete documents detected</p>
         </div>
-        <span
-          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
-          style={{ background: "#ffedd5", color: "#ea580c", border: "1px solid #fed7aa" }}
-        >
+        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full" style={{ background: "#ffedd5", color: "#ea580c", border: "1px solid #fed7aa" }}>
           Incomplete
         </span>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Reason Block */}
         {hasValue(reason) ? (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
-              What Needs Attention
-            </p>
-            <div
-              className="flex items-start gap-3 px-4 py-4 rounded-xl"
-              style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#ffedd5" }}
-              >
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>What Needs Attention</p>
+            <div className="flex items-start gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#ffedd5" }}>
                 <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#ea580c" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9a3412" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9a3412" }}>{String(reason)}</p>
             </div>
           </div>
         ) : (
-          <div
-            className="flex items-start gap-3 px-4 py-3 rounded-xl"
-            style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
-          >
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
             <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
             <p className="text-xs leading-relaxed" style={{ color: "#c2410c" }}>
               Your submission has missing or incomplete documents. Please check the requirements and resubmit.
             </p>
           </div>
         )}
-
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            Next step
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>Next step</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             Please upload or provide the missing documents as soon as possible so the barangay office can continue processing your request.
           </p>
         </div>
-
         <button
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ffedd5";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ffedd5"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; }}
         >
           View Full Request Detail
         </button>
@@ -1395,7 +1312,7 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
   );
 }
 
-// ─── NEW: Inspecting Status Card ───────────────────────────────────────────────
+// ─── Inspecting Status Card ────────────────────────────────────────────────────
 function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1406,46 +1323,30 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
         boxShadow: "0 1px 8px rgba(124,58,237,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)", borderBottom: "1px solid #ddd6fe" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#ede9fe" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#ede9fe" }}>
           <Search className="h-5 w-5" style={{ color: "#7c3aed" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#4c1d95" }}>Under Inspection</p>
-          <p className="text-[11px]" style={{ color: "#6d28d9" }}>
-            A barangay officer is reviewing your business or establishment.
-          </p>
+          <p className="text-[11px]" style={{ color: "#6d28d9" }}>A barangay officer is reviewing your business or establishment.</p>
         </div>
-        <span
-          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
-          style={{ background: "#ede9fe", color: "#7c3aed", border: "1px solid #ddd6fe" }}
-        >
+        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full" style={{ background: "#ede9fe", color: "#7c3aed", border: "1px solid #ddd6fe" }}>
           Inspecting
         </span>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Animated inspection indicator */}
-        <div
-          className="flex items-center gap-3 px-4 py-4 rounded-xl"
-          style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
-        >
+        <div className="flex items-center gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}>
           <div className="flex gap-1 flex-shrink-0">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
                 className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: "#7c3aed",
-                  animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
-                }}
+                style={{ backgroundColor: "#7c3aed", animation: `inspectPulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
               />
             ))}
           </div>
@@ -1454,37 +1355,20 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
           </p>
         </div>
 
-        {/* Inspection notes / reason if any */}
         {hasValue(reason) && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
-              Inspection Note
-            </p>
-            <div
-              className="flex items-start gap-3 px-4 py-4 rounded-xl"
-              style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#ede9fe" }}
-              >
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>Inspection Note</p>
+            <div className="flex items-start gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#ede9fe" }}>
                 <Info className="h-3.5 w-3.5" style={{ color: "#7c3aed" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>{String(reason)}</p>
             </div>
           </div>
         )}
 
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            What to expect
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What to expect</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             You will be notified once the inspection is complete. No action is needed from you at this time. Please keep your contact details up to date.
           </p>
@@ -1494,21 +1378,278 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #ddd6fe", background: "#faf5ff", color: "#7c3aed" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ede9fe";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ede9fe"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff"; }}
         >
           View Full Request Details
         </button>
       </div>
 
       <style>{`
-        @keyframes pulse {
+        @keyframes inspectPulse {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
           40% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── NEW: Completion Modal ─────────────────────────────────────────────────────
+// ─── Completion Modal (Redesigned) ────────────────────────────────────────────
+function CompletionModal({
+  docLabel,
+  refNumber,
+  releasedAt,
+  onClose,
+  onNavigate,
+}: {
+  docLabel: string;
+  refNumber: string;
+  releasedAt?: string | null;
+  onClose: () => void;
+  onNavigate: () => void;
+}) {
+  const [closing, setClosing] = useState(false);
+
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(onClose, 300);
+  };
+
+  const handleExit = () => {
+    setClosing(true);
+    setTimeout(onNavigate, 300);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+      style={{
+        backgroundColor: "rgba(0,0,0,0.6)",
+        backdropFilter: "blur(8px)",
+        animation: closing ? "cmFadeOut 0.3s ease forwards" : "cmFadeIn 0.3s ease forwards",
+        pointerEvents: "all",
+      }}
+    >
+      {/* Modal card */}
+      <div
+        className="relative w-full max-w-md overflow-hidden"
+        style={{
+          borderRadius: 20,
+          background: "#fff",
+          boxShadow: "0 32px 80px rgba(15,42,94,0.22), 0 0 0 1px rgba(15,42,94,0.08)",
+          animation: closing
+            ? "cmSlideDown 0.3s cubic-bezier(.4,0,.6,1) forwards"
+            : "cmSlideUp 0.4s cubic-bezier(.16,1,.3,1) forwards",
+        }}
+      >
+
+        {/* ── Top accent bar ── */}
+        <div style={{ height: 4, background: `linear-gradient(90deg, ${NAVY} 0%, ${PINK} 100%)` }} />
+
+        {/* ── Header ── */}
+        <div
+          className="px-7 pt-7 pb-5 flex flex-col items-center text-center"
+          style={{ borderBottom: "1px solid #f0f2f8" }}
+        >
+          {/* Icon ring */}
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+            style={{
+              background: "linear-gradient(135deg, #f0f4ff 0%, #e0e9ff 100%)",
+              border: `2px solid #c7d2fe`,
+              animation: "cmPopIn 0.5s cubic-bezier(.16,1,.3,1) 0.1s both",
+            }}
+          >
+            <CheckCircle2 className="w-8 h-8" style={{ color: NAVY }} />
+          </div>
+
+          <h2
+            className="text-xl font-black mb-1"
+            style={{ color: NAVY, letterSpacing: "-0.02em" }}
+          >
+            Request Complete!
+          </h2>
+          <p className="text-sm" style={{ color: "#6b7280" }}>
+            Your{" "}
+            <span className="font-semibold" style={{ color: PINK }}>
+              {docLabel}
+            </span>{" "}
+            request has been successfully processed.
+          </p>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="px-7 py-5 flex flex-col gap-4">
+
+          {/* Reference number pill */}
+          <div
+            className="flex items-center justify-between px-4 py-3 rounded-xl"
+            style={{ background: "#f8faff", border: "1px solid #e0e9ff" }}
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>
+                Reference No.
+              </p>
+              <p className="font-mono text-base font-black" style={{ color: NAVY }}>{refNumber}</p>
+            </div>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: "#dbeafe" }}
+            >
+              <FileCheck className="w-4 h-4" style={{ color: "#2563eb" }} />
+            </div>
+          </div>
+
+          {/* What happened */}
+          <div
+            className="flex items-start gap-3 px-4 py-3.5 rounded-xl"
+            style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
+          >
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+              style={{ backgroundColor: "#dcfce7" }}
+            >
+              <Sparkles className="w-3.5 h-3.5" style={{ color: "#16a34a" }} />
+            </div>
+            <div>
+              <p className="text-xs font-bold mb-0.5" style={{ color: "#15803d" }}>
+                Your request has been completed
+              </p>
+              <p className="text-[11px] leading-relaxed" style={{ color: "#166534" }}>
+                Your document will be available once reviewd and paid barangay office.
+                
+                {releasedAt && hasValue(releasedAt) && (
+                  <> Released on{" "}
+                    <strong>{format(new Date(releasedAt), "MMMM d, yyyy")}</strong>.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* What to do next guide */}
+          <div
+            className="px-4 py-4 rounded-xl"
+            style={{ background: "#fefce8", border: "1px solid #fde68a" }}
+          >
+            <p className="text-[10px] font-black uppercase tracking-wider mb-2.5" style={{ color: "#92400e" }}>
+              📋 What to do next
+            </p>
+            <div className="flex flex-col gap-2">
+              {[
+                { num: "1", text: "Wait for your request to be reviewed and processed by the barangay office." },
+                { num: "2", text: "Bring a valid government-issued ID when visiting the barangay to claim your document." },
+                { num: "3", text: "Present your scheduled pickup QR code to the barangay staff at the counter." },
+                { num: "4", text: "Click Exit below once you're ready to leave this page." },
+              ].map(({ num, text }) => (
+                <div key={num} className="flex items-start gap-2.5">
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[10px] font-black"
+                    style={{ backgroundColor: "#fde68a", color: "#92400e" }}
+                  >
+                    {num}
+                  </div>
+                  <p className="text-[11px] leading-relaxed" style={{ color: "#78350f" }}>{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Footer buttons ── */}
+        <div
+          className="px-7 pb-7 flex gap-3"
+          style={{ borderTop: "1px solid #f0f2f8", paddingTop: 20 }}
+        >
+          <button
+            onClick={handleClose}
+            className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all"
+            style={{
+              border: "1.5px solid #e5e7eb",
+              color: "#6b7280",
+              background: "#fff",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#f9fafb";
+              (e.currentTarget as HTMLElement).style.borderColor = "#d1d5db";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#fff";
+              (e.currentTarget as HTMLElement).style.borderColor = "#e5e7eb";
+            }}
+          >
+            Stay on Page
+          </button>
+          <button
+            onClick={handleExit}
+            className="flex-1 py-3 text-sm font-bold rounded-xl text-white flex items-center justify-center gap-2 transition-all"
+            style={{ backgroundColor: NAVY }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = NAVY; }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Exit to My Requests
+          </button>
+        </div>
+
+      </div>
+
+      <style>{`
+        @keyframes cmFadeIn    { from { opacity:0 } to { opacity:1 } }
+        @keyframes cmFadeOut   { from { opacity:1 } to { opacity:0 } }
+        @keyframes cmSlideUp   { from { opacity:0; transform:translateY(28px) scale(0.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+        @keyframes cmSlideDown { from { opacity:1; transform:translateY(0) scale(1) } to { opacity:0; transform:translateY(20px) scale(0.98) } }
+        @keyframes cmPopIn     { from { opacity:0; transform:scale(0.5) } to { opacity:1; transform:scale(1) } }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── NEW: Processing Banner ────────────────────────────────────────────────────
+function ProcessingBanner({ status }: { status: string }) {
+  const isTerminal = ["released", "rejected"].includes(status);
+  if (isTerminal) return null;
+
+  return (
+    <div
+      className="flex items-center gap-3 px-5 py-3.5 rounded-2xl mb-4"
+      style={{
+        background: "linear-gradient(135deg, rgba(15,42,94,0.04) 0%, rgba(194,70,125,0.04) 100%)",
+        border: "1px solid rgba(15,42,94,0.1)",
+      }}
+    >
+      {/* Animated dots */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {[PINK, "#f9a8d4", PINK].map((color, i) => (
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: color,
+              animation: `processingPulse 1.6s ease-in-out ${i * 0.25}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold" style={{ color: NAVY }}>
+          Your request is currently being processed
+        </p>
+        <p className="text-[11px] mt-0.5 truncate" style={{ color: "#6b7280" }}>
+          Please wait — we'll notify you when there's an update.
+        </p>
+      </div>
+
+      <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" style={{ color: NAVY, opacity: 0.4 }} />
+
+      <style>{`
+        @keyframes processingPulse {
+          0%, 80%, 100% { transform: scale(0.65); opacity: 0.35; }
+          40%            { transform: scale(1);    opacity: 1; }
         }
       `}</style>
     </div>
@@ -1522,6 +1663,11 @@ export default function RequestDetail() {
   const { id, type } = useParams<{ id: string; type: string }>();
   const [showDetails, setShowDetails] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const completionShownRef = useRef(false);
+
+  const location = useLocation();
+  const fromSubmit = new URLSearchParams(location.search).get("fromSubmit") === "1";
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
@@ -1555,6 +1701,26 @@ export default function RequestDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const normalizedStatus = (request?.raw?.status ?? "").toLowerCase();
+  const isReleased   = normalizedStatus === "released";
+  const isScheduled  = normalizedStatus === "scheduled";
+  const isApproved   = normalizedStatus === "approved";
+  const isToPay      = normalizedStatus === "to_pay";
+  const isRejected   = normalizedStatus === "rejected";
+  const isIncomplete = normalizedStatus === "incomplete";
+  const isInspecting = normalizedStatus === "inspecting";
+  const isBlockedStatus = BLOCKED_STATUSES.has(normalizedStatus);
+
+  // ── Auto-trigger completion modal once on "released" ──
+  useEffect(() => {
+    const shouldShow = isReleased || fromSubmit;
+      if (shouldShow && !completionShownRef.current) {
+        completionShownRef.current = true;
+        const t = setTimeout(() => setShowCompletion(true), 600);
+        return () => clearTimeout(t);
+      }
+  }, [isReleased, fromSubmit]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1580,18 +1746,6 @@ export default function RequestDetail() {
       </div>
     );
   }
-
-  const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
-  const isReleased   = normalizedStatus === "released";
-  const isScheduled  = normalizedStatus === "scheduled";
-  const isApproved   = normalizedStatus === "approved";
-  const isToPay      = normalizedStatus === "to_pay";
-  const isRejected   = normalizedStatus === "rejected";
-  const isIncomplete = normalizedStatus === "incomplete";
-  const isInspecting = normalizedStatus === "inspecting";
-
-  // These statuses block the regular pickup schedule card from appearing
-  const isBlockedStatus = BLOCKED_STATUSES.has(normalizedStatus);
 
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
   const req = { ...request, ...(request.raw ?? {}) };
@@ -1622,11 +1776,7 @@ export default function RequestDetail() {
       : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
   const missed = isScheduled && schedule ? isMissedSchedule(schedule.schedule_date) : false;
-
-  // Show QR card when the resident needs to physically visit the barangay
   const showQRCard = isScheduled || isApproved || isToPay;
-
-  // Rejection / incomplete reason — read from raw.rejection_reason
   const rejectionReason = req.rejection_reason ?? null;
 
   const handleRescheduleSuccess = () => {
@@ -1653,6 +1803,17 @@ export default function RequestDetail() {
         />
       )}
 
+      {/* ── Completion Modal ── */}
+      {showCompletion && (
+        <CompletionModal
+          docLabel={DOC_TYPE_LABELS[docTypeSlug] ?? docTypeSlug.replace(/_/g, " ")}
+          refNumber={refNumber}
+          releasedAt={request.raw?.released_at ?? null}
+          onClose={() => setShowCompletion(false)}
+          onNavigate={() => navigate("/myrequest")}
+        />
+      )}
+
       <div className="max-w-2xl mx-auto px-4 pt-28 pb-16">
 
         {/* Back */}
@@ -1666,6 +1827,9 @@ export default function RequestDetail() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Requests
         </button>
+
+        {/* ── Processing Banner (hidden once released or rejected) ── */}
+        <ProcessingBanner status={normalizedStatus} />
 
         {/* Document Type + bcert header */}
         <div className="mb-4">
@@ -1687,7 +1851,6 @@ export default function RequestDetail() {
                   </p>
                   <p className="text-2xl font-black font-mono text-white">{refNumber}</p>
                 </div>
-                <CopyButton value={refNumber} />
               </div>
             </div>
 
@@ -1721,11 +1884,9 @@ export default function RequestDetail() {
               <StatusBadge status={normalizedStatus} />
             </div>
 
-            {/* Progress bar — only for normal flow statuses; blocked statuses get a separate indicator */}
             {!isBlockedStatus ? (
               <ProgressBar status={normalizedStatus} />
             ) : (
-              // Separator line with label for blocked statuses
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <span
@@ -1859,31 +2020,18 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* ── NEW: Rejected Card ── */}
         {isRejected && (
-          <RejectedCard
-            reason={rejectionReason}
-            onViewDetails={() => setShowDetails(true)}
-          />
+          <RejectedCard reason={rejectionReason} onViewDetails={() => setShowDetails(true)} />
         )}
 
-        {/* ── NEW: Incomplete Card ── */}
         {isIncomplete && (
-          <IncompleteCard
-            reason={rejectionReason}
-            onViewDetails={() => setShowDetails(true)}
-          />
+          <IncompleteCard reason={rejectionReason} onViewDetails={() => setShowDetails(true)} />
         )}
 
-        {/* ── NEW: Inspecting Card ── */}
         {isInspecting && (
-          <InspectingCard
-            reason={rejectionReason}
-            onViewDetails={() => setShowDetails(true)}
-          />
+          <InspectingCard reason={rejectionReason} onViewDetails={() => setShowDetails(true)} />
         )}
 
-        {/* ── QR Present Card — shown when a barangay visit is needed ── */}
         {showQRCard && (
           <QRPresentCard
             refNumber={refNumber}
@@ -1891,7 +2039,7 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* What's Next Card (hidden when scheduled, released, or blocked statuses) */}
+        {/* What's Next Card */}
         {whatNext && !isReleased && !isScheduled && !isBlockedStatus && (
           <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: NAVY }}>
             <div className="px-5 py-5 relative overflow-hidden">
@@ -1922,7 +2070,7 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* If released, show details button */}
+        {/* Released: View Details button */}
         {isReleased && (
           <button
             onClick={() => setShowDetails(true)}
