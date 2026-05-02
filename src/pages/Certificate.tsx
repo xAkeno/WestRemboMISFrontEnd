@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -160,44 +160,31 @@ const NON_DATE_KEYS = new Set([
   'extension',
 ]);
 
-const FIELD_WRAP_CONFIG: Record<string, number> = {
-  'Full Address': 50,
-  'Address': 50,
-  'House Block Lot No': 40,
-  'Street': 35,
-  'Zone': 20,
-  'Full Name': 40,
-  'Purpose': 45,
-  'Purpose Details': 55,
-  'Remarks': 60,
+// ─── Status ordering for forward-only enforcement ──────────────────────────────
+const STATUS_ORDER: Record<string, number> = {
+  'PENDING': 0,
+  'SCHEDULED': 1,
+  'ENCODED': 2,
+  'INSPECTING': 3,
+  'REVIEWED': 4,
+  'PAID': 5,
+  'RELEASED': 6,
+  'INCOMPLETE': -1,
+  'REJECTED': -1,
 };
 
-function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
-  if (!value) return [''];
-  
-  const configKey = Object.keys(FIELD_WRAP_CONFIG).find(
-    key => fieldLabel?.toLowerCase().includes(key.toLowerCase())
-  );
-  
-  const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
-  
-  if (value.length <= maxChars) return [value];
-  
-  const words = value.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-  
-  for (const word of words) {
-    if ((currentLine + ' ' + word).length <= maxChars) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  
-  return lines;
+function isForwardTransition(current: string, next: string): boolean {
+  if (current.toUpperCase() === 'RELEASED') return false;
+  const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
+  const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
+  if (nxt === -1) return true;
+  return nxt > cur;
+}
+
+function normaliseStatus(raw: string | null | undefined): string {
+  if (!raw) return '';
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  return raw.toUpperCase();
 }
 
 function cleanZoneNumber(value: string): string {
@@ -454,18 +441,21 @@ const STATUS_STYLES: Record<string, string> = {
   released: 'bg-green-100 text-green-800 border-green-200',
   scheduled: 'bg-blue-100 text-blue-800 border-blue-200',
   encoded: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  reviewed: 'bg-purple-100 text-purple-800 border-purple-200',
   to_pay: 'bg-purple-100 text-purple-800 border-purple-200',
   paid: 'bg-teal-100 text-teal-800 border-teal-200',
   inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  disabled: 'bg-gray-200 text-gray-600 border-gray-300',
 };
 
 function StatusBadge({ status }: { status: string | null | undefined }) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const key = status.toLowerCase();
+  const display = normaliseStatus(status);
+  const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
-      {status === 'to_pay' || status === 'TO_PAY' ? 'TO PAY' : status}
+      {display}
     </span>
   );
 }
@@ -606,6 +596,7 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = "qr-scanner-container-certificate";
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(true);
   const [scanned, setScanned] = useState<string | null>(null);
 
   const startScanner = async () => {
@@ -618,6 +609,7 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
         { fps: 10, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
           setScanned(decodedText);
+          setScanning(false);
         },
         undefined
       );
@@ -639,6 +631,7 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
 
   const handleScanAgain = async () => {
     setScanned(null);
+    setScanning(true);
     setError(null);
     await stopScanner();
     setTimeout(() => startScanner(), 300);
@@ -861,6 +854,8 @@ function EditableDetailModal({
   const [dispositionType, setDispositionType] = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
   const [dispositionReason, setDispositionReason] = useState('');
   const [isDisposing, setIsDisposing] = useState(false);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [streets, setStreets] = useState<StreetOption[]>([]);
 
@@ -914,40 +909,41 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(`https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
-      const full = response.data.data.data[0];
-      setCurrentStatus(full.status ?? '');
-      setInitialReleasedPath(full.released_document_path ?? null);
+      const fullRecord = response.data.data.data[0];
+      const normalisedStatus = normaliseStatus(fullRecord.status ?? '');
+      setCurrentStatus(normalisedStatus);
+      setInitialReleasedPath(fullRecord.released_document_path ?? null);
       setFormData({
-        bcert_number: full.bcert_number || '',
-        first_name: full.first_name || '',
-        middle_name: full.middle_name || '',
-        surname: full.surname || '',
-        extension: full.extension || '',
-        prefix: full.prefix || '',
-        ext_name: full.ext_name || '',
-        age: full.age || '',
-        dob: full.dob ? full.dob.split('T')[0] : '',
-        registered_voter: full.registered_voter || '',
-        period_of_residency: full.period_of_residency || '',
-        house_block_lot_no: full.house_block_lot_no || '',
-        street: full.street || '',
-        zone: full.zone || '',
-        purpose: full.purpose || '',
-        status: full.status || '',
-        created_by: full.created_by || '',
-        issued_date: full.issued_date ? full.issued_date.split('T')[0] : '',
-        issued_at: full.issued_at || '',
-        issued_on: full.issued_on || '',
-        or_no: full.or_no || '',
-        ctc_vrr_no: full.ctc_vrr_no || '',
-        punong_barangay: full.punong_barangay || '',
-        for_the_punong_barangay: full.for_the_punong_barangay || '',
-        barangay_position: full.barangay_position || '',
-        requester_type: full.requester_type || '',
-        email: full.email || '',
-        remarks: full.remarks || '',
-        rejection_reason: full.rejection_reason || '',
-        created_at: full.created_at || '',
+        bcert_number: fullRecord.bcert_number || '',
+        first_name: fullRecord.first_name || '',
+        middle_name: fullRecord.middle_name || '',
+        surname: fullRecord.surname || '',
+        extension: fullRecord.extension || '',
+        prefix: fullRecord.prefix || '',
+        ext_name: fullRecord.ext_name || '',
+        age: fullRecord.age || '',
+        dob: fullRecord.dob ? fullRecord.dob.split('T')[0] : '',
+        registered_voter: fullRecord.registered_voter || '',
+        period_of_residency: fullRecord.period_of_residency || '',
+        house_block_lot_no: fullRecord.house_block_lot_no || '',
+        street: fullRecord.street || '',
+        zone: fullRecord.zone || '',
+        purpose: fullRecord.purpose || '',
+        status: normalisedStatus,
+        created_by: fullRecord.created_by || '',
+        issued_date: fullRecord.issued_date ? fullRecord.issued_date.split('T')[0] : '',
+        issued_at: fullRecord.issued_at || '',
+        issued_on: fullRecord.issued_on || '',
+        or_no: fullRecord.or_no || '',
+        ctc_vrr_no: fullRecord.ctc_vrr_no || '',
+        punong_barangay: fullRecord.punong_barangay || '',
+        for_the_punong_barangay: fullRecord.for_the_punong_barangay || '',
+        barangay_position: fullRecord.barangay_position || '',
+        requester_type: fullRecord.requester_type || '',
+        email: fullRecord.email || '',
+        remarks: fullRecord.remarks || '',
+        rejection_reason: fullRecord.rejection_reason || '',
+        created_at: fullRecord.created_at || '',
       });
     } catch (error) {
       console.error('Error fetching full record:', error);
@@ -975,27 +971,74 @@ function EditableDetailModal({
   if (!record) return null;
 
   const status = currentStatus.toUpperCase();
-  const canMarkToPay = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
-  const canRelease = status === 'PAID';
-  const canMarkToInspection = status === 'ENCODED' || status === 'SCHEDULED';
+  const isReleased = status === 'RELEASED';
+  const canMarkReviewed = isForwardTransition(status, 'REVIEWED') &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
+     status === 'INCOMPLETE' || status === 'REJECTED');
+  const canMarkAsPaid = isForwardTransition(status, 'PAID') && status === 'REVIEWED';
+  const canRelease = isForwardTransition(status, 'RELEASED') && status === 'PAID';
+  const canMarkToInspection = isForwardTransition(status, 'INSPECTING') &&
+    (status === 'ENCODED' || status === 'SCHEDULED');
+  const canDispose = !isReleased;
 
-  const handleMarkToPay = async () => {
-    setActionLoading('to_pay');
+  const handleMarkReviewed = async () => {
+    if (!isForwardTransition(status, 'REVIEWED')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
+    setActionLoading('reviewed');
     try {
-      await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`, { status: 'TO_PAY' }, { withCredentials: true });
-      setCurrentStatus('TO_PAY');
-      setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
-      toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        { status: 'TO_PAY' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('REVIEWED');
+      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
+      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally { setActionLoading(null); }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!isForwardTransition(status, 'PAID')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
+    setActionLoading('paid');
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        { status: 'PAID' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleMarkToInspection = async () => {
+    if (!isForwardTransition(status, 'INSPECTING')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
     setActionLoading('inspection');
     try {
-      await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`, { status: 'INSPECTING' }, { withCredentials: true });
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        { status: 'INSPECTING' },
+        { withCredentials: true }
+      );
       setCurrentStatus('INSPECTING');
       setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
       toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
@@ -1013,9 +1056,17 @@ function EditableDetailModal({
       toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' });
       return;
     }
+    if (!canDispose) {
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
+      return;
+    }
     setIsDisposing(true);
     try {
-      await axios.post(`https://westrembomis.onrender.com/api/barangay-certificates/${record.id}/disposition`, { status: dispositionType, reason: dispositionReason.trim() }, { withCredentials: true });
+      await axios.post(
+        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}/disposition`,
+        { status: dispositionType, reason: dispositionReason.trim() },
+        { withCredentials: true }
+      );
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
@@ -1026,24 +1077,52 @@ function EditableDetailModal({
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update disposition.', variant: 'destructive' });
-    } finally { setIsDisposing(false); }
+    } finally {
+      setIsDisposing(false);
+    }
   };
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
+    if (!canDispose) {
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
+      return;
+    }
     setDispositionType(type);
     setDispositionReason('');
     setShowDispositionModal(true);
   };
 
-  function truncateText(value: string, maxLength: number = 45): string {
-    if (!value) return '';
-    if (value.length <= maxLength) return value;
-    return value.substring(0, maxLength - 3) + '...';
-  }
+  const handleDisable = async () => {
+    if (!isReleased) {
+      toast({ title: 'Not allowed', description: 'Only released records can be disabled.', variant: 'destructive' });
+      return;
+    }
+    setIsDisabling(true);
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        { status: 'DISABLED' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('DISABLED');
+      setFormData((p: any) => ({ ...p, status: 'DISABLED' }));
+      toast({ title: 'Disabled', description: 'Record has been disabled successfully.' });
+      setShowDisableConfirm(false);
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to disable record.', variant: 'destructive' });
+    } finally {
+      setIsDisabling(false);
+    }
+  };
 
   const handleReleaseAndSave = async () => {
     if (!record?.id) {
       toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
+      return;
+    }
+    if (!isForwardTransition(status, 'RELEASED')) {
+      toast({ title: 'Not allowed', description: 'Cannot release from the current status.', variant: 'destructive' });
       return;
     }
     setIsReleasing(true);
@@ -1095,7 +1174,11 @@ function EditableDetailModal({
       const fd = new FormData();
       fd.append('file', blob, filename);
 
-      const res = await axios.post(`https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}`, fd, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post(
+        `https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}`,
+        fd,
+        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
+      );
 
       const path = res.data?.data?.released_document_path;
       if (path) setReleasedPath(path);
@@ -1117,7 +1200,10 @@ function EditableDetailModal({
     }
     setIsDownloading(true);
     try {
-      const res = await axios.get(`https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}/download`, { withCredentials: true });
+      const res = await axios.get(
+        `https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}/download`,
+        { withCredentials: true }
+      );
       const url = res.data?.data?.url;
       if (!url) throw new Error('No download URL returned.');
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -1133,13 +1219,22 @@ function EditableDetailModal({
     try {
       let existingId: number | null = null;
       try {
-        const checkRes = await axios.get(`https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`, { withCredentials: true });
+        const checkRes = await axios.get(
+          `https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`,
+          { withCredentials: true }
+        );
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
-      } catch (error) { console.error('Check existing failed:', error); }
+      } catch (error) {
+        console.error('Check existing failed:', error);
+      }
 
       if (existingId) {
-        await axios.put(`https://westrembomis.onrender.com/api/barangay-certificates/${existingId}`, formData, { withCredentials: true });
+        await axios.put(
+          `https://westrembomis.onrender.com/api/barangay-certificates/${existingId}`,
+          formData,
+          { withCredentials: true }
+        );
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false);
         onUpdate();
@@ -1163,7 +1258,9 @@ function EditableDetailModal({
       } else {
         toast({ title: 'Error', description: 'Network error.', variant: 'destructive' });
       }
-    } finally { setIsSaving(false); }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -1187,7 +1284,7 @@ function EditableDetailModal({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Certificate Details</h2>
               <p className="text-sm text-gray-500 mt-0.5">Reference: {record.bcert_number}</p>
@@ -1335,16 +1432,15 @@ function EditableDetailModal({
                     label="Issued Date"
                   />
                 </div>
-                {/* <div>
+                <div>
                   <FormField 
-                    name="or_no"
-                    value={formData.or_no || ''}
+                    name="ctc_vrr_no"
+                    value={formData.ctc_vrr_no || ''}
                     onChange={handleInputChange}
-                    type="text"
                     isEditing={isEditing}
-                    label="OR No."
+                    label="CTC/VRR No."
                   />
-                </div> */}
+                </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>
@@ -1362,6 +1458,14 @@ function EditableDetailModal({
                     />
                   </div>
                 )}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
+                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -1387,8 +1491,14 @@ function EditableDetailModal({
                   <p className="text-sm text-gray-400 italic">No schedule assigned.</p>
                 )}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
-                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
+                  <FormField 
+                    name="remarks"
+                    value={formData.remarks || ''}
+                    onChange={handleInputChange}
+                    isTextArea={true}
+                    isEditing={isEditing}
+                    label="Remarks"
+                  />
                 </div>
               </div>
             </div>
@@ -1417,13 +1527,36 @@ function EditableDetailModal({
             </div>
           )}
 
+          {showDisableConfirm && (
+            <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Ban className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Disable</span>
+              </div>
+              <p className="text-sm text-gray-600">This will mark the record as <strong>Disabled</strong>. The action cannot be undone via the UI. Are you sure?</p>
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => setShowDisableConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onClick={handleDisable} disabled={isDisabling} className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  <Ban className="h-3.5 w-3.5" />
+                  {isDisabling ? 'Disabling…' : 'Yes, Disable Record'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                {canMarkToPay && (
-                  <button onClick={handleMarkToPay} disabled={actionLoading === 'to_pay'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
+                {canMarkReviewed && (
+                  <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
                     <CreditCard className="h-4 w-4" />
-                    {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                    {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
+                  </button>
+                )}
+                {canMarkAsPaid && (
+                  <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
+                    <CreditCard className="h-4 w-4" />
+                    {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
                   </button>
                 )}
                 {canRelease && (
@@ -1438,28 +1571,36 @@ function EditableDetailModal({
                     {isDownloading ? 'Downloading...' : 'Download Released'}
                   </button>
                 )}
-                <>
-                  <div className="w-px h-6 bg-gray-200 mx-1" />
-                  <button onClick={() => openDisposition('INCOMPLETE')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
-                    <X className="h-4 w-4" />
-                    Mark as Incomplete
-                  </button>
-                  <button onClick={() => openDisposition('REJECTED')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                    <X className="h-4 w-4" />
-                    Reject
-                  </button>
-                </>
+                {canDispose && (
+                  <>
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <button onClick={() => openDisposition('INCOMPLETE')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
+                      <X className="h-4 w-4" />
+                      Mark as Incomplete
+                    </button>
+                    <button onClick={() => openDisposition('REJECTED')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                      <X className="h-4 w-4" />
+                      Reject
+                    </button>
+                  </>
+                )}
                 {canMarkToInspection && (
                   <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
                     <Eye className="h-4 w-4" />
                     {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                   </button>
                 )}
-                {!canMarkToPay && !canRelease && !hasReleasedDocument && (status === 'REJECTED' || status === 'INCOMPLETE') && (
-                  <p className="text-xs text-gray-400 italic">This record has been {status === 'REJECTED' ? 'rejected' : 'marked as incomplete'}.</p>
+                {isReleased && status !== 'DISABLED' && (
+                  <>
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <button onClick={() => setShowDisableConfirm(true)} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
+                      <Ban className="h-4 w-4" />
+                      Disable Record
+                    </button>
+                  </>
                 )}
-                {!canMarkToPay && !canRelease && !hasReleasedDocument && (
-                  <p className="text-xs text-gray-400 italic">No actions available for current status.</p>
+                {isReleased && (
+                  <p className="text-xs text-gray-400 italic">This record has been released. Status cannot be changed.</p>
                 )}
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
@@ -1533,9 +1674,9 @@ function FilterBar({ filters, onChange, onReset, activeCount }: { filters: Filte
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'INSPECTING'] as const).map(v => (
+                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'DISABLED'] as const).map(v => (
                   <button key={v} className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ status: v })}>
-                    {v === '' ? 'All' : v === 'TO_PAY' ? 'TO PAY' : v.charAt(0) + v.slice(1).toLowerCase()}
+                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
@@ -1677,17 +1818,6 @@ const Certificate = () => {
 
   const handleRefresh = () => { loadData(); toast({ title: 'Refreshed', description: 'Data has been refreshed' }); };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this certificate?')) return;
-    try {
-      await axios.delete(`https://westrembomis.onrender.com/api/barangay-certificates/${id}`, { withCredentials: true });
-      toast({ title: 'Deleted', description: 'Certificate deleted successfully.' });
-      loadData();
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete certificate.', variant: 'destructive' });
-    }
-  };
-
   const handleQRScan = useCallback((scannedValue: string) => {
     const trimmed = scannedValue.trim();
     setSearchValue(trimmed);
@@ -1776,6 +1906,8 @@ const Certificate = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
+                      const itemStatus = normaliseStatus(item.status);
+                      const isItemReleased = itemStatus === 'RELEASED';
                       return (
                         <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
@@ -1810,9 +1942,11 @@ const Certificate = () => {
                               <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                 Print
                               </button>
-                              <button onClick={() => handleDelete(Number(item.id))} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap">
-                                Delete
-                              </button>
+                              {isItemReleased && (
+                                <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap" title="Disable this released record">
+                                  <Ban className="h-3 w-3" /> Disable
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

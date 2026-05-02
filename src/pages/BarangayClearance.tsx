@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -174,19 +174,14 @@ const FIELD_WRAP_CONFIG: Record<string, number> = {
 
 function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
   if (!value) return [''];
-  
   const configKey = Object.keys(FIELD_WRAP_CONFIG).find(
     key => fieldLabel?.toLowerCase().includes(key.toLowerCase())
   );
-  
   const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
-  
   if (value.length <= maxChars) return [value];
-  
   const words = value.split(' ');
   const lines: string[] = [];
   let currentLine = '';
-  
   for (const word of words) {
     if ((currentLine + ' ' + word).length <= maxChars) {
       currentLine += (currentLine ? ' ' : '') + word;
@@ -196,34 +191,19 @@ function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
     }
   }
   if (currentLine) lines.push(currentLine);
-  
   return lines;
 }
 
 function cleanZoneNumber(value: string): string {
   if (!value) return '';
-  
-  // Handle "SITIO 2" -> "Zone 2" or just extract number
   const sitioMatch = value.match(/SITIO\s*(\d+)/i);
-  if (sitioMatch) {
-    return `Sitio ${sitioMatch[1]}`;
-  }
-  
+  if (sitioMatch) return `Sitio ${sitioMatch[1]}`;
   const zoneMatch = value.match(/Zone\s*(\d+)/i);
-  if (zoneMatch) {
-    return `Sitio ${zoneMatch[1]}`;
-  }
-  
+  if (zoneMatch) return `Sitio ${zoneMatch[1]}`;
   const numberMatch = value.match(/^\d+$/);
-  if (numberMatch) {
-    return `Sitio ${numberMatch[0]}`;
-  }
-  
+  if (numberMatch) return `Sitio ${numberMatch[0]}`;
   const anyNumberMatch = value.match(/\d+/);
-  if (anyNumberMatch) {
-    return `Sitio ${anyNumberMatch[0]}`;
-  }
-  
+  if (anyNumberMatch) return `Sitio ${anyNumberMatch[0]}`;
   return value.trim();
 }
 
@@ -235,7 +215,6 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   const lastName = formData.surname ?? '';
   const extName = formData.ext_name ?? '';
   const extension = formData.extension ?? '';
-  
   const nameParts = [];
   if (prefix) nameParts.push(prefix);
   if (firstName) nameParts.push(firstName);
@@ -244,18 +223,15 @@ function buildLabelValueMap(formData: any): Record<string, string> {
   if (extName) nameParts.push(extName);
   if (extension) nameParts.push(extension);
   const fullName = nameParts.join(' ');
-  
   const houseBlockLot = formData.house_block_lot_no ?? '';
   const street = formData.street ?? '';
   let zone = formData.zone ?? '';
   zone = cleanZoneNumber(zone);
-  
   const addressParts = [];
   if (houseBlockLot) addressParts.push(houseBlockLot);
   if (street) addressParts.push(street);
   if (zone) addressParts.push(zone);
   const fullAddress = addressParts.join(', ');
-  
   return {
     'Prefix':       prefix,
     'First Name':   firstName,
@@ -295,41 +271,31 @@ function buildReleasePDFFields(
 ): TextField[] {
   const suppressedNorm = new Set<string>();
   const extras: TextField[] = [];
-
   const fieldsToSuppress = [
     'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
     'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'zone'
   ];
-
   for (const group of RELEASE_CONCAT_GROUPS) {
     const anchor = group.members
       .map(m => fields.find(f => normLabel(f.label) === normLabel(m)))
       .find(Boolean);
-
     if (!anchor) continue;
-
     let combinedValue = '';
     if (group.label === 'Full Name') {
       combinedValue = labelValueMap['Full Name'] || '';
     } else if (group.label === 'Full Address') {
       combinedValue = labelValueMap['Full Address'] || '';
     }
-
     if (combinedValue) {
       extras.push({ ...anchor, label: group.label, value: combinedValue });
     }
-
     group.members.forEach(m => suppressedNorm.add(normLabel(m)));
   }
-
   const base = fields.filter(f => {
     const normalizedLabel = normLabel(f.label);
-    if (fieldsToSuppress.some(suppress => normalizedLabel === suppress)) {
-      return false;
-    }
+    if (fieldsToSuppress.some(suppress => normalizedLabel === suppress)) return false;
     return !suppressedNorm.has(normalizedLabel);
   });
-
   return [...base, ...extras];
 }
 
@@ -447,6 +413,33 @@ function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
+// ─── Status ordering for forward-only enforcement ──────────────────────────────
+// Higher index = further in the workflow. RELEASED is terminal.
+const STATUS_ORDER: Record<string, number> = {
+  'PENDING':    0,
+  'SCHEDULED':  1,
+  'ENCODED':    2,
+  'INSPECTING': 3,
+  'REVIEWED':   4,  // formerly TO_PAY
+  'PAID':       5,
+  'RELEASED':   6,
+  // Side states — not on the main forward path
+  'INCOMPLETE': -1,
+  'REJECTED':   -1,
+};
+
+/** Returns true if moving from `current` to `next` is allowed */
+function isForwardTransition(current: string, next: string): boolean {
+  const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
+  const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
+  // Released is terminal — nothing can come after
+  if (current.toUpperCase() === 'RELEASED') return false;
+  // Side states (INCOMPLETE / REJECTED) can always be set unless current is RELEASED
+  if (nxt === -1) return true;
+  // Forward only
+  return nxt > cur;
+}
+
 const STATUS_STYLES: Record<string, string> = {
   pending:    'bg-yellow-100 text-yellow-800 border-yellow-200',
   incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -454,18 +447,28 @@ const STATUS_STYLES: Record<string, string> = {
   released:   'bg-green-100 text-green-800 border-green-200',
   scheduled:  'bg-blue-100 text-blue-800 border-blue-200',
   encoded:    'bg-emerald-50 text-emerald-800 border-emerald-200',
+  // "to_pay" kept for legacy data coming from the server; display as "REVIEWED"
   to_pay:     'bg-purple-100 text-purple-800 border-purple-200',
+  reviewed:   'bg-purple-100 text-purple-800 border-purple-200',
   paid:       'bg-teal-100 text-teal-800 border-teal-200',
   inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
+function normaliseStatus(raw: string | null | undefined): string {
+  if (!raw) return '';
+  // Treat legacy "TO_PAY" as "REVIEWED" for display
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  return raw.toUpperCase();
+}
+
 function StatusBadge({ status }: { status: string | null | undefined }) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const key = status.toLowerCase();
+  const display = normaliseStatus(status);
+  const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
-      {status === 'to_pay' || status === 'TO_PAY' ? 'TO PAY' : status}
+      {display}
     </span>
   );
 }
@@ -516,7 +519,6 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
       </div>
     );
   }
-
   return (
     <div className="rounded-lg border border-green-200 bg-green-50 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-gray-100">
@@ -708,23 +710,14 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
 
 // ─── Memoized Form Field Component ─────────────────────────────────────────────
 const FormField = memo(({ 
-  name, 
-  value, 
-  onChange, 
-  type = 'text', 
-  options, 
-  isTextArea = false,
-  isEditing,
-  label
+  name, value, onChange, type = 'text', options, isTextArea = false, isEditing, label
 }: any) => {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
   const inputId = `field-${name}`;
   
   useEffect(() => {
     if (isEditing && inputRef.current) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
+      const timer = setTimeout(() => { inputRef.current?.focus(); }, 50);
       return () => clearTimeout(timer);
     }
   }, [isEditing, name]);
@@ -734,14 +727,8 @@ const FormField = memo(({
       <div>
         <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
         {isEditing ? (
-          <select 
-            ref={inputRef as any}
-            id={inputId}
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-          >
+          <select ref={inputRef as any} id={inputId} name={name} value={value} onChange={onChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
             <option value="">Select {label}</option>
             {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
@@ -757,15 +744,8 @@ const FormField = memo(({
       <div>
         <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
         {isEditing ? (
-          <textarea 
-            ref={inputRef as any}
-            id={inputId}
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            rows={3} 
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
-          />
+          <textarea ref={inputRef as any} id={inputId} name={name} value={value} onChange={onChange}
+            rows={3} className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none" />
         ) : (
           <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
         )}
@@ -778,16 +758,8 @@ const FormField = memo(({
       <div>
         <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
         {isEditing ? (
-          <input 
-            ref={inputRef as any}
-            id={inputId}
-            type="date" 
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-            autoComplete="off"
-          />
+          <input ref={inputRef as any} id={inputId} type="date" name={name} value={value} onChange={onChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" autoComplete="off" />
         ) : (
           <p className="text-sm text-gray-700 mt-1">{value ? new Date(value).toLocaleDateString() : '—'}</p>
         )}
@@ -800,16 +772,8 @@ const FormField = memo(({
       <div>
         <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
         {isEditing ? (
-          <input 
-            ref={inputRef as any}
-            id={inputId}
-            type="number" 
-            name={name} 
-            value={value} 
-            onChange={onChange} 
-            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-            autoComplete="off"
-          />
+          <input ref={inputRef as any} id={inputId} type="number" name={name} value={value} onChange={onChange}
+            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" autoComplete="off" />
         ) : (
           <p className="text-sm text-gray-700 mt-1">{value || '—'}</p>
         )}
@@ -821,16 +785,8 @@ const FormField = memo(({
     <div>
       <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
       {isEditing ? (
-        <input 
-          ref={inputRef as any}
-          id={inputId}
-          type={type} 
-          name={name} 
-          value={value} 
-          onChange={onChange} 
-          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-          autoComplete="off"
-        />
+        <input ref={inputRef as any} id={inputId} type={type} name={name} value={value} onChange={onChange}
+          className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" autoComplete="off" />
       ) : (
         <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{value || '—'}</p>
       )}
@@ -842,10 +798,7 @@ FormField.displayName = 'FormField';
 
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
-  record,
-  onClose,
-  onUpdate,
-  toast,
+  record, onClose, onUpdate, toast,
 }: {
   record: BarangayClearanceType | null;
   onClose: () => void;
@@ -866,6 +819,10 @@ function EditableDetailModal({
   const [streets, setStreets] = useState<Street[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // ─── Disable (soft-delete) confirmation state ──────────────────────────────
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [isDisabling, setIsDisabling]               = useState(false);
+
   useEffect(() => {
     const loadStreets = async () => {
       try {
@@ -884,16 +841,10 @@ function EditableDetailModal({
     registered_voter: '', purpose: '', purpose_details: '',
     status: '', requester_type: '', remarks: '',
     bcert_number: '', created_by: '',
-    issued_on: '',
-    issued_at: '',
-    issued_date: '',
-    ctc_vrr_no: '',
-    or_no: '',
-    punong_barangay: '',
-    for_the_punong_barangay: '',
-    barangay_position: '',
-    rejection_reason: '',
-    created_at: '',
+    issued_on: '', issued_at: '', issued_date: '',
+    ctc_vrr_no: '', or_no: '',
+    punong_barangay: '', for_the_punong_barangay: '', barangay_position: '',
+    rejection_reason: '', created_at: '',
   });
 
   const fetchFullRecord = useCallback(async () => {
@@ -905,7 +856,8 @@ function EditableDetailModal({
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
-      setCurrentStatus(full.status ?? '');
+      const normalisedStatus = normaliseStatus(full.status ?? '');
+      setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
       setFormData({
         first_name:               full.first_name               || '',
@@ -926,7 +878,7 @@ function EditableDetailModal({
         registered_voter:         full.registered_voter         || '',
         purpose:                  full.purpose                  || '',
         purpose_details:          full.purpose_details          || '',
-        status:                   full.status                   || '',
+        status:                   normalisedStatus,
         requester_type:           full.requester_type           || '',
         remarks:                  full.remarks                  || '',
         bcert_number:             full.bcert_number             || '',
@@ -950,9 +902,7 @@ function EditableDetailModal({
     }
   }, [record, toast]);
 
-  useEffect(() => {
-    fetchFullRecord();
-  }, [fetchFullRecord, refreshKey]);
+  useEffect(() => { fetchFullRecord(); }, [fetchFullRecord, refreshKey]);
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
@@ -971,23 +921,37 @@ function EditableDetailModal({
 
   if (!record) return null;
 
-  const status = currentStatus.toUpperCase();
-  const canMarkToPay  = status === 'ENCODED' || status === 'SCHEDULED' || status === 'RELEASED' || status === 'INCOMPLETE' || status === 'REJECTED' || status === 'INSPECTING';
-  const canMarkAsPaid = status === 'TO_PAY';
-  const canRelease    = status === 'PAID';
-  const canMarkToInspection = status === 'ENCODED' || status === 'SCHEDULED';
+  const status = currentStatus.toUpperCase(); // already normalised (TO_PAY → REVIEWED)
 
-  const handleMarkToPay = async () => {
-    setActionLoading('to_pay');
+  // ─── Derived capability flags (forward-only, RELEASED is terminal) ──────────
+  const isReleased     = status === 'RELEASED';
+  // "Reviewed" replaces "To Pay"
+  const canMarkReviewed    = isForwardTransition(status, 'REVIEWED') &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING');
+  const canMarkAsPaid  = isForwardTransition(status, 'PAID') && status === 'REVIEWED';
+  const canRelease     = isForwardTransition(status, 'RELEASED') && status === 'PAID';
+  const canMarkToInspection = isForwardTransition(status, 'INSPECTING') &&
+    (status === 'ENCODED' || status === 'SCHEDULED');
+  // Disposition (INCOMPLETE / REJECTED) only available if NOT released
+  const canDispose = !isReleased;
+
+  // ─── handleMarkReviewed (formerly handleMarkToPay) ──────────────────────────
+  const handleMarkReviewed = async () => {
+    if (!isForwardTransition(status, 'REVIEWED')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
+    setActionLoading('reviewed');
     try {
+      // Send 'TO_PAY' to the server (legacy API value), display as REVIEWED
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
-      setCurrentStatus('TO_PAY');
-      setFormData((p: any) => ({ ...p, status: 'TO_PAY' }));
-      toast({ title: 'Success', description: 'Status set to To Pay successfully.' });
+      setCurrentStatus('REVIEWED');
+      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
+      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -995,6 +959,10 @@ function EditableDetailModal({
   };
 
   const handleMarkAsPaid = async () => {
+    if (!isForwardTransition(status, 'PAID')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
     setActionLoading('paid');
     try {
       await axios.put(
@@ -1012,6 +980,10 @@ function EditableDetailModal({
   };
 
   const handleMarkToInspection = async () => {
+    if (!isForwardTransition(status, 'INSPECTING')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
     setActionLoading('inspection');
     try {
       await axios.put(
@@ -1021,19 +993,21 @@ function EditableDetailModal({
       );
       setCurrentStatus('INSPECTING');
       setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
-      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
+      toast({ title: 'Success', description: 'Status set to Inspecting successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
+    } finally { setActionLoading(null); }
   };
 
   const handleDisposition = async () => {
     if (!record?.id || !dispositionType) return;
     if (!dispositionReason.trim()) {
       toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' });
+      return;
+    }
+    if (!canDispose) {
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
       return;
     }
     setIsDisposing(true);
@@ -1061,20 +1035,54 @@ function EditableDetailModal({
   };
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
+    if (!canDispose) {
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
+      return;
+    }
     setDispositionType(type);
     setDispositionReason('');
     setShowDispositionModal(true);
   };
 
-  // ─── handleReleaseAndSave — now includes QR from saved layout ────────────────
+  // ─── Disable (soft delete) — only for Released ─────────────────────────────
+  const handleDisable = async () => {
+    if (!isReleased) {
+      toast({ title: 'Not allowed', description: 'Only released records can be disabled.', variant: 'destructive' });
+      return;
+    }
+    setIsDisabling(true);
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        { status: 'DISABLED' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('DISABLED');
+      setFormData((p: any) => ({ ...p, status: 'DISABLED' }));
+      toast({ title: 'Disabled', description: 'Record has been disabled successfully.' });
+      setShowDisableConfirm(false);
+      onUpdate();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to disable record.',
+        variant: 'destructive',
+      });
+    } finally { setIsDisabling(false); }
+  };
+
+  // ─── handleReleaseAndSave ──────────────────────────────────────────────────
   const handleReleaseAndSave = async () => {
     if (!record?.id) {
       toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
       return;
     }
+    if (!isForwardTransition(status, 'RELEASED')) {
+      toast({ title: 'Not allowed', description: 'Cannot release from the current status.', variant: 'destructive' });
+      return;
+    }
     setIsReleasing(true);
     try {
-      // 1. Fetch template metadata (file URL + saved layout which may contain qrField)
       const metaRes = await axios.get(
         `https://westrembomis.onrender.com/api/documents/single/2`,
         { withCredentials: true }
@@ -1086,14 +1094,12 @@ function EditableDetailModal({
         ? fileUrl
         : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
 
-      // 2. Download the PDF template bytes
       const pdfRes = await axios.get(resolvedUrl, {
         responseType: 'arraybuffer',
         withCredentials: true,
       });
       const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
 
-      // 3. Parse the saved layout — extract both fields and qrField
       let savedFields: TextField[] = [];
       let savedQrField: QRCodeFieldData | null = null;
 
@@ -1104,11 +1110,9 @@ function EditableDetailModal({
             : JSON.parse(metaRes.data.layout);
 
           if (Array.isArray(parsed)) {
-            // Legacy format: plain TextField[]
             savedFields  = parsed;
             savedQrField = null;
           } else if (parsed.fields !== undefined) {
-            // New SavedLayout format: { fields, qrField?, version }
             const layout = parsed as SavedLayout;
             savedFields  = layout.fields ?? [];
             savedQrField = layout.qrField ?? null;
@@ -1118,25 +1122,20 @@ function EditableDetailModal({
         }
       }
 
-      // 4. Map form data values onto the layout fields
       const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
         const key = LABEL_TO_KEY[field.label];
         if (!key) return { ...field, value: field.value ?? '' };
-
         let value: any = (formData as any)[key] ?? '';
-
         if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
           const d = new Date(value);
           if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
         }
-
         return { ...field, value: value ?? '' };
       });
 
       const labelValueMap = buildLabelValueMap(formData);
       const finalFields   = buildReleasePDFFields(fieldsWithValues, labelValueMap);
 
-      // 5. Generate the PDF — pass savedQrField so the QR stamp is embedded
       const renderedBytes = await generatePDF(
         templateBytes,
         finalFields,
@@ -1144,12 +1143,8 @@ function EditableDetailModal({
         record.bcert_number ?? null
       );
 
-      // 6. Upload the rendered PDF to the server
       const filename = `barangay-clearances-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
-      const blob = new Blob(
-        [new Uint8Array(renderedBytes).buffer],
-        { type: 'application/pdf' }
-      );
+      const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: 'application/pdf' });
       const fd = new FormData();
       fd.append('file', blob, filename);
 
@@ -1196,9 +1191,7 @@ function EditableDetailModal({
         description: err?.response?.data?.message ?? 'Failed to get download link.',
         variant: 'destructive',
       });
-    } finally {
-      setIsDownloading(false);
-    }
+    } finally { setIsDownloading(false); }
   };
 
   const handleUpdate = async () => {
@@ -1268,6 +1261,7 @@ function EditableDetailModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
+          {/* Header */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
@@ -1278,25 +1272,14 @@ function EditableDetailModal({
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
               {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                >
+                <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                   <Edit2 className="h-4 w-4" /> Edit
                 </button>
               ) : (
                 <>
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleUpdate}
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                  <button onClick={handleUpdate} disabled={isSaving}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
                     <Save className="h-4 w-4" />
                     {isSaving ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -1308,6 +1291,7 @@ function EditableDetailModal({
             </div>
           </div>
 
+          {/* Body */}
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -1345,18 +1329,8 @@ function EditableDetailModal({
                 <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Purpose Details" />
                 <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
                 <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
-                {/* <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing} label="OR No." /> */}
                 <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
-                
-                {/* bcert_number - ALWAYS read-only (matches Certificate component) */}
-                <FormField 
-                  name="bcert_number" 
-                  value={formData.bcert_number || ''} 
-                  onChange={handleInputChange} 
-                  isEditing={false} 
-                  label="Barangay Clearance No." 
-                />
-                
+                <FormField name="bcert_number" value={formData.bcert_number || ''} onChange={handleInputChange} isEditing={false} label="Barangay Clearance No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1"><StatusBadge status={currentStatus} /></div>
@@ -1381,9 +1355,7 @@ function EditableDetailModal({
                   <>
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                      <p className="text-sm text-gray-700 mt-1">
-                        {new Date((record as any).schedule.schedule_date).toLocaleDateString()}
-                      </p>
+                      <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
@@ -1403,6 +1375,7 @@ function EditableDetailModal({
             </div>
           </div>
 
+          {/* Disposition panel */}
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1416,125 +1389,148 @@ function EditableDetailModal({
                   </span>
                   <span className="text-sm font-semibold text-gray-800">Provide a reason</span>
                 </div>
-                <button
-                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
-                  className="p-1 hover:bg-gray-200 rounded-md transition-colors"
-                >
+                <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
+                  className="p-1 hover:bg-gray-200 rounded-md transition-colors">
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
-              <textarea
-                rows={3}
-                placeholder={
-                  dispositionType === 'REJECTED'
-                    ? 'e.g. Insufficient documents, unverifiable information…'
-                    : 'e.g. Missing birth certificate, incomplete address…'
-                }
+              <textarea rows={3}
+                placeholder={dispositionType === 'REJECTED'
+                  ? 'e.g. Insufficient documents, unverifiable information…'
+                  : 'e.g. Missing birth certificate, incomplete address…'}
                 value={dispositionReason}
                 onChange={e => setDispositionReason(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white"
               />
               <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-                >
+                <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={handleDisposition}
-                  disabled={isDisposing || !dispositionReason.trim()}
+                <button onClick={handleDisposition} disabled={isDisposing || !dispositionReason.trim()}
                   className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${
-                    dispositionType === 'REJECTED'
-                      ? 'bg-rose-600 hover:bg-rose-700'
-                      : 'bg-orange-500 hover:bg-orange-600'
-                  }`}
-                >
+                    dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'
+                  }`}>
                   {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
                 </button>
               </div>
             </div>
           )}
 
+          {/* Disable confirmation panel */}
+          {showDisableConfirm && (
+            <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Ban className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Disable</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                This will mark the record as <strong>Disabled</strong>. The action cannot be undone via the UI.
+                Are you sure you want to continue?
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => setShowDisableConfirm(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleDisable} disabled={isDisabling}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  <Ban className="h-3.5 w-3.5" />
+                  {isDisabling ? 'Disabling…' : 'Yes, Disable Record'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Footer action bar */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                {canMarkToPay && (
-                  <button
-                    onClick={handleMarkToPay}
-                    disabled={actionLoading === 'to_pay'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  >
+
+                {/* Mark as Reviewed (formerly Mark to Pay) */}
+                {canMarkReviewed && (
+                  <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
                     <CreditCard className="h-4 w-4" />
-                    {actionLoading === 'to_pay' ? 'Updating...' : 'Mark as To Pay'}
+                    {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
                   </button>
                 )}
+
+                {/* Mark as Paid */}
                 {canMarkAsPaid && (
-                  <button
-                    onClick={handleMarkAsPaid}
-                    disabled={actionLoading === 'paid'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
                     <CreditCard className="h-4 w-4" />
                     {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
                   </button>
                 )}
+
+                {/* Release Document */}
                 {canRelease && (
-                  <button
-                    onClick={handleReleaseAndSave}
-                    disabled={isReleasing}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleReleaseAndSave} disabled={isReleasing}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
                     <Mail className="h-4 w-4" />
                     {isReleasing ? 'Releasing...' : 'Release Document'}
                   </button>
                 )}
+
+                {/* Download Released */}
                 {hasReleasedDocument && (
-                  <button
-                    onClick={downloadReleased}
-                    disabled={isDownloading}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={downloadReleased} disabled={isDownloading}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
                     <Download className="h-4 w-4" />
                     {isDownloading ? 'Downloading...' : 'Download Released'}
                   </button>
                 )}
 
-                <>
-                  <div className="w-px h-6 bg-gray-200 mx-1" />
-                  <button
-                    onClick={() => openDisposition('INCOMPLETE')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                    Mark as Incomplete
-                  </button>
-                  <button
-                    onClick={() => openDisposition('REJECTED')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                    Reject
-                  </button>
-                </>
+                {/* Disposition actions — hidden once released */}
+                {canDispose && (
+                  <>
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <button onClick={() => openDisposition('INCOMPLETE')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
+                      <X className="h-4 w-4" />
+                      Mark as Incomplete
+                    </button>
+                    <button onClick={() => openDisposition('REJECTED')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                      <X className="h-4 w-4" />
+                      Reject
+                    </button>
+                  </>
+                )}
 
+                {/* Mark as Inspection */}
                 {canMarkToInspection && (
-                  <button
-                    onClick={handleMarkToInspection}
-                    disabled={actionLoading === 'inspection'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
                     <Eye className="h-4 w-4" />
                     {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                   </button>
                 )}
 
-                {!canMarkToPay && !canMarkAsPaid && !canRelease && !hasReleasedDocument
-                  && (status === 'REJECTED' || status === 'INCOMPLETE') && (
+                {/* Disable button — only for Released */}
+                {isReleased && status !== 'DISABLED' && (
+                  <>
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <button onClick={() => setShowDisableConfirm(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
+                      <Ban className="h-4 w-4" />
+                      Disable Record
+                    </button>
+                  </>
+                )}
+
+                {/* Informational message for terminal states */}
+                {isReleased && (
                   <p className="text-xs text-gray-400 italic">
-                    This record has been {status === 'REJECTED' ? 'rejected' : 'marked as incomplete'}.
+                    This record has been released. Status cannot be changed.
                   </p>
                 )}
+                {!isReleased && status === 'DISABLED' && (
+                  <p className="text-xs text-gray-400 italic">This record is disabled.</p>
+                )}
+
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
@@ -1640,14 +1636,15 @@ function FilterBar({
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'TO_PAY', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'INSPECTING'] as const).map(v => (
+                {/* REVIEWED replaces TO_PAY in the filter UI */}
+                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE'] as const).map(v => (
                   <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ status: v })}
                   >
-                    {v === '' ? 'All' : v === 'TO_PAY' ? 'TO PAY' : v.charAt(0) + v.slice(1).toLowerCase()}
+                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
@@ -1665,8 +1662,7 @@ function FilterBar({
                     className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.schedule_filter === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
-                    onClick={() => onChange({ schedule_filter: opt.v })}
-                  >
+                    onClick={() => onChange({ schedule_filter: opt.v })}>
                     {opt.icon}{opt.label}
                   </button>
                 ))}
@@ -1687,8 +1683,7 @@ function FilterBar({
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.filter_date === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
-                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}
-                  >
+                    onClick={() => onChange({ filter_date: opt.v, from: '', to: '' })}>
                     {opt.label}
                   </button>
                 ))}
@@ -1828,17 +1823,6 @@ const BarangayClearance = () => {
     toast({ title: 'Refreshed', description: 'Data has been refreshed' });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this clearance?')) return;
-    try {
-      await deleteBarangayClearance(id);
-      toast({ title: 'Deleted', description: 'Clearance deleted successfully.' });
-      loadData();
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete clearance.', variant: 'destructive' });
-    }
-  };
-
   const handleQRScan = useCallback((scannedValue: string) => {
     const trimmed = scannedValue.trim();
     setSearchValue(trimmed);
@@ -1915,10 +1899,8 @@ const BarangayClearance = () => {
                 <Filter className="h-9 w-9 opacity-25" />
                 <p className="text-sm font-medium">No records match your filters.</p>
                 {(activeFilterCount > 0 || searchValue) && (
-                  <button
-                    className="text-xs text-blue-600 hover:underline"
-                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}
-                  >
+                  <button className="text-xs text-blue-600 hover:underline"
+                    onClick={() => { setFilters(EMPTY_FILTERS); setSearchValue(''); }}>
                     Clear all filters
                   </button>
                 )}
@@ -1947,14 +1929,14 @@ const BarangayClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
+                      const itemStatus = normaliseStatus(item.status);
+                      const isItemReleased = itemStatus === 'RELEASED';
+
                       return (
                         <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
                             {isNew && (
-                              <span
-                                className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"
-                                title="New request (< 24h)"
-                              />
+                              <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium text-blue-600 whitespace-nowrap">
@@ -1998,12 +1980,27 @@ const BarangayClearance = () => {
                               >
                                 Print
                               </button>
-                              <button
-                                onClick={() => handleDelete(Number(item.id))}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap"
-                              >
-                                Delete
-                              </button>
+
+                              {/*
+                                ─── Delete / Disable logic ───────────────────────
+                                • Released  → show "Disable" button (soft delete)
+                                • All other → no delete button at all
+                              */}
+                              {isItemReleased ? (
+                                <button
+                                  onClick={() => {
+                                    // Open the record's detail modal which has the disable flow,
+                                    // OR call the API directly here for a quick inline path.
+                                    // Here we open the detail modal so the confirm step is shown.
+                                    setSelectedDetailRecord(item);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                                  title="Disable this released record"
+                                >
+                                  <Ban className="h-3 w-3" /> Disable
+                                </button>
+                              ) : null}
+                              {/* Delete button is intentionally hidden for ALL statuses */}
                             </div>
                           </td>
                         </tr>
@@ -2018,7 +2015,7 @@ const BarangayClearance = () => {
           <ClearancePagination
             currentPage={currentPage}
             totalPages={totalPages}
-            total={total} 
+            total={total}
             onPageChange={setCurrentPage}
           />
 
