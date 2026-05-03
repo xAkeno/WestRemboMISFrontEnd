@@ -1,6 +1,6 @@
 import axios from "axios";
 import { Layout } from "@/components/Layout";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 
 const TYPE_MAP: { [key: string]: string } = {
@@ -10,34 +10,241 @@ const TYPE_MAP: { [key: string]: string } = {
     "Barangay Certificate": "certificate",
 };
 
-const ConfirmModal = ({
-    open, title, message, onConfirm, onCancel,
-}: {
-    open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
-}) => {
-    if (!open) return null;
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+    ENCODED:    { bg: "bg-blue-100",   text: "text-blue-800",   label: "Encoded"    },
+    INCOMPLETE: { bg: "bg-orange-100", text: "text-orange-800", label: "Incomplete" },
+    RELEASED:   { bg: "bg-green-100",  text: "text-green-800",  label: "Released"   },
+    REJECTED:   { bg: "bg-red-100",    text: "text-red-800",    label: "Rejected"   },
+    PAID:       { bg: "bg-teal-100",   text: "text-teal-800",   label: "Paid"       },
+    NOT_PAID:   { bg: "bg-red-100",    text: "text-red-700",    label: "Not Paid"   },
+    PENDING:    { bg: "bg-gray-100",   text: "text-gray-700",   label: "Pending"    },
+    REVIEWED:   { bg: "bg-purple-100", text: "text-purple-800", label: "Reviewed"   },
+    TO_PAY:     { bg: "bg-purple-100", text: "text-purple-800", label: "Reviewed"   },
+    SCHEDULED:  { bg: "bg-indigo-100", text: "text-indigo-800", label: "Scheduled"  },
+    INSPECTING: { bg: "bg-cyan-100",   text: "text-cyan-800",   label: "Inspecting" },
+};
+
+function normaliseStatus(raw: string | null | undefined): string {
+    if (!raw) return "";
+    if (raw.toUpperCase() === "TO_PAY") return "REVIEWED";
+    return raw.toUpperCase();
+}
+
+function getStatusBadge(status: string) {
+    const key = normaliseStatus(status);
+    return STATUS_BADGE[key] ?? { bg: "bg-gray-100", text: "text-gray-700", label: key || "—" };
+}
+
+// ── CMS Service interface ─────────────────────────────────────────────────────
+interface CmsService {
+    id: number;
+    name: string;
+    fee: string;
+    description?: string;
+    processing_time?: string;
+}
+
+// ── Fee helpers ────────────────────────────────────────────────────────────────
+function isCmsFree(fee: string | undefined): boolean {
+    if (!fee) return true;
+    const trimmed = fee.trim().toLowerCase();
+    if (trimmed === "" || trimmed === "free") return true;
+    const num = parseFloat(trimmed);
+    return isNaN(num) || num === 0;
+}
+
+// ── TIN formatting helper ─────────────────────────────────────────────────────
+function formatTin(raw: string): string {
+    // Strip non-digits
+    const digits = raw.replace(/\D/g, "").slice(0, 13);
+    // Insert hyphens every 3 digits: 123-456-789-0123
+    const parts: string[] = [];
+    let i = 0;
+    const sizes = [3, 3, 3, 4]; // groups
+    for (const size of sizes) {
+        if (i >= digits.length) break;
+        parts.push(digits.slice(i, i + size));
+        i += size;
+    }
+    return parts.join("-");
+}
+
+const Spinner = ({ className = "w-3 h-3" }: { className?: string }) => (
+    <svg className={`${className} animate-spin`} fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+);
+
+const CheckIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
+    </svg>
+);
+
+const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+    </svg>
+);
+
+// ── OR + TIN panel ────────────────────────────────────────────────────────────
+interface OrTinPanelProps {
+    row: any;
+    rowIndex: number;
+    fee: number;
+    orInputs: Record<number, string>;
+    tinInputs: Record<number, string>;
+    tinByOr: Record<string, string>;
+    fetchingTin: Set<number>;
+    savingRow: Set<number>;
+    isPaid: boolean;
+    onOrChange: (rowIndex: number, value: string) => void;
+    onTinChange: (rowIndex: number, value: string) => void;
+    onSave: () => void;
+}
+
+const OrTinPanel = ({
+    row, rowIndex, orInputs, tinInputs, tinByOr, fetchingTin,
+    savingRow, isPaid, onOrChange, onTinChange, onSave,
+}: OrTinPanelProps) => {
+    const displayTin = tinInputs[rowIndex] !== undefined
+        ? tinInputs[rowIndex]
+        : (row.or_no && tinByOr[row.or_no] !== undefined ? tinByOr[row.or_no] : "");
+
+    const displayOr = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
+
+    // Fields are enabled only when record is NOT paid
+    const fieldsDisabled = isPaid;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24">
-                            <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                        </svg>
+        <div className="flex flex-col gap-2">
+            <div className="flex items-end gap-1.5">
+                {/* TIN */}
+                <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">TIN Number (optional)</span>
+                        {fetchingTin.has(rowIndex) && <Spinner className="w-2.5 h-2.5 text-gray-300" />}
                     </div>
-                    <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+                    <input
+                        type="text"
+                        placeholder="Enter TIN"
+                        disabled={fieldsDisabled}
+                        className={`w-full px-2 py-1 border rounded text-xs placeholder:text-gray-300 font-mono focus:outline-none focus:border-blue-400 ${
+                            fieldsDisabled
+                                ? "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                                : "border-gray-200 bg-white"
+                        }`}
+                        value={displayTin}
+                        onChange={(e) => {
+                            const formatted = formatTin(e.target.value);
+                            onTinChange(rowIndex, formatted);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") onSave(); }}
+                        maxLength={16} // 13 digits + 3 hyphens
+                    />
                 </div>
-                <p className="text-sm text-gray-600 mb-5 leading-relaxed">{message}</p>
-                <div className="flex gap-2 justify-end">
-                    <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                        Cancel
-                    </button>
-                    <button onClick={onConfirm} className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
-                        Yes, Set It
-                    </button>
+
+                {/* OR */}
+                <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">OR Number</span>
+                    <input
+                        type="text"
+                        placeholder="No OR yet"
+                        disabled={fieldsDisabled}
+                        className={`w-full px-2 py-1 border rounded text-xs placeholder:text-gray-300 font-mono focus:outline-none focus:border-blue-400 ${
+                            fieldsDisabled
+                                ? "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                                : "border-gray-200 bg-white"
+                        }`}
+                        value={displayOr}
+                        onChange={(e) => {
+                            const cleaned = e.target.value.replace(/[^a-zA-Z0-9\-]/g, "").slice(0, 20);
+                            onOrChange(rowIndex, cleaned);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") onSave(); }}
+                        maxLength={20}
+                    />
                 </div>
+
+                {/* Save */}
+                <button
+                    onClick={onSave}
+                    disabled={savingRow.has(rowIndex) || fieldsDisabled}
+                    title="Save OR & TIN"
+                    className={`flex-shrink-0 inline-flex items-center justify-center px-2.5 py-[7px] rounded transition-colors ${
+                        fieldsDisabled
+                            ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                            : "text-white bg-green-500 hover:bg-green-600 disabled:bg-green-200"
+                    }`}
+                >
+                    {savingRow.has(rowIndex) ? <Spinner className="w-2.5 h-2.5" /> : <CheckIcon className="w-2.5 h-2.5" />}
+                </button>
             </div>
+        </div>
+    );
+};
+
+// ── Fee Table Component ───────────────────────────────────────────────────────
+interface FeeTableProps {
+    serviceName: string;
+    fee: number;
+    isFree: boolean;
+    formatFee: (fee: number) => string;
+    cmsLoaded: boolean;
+}
+
+const FeeTable = ({ serviceName, fee, isFree, formatFee, cmsLoaded }: FeeTableProps) => {
+    return (
+        <div className="px-4 py-3 border-b border-default-medium bg-white">
+            <div className="flex items-center gap-2 mb-2">
+                <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Fee Schedule</span>
+                {!cmsLoaded && <Spinner className="w-3 h-3 text-gray-400" />}
+            </div>
+            <table className="w-full text-xs border border-gray-100 rounded overflow-hidden">
+                <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="text-left px-3 py-1.5 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Service</th>
+                        <th className="text-center px-3 py-1.5 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Fee Amount</th>
+                        <th className="text-center px-3 py-1.5 font-semibold text-gray-500 uppercase tracking-wider text-[10px]">Payment Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr className="bg-white">
+                        <td className="px-3 py-2 text-gray-700 font-medium">{serviceName}</td>
+                        <td className="px-3 py-2 text-center">
+                            {!cmsLoaded ? (
+                                <span className="text-gray-400 italic">Loading…</span>
+                            ) : (
+                                <span className={`font-bold ${isFree ? "text-green-600" : "text-amber-700"}`}>
+                                    {isFree ? "₱0.00 (Free)" : formatFee(fee)}
+                                </span>
+                            )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                            {!cmsLoaded ? (
+                                <span className="text-gray-400 italic text-[10px]">—</span>
+                            ) : isFree ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 border border-teal-200">
+                                    <CheckIcon className="w-2.5 h-2.5" /> Auto-Paid (Free)
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24">
+                                        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Payment Required
+                                </span>
+                            )}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     );
 };
@@ -48,106 +255,132 @@ const Cashier = () => {
     const [loadedColumn, setLoadedColumn] = useState<string[]>([]);
     const [tableData, setTableData] = useState<any[]>([]);
     const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<string>("REVIEWED");
 
+    // ── CMS service data ──────────────────────────────────────────────────────
+    const [cmsServices, setCmsServices] = useState<CmsService[]>([]);
+    const [cmsLoaded, setCmsLoaded] = useState(false);
+
+    // Legacy price map (kept as fallback, populated from CMS data)
     const [servicePrices, setServicePrices] = useState<{ [type: string]: number }>({});
-    const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
 
+    const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
     const [tinByOr, setTinByOr] = useState<{ [or_number: string]: string }>({});
     const [tinInputs, setTinInputs] = useState<{ [key: number]: string }>({});
-
     const [savingRow, setSavingRow] = useState<Set<number>>(new Set());
-    const [generatingOr, setGeneratingOr] = useState<Set<number>>(new Set());
-    const [fetchingTin, setFetchingTin] = useState<Set<number>>(new Set());
+    const [markingPaid, setMarkingPaid] = useState<Set<number>>(new Set());
+    const [deletingRow, setDeletingRow] = useState<Set<number>>(new Set());
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [reviewedCount, setReviewedCount] = useState(0);
 
-    const [startingNumberInput, setStartingNumberInput] = useState<{ [type: string]: string }>({});
-    const [settingStart, setSettingStart] = useState<{ [type: string]: boolean }>({});
-    const [confirmModal, setConfirmModal] = useState<{ open: boolean; type: string; value: string }>({ open: false, type: "", value: "" });
+    const fetchDataRef = useRef<() => Promise<void>>();
 
+    // ── Resolve fee from CMS by service display name ───────────────────────────
+    const CMS_NAME_MAP: Record<string, string> = {
+        "Barangay Clearance":   "barangay clearance",
+        "Business Clearance":   "business clearance",
+        "Building Clearance":   "building clearance",
+        "Barangay Certificate": "barangay certificate",
+    };
+
+    const getFeeByCmsName = useCallback((displayName: string): { fee: number; free: boolean; found: boolean } => {
+        if (!cmsLoaded || cmsServices.length === 0) {
+            const type = TYPE_MAP[displayName];
+            const legacyFee = servicePrices[type] ?? 0;
+            return { fee: legacyFee, free: legacyFee === 0, found: false };
+        }
+
+        const needle = CMS_NAME_MAP[displayName]?.toLowerCase() ?? displayName.toLowerCase();
+        const matched = cmsServices.find(s =>
+            s.name.toLowerCase().includes(needle) ||
+            needle.includes(s.name.toLowerCase())
+        );
+
+        if (!matched) {
+            const type = TYPE_MAP[displayName];
+            const legacyFee = servicePrices[type] ?? 0;
+            return { fee: legacyFee, free: legacyFee === 0, found: false };
+        }
+
+        const free = isCmsFree(matched.fee);
+        const fee = free ? 0 : (parseFloat(matched.fee) || 0);
+        return { fee, free, found: true };
+    }, [cmsLoaded, cmsServices, servicePrices]);
+
+    const getCurrentServiceFee = useCallback((): number => {
+        return getFeeByCmsName(choose).fee;
+    }, [choose, getFeeByCmsName]);
+
+    const isFreeService = useCallback((): boolean => {
+        return getFeeByCmsName(choose).free;
+    }, [choose, getFeeByCmsName]);
+
+    const formatFee = useCallback((fee: number): string => {
+        if (fee === 0) return "₱0.00";
+        return `₱${fee.toFixed(2)}`;
+    }, []);
+
+    // ── Fetch CMS services ─────────────────────────────────────────────────────
+    useEffect(() => {
+        const fetchCmsServices = async () => {
+            setCmsLoaded(false);
+            try {
+                const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
+                const data: CmsService[] = res.data?.data ?? res.data ?? [];
+                setCmsServices(data);
+            } catch (err) {
+                console.error("Failed to load CMS services:", err);
+            } finally {
+                setCmsLoaded(true);
+            }
+        };
+        fetchCmsServices();
+    }, []);
+
+    // ── Legacy service prices (fallback only) ─────────────────────────────────
     useEffect(() => {
         const fetchPrices = async () => {
             try {
                 const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", { withCredentials: true });
                 const data: { type: string; amount: string | number }[] = res.data?.data ?? res.data ?? [];
                 const map: { [type: string]: number } = {};
-                data.forEach((d) => { map[d.type] = parseFloat(String(d.amount)); });
+                data.forEach((d) => { map[d.type] = parseFloat(String(d.amount)) || 0; });
                 setServicePrices(map);
             } catch (err) {
-                console.error("Failed to load service prices:", err);
+                console.error("Failed to load legacy service prices:", err);
             }
         };
         fetchPrices();
     }, []);
 
-    const fetchTinByOrNumber = async (orNumber: string, rowIndex: number) => {
+    // ── TIN ───────────────────────────────────────────────────────────────────
+    const fetchTinByOrNumber = useCallback(async (orNumber: string, rowIndex: number) => {
         if (!orNumber || tinByOr[orNumber] !== undefined) return;
-
-        setFetchingTin((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
-                params: { or_number: orNumber },
-                withCredentials: true,
+                params: { or_number: orNumber }, withCredentials: true,
             });
             const tin: string = res.data?.data?.tin_no ?? "";
             setTinByOr((prev) => ({ ...prev, [orNumber]: tin }));
         } catch {
             setTinByOr((prev) => ({ ...prev, [orNumber]: "" }));
-        } finally {
-            setFetchingTin((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
         }
-    };
+    }, [tinByOr]);
 
     useEffect(() => {
         tableData.forEach((row, rowIndex) => {
-            if (row.or_no) {
-                fetchTinByOrNumber(row.or_no, rowIndex);
-            }
+            if (row.or_no) fetchTinByOrNumber(row.or_no, rowIndex);
         });
     }, [tableData]);
 
-    const getDisplayTin = (row: any, rowIndex: number): string => {
-        if (tinInputs[rowIndex] !== undefined) return tinInputs[rowIndex];
-        if (row.or_no && tinByOr[row.or_no] !== undefined) return tinByOr[row.or_no];
-        return "";
-    };
-
-    const getDataKey = (displayName: string): string => {
-        const keyMap: { [key: string]: string } = {
-            "ID":            "id",
-            "First Name":    "first_name",
-            "Last Name":     "last_name",
-            "Business Name": "business_name",
-            "Purpose":       "purpose",
-            "Status":        "status",
-            "BCERT Number":  "bcert_number",
-            "Issued Date":   "issued_date",
-            "Name":          "full_name",
-            "Date of Birth": "date_of_birth",
-            "To Pay":        "to_pay",
-            "Paid":          "paid",
-        };
-        return keyMap[displayName] || displayName.toLowerCase().replace(/ /g, '_');
-    };
-
-    const getStatusBadge = (status: string) => {
-        const statusUpper = (status ?? "").toUpperCase();
-        switch (statusUpper) {
-            case "ENCODED":    return { bg: "bg-info-soft",    text: "text-fg-info-strong",    label: "Encoded"    };
-            case "INCOMPLETE": return { bg: "bg-warning-soft", text: "text-fg-warning-strong", label: "Incomplete" };
-            case "RELEASED":   return { bg: "bg-success-soft", text: "text-fg-success-strong", label: "Released"   };
-            case "REJECTED":   return { bg: "bg-danger-soft",  text: "text-fg-danger-strong",  label: "Rejected"   };
-            case "PAID":       return { bg: "bg-success-soft", text: "text-fg-success-strong", label: "Paid"       };
-            case "PENDING":    return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: "Pending"    };
-            default:           return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: statusUpper  };
-        }
-    };
-
-    const getEndpoint = () => {
+    // ── Endpoints ─────────────────────────────────────────────────────────────
+    const getEndpoint = useCallback(() => {
         if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
         if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
         if (choose === "Building Clearance")   return "https://westrembomis.onrender.com/api/building-clearances";
         if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
-    };
+    }, [choose]);
 
     const getRowEndpoint = (row: any): string => {
         switch (choose) {
@@ -169,448 +402,406 @@ const Cashier = () => {
         }
     };
 
-    const handleRequestSetStartingNumber = () => {
-        const type = TYPE_MAP[choose];
-        const raw  = (startingNumberInput[type] ?? "").trim();
-        if (!raw || isNaN(Number(raw)) || Number(raw) < 1) {
-            toast.error("Please enter a valid number (minimum 1).");
-            return;
-        }
-        setConfirmModal({ open: true, type, value: raw });
+    // ── Data key map ──────────────────────────────────────────────────────────
+    const getDataKey = (displayName: string): string => {
+        const keyMap: { [key: string]: string } = {
+            "ID":            "id",
+            "First Name":    "first_name",
+            "Last Name":     "last_name",
+            "Business Name": "business_name",
+            "Purpose":       "purpose",
+            "Status":        "status",
+            "Fee":           "__fee__",
+            "BCERT Number":  "bcert_number",
+            "Issued Date":   "issued_date",
+            "Name":          "full_name",
+            "Date of Birth": "date_of_birth",
+        };
+        return keyMap[displayName] || displayName.toLowerCase().replace(/ /g, '_');
     };
 
-    const handleConfirmSetStartingNumber = async () => {
-        const { type, value } = confirmModal;
-        setConfirmModal({ open: false, type: "", value: "" });
-        setSettingStart((prev) => ({ ...prev, [type]: true }));
+    const mapData = useCallback((entity: string, data: any[]) => {
+        return data.map((row: any) => {
+            const base = { or_no: row.or_no ?? null };
+            switch (entity) {
+                case "Barangay Clearance":
+                    return { ...base, id: row.id, first_name: row.first_name, last_name: row.surname, purpose: row.purpose, status: normaliseStatus(row.status) };
+                case "Business Clearance":
+                    return { ...base, id: row.id, first_name: row.first_name, last_name: row.surname, business_name: row.business_name, status: normaliseStatus(row.status) };
+                case "Building Clearance":
+                    return { ...base, id: row.id, first_name: row.first_name, last_name: row.surname, purpose: row.purpose, status: normaliseStatus(row.status) };
+                case "Barangay Certificate":
+                    return {
+                        ...base, id: row.id,
+                        bcert_number: row.bcert_number || row.certificate_number || `BCERT-${row.id}`,
+                        issued_date: row.issued_date ? new Date(row.issued_date).toLocaleDateString('en-US') : '',
+                        full_name: `${row.first_name || ''} ${row.middle_name || ''} ${row.surname || ''} ${row.extension || ''}`.trim(),
+                        date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toLocaleDateString('en-US') : '',
+                        purpose: row.purpose, status: normaliseStatus(row.status),
+                    };
+                default:
+                    return { ...row, status: normaliseStatus(row.status) };
+            }
+        });
+    }, []);
+
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    const fetchData = useCallback(async (silent = false) => {
+        const endpoint = getEndpoint();
+        if (!endpoint) { setTableData([]); return; }
+        if (!silent) setIsRefreshing(true);
         try {
-            await axios.post(
-                "https://westrembomis.onrender.com/api/or-starting-number",
-                { type, starting_number: parseInt(value, 10) },
-                { withCredentials: true }
-            );
-            toast.success(`OR starting number for ${choose} set to ${value.padStart(6, "0")}.`);
-            setStartingNumberInput((prev) => ({ ...prev, [type]: "" }));
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message ?? "Failed to set starting number.");
-        } finally {
-            setSettingStart((prev) => ({ ...prev, [type]: false }));
-        }
-    };
+            const params: Record<string, any> = { search };
+            if (statusFilter === "REVIEWED") params.status = "TO_PAY";
+            else if (statusFilter)           params.status = statusFilter;
 
-    const handleAutoGenerateOr = async (row: any, rowIndex: number) => {
-        const type     = TYPE_MAP[choose];
-        const amount   = servicePrices[type] ?? 0;
-        const tinValue = tinInputs[rowIndex] !== undefined
-            ? tinInputs[rowIndex]
-            : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
+            const res = await axios.get(endpoint, { params, withCredentials: true });
+            const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
+            const mapped = mapData(choose, rows);
+            setTableData(mapped);
 
-        setGeneratingOr((prev) => new Set(prev).add(rowIndex));
-        try {
-            const res = await axios.get("https://westrembomis.onrender.com/api/generate-or", {
-                params: {
-                    type,
-                    reference_id: row.id,
-                    amount,
-                    tin_no: tinValue.trim() === "" ? undefined : tinValue.trim(),
-                },
-                withCredentials: true,
-            });
-
-            const generated: string = res.data?.or_number ?? "";
-            if (!generated) { toast.error("No OR number returned from server."); return; }
-
-            setOrInputs((prev) => ({ ...prev, [rowIndex]: generated }));
-            setTableData((prev) => {
-                const updated = [...prev];
-                updated[rowIndex] = { ...updated[rowIndex], or_no: generated };
-                return updated;
-            });
-
-            if (tinValue.trim() !== "") {
-                setTinByOr((prev) => ({ ...prev, [generated]: tinValue.trim() }));
+            if (statusFilter !== "REVIEWED") {
+                try {
+                    const rRes = await axios.get(endpoint, { params: { status: "TO_PAY", search: "" }, withCredentials: true });
+                    setReviewedCount((rRes?.data?.data?.data ?? []).length);
+                } catch { /* silent */ }
+            } else {
+                setReviewedCount(mapped.length);
             }
 
-            setTinInputs((prev) => { const next = { ...prev }; delete next[rowIndex]; return next; });
-
-            toast.success(`OR generated: ${generated}`);
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message ?? "Failed to generate OR number.");
+            setOrInputs({});
+            setTinInputs({});
+            setTinByOr({});
+        } catch (err) {
+            console.error("API Error:", err);
         } finally {
-            setGeneratingOr((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
+            setIsRefreshing(false);
+        }
+    }, [choose, search, statusFilter, mapData, getEndpoint]);
+
+    useEffect(() => { fetchDataRef.current = () => fetchData(true); }, [fetchData]);
+
+    useEffect(() => {
+        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Fee", "Status", "Action"]);
+        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "Fee", "Status", "Action"]);
+        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Fee", "Status", "Action"]);
+        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "Fee", "Status", "Action"]);
+        fetchData();
+    }, [choose, search, statusFilter]);
+
+    // ── Mark as paid (triggered by green checkbox only) ───────────────────────
+    const handleMarkPaid = async (row: any, rowIndex: number) => {
+        if (row.status === "PAID") return; // Already paid — irreversible
+        setMarkingPaid((prev) => new Set(prev).add(rowIndex));
+        try {
+            const res = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
+            if (res.status === 200) {
+                setTableData((prev) => { const u = [...prev]; u[rowIndex] = { ...u[rowIndex], status: "PAID" }; return u; });
+                if (statusFilter === "REVIEWED") {
+                    setTimeout(() => setTableData(p => p.filter((_, i) => i !== rowIndex)), 800);
+                    setReviewedCount(c => Math.max(0, c - 1));
+                }
+                toast.success("Payment confirmed.");
+            }
+        } catch {
+            toast.error("Failed to confirm payment.");
+        } finally {
+            setMarkingPaid((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
         }
     };
 
+    // ── Save OR + TIN ─────────────────────────────────────────────────────────
     const handleSaveOrAndTin = async (row: any, rowIndex: number) => {
         const orValue  = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
-        const tinValue = tinInputs[rowIndex] !== undefined
-            ? tinInputs[rowIndex]
-            : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
+        const tinValue = tinInputs[rowIndex] !== undefined ? tinInputs[rowIndex] : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
-
         setSavingRow((prev) => new Set(prev).add(rowIndex));
         try {
-            const res = await axios.put(
-                endpoint,
-                { or_no: orValue.trim() === "" ? null : orValue.trim() },
-                { withCredentials: true }
-            );
+            const res = await axios.put(endpoint, { or_no: orValue.trim() || null }, { withCredentials: true });
             if (res.status === 200) {
-                const newOrNo = orValue.trim() === "" ? null : orValue.trim();
-                setTableData((prev) => {
-                    const updated = [...prev];
-                    updated[rowIndex] = { ...updated[rowIndex], or_no: newOrNo };
-                    return updated;
-                });
-
-                const orForTin = newOrNo;
-                if (orForTin && tinValue.trim() !== "") {
-                    await axios.patch(
-                        "https://westrembomis.onrender.com/api/official-receipts/by-or",
-                        { or_number: orForTin, tin_no: tinValue.trim() },
-                        { withCredentials: true }
-                    );
-                    setTinByOr((prev) => ({ ...prev, [orForTin]: tinValue.trim() }));
-                    setTinInputs((prev) => { const next = { ...prev }; delete next[rowIndex]; return next; });
+                const newOrNo = orValue.trim() || null;
+                setTableData((prev) => { const u = [...prev]; u[rowIndex] = { ...u[rowIndex], or_no: newOrNo }; return u; });
+                if (newOrNo && tinValue.trim()) {
+                    // Strip hyphens before sending TIN
+                    const rawTin = tinValue.replace(/-/g, "");
+                    await axios.patch("https://westrembomis.onrender.com/api/official-receipts/by-or",
+                        { or_number: newOrNo, tin_no: rawTin }, { withCredentials: true });
+                    setTinByOr((prev) => ({ ...prev, [newOrNo]: tinValue }));
+                    setTinInputs((prev) => { const n = { ...prev }; delete n[rowIndex]; return n; });
                 } else if (newOrNo) {
                     fetchTinByOrNumber(newOrNo, rowIndex);
                 }
-
                 toast.success("OR and TIN saved.");
             }
         } catch (err: any) {
             toast.error(err?.response?.data?.message ?? "Failed to save.");
         } finally {
-            setSavingRow((prev) => { const next = new Set(prev); next.delete(rowIndex); return next; });
+            setSavingRow((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
         }
     };
 
-    const mapData = (entity: string, data: any[]) => {
-        return data.map((row: any) => {
-            const toPay = row.to_pay ?? null;
-            const paid  = row.paid   ?? null;
-            switch (entity) {
-                case "Barangay Clearance":
-                    return { id: row.id, first_name: row.first_name, last_name: row.surname, purpose: row.purpose, status: row.status, to_pay: toPay, paid, or_no: row.or_no ?? null };
-                case "Business Clearance":
-                    return { id: row.id, first_name: row.first_name, last_name: row.surname, business_name: row.business_name, status: row.status, to_pay: toPay, paid, or_no: row.or_no ?? null };
-                case "Building Clearance":
-                    return { id: row.id, first_name: row.first_name, last_name: row.surname, purpose: row.purpose, status: row.status, to_pay: toPay, paid, or_no: row.or_no ?? null };
-                case "Barangay Certificate":
-                    return {
-                        id: row.id,
-                        bcert_number: row.bcert_number || row.certificate_number || `BCERT-${row.id}`,
-                        issued_date: row.issued_date ? new Date(row.issued_date).toLocaleDateString('en-US') : '',
-                        full_name: `${row.first_name || ''} ${row.middle_name || ''} ${row.surname || ''} ${row.extension || ''}`.trim(),
-                        date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toLocaleDateString('en-US') : '',
-                        purpose: row.purpose,
-                        status: row.status,
-                        to_pay: toPay,
-                        paid,
-                        or_no: row.or_no ?? null,
-                    };
-                default:
-                    return row;
-            }
-        });
+    // ── Delete row (only when Paid) ───────────────────────────────────────────
+    const handleDelete = async (row: any, rowIndex: number) => {
+        if (row.status !== "PAID") return; // Guard: only paid records can be deleted
+        const endpoint = getRowEndpoint(row);
+        if (!endpoint) return;
+        setDeletingRow((prev) => new Set(prev).add(rowIndex));
+        try {
+            await axios.delete(endpoint, { withCredentials: true });
+            setTableData((prev) => prev.filter((_, i) => i !== rowIndex));
+            toast.success("Record deleted.");
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message ?? "Failed to delete.");
+        } finally {
+            setDeletingRow((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
+        }
     };
 
-    useEffect(() => {
-        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "To Pay", "Paid", "Status", "Action"]);
+    const STATUS_TABS = [
+        { value: "REVIEWED", label: "To Pay",  activeClass: "bg-purple-600 text-white border-transparent shadow-sm", inactiveClass: "bg-white border-gray-200 hover:bg-purple-50 text-purple-700" },
+        { value: "PAID",     label: "Paid",    activeClass: "bg-teal-600 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-teal-50 text-teal-700"   },
+        { value: "",         label: "All",     activeClass: "bg-gray-700 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"   },
+    ];
 
-        const fetchData = async () => {
-            const endpoint = getEndpoint();
-            if (!endpoint) return setTableData([]);
-            try {
-                const res = await axios.get(endpoint, { params: { search }, withCredentials: true });
-                const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
-                setTableData(mapData(choose, rows));
-                setOrInputs({});
-                setTinInputs({});
-                setTinByOr({});
-            } catch (err) {
-                console.error("API Error:", err);
-            }
-        };
-        fetchData();
-    }, [choose, search]);
-
-    const currentType = TYPE_MAP[choose];
+    const fee      = getCurrentServiceFee();
+    const free     = isFreeService();
+    const feeLabel = free ? "₱0.00 (Free)" : formatFee(fee);
 
     return (
         <Layout>
-            <ConfirmModal
-                open={confirmModal.open}
-                title="Set OR Starting Number"
-                message={`Are you sure you want to set the starting OR number for "${choose}" to ${String(confirmModal.value).padStart(6, "0")}? Any future auto-generated ORs will begin from this number.`}
-                onConfirm={handleConfirmSetStartingNumber}
-                onCancel={() => setConfirmModal({ open: false, type: "", value: "" })}
-            />
+            <div className="relative w-full max-w-full bg-neutral-primary-soft h-full shadow-xs rounded-base border border-default flex flex-col">
 
-            <div className="relative w-full max-w-full bg-neutral-primary-soft h-full shadow-xs rounded-base border border-default">
+                {/* ── Fee Table Banner ─────────────────────────────────────── */}
+                <FeeTable
+                    serviceName={choose}
+                    fee={fee}
+                    isFree={free}
+                    formatFee={formatFee}
+                    cmsLoaded={cmsLoaded}
+                />
 
-                {/* Toolbar */}
-                <div className="p-4 flex items-center justify-between space-x-4">
-                    <label htmlFor="input-group-1" className="sr-only">Search</label>
-                    <div className="relative">
+                {/* ── Toolbar ─────────────────────────────────────────────── */}
+                <div className="p-4 flex items-center justify-between gap-4 flex-wrap border-b border-default-medium">
+                    <div className="relative flex-1 min-w-[200px] max-w-sm">
                         <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                            <svg className="w-4 h-4 text-body" fill="none" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24">
                                 <path stroke="currentColor" strokeWidth="2" d="m21 21-3.5-3.5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
                             </svg>
                         </div>
-                        <input type="text" id="input-group-1"
-                            className="block w-full max-w-96 ps-9 pe-3 py-2 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base"
-                            placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
+                        <input type="text"
+                            className="block w-full ps-9 pe-3 py-2 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base"
+                            placeholder="Search by name, ID..."
+                            value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => setDropdownOpen(!dropdownOpen)}
-                            className="inline-flex items-center text-body bg-neutral-secondary-medium border border-default-medium px-3 py-2 rounded-base" type="button">
-                            <svg className="w-4 h-4 me-1.5" fill="none" viewBox="0 0 24 24">
-                                <path stroke="currentColor" strokeWidth="2" d="M18.796 4H5.204a1 1 0 0 0-.753 1.659l5.302 6.058a1 1 0 0 1 .247.659v4.874l3 2.25v-7.124a1 1 0 0 1 .247-.659l5.302-6.059c.566-.646.106-1.658-.753-1.658Z" />
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Fee indicator pill */}
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
+                            free
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            {choose}
-                            <svg className="w-4 h-4 ms-1.5" fill="none" viewBox="0 0 24 24">
-                                <path stroke="currentColor" strokeWidth="2" d="m19 9-7 7-7-7" />
+                            {!cmsLoaded ? "Loading fee…" : feeLabel}
+                        </div>
+
+                        {/* Refresh */}
+                        <button onClick={() => fetchData()} disabled={isRefreshing}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                            <svg className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
+                            {isRefreshing ? "Refreshing..." : "Refresh"}
                         </button>
-                        {dropdownOpen && (
-                            <div className="absolute top-16 right-4 z-10 bg-neutral-primary-medium border bg-gray-100 rounded-base shadow-lg w-44">
-                                <ul className="p-2 text-sm text-body">
-                                    {["Barangay Clearance", "Building Clearance", "Business Clearance", "Barangay Certificate"].map((item) => (
-                                        <li key={item}>
-                                            <button onClick={() => { setChoose(item); setDropdownOpen(false); }}
-                                                className="w-full p-2 hover:bg-neutral-tertiary-medium rounded text-left">{item}</button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+
+                        {/* Service type dropdown */}
+                        <div className="relative">
+                            <button onClick={() => setDropdownOpen(!dropdownOpen)}
+                                className="inline-flex items-center gap-1.5 text-body bg-neutral-secondary-medium border border-default-medium px-3 py-2 rounded-base text-sm" type="button">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <path stroke="currentColor" strokeWidth="2" d="M18.796 4H5.204a1 1 0 0 0-.753 1.659l5.302 6.058a1 1 0 0 1 .247.659v4.874l3 2.25v-7.124a1 1 0 0 1 .247-.659l5.302-6.059c.566-.646.106-1.658-.753-1.658Z" />
+                                </svg>
+                                {choose}
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <path stroke="currentColor" strokeWidth="2" d="m19 9-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {dropdownOpen && (
+                                <div className="absolute top-full right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-52">
+                                    <ul className="p-1.5 text-sm">
+                                        {["Barangay Clearance", "Building Clearance", "Business Clearance", "Barangay Certificate"].map((item) => (
+                                            <li key={item}>
+                                                <button onClick={() => { setChoose(item); setDropdownOpen(false); }}
+                                                    className="w-full px-3 py-2 hover:bg-gray-50 rounded-md text-left text-gray-700">
+                                                    {item}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* OR Starting Number Bar */}
-                <div className="px-4 pb-3 flex items-center gap-2 border-b border-default-medium">
-                    <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                            d="M9 12h6m-3-3v6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                    </svg>
-                    <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">
-                        OR Starting # for <span className="text-indigo-600 font-bold">{choose}</span>:
-                    </span>
-                    <input type="text" maxLength={6} placeholder="e.g. 00025"
-                        className="px-2 py-1 border rounded text-sm w-28 placeholder:text-gray-400 font-mono tracking-widest"
-                        value={startingNumberInput[currentType] ?? ""}
-                        onChange={(e) => setStartingNumberInput((prev) => ({ ...prev, [currentType]: e.target.value.replace(/\D/g, "") }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleRequestSetStartingNumber(); }} />
-                    <button onClick={handleRequestSetStartingNumber} disabled={settingStart[currentType] ?? false}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed rounded-lg transition-colors">
-                        {settingStart[currentType] ? (
-                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                            </svg>
-                        ) : (
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                            </svg>
-                        )}
-                        Set Start
-                    </button>
-                    <span className="text-xs text-gray-400 italic hidden sm:inline">Next auto-generate will begin from this number</span>
+                {/* ── Status tabs ──────────────────────────────────────────── */}
+                <div className="px-4 py-2.5 flex items-center gap-2 border-b border-default-medium bg-gray-50/50">
+                    <span className="text-xs font-semibold text-gray-400 mr-1">Show:</span>
+                    {STATUS_TABS.map(tab => (
+                        <button key={tab.value} onClick={() => setStatusFilter(tab.value)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                                statusFilter === tab.value ? tab.activeClass : tab.inactiveClass
+                            }`}>
+                            {tab.label}
+                            {tab.value === "REVIEWED" && reviewedCount > 0 && (
+                                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold rounded-full px-1 ${
+                                    statusFilter === "REVIEWED" ? "bg-white/30 text-white" : "bg-purple-600 text-white"
+                                }`}>{reviewedCount}</span>
+                            )}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Table */}
-                <div className="w-full overflow-x-auto">
+                {/* ── Table ────────────────────────────────────────────────── */}
+                <div className="w-full overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left text-body">
                         <thead className="text-sm bg-neutral-secondary-medium border-b">
                             <tr>
-                                <th className="p-4"><input type="checkbox" className="w-4 h-4" /></th>
                                 {loadedColumn.map((item) => (
-                                    <th key={item} className="px-6 py-3 font-medium">{item}</th>
+                                    <th key={item} className="px-6 py-3 font-medium text-gray-600">{item}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {tableData.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="border-b border-default-medium">
-                                    <td className="p-4"><input type="checkbox" className="w-4 h-4" /></td>
+                            {tableData.length === 0 ? (
+                                <tr>
+                                    <td colSpan={loadedColumn.length} className="px-6 py-16 text-center">
+                                        <div className="flex flex-col items-center gap-2 text-gray-400">
+                                            <svg className="w-8 h-8 opacity-30" fill="none" viewBox="0 0 24 24">
+                                                <path stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                            </svg>
+                                            <p className="text-sm font-medium">
+                                                {statusFilter === "REVIEWED" ? "No records awaiting payment." : "No records found."}
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : tableData.map((row, rowIndex) => {
+                                const isPaid = row.status === "PAID";
 
-                                    {loadedColumn.map((col, colIndex) => {
+                                return (
+                                    <tr key={rowIndex} className={`border-b border-default-medium transition-colors align-top ${
+                                        !isPaid ? "bg-purple-50/30 hover:bg-purple-50/60" : "hover:bg-gray-50/60"
+                                    }`}>
+                                        {loadedColumn.map((col, colIndex) => {
 
-                                        if (col === "Action") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                <div className="flex flex-col gap-2 min-w-[150px]">
+                                            // ── Fee column ──────────────────
+                                            if (col === "Fee") return (
+                                                <td key={colIndex} className="px-6 py-3">
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                                        free
+                                                            ? "bg-green-50 text-green-700 border-green-200"
+                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                    }`}>
+                                                        {!cmsLoaded ? "…" : (free ? "₱0.00" : formatFee(fee))}
+                                                    </span>
+                                                </td>
+                                            );
 
-                                                    {/* Paid / Not Paid dropdown */}
-                                                    <select
-                                                        className="px-2 py-1 border rounded text-sm w-full"
-                                                        value={(row.status ?? "").toUpperCase() === "PAID" ? "PAID" : "NOT_PAID"}
-                                                        onChange={async (e) => {
-                                                            const newStatus = e.target.value === "PAID" ? "PAID" : "PENDING";
-                                                            try {
-                                                                const ers = await axios.put(getStatusEndpoint(row), { status: newStatus }, { withCredentials: true });
-                                                                if (ers.status === 200) toast.success("Status updated successfully.");
-                                                                setTableData((prev) => {
-                                                                    const updated = [...prev];
-                                                                    updated[rowIndex] = { ...updated[rowIndex], status: newStatus };
-                                                                    return updated;
-                                                                });
-                                                            } catch { toast.error("Failed to update status."); }
-                                                        }}>
-                                                        <option value="NOT_PAID">Not Paid</option>
-                                                        <option value="PAID">Paid</option>
-                                                    </select>
+                                            // ── Status column ───────────────
+                                            if (col === "Status") return (
+                                                <td key={colIndex} className="px-6 py-3">
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(row.status).bg} ${getStatusBadge(row.status).text}`}>
+                                                        {getStatusBadge(row.status).label}
+                                                    </span>
+                                                </td>
+                                            );
 
-                                                    <div className="flex items-end gap-2">
+                                            // ── Action column ───────────────
+                                            if (col === "Action") return (
+                                                <td key={colIndex} className="px-4 py-3 min-w-[340px] max-w-[400px]">
+                                                    <div className="flex flex-col gap-2">
 
-                                                        {/* TIN Number */}
-                                                        <div className="flex flex-col flex-1">
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="text-xs font-semibold text-gray-500">
-                                                                    TIN Number (optional)
-                                                                </span>
-                                                                {fetchingTin.has(rowIndex) && (
-                                                                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                        </svg>
-                                                                        Loading...
-                                                                    </span>
+                                                        {/* ── Payment row: green checkbox + delete icon ── */}
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Green checkbox — triggers payment */}
+                                                            <button
+                                                                onClick={() => !isPaid && handleMarkPaid(row, rowIndex)}
+                                                                disabled={isPaid || markingPaid.has(rowIndex) || !cmsLoaded}
+                                                                title={isPaid ? "Already paid" : "Mark as Paid"}
+                                                                className={`flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border-2 transition-colors ${
+                                                                    isPaid
+                                                                        ? "bg-green-500 border-green-500 cursor-not-allowed"
+                                                                        : markingPaid.has(rowIndex)
+                                                                            ? "bg-green-200 border-green-300 cursor-wait"
+                                                                            : "bg-white border-gray-300 hover:border-green-500 hover:bg-green-50 cursor-pointer"
+                                                                }`}
+                                                            >
+                                                                {isPaid ? (
+                                                                    <CheckIcon className="w-3.5 h-3.5 text-white" />
+                                                                ) : markingPaid.has(rowIndex) ? (
+                                                                    <Spinner className="w-3 h-3 text-green-500" />
+                                                                ) : (
+                                                                    <span className="w-3.5 h-3.5" />
                                                                 )}
-                                                            </div>
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Enter TIN"
-                                                                className="w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
-                                                                value={getDisplayTin(row, rowIndex)}
-                                                                onChange={(e) =>
-                                                                    setTinInputs((prev) => ({ ...prev, [rowIndex]: e.target.value }))
-                                                                }
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                                }}
-                                                            />
-                                                        </div>
+                                                            </button>
 
-                                                        {/* OR Number */}
-                                                        <div className="flex flex-col flex-1">
-                                                            <span className="text-xs font-semibold text-gray-500">
-                                                                OR Number
+                                                            {/* Payment label */}
+                                                            <span className={`text-xs font-semibold ${isPaid ? "text-green-700" : "text-gray-400"}`}>
+                                                                {isPaid
+                                                                    ? `Paid — ${!cmsLoaded ? "…" : (free ? "₱0.00" : formatFee(fee))}`
+                                                                    : `Click to confirm payment`}
                                                             </span>
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="No OR yet"
-                                                                    className="flex-1 px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
-                                                                    value={
-                                                                        orInputs[rowIndex] !== undefined
-                                                                            ? orInputs[rowIndex]
-                                                                            : row.or_no ?? ""
-                                                                    }
-                                                                    onChange={(e) =>
-                                                                        setOrInputs((prev) => ({
-                                                                            ...prev,
-                                                                            [rowIndex]: e.target.value,
-                                                                        }))
-                                                                    }
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                                    }}
-                                                                />
-                                                                {/* Generate Button */}
-                                                                <button
-                                                                    onClick={() => handleAutoGenerateOr(row, rowIndex)}
-                                                                    disabled={generatingOr.has(rowIndex)}
-                                                                    className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
-                                                                >
-                                                                    {generatingOr.has(rowIndex) ? (
-                                                                        <>
-                                                                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                            </svg>
-                                                                            ...
-                                                                        </>
-                                                                    ) : (
-                                                                        "Generate"
-                                                                    )}
-                                                                </button>
-                                                            </div>
+
+                                                            {/* Delete button — enabled only when Paid */}
+                                                            <button
+                                                                onClick={() => isPaid && handleDelete(row, rowIndex)}
+                                                                disabled={!isPaid || deletingRow.has(rowIndex)}
+                                                                title={isPaid ? "Delete record" : "Only paid records can be deleted"}
+                                                                className={`ml-auto flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+                                                                    !isPaid
+                                                                        ? "text-gray-200 cursor-not-allowed"
+                                                                        : deletingRow.has(rowIndex)
+                                                                            ? "text-red-300 cursor-wait"
+                                                                            : "text-red-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                                                                }`}
+                                                            >
+                                                                {deletingRow.has(rowIndex)
+                                                                    ? <Spinner className="w-3.5 h-3.5" />
+                                                                    : <TrashIcon className="w-3.5 h-3.5" />
+                                                                }
+                                                            </button>
                                                         </div>
 
-                                                        {/* Save Button */}
-                                                        <button
-                                                            onClick={() => handleSaveOrAndTin(row, rowIndex)}
-                                                            disabled={savingRow.has(rowIndex)}
-                                                            className="inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
-                                                        >
-                                                            {savingRow.has(rowIndex) ? (
-                                                                <>
-                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                    </svg>
-                                                                    Saving...
-                                                                </>
-                                                            ) : (
-                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                                    <path
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="2.5"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        d="M5 12l5 5L19 7"
-                                                                    />
-                                                                </svg>
-                                                            )}
-                                                        </button>
+                                                        {/* ── TIN + OR panel ── */}
+                                                        <OrTinPanel
+                                                            row={row} rowIndex={rowIndex} fee={fee}
+                                                            orInputs={orInputs} tinInputs={tinInputs} tinByOr={tinByOr}
+                                                            fetchingTin={new Set()} // fetchingTin state removed from panel display
+                                                            savingRow={savingRow}
+                                                            isPaid={isPaid}
+                                                            onOrChange={(i, v) => setOrInputs(p => ({ ...p, [i]: v }))}
+                                                            onTinChange={(i, v) => setTinInputs(p => ({ ...p, [i]: v }))}
+                                                            onSave={() => handleSaveOrAndTin(row, rowIndex)}
+                                                        />
 
                                                     </div>
-                                                </div>
-                                            </td>
-                                        );
+                                                </td>
+                                            );
 
-                                        if (col === "To Pay") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row.to_pay != null ? (
-                                                    <span className="text-sm font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                        ₱{parseFloat(row.to_pay).toFixed(2)}
-                                                    </span>
-                                                ) : <span className="text-xs text-gray-400">—</span>}
-                                            </td>
-                                        );
-
-                                        if (col === "Paid") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row.paid != null ? (
-                                                    <span className="text-sm font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                        ₱{parseFloat(row.paid).toFixed(2)}
-                                                    </span>
-                                                ) : <span className="text-xs text-gray-400">—</span>}
-                                            </td>
-                                        );
-
-                                        if (col === "Status") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 border-gray-400 ${getStatusBadge(row.status).bg} ${getStatusBadge(row.status).text}`}>
-                                                    {getStatusBadge(row.status).label}
-                                                </span>
-                                            </td>
-                                        );
-
-                                        return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row[getDataKey(col)] ?? ""}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
+                                            return (
+                                                <td key={colIndex} className="px-6 py-3 text-gray-700">
+                                                    {row[getDataKey(col)] ?? ""}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

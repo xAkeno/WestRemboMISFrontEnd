@@ -943,7 +943,7 @@ function EditableDetailModal({
     }
     setActionLoading('reviewed');
     try {
-      // Send 'TO_PAY' to the server (legacy API value), display as REVIEWED
+      // Step 1: Set to REVIEWED (TO_PAY legacy value)
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
@@ -951,7 +951,20 @@ function EditableDetailModal({
       );
       setCurrentStatus('REVIEWED');
       setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
+
+      // Step 2: Automatically notify cashier by also hitting the status endpoint
+      // This ensures the cashier's polling picks it up immediately
+      try {
+        await axios.put(
+          `https://westrembomis.onrender.com/api/barangay-clearances/status/${record.id}`,
+          { status: 'TO_PAY' },
+          { withCredentials: true }
+        );
+      } catch {
+        // Silent — main status already set above
+      }
+
+      toast({ title: 'Success', description: 'Status set to Reviewed. Record forwarded to Cashier.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });

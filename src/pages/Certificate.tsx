@@ -973,15 +973,15 @@ function EditableDetailModal({
   const status = currentStatus.toUpperCase();
   const isReleased = status === 'RELEASED';
   const canMarkReviewed = isForwardTransition(status, 'REVIEWED') &&
-    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
-     status === 'INCOMPLETE' || status === 'REJECTED');
+  (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
+    status === 'INCOMPLETE' || status === 'REJECTED');
   const canMarkAsPaid = isForwardTransition(status, 'PAID') && status === 'REVIEWED';
   const canRelease = isForwardTransition(status, 'RELEASED') && status === 'PAID';
   const canMarkToInspection = isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED');
   const canDispose = !isReleased;
 
-  const handleMarkReviewed = async () => {
+    const handleMarkReviewed = async () => {
     if (!isForwardTransition(status, 'REVIEWED')) {
       toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
       return;
@@ -993,9 +993,20 @@ function EditableDetailModal({
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
+
+      try {
+        await axios.put(
+          `https://westrembomis.onrender.com/api/barangay-certificates/status/${record.id}`,
+          { status: 'TO_PAY' },
+          { withCredentials: true }
+        );
+      } catch {
+        // Silent — main status already set above
+      }
+
       setCurrentStatus('REVIEWED');
       setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
+      toast({ title: 'Success', description: 'Status set to Reviewed. Record forwarded to Cashier.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
