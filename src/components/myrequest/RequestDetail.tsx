@@ -54,60 +54,63 @@ const SERVICE_NAME_TO_SLUG: Record<string, string> = {
 };
 
 const statusStyle: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  approved:   { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0", dot: "#16a34a" },
-  pending:    { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
-  processing: { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
-  encoded:    { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
-  incomplete: { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
-  rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
-  released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
-  scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
+  approved:    { bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0", dot: "#16a34a" },
+  pending:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+  processing:  { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  encoded:     { bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe", dot: "#2563eb" },
+  incomplete:  { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
+  rejected:    { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
+  released:    { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
+  scheduled:   { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
   rescheduled: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
-  to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
-  inspecting: { bg: "#faf5ff", text: "#7c3aed", border: "#ddd6fe", dot: "#7c3aed" },
+  to_pay:      { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
+  inspecting:  { bg: "#faf5ff", text: "#7c3aed", border: "#ddd6fe", dot: "#7c3aed" },
 };
 
 const PROCESS_STEPS = [
-  { key: "applied",  label: "Applied" },
-  { key: "review",   label: "Review" },
-  { key: "payment",  label: "Payment" },
-  { key: "release",  label: "Release" },
+  { key: "scheduled", label: "Scheduled" },
+  { key: "review",    label: "Review" },
+  { key: "On-Process",    label: "On-Process" },
+  { key: "payment",   label: "Payment" },
+  { key: "released",  label: "Released" },
 ];
 
 const STATUS_TO_STEP: Record<string, number> = {
   pending: 0, incomplete: 0, processing: 0, encoded: 0,
-  approved: 0, scheduled: 0, rescheduled: 1,
+  approved: 0,
   inspecting: 0,
-  to_pay: 2,
-  released: 3,
+  scheduled:   1,
+  rescheduled: 1,
+  to_pay: 3,
+  released: 4,
 };
 
 const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null }> = {
-  encoded:    { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
-  pending:    { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
-  processing: { message: "Your request is being reviewed by the barangay office.", nextStep: "Scheduled" },
-  incomplete: { message: "Action required — please upload missing documents to continue.", nextStep: null },
-  approved:   { message: "Your request has been approved!", nextStep: "To Pay" },
-  scheduled:  { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
-  rescheduled: { message: "Your pickup date has been rescheduled. Visit the barangay at your new scheduled time.", nextStep: "Visit Barangay" },
-  to_pay:     { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
-  released:   { message: "Your document has been sent to your registered email address.", nextStep: null },
-  rejected:   { message: "Your request was not approved. See details for more information.", nextStep: null },
-  inspecting: { message: "A barangay officer is currently inspecting your submitted documents.", nextStep: null },
+  encoded:     { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
+  pending:     { message: "Your request has been received and is currently being processed.", nextStep: "Scheduled" },
+  processing:  { message: "Your request is being reviewed by the barangay office.", nextStep: "Scheduled" },
+  incomplete:  { message: "Action required — please upload missing documents to continue.", nextStep: null },
+  approved:    { message: "Your request has been approved!", nextStep: "To Pay" },
+  scheduled:   { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
+  rescheduled: { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
+  to_pay:      { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
+  released:    { message: "Your document has been sent to your registered email address.", nextStep: null },
+  rejected:    { message: "Your request was not approved. See details for more information.", nextStep: null },
+  inspecting:  { message: "A barangay officer is currently inspecting your submitted documents.", nextStep: null },
 };
 
 const WHAT_NEXT: Record<string, string> = {
-  encoded:    "Your documents are currently being validated by the Barangay Secretary. Please wait for the notification to settle the fee.",
-  pending:    "Your documents are currently being validated by the Barangay Secretary. Please wait for the notification to settle the fee.",
-  processing: "Your request is under review. You will be notified once a pickup date is assigned.",
-  incomplete: "Please upload the missing documents so we can continue processing your request.",
-  approved:   "Your request has been approved. Proceed to the barangay hall to settle the payment.",
-  scheduled:  "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
-  rescheduled: "Go to the barangay hall at your new scheduled time. Bring the required documents listed above and present your reference number to the officer.",
-  to_pay:     "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
-  released:   "Your document has been officially released and sent to your registered email.",
-  rejected:   "Your request was not approved. Please contact the barangay office for more information.",
-  inspecting: "A barangay officer is currently reviewing and inspecting your submitted documents. You will be notified once the inspection is complete.",
+  encoded:     "Your documents are currently being validated by the Barangay Secretary. Please wait for the notification to settle the fee.",
+  pending:     "Your documents are currently being validated by the Barangay Secretary. Please wait for the notification to settle the fee.",
+  processing:  "Your request is under review. You will be notified once a pickup date is assigned.",
+  incomplete:  "Please upload the missing documents so we can continue processing your request.",
+  approved:    "Your request has been approved. Proceed to the barangay hall to settle the payment.",
+  scheduled:   "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
+  rescheduled: "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
+  to_pay:      "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
+  released:    "Your document has been officially released and sent to your registered email.",
+  rejected:    "Your request was not approved. Please contact the barangay office for more information.",
+  inspecting:  "A barangay officer is currently reviewing and inspecting your submitted documents. You will be notified once the inspection is complete.",
 };
 
 // ─── Statuses that BLOCK the pickup schedule card from showing ─────────────────
@@ -175,7 +178,6 @@ function OfficeHoursModal({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
         <div className="p-6 space-y-5">
-          {/* Office Hours */}
           <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
             <Clock className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
             <div>
@@ -185,23 +187,21 @@ function OfficeHoursModal({ open, onClose }: { open: boolean; onClose: () => voi
             </div>
           </div>
 
-          {/* Processing Guidelines */}
           <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
             <FileText className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#16a34a" }} />
             <div>
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#15803d" }}>Processing Guidelines</p>
               <p className="text-sm font-semibold" style={{ color: "#14532d" }}>Follow the steps:</p>
               <ol className="text-xs mt-2 space-y-1" style={{ color: "#15803d" }}>
-                <li>1. <span className="font-semibold">Submit Request</span> – Fill out and submit your application form</li>
-                <li>2. <span className="font-semibold">Review</span> – Verify your details and uploaded documents</li>
-                <li>3. <span className="font-semibold">Payment</span> – Settle the fee at the barangay office</li>
-                <li>4. <span className="font-semibold">Processing</span> – Your request will be reviewed by barangay staff</li>
-                <li>5. <span className="font-semibold">Release</span> – Claim your document once notified</li>
+                <li>1. <span className="font-semibold">Scheduled</span> – Proceed on your assigned date and time at the barangay office and fall in line for processing</li>
+                <li>2. <span className="font-semibold">Review</span> – Barangay staff will double check the application along with the requirement</li>
+                <li>3. <span className="font-semibold">Processing</span> – Proceed to secretary office for assessment and signature</li>
+                <li>4. <span className="font-semibold">Payment</span> – Settle the required fee at the cashier</li>
+                <li>5. <span className="font-semibold">Release</span> – Your clearance has been successfully claimed</li>
               </ol>
             </div>
           </div>
 
-          {/* Important Note */}
           <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
             <div>
@@ -222,7 +222,12 @@ function OfficeHoursModal({ open, onClose }: { open: boolean; onClose: () => voi
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const badge = statusStyle[status] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db", dot: "#374151" };
-  const label = status === "to_pay" ? "To Pay" : status.charAt(0).toUpperCase() + status.slice(1);
+  const label =
+    status === "to_pay"
+      ? "To Pay"
+      : status === "rescheduled"
+      ? "Rescheduled"
+      : status.charAt(0).toUpperCase() + status.slice(1);
   return (
     <span
       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
@@ -236,7 +241,6 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Progress Bar with Learn More ──────────────────────────────────────────────
 function ProgressBar({ status, isFreeService, onLearnMore }: { status: string; isFreeService: boolean; onLearnMore: () => void }) {
-  const isRejected  = status === "rejected";
   const isBlocked   = BLOCKED_STATUSES.has(status);
   const currentStep = isBlocked ? -1 : (STATUS_TO_STEP[status] ?? 0);
 
@@ -424,7 +428,6 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         boxShadow: "0 4px 20px rgba(15,42,94,0.2)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
@@ -438,12 +441,11 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         <div>
           <p className="text-sm font-bold text-white">Present this at the counter</p>
           <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Show to barangay staff for faster service
+            Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
           </p>
         </div>
       </div>
 
-      {/* QR Block */}
       <div className="flex flex-col items-center gap-3 px-5 py-5">
         <span
           className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
@@ -469,16 +471,8 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         </div>
 
         <p className="font-mono text-lg font-black text-white tracking-widest">{refNumber}</p>
-
-        <p
-          className="text-[11px] text-center leading-relaxed"
-          style={{ color: "rgba(255,255,255,0.6)" }}
-        >
-          Staff will scan this to instantly pull up your request
-        </p>
       </div>
 
-      {/* Screenshot tip */}
       <div
         className="flex items-start gap-3 mx-4 mb-4 px-4 py-3 rounded-xl"
         style={{
@@ -901,22 +895,27 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
     >
       <div
         className="w-full sm:max-w-md flex flex-col overflow-hidden"
-        style={{ backgroundColor: "white", borderRadius: "20px 20px 0 0", maxHeight: "90vh", boxShadow: "0 4px 20px rgba(15,42,94,0.2)" }}
+        style={{ backgroundColor: "white", borderRadius: "20px 20px 0 0", maxHeight: "90vh" }}
       >
-        <div style={{ backgroundColor: NAVY, padding: "20px" }}>
-          <div className="flex items-start justify-between">
+        <div style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)` }}>
+          <div className="flex items-start justify-between px-5 pt-5 pb-5">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <RefreshCw className="h-4 w-4 text-white" />
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: "rgba(194,70,125,0.25)" }}
+                >
+                  <RefreshCw className="h-4 w-4" style={{ color: "#f9a8d4" }} />
+                </div>
                 <span
-                  className="text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: "rgba(194,70,125,0.3)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.4)" }}
+                  className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: "rgba(194,70,125,0.2)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.3)" }}
                 >
                   Missed Schedule
                 </span>
               </div>
-              <h2 className="text-lg font-black text-white">Reschedule Pickup</h2>
-              <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <h2 className="text-lg font-black text-white mt-2">Reschedule Pickup</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>
                 Choose a new date and time slot for your document pickup.
               </p>
             </div>
@@ -1064,6 +1063,7 @@ function ScheduledVisitCard({
   onViewDetails,
   onReschedule,
   isMissed,
+  normalizedStatus,
 }: {
   schedule: ScheduleData;
   refNumber: string;
@@ -1071,12 +1071,13 @@ function ScheduledVisitCard({
   onViewDetails: () => void;
   onReschedule: () => void;
   isMissed: boolean;
+  normalizedStatus: string;
 }) {
   const dateObj = new Date(schedule.schedule_date + "T12:00:00");
 
-  const monthLabel = dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
-  const dayLabel   = dateObj.getDate();
-  const yearLabel  = dateObj.getFullYear();
+  const monthLabel    = dateObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
+  const dayLabel      = dateObj.getDate();
+  const yearLabel     = dateObj.getFullYear();
   const fullDateLabel = dateObj.toLocaleDateString(undefined, {
     weekday: "long", month: "long", day: "numeric",
   });
@@ -1088,13 +1089,16 @@ function ScheduledVisitCard({
     } catch { return schedule.schedule_time; }
   })();
 
+  // After a reschedule, never treat as missed even if the old date was in the past
+  const effectivelyMissed = isMissed && normalizedStatus !== "rescheduled";
+
   return (
     <div
       className="rounded-2xl overflow-hidden mb-4"
       style={{
         background: "#fff",
-        border: isMissed ? "1px solid #fed7aa" : "1px solid #e5e7eb",
-        boxShadow: isMissed
+        border: effectivelyMissed ? "1px solid #fed7aa" : "1px solid #e5e7eb",
+        boxShadow: effectivelyMissed
           ? "0 1px 8px rgba(234,88,12,0.1)"
           : "0 1px 8px rgba(0,0,0,0.06)",
       }}
@@ -1106,36 +1110,38 @@ function ScheduledVisitCard({
       >
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: isMissed ? "#fff7ed" : "#eff6ff" }}
+          style={{ backgroundColor: effectivelyMissed ? "#fff7ed" : "#eff6ff" }}
         >
-          {isMissed
+          {effectivelyMissed
             ? <AlertTriangle className="h-4 w-4" style={{ color: "#ea580c" }} />
             : <Home className="h-4 w-4" style={{ color: "#2563eb" }} />
           }
         </div>
         <div className="flex-1">
           <p className="text-sm font-bold" style={{ color: "#111827" }}>
-            {isMissed ? "Missed pickup" : "Next step: Visit the barangay"}
+            {effectivelyMissed
+              ? "Missed pickup"
+              : "Next step: Proceed on your assigned date and time at the barangay office and fall in line for processing"}
           </p>
           <p className="text-[11px]" style={{ color: "#9ca3af" }}>
-            {isMissed ? "Your scheduled date has passed" : "Your pickup date is confirmed"}
+            {effectivelyMissed ? "Your scheduled date has passed" : "Your pickup date is confirmed"}
           </p>
         </div>
         <span
-          className="text-[11px] font-semibold px-3 py-1 rounded-full"
-          style={isMissed
+          className="text-[11px] font-semibold px-3 py-1 rounded-full flex-shrink-0"
+          style={effectivelyMissed
             ? { background: "#fff7ed", color: "#ea580c", border: "1px solid #fed7aa" }
             : { background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }
           }
         >
-          {isMissed ? "Missed" : "Scheduled"}
+          {effectivelyMissed ? "Missed" : normalizedStatus === "rescheduled" ? "Rescheduled" : "Scheduled"}
         </span>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
 
         {/* Missed banner */}
-        {isMissed && (
+        {effectivelyMissed && (
           <div
             className="px-4 py-3 rounded-xl"
             style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
@@ -1146,18 +1152,44 @@ function ScheduledVisitCard({
           </div>
         )}
 
+        {/* Rescheduled success banner */}
+        {normalizedStatus === "rescheduled" && (
+          <div
+            className="flex items-start gap-3 px-4 py-3 rounded-xl"
+            style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}
+          >
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+              style={{ backgroundColor: "#dcfce7" }}
+            >
+              <Check className="h-3.5 w-3.5" style={{ color: "#16a34a" }} />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: "#15803d" }}>Rescheduled successfully</p>
+              <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "#166534" }}>
+                Your new pickup date is confirmed below. Please arrive on time at the barangay office.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Schedule Block */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
-            {isMissed ? "Missed schedule" : "Pickup schedule"}
+            {effectivelyMissed ? "Missed schedule" : "Pickup schedule"}
           </p>
           <div
             className="flex items-center gap-4 rounded-xl px-4 py-4"
-            style={{ background: isMissed ? "#fff7ed" : "#eff6ff", opacity: isMissed ? 0.7 : 1 }}
+            style={{ background: effectivelyMissed ? "#fff7ed" : "#eff6ff", opacity: effectivelyMissed ? 0.7 : 1 }}
           >
             <div
               className="flex flex-col items-center justify-center rounded-xl flex-shrink-0"
-              style={{ backgroundColor: isMissed ? "#ea580c" : "#1d4ed8", padding: "10px 12px", minWidth: 52, textAlign: "center" }}
+              style={{
+                backgroundColor: effectivelyMissed ? "#ea580c" : "#1d4ed8",
+                padding: "10px 12px",
+                minWidth: 52,
+                textAlign: "center",
+              }}
             >
               <span className="text-[10px] font-bold text-white" style={{ opacity: 0.75, letterSpacing: "0.04em" }}>
                 {monthLabel}
@@ -1166,12 +1198,12 @@ function ScheduledVisitCard({
               <span className="text-[10px] text-white" style={{ opacity: 0.65 }}>{yearLabel}</span>
             </div>
             <div>
-              <p className="text-sm font-bold" style={{ color: isMissed ? "#9a3412" : "#1e3a8a" }}>
+              <p className="text-sm font-bold" style={{ color: effectivelyMissed ? "#9a3412" : "#1e3a8a" }}>
                 {fullDateLabel}
               </p>
               <div className="flex items-center gap-1.5 mt-1">
-                <Clock className="h-3 w-3" style={{ color: isMissed ? "#ea580c" : "#3b82f6" }} />
-                <p className="text-xs font-semibold" style={{ color: isMissed ? "#c2410c" : "#2563eb" }}>
+                <Clock className="h-3 w-3" style={{ color: effectivelyMissed ? "#ea580c" : "#3b82f6" }} />
+                <p className="text-xs font-semibold" style={{ color: effectivelyMissed ? "#c2410c" : "#2563eb" }}>
                   {timeLabel}
                 </p>
               </div>
@@ -1191,12 +1223,11 @@ function ScheduledVisitCard({
             <span className="font-mono text-lg font-bold" style={{ color: "#111827", letterSpacing: "0.04em" }}>
               {refNumber}
             </span>
-            <CopyButtonLight value={refNumber} />
           </div>
         </div>
 
         {/* Documents Checklist (only show when not missed) */}
-        {!isMissed && dynamicRequirements.length > 0 && (
+        {!effectivelyMissed && dynamicRequirements.length > 0 && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
               Bring these documents
@@ -1224,8 +1255,8 @@ function ScheduledVisitCard({
           </div>
         )}
 
-        {/* Reschedule CTA (missed) or View Details (normal) */}
-        {isMissed ? (
+        {/* Reschedule CTA (effectively missed) or View Details (normal / rescheduled) */}
+        {effectivelyMissed ? (
           <button
             onClick={onReschedule}
             className="w-full py-3 text-sm font-bold rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
@@ -1248,12 +1279,12 @@ function ScheduledVisitCard({
               (e.currentTarget as HTMLButtonElement).style.color = "#6b7280";
             }}
           >
-            Review
+            View Details
           </button>
         )}
 
-        {/* If missed, also show a subtle "View Details" link */}
-        {isMissed && (
+        {/* If effectively missed, also show a subtle "View Details" link */}
+        {effectivelyMissed && (
           <button
             onClick={onViewDetails}
             className="text-xs font-semibold text-center transition-colors"
@@ -1261,7 +1292,7 @@ function ScheduledVisitCard({
             onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
           >
-            Review
+            View Details
           </button>
         )}
       </div>
@@ -1269,7 +1300,7 @@ function ScheduledVisitCard({
   );
 }
 
-// ─── NEW: Rejected Status Card ─────────────────────────────────────────────────
+// ─── Rejected Card ─────────────────────────────────────────────────────────────
 function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1280,22 +1311,16 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
         boxShadow: "0 1px 8px rgba(225,29,72,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)", borderBottom: "1px solid #fecdd3" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#fee2e2" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#fee2e2" }}>
           <XCircle className="h-5 w-5" style={{ color: "#e11d48" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#9f1239" }}>Request Rejected</p>
-          <p className="text-[11px]" style={{ color: "#be123c" }}>
-            Your document request was not approved
-          </p>
+          <p className="text-[11px]" style={{ color: "#be123c" }}>Your document request was not approved</p>
         </div>
         <span
           className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
@@ -1306,7 +1331,6 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Reason Block */}
         {hasValue(reason) ? (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
@@ -1316,15 +1340,10 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
               className="flex items-start gap-3 px-4 py-4 rounded-xl"
               style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}
             >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#fee2e2" }}
-              >
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#fee2e2" }}>
                 <FileX className="h-3.5 w-3.5" style={{ color: "#e11d48" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9f1239" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9f1239" }}>{String(reason)}</p>
             </div>
           </div>
         ) : (
@@ -1339,14 +1358,8 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
           </div>
         )}
 
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            What you can do
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What you can do</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             Visit the barangay hall for assistance or to clarify the grounds of rejection. You may resubmit a new request once the issue has been resolved.
           </p>
@@ -1356,21 +1369,17 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #fecdd3", background: "#fff1f2", color: "#e11d48" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ffe4e6";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ffe4e6"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2"; }}
         >
-          Review
+          View Details
         </button>
       </div>
     </div>
   );
 }
 
-// ─── NEW: Incomplete Status Card ───────────────────────────────────────────────
+// ─── Incomplete Card ───────────────────────────────────────────────────────────
 function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1381,22 +1390,16 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
         boxShadow: "0 1px 8px rgba(234,88,12,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)", borderBottom: "1px solid #fed7aa" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#ffedd5" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#ffedd5" }}>
           <AlertCircle className="h-5 w-5" style={{ color: "#ea580c" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#9a3412" }}>Action Required</p>
-          <p className="text-[11px]" style={{ color: "#c2410c" }}>
-            Missing or incomplete documents detected
-          </p>
+          <p className="text-[11px]" style={{ color: "#c2410c" }}>Missing or incomplete documents detected</p>
         </div>
         <span
           className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
@@ -1407,7 +1410,6 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Reason Block */}
         {hasValue(reason) ? (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
@@ -1417,15 +1419,10 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
               className="flex items-start gap-3 px-4 py-4 rounded-xl"
               style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}
             >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#ffedd5" }}
-              >
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#ffedd5" }}>
                 <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#ea580c" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9a3412" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#9a3412" }}>{String(reason)}</p>
             </div>
           </div>
         ) : (
@@ -1440,14 +1437,8 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
           </div>
         )}
 
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            Next step
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>Next step</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             Please upload or provide the missing documents as soon as possible so the barangay office can continue processing your request.
           </p>
@@ -1457,21 +1448,17 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ffedd5";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ffedd5"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; }}
         >
-          Review
+          View Details
         </button>
       </div>
     </div>
   );
 }
 
-// ─── NEW: Inspecting Status Card ───────────────────────────────────────────────
+// ─── Inspecting Card ───────────────────────────────────────────────────────────
 function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onViewDetails: () => void }) {
   return (
     <div
@@ -1482,22 +1469,16 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
         boxShadow: "0 1px 8px rgba(124,58,237,0.08)",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-5 py-4"
         style={{ background: "linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)", borderBottom: "1px solid #ddd6fe" }}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#ede9fe" }}
-        >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#ede9fe" }}>
           <Search className="h-5 w-5" style={{ color: "#7c3aed" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: "#4c1d95" }}>Under Inspection</p>
-          <p className="text-[11px]" style={{ color: "#6d28d9" }}>
-            A barangay officer is reviewing your business or establishment.
-          </p>
+          <p className="text-[11px]" style={{ color: "#6d28d9" }}>A barangay officer is reviewing your business or establishment.</p>
         </div>
         <span
           className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full"
@@ -1508,7 +1489,6 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Animated inspection indicator */}
         <div
           className="flex items-center gap-3 px-4 py-4 rounded-xl"
           style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
@@ -1518,10 +1498,7 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
               <div
                 key={i}
                 className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: "#7c3aed",
-                  animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
-                }}
+                style={{ backgroundColor: "#7c3aed", animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
               />
             ))}
           </div>
@@ -1530,7 +1507,6 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
           </p>
         </div>
 
-        {/* Inspection notes / reason if any */}
         {hasValue(reason) && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
@@ -1540,27 +1516,16 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
               className="flex items-start gap-3 px-4 py-4 rounded-xl"
               style={{ backgroundColor: "#faf5ff", border: "1px solid #ddd6fe" }}
             >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ backgroundColor: "#ede9fe" }}
-              >
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#ede9fe" }}>
                 <Info className="h-3.5 w-3.5" style={{ color: "#7c3aed" }} />
               </div>
-              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>
-                {String(reason)}
-              </p>
+              <p className="text-sm font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>{String(reason)}</p>
             </div>
           </div>
         )}
 
-        {/* What to do next */}
-        <div
-          className="px-4 py-3 rounded-xl"
-          style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>
-            What to expect
-          </p>
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What to expect</p>
           <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
             You will be notified once the inspection is complete. No action is needed from you at this time. Please keep your contact details up to date.
           </p>
@@ -1570,14 +1535,10 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
           onClick={onViewDetails}
           className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
           style={{ border: "1px solid #ddd6fe", background: "#faf5ff", color: "#7c3aed" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ede9fe";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff";
-          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#ede9fe"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff"; }}
         >
-          Review
+          View Details
         </button>
       </div>
 
@@ -1585,6 +1546,96 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
         @keyframes pulse {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
           40% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Review Required Card ──────────────────────────────────────────────────────
+function ReviewRequiredCard({ onViewDetails }: { onViewDetails: () => void }) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: "#fff",
+        border: "2px solid #f59e0b",
+        boxShadow: "0 2px 16px rgba(245,158,11,0.15), 0 0 0 4px rgba(245,158,11,0.08)",
+      }}
+    >
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderBottom: "2px solid #f59e0b" }}
+      >
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: "#fef3c7", border: "1.5px solid #f59e0b" }}
+        >
+          <span className="text-base font-black" style={{ color: "#b45309" }}>1</span>
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-black" style={{ color: "#78350f" }}>Review Your Application</p>
+            <span
+              className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+              style={{ background: "#f59e0b", color: "#fff", animation: "reviewPulse 2s ease-in-out infinite" }}
+            >
+              Required
+            </span>
+          </div>
+          <p className="text-[11px] mt-0.5" style={{ color: "#b45309" }}>Action needed before your request proceeds</p>
+        </div>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+        <div
+          className="flex items-start gap-3 px-4 py-4 rounded-xl"
+          style={{ backgroundColor: "#fffbeb", border: "1.5px dashed #f59e0b" }}
+        >
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#fef3c7" }}>
+            <AlertTriangle className="h-4 w-4" style={{ color: "#d97706" }} />
+          </div>
+          <div>
+            <p className="text-sm font-bold leading-snug" style={{ color: "#78350f" }}>
+              Please review your submitted details and uploaded documents before proceeding.
+            </p>
+            <p className="text-xs mt-1.5 font-semibold leading-relaxed" style={{ color: "#b45309" }}>
+              ⚠️ You must complete this step to continue your request.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#f59e0b", color: "#fff" }}>1</div>
+            <span className="text-xs font-bold" style={{ color: "#b45309" }}>Review</span>
+          </div>
+          <div className="flex-1 h-0.5 rounded-full" style={{ backgroundColor: "#e5e7eb" }} />
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#e5e7eb", color: "#9ca3af" }}>2</div>
+            <span className="text-xs font-semibold" style={{ color: "#9ca3af" }}>Processing</span>
+          </div>
+          <div className="flex-1 h-0.5 rounded-full" style={{ backgroundColor: "#e5e7eb" }} />
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#e5e7eb", color: "#9ca3af" }}>3</div>
+            <span className="text-xs font-semibold" style={{ color: "#9ca3af" }}>Release</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onViewDetails}
+          className="w-full py-3.5 text-sm font-black rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)", boxShadow: "0 4px 14px rgba(245,158,11,0.35)" }}
+        >
+          <FileCheck className="h-4 w-4" />
+          👉 Click Here to Review
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes reviewPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
         }
       `}</style>
     </div>
@@ -1660,16 +1711,14 @@ export default function RequestDetail() {
 
   const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
   const isReleased   = normalizedStatus === "released";
-  const isScheduled  = normalizedStatus === "scheduled";
-  const isRescheduled = normalizedStatus === "rescheduled";
+  const isScheduled  = normalizedStatus === "scheduled" || normalizedStatus === "rescheduled";
   const isApproved   = normalizedStatus === "approved";
   const isToPay      = normalizedStatus === "to_pay";
   const isRejected   = normalizedStatus === "rejected";
   const isIncomplete = normalizedStatus === "incomplete";
   const isInspecting = normalizedStatus === "inspecting";
-
-  // These statuses block the regular pickup schedule card from appearing
   const isBlockedStatus = BLOCKED_STATUSES.has(normalizedStatus);
+  const isReviewStatus  = normalizedStatus === "pending" || normalizedStatus === "encoded" || normalizedStatus === "processing";
 
   const docTypeSlug = (request.document_type ?? type ?? "").replace(/-/g, "_");
   const req = { ...request, ...(request.raw ?? {}) };
@@ -1699,15 +1748,16 @@ export default function RequestDetail() {
   const statusLabel =
     normalizedStatus === "to_pay"
       ? "To Pay"
+      : normalizedStatus === "rescheduled"
+      ? "Rescheduled"
       : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
-  // Only show missed if scheduled, NOT if rescheduled (rescheduled means it's a new date, not missed)
-  const missed = isScheduled && schedule && !isRescheduled ? isMissedSchedule(schedule.schedule_date) : false;
+  // Only mark missed if status is "scheduled" (not "rescheduled")
+  const missed = isScheduled && schedule && normalizedStatus !== "rescheduled"
+    ? isMissedSchedule(schedule.schedule_date)
+    : false;
 
-  // Show QR card when the resident needs to physically visit the barangay
-  const showQRCard = (isScheduled || isRescheduled) || isApproved || isToPay;
-
-  // Rejection / incomplete reason — read from raw.rejection_reason
+  const showQRCard = isScheduled || isApproved || isToPay;
   const rejectionReason = req.rejection_reason ?? null;
 
   const handleRescheduleSuccess = () => {
@@ -1770,7 +1820,6 @@ export default function RequestDetail() {
                   </p>
                   <p className="text-2xl font-black font-mono text-white">{refNumber}</p>
                 </div>
-                <CopyButton value={refNumber} />
               </div>
             </div>
 
@@ -1799,16 +1848,18 @@ export default function RequestDetail() {
             </p>
             <div className="flex items-start justify-between gap-3 mb-4">
               <h1 className="text-2xl font-black" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
-                {statusMsg ? (normalizedStatus === "to_pay" ? "To Pay" : statusLabel) : "In Progress"}
+                {normalizedStatus === "to_pay"
+                  ? "To Pay"
+                  : normalizedStatus === "rescheduled"
+                  ? "Rescheduled"
+                  : statusLabel}
               </h1>
               <StatusBadge status={normalizedStatus} />
             </div>
 
-            {/* Progress bar — only for normal flow statuses; blocked statuses get a separate indicator */}
             {!isBlockedStatus ? (
               <ProgressBar status={normalizedStatus} isFreeService={isFreeService} onLearnMore={() => setShowOfficeHours(true)} />
             ) : (
-              // Separator line with label for blocked statuses
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <span
@@ -1825,7 +1876,6 @@ export default function RequestDetail() {
               </div>
             )}
 
-            {/* Office Hours Link */}
             <div className="mt-4 pt-4" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
@@ -1874,6 +1924,11 @@ export default function RequestDetail() {
           )}
         </div>
 
+        {/* Review Required Card */}
+        {isReviewStatus && (
+          <ReviewRequiredCard onViewDetails={() => setShowDetails(true)} />
+        )}
+
         {/* Schedule Card (non-scheduled statuses, not released, not blocked) */}
         {schedule && !isReleased && !isScheduled && !isBlockedStatus && (
           <div className="mb-4">
@@ -1881,8 +1936,8 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* Required Documents (hidden when scheduled, rescheduled or blocked) */}
-        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isBlockedStatus && (
+        {/* Required Documents (hidden when scheduled or blocked) */}
+        {dynamicRequirements.length > 0 && !isScheduled && !isBlockedStatus && (
           <div
             className="mb-6 rounded-2xl overflow-hidden"
             style={{
@@ -1944,8 +1999,8 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* SCHEDULED/RESCHEDULED: Unified action card */}
-        {(isScheduled || isRescheduled) && schedule && (
+        {/* Scheduled / Rescheduled: Unified action card */}
+        {isScheduled && schedule && (
           <ScheduledVisitCard
             schedule={schedule}
             refNumber={refNumber}
@@ -1953,10 +2008,11 @@ export default function RequestDetail() {
             onViewDetails={() => setShowDetails(true)}
             onReschedule={() => setShowReschedule(true)}
             isMissed={missed}
+            normalizedStatus={normalizedStatus}
           />
         )}
 
-        {/* ── NEW: Rejected Card ── */}
+        {/* Rejected Card */}
         {isRejected && (
           <RejectedCard
             reason={rejectionReason}
@@ -1964,7 +2020,7 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* ── NEW: Incomplete Card ── */}
+        {/* Incomplete Card */}
         {isIncomplete && (
           <IncompleteCard
             reason={rejectionReason}
@@ -1972,7 +2028,7 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* ── NEW: Inspecting Card ── */}
+        {/* Inspecting Card */}
         {isInspecting && (
           <InspectingCard
             reason={rejectionReason}
@@ -1980,7 +2036,7 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* ── QR Present Card — shown when a barangay visit is needed ── */}
+        {/* QR Present Card */}
         {showQRCard && (
           <QRPresentCard
             refNumber={refNumber}
@@ -1988,8 +2044,8 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* What's Next Card (hidden when scheduled, rescheduled, released, or blocked statuses) */}
-        {whatNext && !isReleased && !isScheduled && !isRescheduled && !isBlockedStatus && (
+        {/* What's Next Card */}
+        {whatNext && !isReleased && !isScheduled && !isBlockedStatus && (
           <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: NAVY }}>
             <div className="px-5 py-5 relative overflow-hidden">
               <div className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
@@ -2013,20 +2069,20 @@ export default function RequestDetail() {
                 className="mt-4 w-full py-2.5 text-xs font-bold rounded-xl text-white transition-opacity hover:opacity-90 relative z-10"
                 style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)" }}
               >
-                Review
+                View Details
               </button>
             </div>
           </div>
         )}
 
-        {/* If released, show details button */}
+        {/* Released: View Details button */}
         {isReleased && (
           <button
             onClick={() => setShowDetails(true)}
             className="w-full py-3 text-sm font-bold rounded-2xl text-white"
             style={{ backgroundColor: NAVY }}
           >
-            Review
+            View Details
           </button>
         )}
 
