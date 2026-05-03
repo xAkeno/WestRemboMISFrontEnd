@@ -48,6 +48,8 @@ const Cashier = () => {
     const [loadedColumn, setLoadedColumn] = useState<string[]>([]);
     const [tableData, setTableData] = useState<any[]>([]);
     const [search, setSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const [servicePrices, setServicePrices] = useState<{ [type: string]: number }>({});
     const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
@@ -133,10 +135,11 @@ const Cashier = () => {
         switch (statusUpper) {
             case "ENCODED":    return { bg: "bg-info-soft",    text: "text-fg-info-strong",    label: "Encoded"    };
             case "INCOMPLETE": return { bg: "bg-warning-soft", text: "text-fg-warning-strong", label: "Incomplete" };
-            case "RELEASED":   return { bg: "bg-success-soft", text: "text-fg-success-strong", label: "Released"   };
+            case "RELEASED":   return { bg: "bg-blue-100",     text: "text-blue-700",         label: "Released"   };
             case "REJECTED":   return { bg: "bg-danger-soft",  text: "text-fg-danger-strong",  label: "Rejected"   };
             case "PAID":       return { bg: "bg-success-soft", text: "text-fg-success-strong", label: "Paid"       };
             case "PENDING":    return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: "Pending"    };
+            case "TO PAY":     return { bg: "bg-amber-100",    text: "text-amber-700",        label: "To Pay"     };
             default:           return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: statusUpper  };
         }
     };
@@ -317,10 +320,10 @@ const Cashier = () => {
     };
 
     useEffect(() => {
-        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "To Pay", "Paid", "Status", "Action"]);
-        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "To Pay", "Paid", "Status", "Action"]);
+        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
+        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "Status", "Action"]);
+        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
+        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "Status", "Action"]);
 
         const fetchData = async () => {
             const endpoint = getEndpoint();
@@ -328,7 +331,14 @@ const Cashier = () => {
             try {
                 const res = await axios.get(endpoint, { params: { search }, withCredentials: true });
                 const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
-                setTableData(mapData(choose, rows));
+                const mappedData = mapData(choose, rows);
+                // Filter to only show rows with "To Pay" or "Released" status
+                const filteredData = mappedData.filter((row) => {
+                    const statusUpper = (row.status ?? "").toUpperCase();
+                    return statusUpper === "TO PAY" || statusUpper === "RELEASED";
+                });
+                setTableData(filteredData);
+                setCurrentPage(1);
                 setOrInputs({});
                 setTinInputs({});
                 setTinByOr({});
@@ -340,6 +350,12 @@ const Cashier = () => {
     }, [choose, search]);
 
     const currentType = TYPE_MAP[choose];
+    
+    // Pagination logic
+    const totalPages = Math.ceil(tableData.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = tableData.slice(startIndex, endIndex);
 
     return (
         <Layout>
@@ -392,36 +408,38 @@ const Cashier = () => {
                     </div>
                 </div>
 
-                {/* OR Starting Number Bar */}
-                <div className="px-4 pb-3 flex items-center gap-2 border-b border-default-medium">
-                    <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                            d="M9 12h6m-3-3v6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                    </svg>
-                    <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">
-                        OR Starting # for <span className="text-indigo-600 font-bold">{choose}</span>:
-                    </span>
-                    <input type="text" maxLength={6} placeholder="e.g. 00025"
-                        className="px-2 py-1 border rounded text-sm w-28 placeholder:text-gray-400 font-mono tracking-widest"
-                        value={startingNumberInput[currentType] ?? ""}
-                        onChange={(e) => setStartingNumberInput((prev) => ({ ...prev, [currentType]: e.target.value.replace(/\D/g, "") }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleRequestSetStartingNumber(); }} />
-                    <button onClick={handleRequestSetStartingNumber} disabled={settingStart[currentType] ?? false}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed rounded-lg transition-colors">
-                        {settingStart[currentType] ? (
-                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                            </svg>
-                        ) : (
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                            </svg>
-                        )}
-                        Set Start
-                    </button>
-                    <span className="text-xs text-gray-400 italic hidden sm:inline">Next auto-generate will begin from this number</span>
-                </div>
+                {/* OR Starting Number Bar - Only show for non-Certificate types */}
+                {choose !== "Barangay Certificate" && (
+                    <div className="px-4 pb-3 flex items-center gap-2 border-b border-default-medium">
+                        <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                            <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                d="M9 12h6m-3-3v6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+                        </svg>
+                        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">
+                            OR Starting # for <span className="text-indigo-600 font-bold">{choose}</span>:
+                        </span>
+                        <input type="text" maxLength={6} placeholder="e.g. 00025"
+                            className="px-2 py-1 border rounded text-sm w-28 placeholder:text-gray-400 font-mono tracking-widest"
+                            value={startingNumberInput[currentType] ?? ""}
+                            onChange={(e) => setStartingNumberInput((prev) => ({ ...prev, [currentType]: e.target.value.replace(/\D/g, "") }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleRequestSetStartingNumber(); }} />
+                        <button onClick={handleRequestSetStartingNumber} disabled={settingStart[currentType] ?? false}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed rounded-lg transition-colors">
+                            {settingStart[currentType] ? (
+                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                </svg>
+                            ) : (
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                    <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
+                                </svg>
+                            )}
+                            Set Start
+                        </button>
+                        <span className="text-xs text-gray-400 italic hidden sm:inline">Next auto-generate will begin from this number</span>
+                    </div>
+                )}
 
                 {/* Table */}
                 <div className="w-full overflow-x-auto">
@@ -435,7 +453,7 @@ const Cashier = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {tableData.map((row, rowIndex) => (
+                            {paginatedData.map((row, rowIndex) => (
                                 <tr key={rowIndex} className="border-b border-default-medium">
                                     <td className="p-4"><input type="checkbox" className="w-4 h-4" /></td>
 
@@ -445,25 +463,27 @@ const Cashier = () => {
                                             <td key={colIndex} className="px-6 py-3">
                                                 <div className="flex flex-col gap-2 min-w-[150px]">
 
-                                                    {/* Paid / Not Paid dropdown */}
-                                                    <select
-                                                        className="px-2 py-1 border rounded text-sm w-full"
-                                                        value={(row.status ?? "").toUpperCase() === "PAID" ? "PAID" : "NOT_PAID"}
-                                                        onChange={async (e) => {
-                                                            const newStatus = e.target.value === "PAID" ? "PAID" : "PENDING";
-                                                            try {
-                                                                const ers = await axios.put(getStatusEndpoint(row), { status: newStatus }, { withCredentials: true });
-                                                                if (ers.status === 200) toast.success("Status updated successfully.");
-                                                                setTableData((prev) => {
-                                                                    const updated = [...prev];
-                                                                    updated[rowIndex] = { ...updated[rowIndex], status: newStatus };
-                                                                    return updated;
-                                                                });
-                                                            } catch { toast.error("Failed to update status."); }
-                                                        }}>
-                                                        <option value="NOT_PAID">Not Paid</option>
-                                                        <option value="PAID">Paid</option>
-                                                    </select>
+                                                    {/* Mark as Paid Button */}
+                                                    {(row.status ?? "").toUpperCase() !== "PAID" && (row.status ?? "").toUpperCase() !== "RELEASED" && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const ers = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
+                                                                    if (ers.status === 200) {
+                                                                        toast.success("Status updated to PAID.");
+                                                                        setTableData((prev) => {
+                                                                            const updated = [...prev];
+                                                                            updated[rowIndex] = { ...updated[rowIndex], status: "PAID" };
+                                                                            return updated;
+                                                                        });
+                                                                    }
+                                                                } catch { toast.error("Failed to update status."); }
+                                                            }}
+                                                            className="w-full px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                                                        >
+                                                            Mark as Paid
+                                                        </button>
+                                                    )}
 
                                                     <div className="flex items-end gap-2">
 
@@ -502,52 +522,39 @@ const Cashier = () => {
                                                             <span className="text-xs font-semibold text-gray-500">
                                                                 OR Number
                                                             </span>
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="No OR yet"
-                                                                    className="flex-1 px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono"
-                                                                    value={
-                                                                        orInputs[rowIndex] !== undefined
-                                                                            ? orInputs[rowIndex]
-                                                                            : row.or_no ?? ""
-                                                                    }
-                                                                    onChange={(e) =>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="No OR yet"
+                                                                className={`w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono ${row.or_no ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                value={
+                                                                    orInputs[rowIndex] !== undefined
+                                                                        ? orInputs[rowIndex]
+                                                                        : row.or_no ?? ""
+                                                                }
+                                                                onChange={(e) => {
+                                                                    if (!row.or_no) {
                                                                         setOrInputs((prev) => ({
                                                                             ...prev,
                                                                             [rowIndex]: e.target.value,
-                                                                        }))
+                                                                        }));
                                                                     }
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                                    }}
-                                                                />
-                                                                {/* Generate Button */}
-                                                                <button
-                                                                    onClick={() => handleAutoGenerateOr(row, rowIndex)}
-                                                                    disabled={generatingOr.has(rowIndex)}
-                                                                    className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
-                                                                >
-                                                                    {generatingOr.has(rowIndex) ? (
-                                                                        <>
-                                                                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                            </svg>
-                                                                            ...
-                                                                        </>
-                                                                    ) : (
-                                                                        "Generate"
-                                                                    )}
-                                                                </button>
-                                                            </div>
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (!row.or_no && e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
+                                                                }}
+                                                                readOnly={!!row.or_no}
+                                                            />
                                                         </div>
 
                                                         {/* Save Button */}
                                                         <button
                                                             onClick={() => handleSaveOrAndTin(row, rowIndex)}
-                                                            disabled={savingRow.has(rowIndex)}
-                                                            className="inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed rounded whitespace-nowrap"
+                                                            disabled={savingRow.has(rowIndex) || !!row.or_no}
+                                                            className={`inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white rounded whitespace-nowrap transition-colors ${
+                                                                row.or_no
+                                                                    ? 'bg-gray-300 cursor-not-allowed'
+                                                                    : 'bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed'
+                                                            }`}
                                                         >
                                                             {savingRow.has(rowIndex) ? (
                                                                 <>
@@ -575,26 +582,6 @@ const Cashier = () => {
                                             </td>
                                         );
 
-                                        if (col === "To Pay") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row.to_pay != null ? (
-                                                    <span className="text-sm font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                        ₱{parseFloat(row.to_pay).toFixed(2)}
-                                                    </span>
-                                                ) : <span className="text-xs text-gray-400">—</span>}
-                                            </td>
-                                        );
-
-                                        if (col === "Paid") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row.paid != null ? (
-                                                    <span className="text-sm font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                        ₱{parseFloat(row.paid).toFixed(2)}
-                                                    </span>
-                                                ) : <span className="text-xs text-gray-400">—</span>}
-                                            </td>
-                                        );
-
                                         if (col === "Status") return (
                                             <td key={colIndex} className="px-6 py-3">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 border-gray-400 ${getStatusBadge(row.status).bg} ${getStatusBadge(row.status).text}`}>
@@ -614,6 +601,46 @@ const Cashier = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-default-medium bg-neutral-secondary-soft">
+                        <div className="text-sm text-gray-600">
+                            Showing <span className="font-semibold">{startIndex + 1}</span> to <span className="font-semibold">{Math.min(endIndex, tableData.length)}</span> of <span className="font-semibold">{tableData.length}</span> results
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded transition-colors"
+                            >
+                                Previous
+                            </button>
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`px-2 py-1 text-sm font-medium rounded transition-colors ${
+                                            currentPage === page
+                                                ? 'bg-indigo-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {page}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded transition-colors"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </Layout>
     );

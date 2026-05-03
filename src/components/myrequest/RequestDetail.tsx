@@ -62,6 +62,7 @@ const statusStyle: Record<string, { bg: string; text: string; border: string; do
   rejected:   { bg: "#fff1f2", text: "#e11d48", border: "#fecdd3", dot: "#e11d48" },
   released:   { bg: "#dcfce7", text: "#15803d", border: "#86efac", dot: "#15803d" },
   scheduled:  { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
+  rescheduled: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
   to_pay:     { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
   inspecting: { bg: "#faf5ff", text: "#7c3aed", border: "#ddd6fe", dot: "#7c3aed" },
 };
@@ -75,7 +76,7 @@ const PROCESS_STEPS = [
 
 const STATUS_TO_STEP: Record<string, number> = {
   pending: 0, incomplete: 0, processing: 0, encoded: 0,
-  approved: 0, scheduled: 0,
+  approved: 0, scheduled: 0, rescheduled: 1,
   inspecting: 0,
   to_pay: 2,
   released: 3,
@@ -88,6 +89,7 @@ const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null
   incomplete: { message: "Action required — please upload missing documents to continue.", nextStep: null },
   approved:   { message: "Your request has been approved!", nextStep: "To Pay" },
   scheduled:  { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
+  rescheduled: { message: "Your pickup date has been rescheduled. Visit the barangay at your new scheduled time.", nextStep: "Visit Barangay" },
   to_pay:     { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
   released:   { message: "Your document has been sent to your registered email address.", nextStep: null },
   rejected:   { message: "Your request was not approved. See details for more information.", nextStep: null },
@@ -101,6 +103,7 @@ const WHAT_NEXT: Record<string, string> = {
   incomplete: "Please upload the missing documents so we can continue processing your request.",
   approved:   "Your request has been approved. Proceed to the barangay hall to settle the payment.",
   scheduled:  "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
+  rescheduled: "Go to the barangay hall at your new scheduled time. Bring the required documents listed above and present your reference number to the officer.",
   to_pay:     "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
   released:   "Your document has been officially released and sent to your registered email.",
   rejected:   "Your request was not approved. Please contact the barangay office for more information.",
@@ -148,6 +151,74 @@ const validateScheduleDate = (value: string): string => {
   return "";
 };
 
+// ─── Office Hours Modal ────────────────────────────────────────────────────────
+function OfficeHoursModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-md bg-white overflow-hidden"
+        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed" }}
+      >
+        <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Service Hours</p>
+            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>Office Hours & Guidelines</h2>
+          </div>
+          <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div style={{ height: 3, backgroundColor: "#c2467d" }} />
+        <div className="p-6 space-y-5">
+          {/* Office Hours */}
+          <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
+            <Clock className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#0369a1" }}>Office Hours</p>
+              <p className="text-sm font-semibold" style={{ color: "#0c4a6e" }}>Monday – Friday: 8:00 AM – 5:00 PM</p>
+              <p className="text-xs mt-1" style={{ color: "#0369a1" }}>Lunch Break: 12:00 PM – 1:00 PM</p>
+            </div>
+          </div>
+
+          {/* Processing Guidelines */}
+          <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+            <FileText className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#16a34a" }} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#15803d" }}>Processing Guidelines</p>
+              <p className="text-sm font-semibold" style={{ color: "#14532d" }}>Follow the steps:</p>
+              <ol className="text-xs mt-2 space-y-1" style={{ color: "#15803d" }}>
+                <li>1. <span className="font-semibold">Submit Request</span> – Fill out and submit your application form</li>
+                <li>2. <span className="font-semibold">Review</span> – Verify your details and uploaded documents</li>
+                <li>3. <span className="font-semibold">Payment</span> – Settle the fee at the barangay office</li>
+                <li>4. <span className="font-semibold">Processing</span> – Your request will be reviewed by barangay staff</li>
+                <li>5. <span className="font-semibold">Release</span> – Claim your document once notified</li>
+              </ol>
+            </div>
+          </div>
+
+          {/* Important Note */}
+          <div className="flex items-start gap-3 p-4 rounded-lg" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#c2410c" }}>Important Note</p>
+              <p className="text-xs" style={{ color: "#c2410c" }}>Requests submitted outside office hours will be processed on the next working day.</p>
+            </div>
+          </div>
+
+          <button type="button" onClick={onClose} className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider" style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
+            Got It
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const badge = statusStyle[status] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db", dot: "#374151" };
@@ -163,42 +234,54 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Progress Bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ status }: { status: string }) {
+// ─── Progress Bar with Learn More ──────────────────────────────────────────────
+function ProgressBar({ status, isFreeService, onLearnMore }: { status: string; isFreeService: boolean; onLearnMore: () => void }) {
   const isRejected  = status === "rejected";
   const isBlocked   = BLOCKED_STATUSES.has(status);
   const currentStep = isBlocked ? -1 : (STATUS_TO_STEP[status] ?? 0);
 
   return (
     <div>
-      <div className="flex gap-1 mb-2">
-        {PROCESS_STEPS.map((step, i) => {
-          const done    = !isBlocked && i <= currentStep;
-          const current = !isBlocked && i === currentStep;
-          return (
-            <div
-              key={i}
-              className="flex-1 h-1.5 rounded-full transition-all duration-500"
-              style={{ backgroundColor: done ? (current ? NAVY : "#16a34a") : "#e5e7eb" }}
-            />
-          );
-        })}
-      </div>
-      <div className="flex">
-        {PROCESS_STEPS.map((step, i) => {
-          const done    = !isBlocked && i <= currentStep;
-          const current = !isBlocked && i === currentStep;
-          return (
-            <div key={i} className="flex-1">
-              <span
-                className="text-[9px] font-bold uppercase tracking-wider"
-                style={{ color: done ? (current ? NAVY : "#16a34a") : "#9ca3af" }}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-1">
+          <div className="flex gap-1 mb-2">
+            {PROCESS_STEPS.map((step, i) => {
+              const done    = !isBlocked && i <= currentStep;
+              const current = !isBlocked && i === currentStep;
+              return (
+                <div
+                  key={i}
+                  className="flex-1 h-1.5 rounded-full transition-all duration-500"
+                  style={{ backgroundColor: done ? (current ? NAVY : "#16a34a") : "#e5e7eb" }}
+                />
+              );
+            })}
+          </div>
+          <div className="flex">
+            {PROCESS_STEPS.map((step, i) => {
+              const done    = !isBlocked && i <= currentStep;
+              const current = !isBlocked && i === currentStep;
+              return (
+                <div key={i} className="flex-1">
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-wider"
+                    style={{ color: done ? (current ? NAVY : "#16a34a") : "#9ca3af" }}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onLearnMore}
+          className="text-xs font-semibold text-white px-3 py-1.5 rounded-full transition-opacity hover:opacity-80 flex-shrink-0"
+          style={{ backgroundColor: NAVY }}
+        >
+          Learn More
+        </button>
       </div>
     </div>
   );
@@ -262,7 +345,6 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
     catch { return dateStr; }
   })();
 
-  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const friendlyTime = (() => {
     try {
       const hour = parseInt(timeStr.split(":")[0], 10);
@@ -819,27 +901,22 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
     >
       <div
         className="w-full sm:max-w-md flex flex-col overflow-hidden"
-        style={{ backgroundColor: "white", borderRadius: "20px 20px 0 0", maxHeight: "90vh" }}
+        style={{ backgroundColor: "white", borderRadius: "20px 20px 0 0", maxHeight: "90vh", boxShadow: "0 4px 20px rgba(15,42,94,0.2)" }}
       >
-        <div style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #1a3a7a 100%)` }}>
-          <div className="flex items-start justify-between px-5 pt-5 pb-5">
+        <div style={{ backgroundColor: NAVY, padding: "20px" }}>
+          <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: "rgba(194,70,125,0.25)" }}
-                >
-                  <RefreshCw className="h-4 w-4" style={{ color: "#f9a8d4" }} />
-                </div>
+              <div className="flex items-center gap-2 mb-2">
+                <RefreshCw className="h-4 w-4 text-white" />
                 <span
-                  className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: "rgba(194,70,125,0.2)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.3)" }}
+                  className="text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: "rgba(194,70,125,0.3)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.4)" }}
                 >
                   Missed Schedule
                 </span>
               </div>
-              <h2 className="text-lg font-black text-white mt-2">Reschedule Pickup</h2>
-              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>
+              <h2 className="text-lg font-black text-white">Reschedule Pickup</h2>
+              <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
                 Choose a new date and time slot for your document pickup.
               </p>
             </div>
@@ -1004,7 +1081,6 @@ function ScheduledVisitCard({
     weekday: "long", month: "long", day: "numeric",
   });
 
-  // ── CHANGED: show Morning / Afternoon instead of a specific time range ──
   const timeLabel = (() => {
     try {
       const hour = parseInt(schedule.schedule_time.split(":")[0], 10);
@@ -1172,7 +1248,7 @@ function ScheduledVisitCard({
               (e.currentTarget as HTMLButtonElement).style.color = "#6b7280";
             }}
           >
-            View full details
+            View Details
           </button>
         )}
 
@@ -1185,7 +1261,7 @@ function ScheduledVisitCard({
             onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
           >
-            View full details
+            View Details
           </button>
         )}
       </div>
@@ -1287,7 +1363,7 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
             (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2";
           }}
         >
-          View Full Request Details
+          View Details
         </button>
       </div>
     </div>
@@ -1388,7 +1464,7 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
             (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed";
           }}
         >
-          View Full Request Detail
+          View Details
         </button>
       </div>
     </div>
@@ -1501,7 +1577,7 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
             (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff";
           }}
         >
-          View Full Request Details
+          View Details
         </button>
       </div>
 
@@ -1522,6 +1598,7 @@ export default function RequestDetail() {
   const { id, type } = useParams<{ id: string; type: string }>();
   const [showDetails, setShowDetails] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showOfficeHours, setShowOfficeHours] = useState(false);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["request", type, id],
@@ -1546,7 +1623,7 @@ export default function RequestDetail() {
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ["services"],
     queryFn: async () => {
-      const res = await api.get("/api/services");
+      const res = await api.get("/services");
       const raw: Service[] = res.data?.data ?? res.data ?? [];
       const latestMap = new Map<number, Service>();
       raw.forEach((item) => latestMap.set(item.id, item));
@@ -1584,6 +1661,7 @@ export default function RequestDetail() {
   const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
   const isReleased   = normalizedStatus === "released";
   const isScheduled  = normalizedStatus === "scheduled";
+  const isRescheduled = normalizedStatus === "rescheduled";
   const isApproved   = normalizedStatus === "approved";
   const isToPay      = normalizedStatus === "to_pay";
   const isRejected   = normalizedStatus === "rejected";
@@ -1608,6 +1686,8 @@ export default function RequestDetail() {
     ? { fee: matchedService.fee, processingTime: matchedService.processing_time }
     : undefined;
 
+  const isFreeService = svcMeta?.fee === "Free" || String(svcMeta?.fee).toLowerCase() === "free";
+
   const statusMsg = STATUS_MESSAGES[normalizedStatus];
   const whatNext  = WHAT_NEXT[normalizedStatus];
 
@@ -1621,10 +1701,11 @@ export default function RequestDetail() {
       ? "To Pay"
       : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
-  const missed = isScheduled && schedule ? isMissedSchedule(schedule.schedule_date) : false;
+  // Only show missed if scheduled, NOT if rescheduled (rescheduled means it's a new date, not missed)
+  const missed = isScheduled && schedule && !isRescheduled ? isMissedSchedule(schedule.schedule_date) : false;
 
   // Show QR card when the resident needs to physically visit the barangay
-  const showQRCard = isScheduled || isApproved || isToPay;
+  const showQRCard = (isScheduled || isRescheduled) || isApproved || isToPay;
 
   // Rejection / incomplete reason — read from raw.rejection_reason
   const rejectionReason = req.rejection_reason ?? null;
@@ -1652,6 +1733,8 @@ export default function RequestDetail() {
           onSuccess={handleRescheduleSuccess}
         />
       )}
+
+      <OfficeHoursModal open={showOfficeHours} onClose={() => setShowOfficeHours(false)} />
 
       <div className="max-w-2xl mx-auto px-4 pt-28 pb-16">
 
@@ -1723,7 +1806,7 @@ export default function RequestDetail() {
 
             {/* Progress bar — only for normal flow statuses; blocked statuses get a separate indicator */}
             {!isBlockedStatus ? (
-              <ProgressBar status={normalizedStatus} />
+              <ProgressBar status={normalizedStatus} isFreeService={isFreeService} onLearnMore={() => setShowOfficeHours(true)} />
             ) : (
               // Separator line with label for blocked statuses
               <div className="flex items-center gap-3">
@@ -1741,6 +1824,20 @@ export default function RequestDetail() {
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
             )}
+
+            {/* Office Hours Link */}
+            <div className="mt-4 pt-4" style={{ borderTop: "1px solid #e5e7eb" }}>
+              <button
+                type="button"
+                onClick={() => setShowOfficeHours(true)}
+                className="text-xs font-semibold transition-colors"
+                style={{ color: "#2563eb" }}
+                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+              >
+                ℹ️ For processing guidelines, required documents, and office hours, please click here.
+              </button>
+            </div>
           </div>
 
           {svcMeta && (
@@ -1784,8 +1881,8 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* Required Documents (hidden when scheduled or blocked) */}
-        {dynamicRequirements.length > 0 && !isScheduled && !isBlockedStatus && (
+        {/* Required Documents (hidden when scheduled, rescheduled or blocked) */}
+        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isBlockedStatus && (
           <div
             className="mb-6 rounded-2xl overflow-hidden"
             style={{
@@ -1847,8 +1944,8 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* SCHEDULED: Unified action card */}
-        {isScheduled && schedule && (
+        {/* SCHEDULED/RESCHEDULED: Unified action card */}
+        {(isScheduled || isRescheduled) && schedule && (
           <ScheduledVisitCard
             schedule={schedule}
             refNumber={refNumber}
@@ -1891,8 +1988,8 @@ export default function RequestDetail() {
           />
         )}
 
-        {/* What's Next Card (hidden when scheduled, released, or blocked statuses) */}
-        {whatNext && !isReleased && !isScheduled && !isBlockedStatus && (
+        {/* What's Next Card (hidden when scheduled, rescheduled, released, or blocked statuses) */}
+        {whatNext && !isReleased && !isScheduled && !isRescheduled && !isBlockedStatus && (
           <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: NAVY }}>
             <div className="px-5 py-5 relative overflow-hidden">
               <div className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
@@ -1916,7 +2013,7 @@ export default function RequestDetail() {
                 className="mt-4 w-full py-2.5 text-xs font-bold rounded-xl text-white transition-opacity hover:opacity-90 relative z-10"
                 style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)" }}
               >
-                View Full Details
+                View Details
               </button>
             </div>
           </div>
@@ -1929,7 +2026,7 @@ export default function RequestDetail() {
             className="w-full py-3 text-sm font-bold rounded-2xl text-white"
             style={{ backgroundColor: NAVY }}
           >
-            View Full Details
+            View Details
           </button>
         )}
 
