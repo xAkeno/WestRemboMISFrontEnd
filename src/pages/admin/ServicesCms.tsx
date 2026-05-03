@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Clock, DollarSign, FileText, MoreHorizontal, Eye } from 'lucide-react';
+import { Pencil, Trash2, Clock, DollarSign, FileText, MoreHorizontal, Eye } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,59 +37,45 @@ const defaultServices: Service[] = [
   { id: 5, name: 'Barangay Certificate', description: 'Get official certification from Barangay West Rembo.', requirements: ["Valid ID", "Purpose of certificate", "Application form"], processing_time: '1-2 business days', fee: 'Free' },
 ];
 
-// Helper function to format fee with peso sign
-const formatFeeDisplay = (fee: string) => {
-  if (fee === 'Free' || fee?.toLowerCase() === 'free') {
-    return 'Free';
-  }
-  const num = parseFloat(fee);
-  return isNaN(num) ? 'Free' : `₱${num.toFixed(2)}`;
+// ─── Fee helpers ────────────────────────────────────────────────────────────
+
+/** Canonical check: is this fee value "free"? */
+const isFree = (fee: string | undefined) =>
+  !fee || fee.trim() === '' || fee.trim().toLowerCase() === 'free' || parseFloat(fee) === 0;
+
+/** Pretty-print a fee for display */
+const formatFeeDisplay = (fee: string) =>
+  isFree(fee) ? 'Free' : `₱${parseFloat(fee).toFixed(2)}`;
+
+/**
+ * Normalise a fee before saving.
+ * - Empty / "0" / "free" → "Free"
+ * - Otherwise keep the numeric string as-is (backend stores it)
+ */
+const normaliseFee = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'free') return 'Free';
+  const num = parseFloat(trimmed);
+  if (isNaN(num) || num === 0) return 'Free';
+  return String(num); // e.g. "50", "150.5"
 };
 
-// Robust requirement parser - handles both array and string formats
+// ─── Requirements helpers ────────────────────────────────────────────────────
+
 const parseRequirements = (requirements: string | string[] | undefined) => {
   if (!requirements) return [];
-
-  // If it's already an array, use it directly
-  if (Array.isArray(requirements)) {
-    return requirements
-      .map(req => String(req).trim())
-      .filter(req => req.length > 0);
-  }
-
-  // If it's a string, split by newlines and normalize
-  if (typeof requirements === 'string') {
-    return requirements
-      .split(/\n+/) // Split by one or more newlines
-      .map(req => req.trim())
-      .filter(req => req.length > 0)
-      .map(req => {
-        // Fix common spacing issues caused by missing newlines
-        // This handles cases like "IDProof" or "nameEmail" being concatenated
-        return req
-          .replace(/([a-z])([A-Z])/g, '$1\n$2') // Split on camelCase boundaries
-          .split('\n')
-          .map(part => part.trim())
-          .filter(Boolean)
-          .join(' ');
-      });
-  }
-
-  return [];
+  if (Array.isArray(requirements))
+    return requirements.map(r => String(r).trim()).filter(Boolean);
+  return requirements
+    .split(/\n+/)
+    .map(r => r.trim())
+    .filter(Boolean);
 };
 
-// Convert array back to string for form submission
-const requirementsToString = (reqs: string | string[]) => {
-  if (Array.isArray(reqs)) {
-    return reqs.join('\n');
-  }
-  return reqs || '';
-};
+const requirementsToString = (reqs: string | string[]) =>
+  Array.isArray(reqs) ? reqs.join('\n') : reqs ?? '';
 
-// Convert string to array for display
-const requirementsToArray = (reqs: string | string[]) => {
-  return parseRequirements(reqs);
-};
+// ─── Component ───────────────────────────────────────────────────────────────
 
 const ServicesCms = () => {
   const { toast } = useToast();
@@ -102,22 +88,25 @@ const ServicesCms = () => {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [form, setForm] = useState({ name: '', description: '', requirements: '', processing_time: '', fee: '' });
+  // feeMode: 'free' | 'paid'  — drives what we show in the fee section
+  const [feeMode, setFeeMode] = useState<'free' | 'paid'>('free');
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    requirements: '',
+    processing_time: '',
+    fee: '',   // raw numeric string when paid, '' when free
+  });
 
+  // ── Load ──────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(API_BASE+'/services',{withCredentials:true});
+      const res = await axios.get(`${API_BASE}/services`, { withCredentials: true });
       let data: Service[] = res.data?.data ?? res.data ?? defaultServices;
-
-      console.log('Raw API data:', data);
-
-      // Keep only the latest version of each service by ID
       const latestMap = new Map<number, Service>();
       data.forEach(item => latestMap.set(item.id, item));
-      data = Array.from(latestMap.values());
-
-      setServices(data);
+      setServices(Array.from(latestMap.values()));
     } catch (err: any) {
       console.error(err);
       toast({
@@ -133,20 +122,18 @@ const ServicesCms = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const openCreate = () => {
-    setEditingService(null);
-    setForm({ name: '', description: '', requirements: '', processing_time: '', fee: '' });
-    setDialogOpen(true);
-  };
-
+  // ── Dialog helpers ────────────────────────────────────────────────────────
   const openEdit = (s: Service) => {
     setEditingService(s);
-    setForm({ 
-      name: s.name, 
-      description: s.description, 
+    const free = isFree(s.fee);
+    setFeeMode(free ? 'free' : 'paid');
+    setForm({
+      name: s.name,
+      description: s.description,
       requirements: requirementsToString(s.requirements),
-      processing_time: s.processing_time, 
-      fee: s.fee 
+      processing_time: s.processing_time,
+      // Store the numeric portion for the input; empty when free
+      fee: free ? '' : String(parseFloat(s.fee)),
     });
     setDialogOpen(true);
   };
@@ -156,64 +143,88 @@ const ServicesCms = () => {
     setViewDialogOpen(true);
   };
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!form.name.trim() || !editingService) return;
 
-    setIsSaving(true);
+    // Determine the canonical fee string to persist
+    const canonicalFee = feeMode === 'free' ? 'Free' : normaliseFee(form.fee);
 
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim(),
+      requirements: form.requirements,
+      processing_time: form.processing_time.trim(),
+      fee: canonicalFee,
+    };
+
+    setIsSaving(true);
     try {
       const res = await axios.put(
         `${API_BASE}/services/${editingService.id}`,
-        form,
-        { withCredentials: true }
+        payload,
+        { withCredentials: true },
       );
 
-      const updated = res.data?.data ?? res.data ?? form;
+      // Merge API response (preferred) with our payload as fallback
+      const updated: Service = { ...editingService, ...payload, ...(res.data?.data ?? res.data ?? {}) };
+      // Always trust our canonical fee — API might echo a different format
+      updated.fee = canonicalFee;
 
-      setServices(prev =>
-        prev.map(s => (s.id === editingService.id ? { ...s, ...updated } : s))
-      );
+      setServices(prev => prev.map(s => (s.id === editingService.id ? updated : s)));
 
       toast({
-        title: "Service Updated",
-        description: `${updated.name} has been updated.`,
+        title: 'Service Updated',
+        description: `${updated.name} has been updated successfully.`,
       });
-
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-
       toast({
-        title: "Update Failed",
-        description: "Could not update the service.",
-        variant: "destructive",
+        title: 'Update Failed',
+        description: err.response?.data?.message ?? 'Could not update the service.',
+        variant: 'destructive',
       });
-
     } finally {
       setIsSaving(false);
       setDialogOpen(false);
     }
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await axios.delete(`${API_BASE}/services/${deleteId}`,{withCredentials:true}); } catch { /* local fallback */ }
+    try { await axios.delete(`${API_BASE}/services/${deleteId}`, { withCredentials: true }); } catch { /* local fallback */ }
     setServices(prev => prev.filter(s => s.id !== deleteId));
     setDeleteId(null);
     toast({ title: 'Service Deleted', description: 'The service has been removed.' });
   };
 
+  // ── Fee input handler ─────────────────────────────────────────────────────
+  const handleFeeInput = (raw: string) => {
+    // Strip non-numeric chars except dot
+    let val = raw.replace(/[^\d.]/g, '');
+    // Only one decimal point
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+    // Max 2 decimal places
+    if (parts.length === 2) val = parts[0] + '.' + parts[1].slice(0, 2);
+    // Cap at 99999
+    if (parseFloat(val) > 99999) val = '99999';
+    setForm(f => ({ ...f, fee: val }));
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <Layout>
       <div className="p-6">
         <div className="max-w-[1200px] mx-auto">
+
+          {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Services Management</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage barangay services displayed on the website</p>
             </div>
-            {/* <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" /> Add Service
-            </Button> */}
           </div>
 
           {/* Stats */}
@@ -235,7 +246,7 @@ const ServicesCms = () => {
                   <DollarSign className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{services.filter(s => s.fee === 'Free' || String(s.fee).toLowerCase() === 'free').length}</p>
+                  <p className="text-2xl font-bold">{services.filter(s => isFree(s.fee)).length}</p>
                   <p className="text-xs text-muted-foreground">Free Services</p>
                 </div>
               </div>
@@ -246,14 +257,14 @@ const ServicesCms = () => {
                   <Clock className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{services.filter(s => s.fee !== 'Free' && String(s.fee).toLowerCase() !== 'free').length}</p>
+                  <p className="text-2xl font-bold">{services.filter(s => !isFree(s.fee)).length}</p>
                   <p className="text-xs text-muted-foreground">Paid Services</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Services Table */}
+          {/* Table */}
           <div className="bg-card rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -280,7 +291,11 @@ const ServicesCms = () => {
                         <span className="inline-flex items-center gap-1 text-xs"><Clock className="h-3 w-3" /> {s.processing_time}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${s.fee === 'Free' || String(s.fee).toLowerCase() === 'free' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                          isFree(s.fee)
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                        }`}>
                           {formatFeeDisplay(s.fee)}
                         </span>
                       </td>
@@ -303,53 +318,48 @@ const ServicesCms = () => {
             </div>
           </div>
 
-          {/* View Details Dialog */}
+          {/* View Dialog */}
           <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Service Details</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Service Details</DialogTitle></DialogHeader>
               {viewingService && (
                 <div className="space-y-4 py-2">
+                  <h3 className="text-lg font-semibold">{viewingService.name}</h3>
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground">{viewingService.name}</h3>
+                    <Label className="text-xs text-muted-foreground">Description</Label>
+                    <p className="mt-1 text-sm">{viewingService.description}</p>
                   </div>
-                  
                   <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Description</Label>
-                    <p className="mt-1 text-sm text-foreground">{viewingService.description}</p>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Processing Time</Label>
+                    <Label className="text-xs text-muted-foreground">Processing Time</Label>
                     <div className="flex items-center gap-2 mt-1">
                       <Clock className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm text-foreground">{viewingService.processing_time}</p>
+                      <p className="text-sm">{viewingService.processing_time}</p>
                     </div>
                   </div>
-
                   <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Fee</Label>
+                    <Label className="text-xs text-muted-foreground">Fee</Label>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${viewingService.fee === 'Free' || String(viewingService.fee).toLowerCase() === 'free' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${
+                        isFree(viewingService.fee)
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                      }`}>
                         {formatFeeDisplay(viewingService.fee)}
                       </span>
                     </div>
                   </div>
-
                   <div>
-                    <Label className="text-sm font-medium text-muted-foreground mb-2 block">Requirements</Label>
+                    <Label className="text-xs text-muted-foreground mb-2 block">Requirements</Label>
                     <div className="space-y-2">
-                      {parseRequirements(viewingService.requirements).length > 0 ? (
-                        parseRequirements(viewingService.requirements).map((req, idx) => (
-                          <div key={idx} className="flex gap-3 items-start p-3 rounded-md bg-muted/30 border border-border/50 hover:bg-muted/50 transition-colors">
+                      {parseRequirements(viewingService.requirements).length > 0
+                        ? parseRequirements(viewingService.requirements).map((req, idx) => (
+                          <div key={idx} className="flex gap-3 items-start p-3 rounded-md bg-muted/30 border border-border/50">
                             <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded min-w-fit">{idx + 1}</span>
-                            <p className="text-sm text-foreground">{req}</p>
+                            <p className="text-sm">{req}</p>
                           </div>
                         ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">No requirements listed</p>
-                      )}
+                        : <p className="text-sm text-muted-foreground italic">No requirements listed</p>
+                      }
                     </div>
                   </div>
                 </div>
@@ -360,7 +370,7 @@ const ServicesCms = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Create / Edit Dialog */}
+          {/* Edit Dialog */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -377,56 +387,79 @@ const ServicesCms = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Requirements (one per line)</Label>
-                  <Textarea 
-                    value={form.requirements} 
-                    onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))} 
-                    placeholder="Valid ID&#10;Proof of residence&#10;Application form" 
+                  <Textarea
+                    value={form.requirements}
+                    onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
+                    placeholder={"Valid ID\nProof of residence\nApplication form"}
                     rows={5}
-                    className="resize-none whitespace-pre-wrap break-words font-mono text-xs"
+                    className="resize-none font-mono text-xs"
                   />
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>✓ Press Enter to separate each requirement</p>
-                    <p>✓ Each line will be a separate requirement</p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">Press Enter to separate each requirement</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Processing Time</Label>
                     <Input value={form.processing_time} onChange={e => setForm(f => ({ ...f, processing_time: e.target.value }))} placeholder="e.g. 1-2 business days" />
                   </div>
+
+                  {/* ── Fee section ── */}
                   <div className="space-y-2">
                     <Label>Fee</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground font-medium">₱</span>
-                      <Input 
-                        value={form.fee} 
-                        onChange={e => {
-                          let val = e.target.value.replace(/[^\d.]/g, '');
-                          
-                          const parts = val.split('.');
-                          if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-                          
-                          const num = parseFloat(val) || 0;
-                          if (num > 1000) val = '1000';
-                          if (num < 0) val = '0';
-                          
-                          if (parts.length === 2) {
-                            val = parts[0] + '.' + parts[1].slice(0, 2);
-                          }
-                          
-                          setForm(f => ({ ...f, fee: val }))
-                        }} 
-                        placeholder="0.00" 
-                        className="pl-8"
-                      />
+
+                    {/* Free / Paid toggle */}
+                    <div className="flex rounded-md border border-border overflow-hidden text-sm">
+                      <button
+                        type="button"
+                        onClick={() => { setFeeMode('free'); setForm(f => ({ ...f, fee: '' })); }}
+                        className={`flex-1 py-1.5 font-medium transition-colors ${
+                          feeMode === 'free'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-card text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        Free
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFeeMode('paid')}
+                        className={`flex-1 py-1.5 font-medium transition-colors ${
+                          feeMode === 'paid'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-card text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        Paid
+                      </button>
                     </div>
+
+                    {/* Amount input — only shown when paid */}
+                    {feeMode === 'paid' && (
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground font-medium select-none">₱</span>
+                        <Input
+                          value={form.fee}
+                          onChange={e => handleFeeInput(e.target.value)}
+                          placeholder="0.00"
+                          className="pl-8"
+                          inputMode="decimal"
+                        />
+                      </div>
+                    )}
+
+                    {/* Live preview */}
+                    <p className="text-xs text-muted-foreground">
+                      Will display as:{' '}
+                      <span className={`font-semibold ${feeMode === 'free' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {feeMode === 'free' ? 'Free' : (form.fee ? `₱${parseFloat(form.fee || '0').toFixed(2)}` : '₱0.00')}
+                      </span>
+                    </p>
                   </div>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                 <Button onClick={handleSave} disabled={isSaving || !form.name.trim()}>
-                  {isSaving ? 'Saving...' : editingService ? 'Update Service' : 'Create Service'}
+                  {isSaving ? 'Saving…' : editingService ? 'Update Service' : 'Create Service'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -445,6 +478,7 @@ const ServicesCms = () => {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
         </div>
       </div>
     </Layout>

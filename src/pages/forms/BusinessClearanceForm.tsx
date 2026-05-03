@@ -245,7 +245,7 @@ const SuccessModal = ({
             </div>
           </div>
           <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>Please arrive 10 minutes early on your scheduled date.</p>
-          <button onClick={() => navigate(`/request/business_clearance/${successData.id}`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90" style={{ backgroundColor: "#0f2a5e" }}>View My Request</button>
+          <button onClick={() => navigate(`/request/business_clearance/${successData.id}?fromSubmit=1`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90" style={{ backgroundColor: "#0f2a5e" }}>View My Request</button>
           <button onClick={onBack} className="w-full py-3 text-sm font-semibold rounded-lg" style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}>Back to Services</button>
         </div>
       </div>
