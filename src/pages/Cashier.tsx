@@ -255,12 +255,7 @@ const Cashier = () => {
     const [loadedColumn, setLoadedColumn] = useState<string[]>([]);
     const [tableData, setTableData] = useState<any[]>([]);
     const [search, setSearch] = useState("");
-<<<<<<< HEAD
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
-=======
     const [statusFilter, setStatusFilter] = useState<string>("REVIEWED");
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
     // ── CMS service data ──────────────────────────────────────────────────────
     const [cmsServices, setCmsServices] = useState<CmsService[]>([]);
@@ -378,50 +373,8 @@ const Cashier = () => {
         });
     }, [tableData]);
 
-<<<<<<< HEAD
-    const getDisplayTin = (row: any, rowIndex: number): string => {
-        if (tinInputs[rowIndex] !== undefined) return tinInputs[rowIndex];
-        if (row.or_no && tinByOr[row.or_no] !== undefined) return tinByOr[row.or_no];
-        return "";
-    };
-
-    const getDataKey = (displayName: string): string => {
-        const keyMap: { [key: string]: string } = {
-            "ID":            "id",
-            "First Name":    "first_name",
-            "Last Name":     "last_name",
-            "Business Name": "business_name",
-            "Purpose":       "purpose",
-            "Status":        "status",
-            "BCERT Number":  "bcert_number",
-            "Issued Date":   "issued_date",
-            "Name":          "full_name",
-            "Date of Birth": "date_of_birth",
-            "To Pay":        "to_pay",
-            "Paid":          "paid",
-        };
-        return keyMap[displayName] || displayName.toLowerCase().replace(/ /g, '_');
-    };
-
-    const getStatusBadge = (status: string) => {
-        const statusUpper = (status ?? "").toUpperCase();
-        switch (statusUpper) {
-            case "ENCODED":    return { bg: "bg-info-soft",    text: "text-fg-info-strong",    label: "Encoded"    };
-            case "INCOMPLETE": return { bg: "bg-warning-soft", text: "text-fg-warning-strong", label: "Incomplete" };
-            case "RELEASED":   return { bg: "bg-blue-100",     text: "text-blue-700",         label: "Released"   };
-            case "REJECTED":   return { bg: "bg-danger-soft",  text: "text-fg-danger-strong",  label: "Rejected"   };
-            case "PAID":       return { bg: "bg-success-soft", text: "text-fg-success-strong", label: "Paid"       };
-            case "PENDING":    return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: "Pending"    };
-            case "TO PAY":     return { bg: "bg-amber-100",    text: "text-amber-700",        label: "To Pay"     };
-            default:           return { bg: "bg-neutral-soft", text: "text-fg-neutral-strong", label: statusUpper  };
-        }
-    };
-
-    const getEndpoint = () => {
-=======
     // ── Endpoints ─────────────────────────────────────────────────────────────
     const getEndpoint = useCallback(() => {
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
         if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
         if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
         if (choose === "Building Clearance")   return "https://westrembomis.onrender.com/api/building-clearances";
@@ -538,7 +491,7 @@ const Cashier = () => {
 
     // ── Mark as paid (triggered by green checkbox only) ───────────────────────
     const handleMarkPaid = async (row: any, rowIndex: number) => {
-        if (row.status === "PAID") return; // Already paid — irreversible
+        if (row.status === "PAID") return;
         setMarkingPaid((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
@@ -570,7 +523,6 @@ const Cashier = () => {
                 const newOrNo = orValue.trim() || null;
                 setTableData((prev) => { const u = [...prev]; u[rowIndex] = { ...u[rowIndex], or_no: newOrNo }; return u; });
                 if (newOrNo && tinValue.trim()) {
-                    // Strip hyphens before sending TIN
                     const rawTin = tinValue.replace(/-/g, "");
                     await axios.patch("https://westrembomis.onrender.com/api/official-receipts/by-or",
                         { or_number: newOrNo, tin_no: rawTin }, { withCredentials: true });
@@ -590,7 +542,7 @@ const Cashier = () => {
 
     // ── Delete row (only when Paid) ───────────────────────────────────────────
     const handleDelete = async (row: any, rowIndex: number) => {
-        if (row.status !== "PAID") return; // Guard: only paid records can be deleted
+        if (row.status !== "PAID") return;
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
         setDeletingRow((prev) => new Set(prev).add(rowIndex));
@@ -605,45 +557,6 @@ const Cashier = () => {
         }
     };
 
-<<<<<<< HEAD
-    useEffect(() => {
-        if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
-        else if (choose === "Business Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Business Name", "Status", "Action"]);
-        else if (choose === "Building Clearance")   setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Status", "Action"]);
-        else if (choose === "Barangay Certificate") setLoadedColumn(["BCERT Number", "Issued Date", "Name", "Date of Birth", "Purpose", "Status", "Action"]);
-
-        const fetchData = async () => {
-            const endpoint = getEndpoint();
-            if (!endpoint) return setTableData([]);
-            try {
-                const res = await axios.get(endpoint, { params: { search }, withCredentials: true });
-                const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
-                const mappedData = mapData(choose, rows);
-                // Filter to only show rows with "To Pay" or "Released" status
-                const filteredData = mappedData.filter((row) => {
-                    const statusUpper = (row.status ?? "").toUpperCase();
-                    return statusUpper === "TO PAY" || statusUpper === "RELEASED";
-                });
-                setTableData(filteredData);
-                setCurrentPage(1);
-                setOrInputs({});
-                setTinInputs({});
-                setTinByOr({});
-            } catch (err) {
-                console.error("API Error:", err);
-            }
-        };
-        fetchData();
-    }, [choose, search]);
-
-    const currentType = TYPE_MAP[choose];
-    
-    // Pagination logic
-    const totalPages = Math.ceil(tableData.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedData = tableData.slice(startIndex, endIndex);
-=======
     const STATUS_TABS = [
         { value: "REVIEWED", label: "To Pay",  activeClass: "bg-purple-600 text-white border-transparent shadow-sm", inactiveClass: "bg-white border-gray-200 hover:bg-purple-50 text-purple-700" },
         { value: "PAID",     label: "Paid",    activeClass: "bg-teal-600 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-teal-50 text-teal-700"   },
@@ -653,7 +566,6 @@ const Cashier = () => {
     const fee      = getCurrentServiceFee();
     const free     = isFreeService();
     const feeLabel = free ? "₱0.00 (Free)" : formatFee(fee);
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
     return (
         <Layout>
@@ -735,40 +647,6 @@ const Cashier = () => {
                     </div>
                 </div>
 
-<<<<<<< HEAD
-                {/* OR Starting Number Bar - Only show for non-Certificate types */}
-                {choose !== "Barangay Certificate" && (
-                    <div className="px-4 pb-3 flex items-center gap-2 border-b border-default-medium">
-                        <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                            <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                d="M9 12h6m-3-3v6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                        </svg>
-                        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">
-                            OR Starting # for <span className="text-indigo-600 font-bold">{choose}</span>:
-                        </span>
-                        <input type="text" maxLength={6} placeholder="e.g. 00025"
-                            className="px-2 py-1 border rounded text-sm w-28 placeholder:text-gray-400 font-mono tracking-widest"
-                            value={startingNumberInput[currentType] ?? ""}
-                            onChange={(e) => setStartingNumberInput((prev) => ({ ...prev, [currentType]: e.target.value.replace(/\D/g, "") }))}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleRequestSetStartingNumber(); }} />
-                        <button onClick={handleRequestSetStartingNumber} disabled={settingStart[currentType] ?? false}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed rounded-lg transition-colors">
-                            {settingStart[currentType] ? (
-                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                    <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
-                                </svg>
-                            )}
-                            Set Start
-                        </button>
-                        <span className="text-xs text-gray-400 italic hidden sm:inline">Next auto-generate will begin from this number</span>
-                    </div>
-                )}
-=======
                 {/* ── Status tabs ──────────────────────────────────────────── */}
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-default-medium bg-gray-50/50">
                     <span className="text-xs font-semibold text-gray-400 mr-1">Show:</span>
@@ -786,7 +664,6 @@ const Cashier = () => {
                         </button>
                     ))}
                 </div>
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
                 {/* ── Table ────────────────────────────────────────────────── */}
                 <div className="w-full overflow-x-auto flex-1">
@@ -799,11 +676,6 @@ const Cashier = () => {
                             </tr>
                         </thead>
                         <tbody>
-<<<<<<< HEAD
-                            {paginatedData.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="border-b border-default-medium">
-                                    <td className="p-4"><input type="checkbox" className="w-4 h-4" /></td>
-=======
                             {tableData.length === 0 ? (
                                 <tr>
                                     <td colSpan={loadedColumn.length} className="px-6 py-16 text-center">
@@ -819,7 +691,6 @@ const Cashier = () => {
                                 </tr>
                             ) : tableData.map((row, rowIndex) => {
                                 const isPaid = row.status === "PAID";
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
                                 return (
                                     <tr key={rowIndex} className={`border-b border-default-medium transition-colors align-top ${
@@ -840,29 +711,6 @@ const Cashier = () => {
                                                 </td>
                                             );
 
-<<<<<<< HEAD
-                                                    {/* Mark as Paid Button */}
-                                                    {(row.status ?? "").toUpperCase() !== "PAID" && (row.status ?? "").toUpperCase() !== "RELEASED" && (
-                                                        <button
-                                                            onClick={async () => {
-                                                                try {
-                                                                    const ers = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
-                                                                    if (ers.status === 200) {
-                                                                        toast.success("Status updated to PAID.");
-                                                                        setTableData((prev) => {
-                                                                            const updated = [...prev];
-                                                                            updated[rowIndex] = { ...updated[rowIndex], status: "PAID" };
-                                                                            return updated;
-                                                                        });
-                                                                    }
-                                                                } catch { toast.error("Failed to update status."); }
-                                                            }}
-                                                            className="w-full px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
-                                                        >
-                                                            Mark as Paid
-                                                        </button>
-                                                    )}
-=======
                                             // ── Status column ───────────────
                                             if (col === "Status") return (
                                                 <td key={colIndex} className="px-6 py-3">
@@ -871,7 +719,6 @@ const Cashier = () => {
                                                     </span>
                                                 </td>
                                             );
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
                                             // ── Action column ───────────────
                                             if (col === "Action") return (
@@ -908,62 +755,6 @@ const Cashier = () => {
                                                                     ? `Paid — ${!cmsLoaded ? "…" : (free ? "₱0.00" : formatFee(fee))}`
                                                                     : `Click to confirm payment`}
                                                             </span>
-<<<<<<< HEAD
-                                                            <input
-                                                                type="text"
-                                                                placeholder="No OR yet"
-                                                                className={`w-full px-2 py-1 border rounded text-sm placeholder:text-gray-400 font-mono ${row.or_no ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                                                value={
-                                                                    orInputs[rowIndex] !== undefined
-                                                                        ? orInputs[rowIndex]
-                                                                        : row.or_no ?? ""
-                                                                }
-                                                                onChange={(e) => {
-                                                                    if (!row.or_no) {
-                                                                        setOrInputs((prev) => ({
-                                                                            ...prev,
-                                                                            [rowIndex]: e.target.value,
-                                                                        }));
-                                                                    }
-                                                                }}
-                                                                onKeyDown={(e) => {
-                                                                    if (!row.or_no && e.key === "Enter") handleSaveOrAndTin(row, rowIndex);
-                                                                }}
-                                                                readOnly={!!row.or_no}
-                                                            />
-                                                        </div>
-
-                                                        {/* Save Button */}
-                                                        <button
-                                                            onClick={() => handleSaveOrAndTin(row, rowIndex)}
-                                                            disabled={savingRow.has(rowIndex) || !!row.or_no}
-                                                            className={`inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-white rounded whitespace-nowrap transition-colors ${
-                                                                row.or_no
-                                                                    ? 'bg-gray-300 cursor-not-allowed'
-                                                                    : 'bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed'
-                                                            }`}
-                                                        >
-                                                            {savingRow.has(rowIndex) ? (
-                                                                <>
-                                                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                                                    </svg>
-                                                                    Saving...
-                                                                </>
-                                                            ) : (
-                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                                                    <path
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="2.5"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        d="M5 12l5 5L19 7"
-                                                                    />
-                                                                </svg>
-                                                            )}
-                                                        </button>
-=======
 
                                                             {/* Delete button — enabled only when Paid */}
                                                             <button
@@ -989,37 +780,18 @@ const Cashier = () => {
                                                         <OrTinPanel
                                                             row={row} rowIndex={rowIndex} fee={fee}
                                                             orInputs={orInputs} tinInputs={tinInputs} tinByOr={tinByOr}
-                                                            fetchingTin={new Set()} // fetchingTin state removed from panel display
+                                                            fetchingTin={new Set()}
                                                             savingRow={savingRow}
                                                             isPaid={isPaid}
                                                             onOrChange={(i, v) => setOrInputs(p => ({ ...p, [i]: v }))}
                                                             onTinChange={(i, v) => setTinInputs(p => ({ ...p, [i]: v }))}
                                                             onSave={() => handleSaveOrAndTin(row, rowIndex)}
                                                         />
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
 
                                                     </div>
                                                 </td>
                                             );
 
-<<<<<<< HEAD
-                                        if (col === "Status") return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 border-gray-400 ${getStatusBadge(row.status).bg} ${getStatusBadge(row.status).text}`}>
-                                                    {getStatusBadge(row.status).label}
-                                                </span>
-                                            </td>
-                                        );
-
-                                        return (
-                                            <td key={colIndex} className="px-6 py-3">
-                                                {row[getDataKey(col)] ?? ""}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-=======
                                             return (
                                                 <td key={colIndex} className="px-6 py-3 text-gray-700">
                                                     {row[getDataKey(col)] ?? ""}
@@ -1029,50 +801,9 @@ const Cashier = () => {
                                     </tr>
                                 );
                             })}
->>>>>>> b01b8d5aebde3e18281d7aac78dfe4260878f04a
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-default-medium bg-neutral-secondary-soft">
-                        <div className="text-sm text-gray-600">
-                            Showing <span className="font-semibold">{startIndex + 1}</span> to <span className="font-semibold">{Math.min(endIndex, tableData.length)}</span> of <span className="font-semibold">{tableData.length}</span> results
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded transition-colors"
-                            >
-                                Previous
-                            </button>
-                            <div className="flex items-center gap-1">
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                    <button
-                                        key={page}
-                                        onClick={() => setCurrentPage(page)}
-                                        className={`px-2 py-1 text-sm font-medium rounded transition-colors ${
-                                            currentPage === page
-                                                ? 'bg-indigo-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                    >
-                                        {page}
-                                    </button>
-                                ))}
-                            </div>
-                            <button
-                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded transition-colors"
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
         </Layout>
     );
