@@ -1248,7 +1248,7 @@ function ScheduledVisitCard({
               (e.currentTarget as HTMLButtonElement).style.color = "#6b7280";
             }}
           >
-            View Details
+            Review
           </button>
         )}
 
@@ -1261,7 +1261,7 @@ function ScheduledVisitCard({
             onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
           >
-            View Details
+            Review
           </button>
         )}
       </div>
@@ -1363,7 +1363,7 @@ function RejectedCard({ reason, onViewDetails }: { reason?: string | null; onVie
             (e.currentTarget as HTMLButtonElement).style.background = "#fff1f2";
           }}
         >
-          View Details
+          Review
         </button>
       </div>
     </div>
@@ -1464,7 +1464,7 @@ function IncompleteCard({ reason, onViewDetails }: { reason?: string | null; onV
             (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed";
           }}
         >
-          View Details
+          Review
         </button>
       </div>
     </div>
@@ -1577,7 +1577,7 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
             (e.currentTarget as HTMLButtonElement).style.background = "#faf5ff";
           }}
         >
-          View Details
+          Review
         </button>
       </div>
 
@@ -2013,7 +2013,7 @@ export default function RequestDetail() {
                 className="mt-4 w-full py-2.5 text-xs font-bold rounded-xl text-white transition-opacity hover:opacity-90 relative z-10"
                 style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)" }}
               >
-                View Details
+                Review
               </button>
             </div>
           </div>
@@ -2026,7 +2026,7 @@ export default function RequestDetail() {
             className="w-full py-3 text-sm font-bold rounded-2xl text-white"
             style={{ backgroundColor: NAVY }}
           >
-            View Details
+            Review
           </button>
         )}
 
