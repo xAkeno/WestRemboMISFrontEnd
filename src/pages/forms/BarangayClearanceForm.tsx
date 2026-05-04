@@ -712,11 +712,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
         Auto-filled
       </span>
     );
-
-  // ── Derive unique zones from streets data ──
-  const uniqueZones = Array.from(
-    new Set(streets.map((s) => s.sitio).filter(Boolean))
-  ) as string[];
+  
 
   return (
     <>
@@ -1036,7 +1032,14 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
                   {isDependent ? (
-                    <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                    <Select
+                      value={formData.street}
+                      onValueChange={(v) => {
+                        const matched = streets.find((s) => toUpperCase(s.name) === v);
+                        const sitio = matched?.sitio ? toUpperCase(matched.sitio) : "";
+                        setFormData((p) => ({ ...p, street: v, zone: sitio }));
+                      }}
+                    >
                       <SelectTrigger
                         className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
                         style={dependentEditableStyle}
@@ -1068,33 +1071,16 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 {/* Zone / Purok — Select dropdown from unique sitio values in dependent mode */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
-                  {isDependent ? (
-                    <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
-                      <SelectTrigger
-                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                        style={dependentEditableStyle}
-                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
-                      >
-                        <SelectValue placeholder="Select zone / purok" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {uniqueZones.map((sitio) => (
-                          <SelectItem key={sitio} value={toUpperCase(sitio)}>
-                            {toUpperCase(sitio)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={formData.zone}
-                      readOnly
-                      disabled
-                      placeholder="Zone / Purok"
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                  <Input
+                    value={formData.zone}
+                    readOnly
+                    disabled
+                    placeholder="Auto-filled from street"
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                  {isDependent && formData.street && !formData.zone && (
+                    <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>No sitio mapped for this street.</p>
                   )}
                 </div>
               </div>

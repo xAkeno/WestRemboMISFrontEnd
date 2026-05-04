@@ -963,6 +963,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 {isDependent && <SectionBadge />}
               </div>
 
+              {/* Row 1: House No. · Street · Zone */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                 {/* House / Block / Lot No. */}
@@ -981,11 +982,18 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   />
                 </div>
 
-                {/* Street — Select in dependent mode */}
+                {/* Street */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
                   {isDependent ? (
-                    <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                    <Select
+                      value={formData.street}
+                      onValueChange={(v) => {
+                        const matched = streets.find((s) => toUpperCase(s.name) === v);
+                        const sitio = matched?.sitio ? toUpperCase(matched.sitio) : "";
+                        setFormData((p) => ({ ...p, street: v, zone: sitio }));
+                      }}
+                    >
                       <SelectTrigger
                         className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
                         style={dependentEditableStyle}
@@ -1014,41 +1022,25 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   )}
                 </div>
 
-                {/* Zone / Purok — Select in dependent mode */}
+                {/* Zone / Purok — always read-only, auto-derived from street */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
-                  {isDependent ? (
-                    <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
-                      <SelectTrigger
-                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                        style={dependentEditableStyle}
-                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
-                      >
-                        <SelectValue placeholder="Select zone / purok" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {uniqueZones.map((sitio) => (
-                          <SelectItem key={sitio} value={toUpperCase(sitio)}>
-                            {toUpperCase(sitio)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={formData.zone}
-                      readOnly
-                      disabled
-                      placeholder="Zone / Purok"
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                  <Input
+                    value={formData.zone}
+                    readOnly
+                    disabled
+                    placeholder="Auto-filled from street"
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                  {isDependent && formData.street && !formData.zone && (
+                    <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>No sitio mapped for this street.</p>
                   )}
                 </div>
-              </div>
 
-              {/* House Owner + Relationship */}
+              </div> {/* ← END of 3-column grid */}
+
+              {/* Row 2: House Owner · Relationship — separate grid, sibling to the one above */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House Owner</Label>
@@ -1097,7 +1089,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   )}
                 </div>
               </div>
-            </div>
+
+            </div> {/* ← END of Section 3 */}
 
             {/* ═══════════════ Section 4 — Certificate Details ═══════════════ */}
             <div>
