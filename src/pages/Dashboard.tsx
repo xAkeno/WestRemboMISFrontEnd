@@ -1,10 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { Layout } from "../components/Layout";
 import axios from "axios";
@@ -12,7 +11,6 @@ import { startOfWeek, startOfMonth, format } from "date-fns";
 
 const BASE = "https://westrembomis.onrender.com/api";
 
-const statuses    = ["All", "Pending", "Released", "Approved", "Rejected"];
 const timeFilters = ["week", "month", "year"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -22,37 +20,37 @@ export const toTitleCase = (value: string) => {
   return value.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
+// Each service gets a fully distinct color
 const serviceColors: Record<string, string> = {
-  "Barangay Clearance":    "#f59e0b",
-  "Business Clearance":    "#22c55e",
-  "Building Clearance":    "#ef4444",
-  "Barangay Certificate":  "#10b981",
+  "Barangay Clearance":   "#f59e0b", // amber
+  "Business Clearance":   "#3b82f6", // blue
+  "Building Clearance":   "#ef4444", // red
+  "Barangay Certificate": "#a855f7", // purple
 };
 
+// Keys used by recharts Line/Bar dataKeys
 const serviceChartColors: Record<string, string> = {
+  Barangay:    serviceColors["Barangay Clearance"],
   Business:    serviceColors["Business Clearance"],
   Building:    serviceColors["Building Clearance"],
-  Barangay:    serviceColors["Barangay Clearance"],
   Certificate: serviceColors["Barangay Certificate"],
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// Pie slices in the same order as Object.entries(recordsCounts)
+const PIE_COLORS = [
+  serviceColors["Barangay Clearance"],
+  serviceColors["Business Clearance"],
+  serviceColors["Building Clearance"],
+  serviceColors["Barangay Certificate"],
+];
 
-interface ClearanceRecord {
-  id:            number;
-  docNumber:     string;
-  firstName:     string;
-  middleName?:   string | null;
-  surname:       string;
-  status:        string;
-  zone?:         string;
-  street?:       string;
-  createdAt?:    string;
-  scheduleTime?: string | null;
-  scheduleDate?: string | null;
-  serviceType:   string;
-  raw:           any;
-}
+const shorten = (s: string) =>
+  s.replace("Barangay Clearance",   "Barangay")
+   .replace("Business Clearance",   "Business")
+   .replace("Building Clearance",   "Building")
+   .replace("Barangay Certificate", "Certificate");
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface RecordCounts {
   [key: string]: {
@@ -63,20 +61,46 @@ interface RecordCounts {
   };
 }
 
+interface DistributionItem {
+  type: string;
+  count: number;
+  percentage: number;
+}
+
+interface MonthlyComparisonItem {
+  type: string;
+  current_count: number;
+  previous_count: number;
+  change_percent: number;
+  current_period: string;
+  previous_period: string;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const navigate = useNavigate();
+  const [chartData,            setChartData]            = useState<any[]>([]);
+  const [recordsCounts,        setRecordsCounts]        = useState<RecordCounts>({});
+  const [documentDistribution, setDocumentDistribution] = useState<DistributionItem[]>([]);
+  const [monthlyComparison,    setMonthlyComparison]    = useState<MonthlyComparisonItem[]>([]);
+  const [timeFilter,           setTimeFilter]           = useState("month");
+  const [fromDate,             setFromDate]             = useState("");
+  const [toDate,               setToDate]               = useState("");
+  const [latestActivities,     setLatestActivities]     = useState<any[]>([]);
+  const [isLoading,            setIsLoading]            = useState(true);
 
-  const [chartData,          setChartData]          = useState<any[]>([]);
-  const [recordsCounts,      setRecordsCounts]      = useState<RecordCounts>({});
-  const [timeFilter,         setTimeFilter]         = useState("month");
-  const [statusFilter,       setStatusFilter]       = useState("All");
-  const [fromDate,           setFromDate]           = useState("");
-  const [toDate,             setToDate]             = useState("");
-  const [allRecords,         setAllRecords]         = useState<ClearanceRecord[]>([]);
-  const [latestActivities,   setLatestActivities]   = useState<any[]>([]);
-  const [isLoading,          setIsLoading]          = useState(true);
+  // ── Set default from/to when timeFilter changes ───────────────────────────
+
+  useEffect(() => {
+    const today     = new Date();
+    const defaultTo = format(today, "yyyy-MM-dd");
+    const defaultFrom =
+      timeFilter === "week"  ? format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    : timeFilter === "month" ? format(startOfMonth(today), "yyyy-MM-dd")
+    : "";
+    setFromDate(defaultFrom);
+    setToDate(defaultTo);
+  }, [timeFilter]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +109,6 @@ const Dashboard = () => {
     try {
       const params: any = {
         filter_date: timeFilter,
-        status:      statusFilter === "All" ? undefined : statusFilter,
         from:        fromDate || undefined,
         to:          toDate   || undefined,
         _:           Date.now(),
@@ -94,31 +117,84 @@ const Dashboard = () => {
       const res  = await axios.get(`${BASE}/dashboard`, { params, withCredentials: true });
       const data = res.data.data;
 
-      // ── Chart ──────────────────────────────────────────────────────────────
+      // ── Chart periods ────────────────────────────────────────────────────
       const businessData    = data.business_clearances?.data   || [];
       const buildingData    = data.building_clearances?.data   || [];
       const barangayData    = data.barangay_clearances?.data   || [];
       const certificateData = data.barangay_certificates?.data || [];
 
-      const periods = Array.from(new Set([
+      const allPeriods = Array.from(new Set([
         ...businessData.map((d: any)    => d.period),
         ...buildingData.map((d: any)    => d.period),
         ...barangayData.map((d: any)    => d.period),
         ...certificateData.map((d: any) => d.period),
       ])).sort() as string[];
 
-      setChartData(periods.map((period) => ({
+      setChartData(allPeriods.map((period) => ({
         period,
+        Barangay:    barangayData.find((d: any)    => d.period === period)?.count || 0,
         Business:    businessData.find((d: any)    => d.period === period)?.count || 0,
         Building:    buildingData.find((d: any)    => d.period === period)?.count || 0,
-        Barangay:    barangayData.find((d: any)    => d.period === period)?.count || 0,
         Certificate: certificateData.find((d: any) => d.period === period)?.count || 0,
       })));
 
-      // ── Record Counts ──────────────────────────────────────────────────────
-      setRecordsCounts(data.records_counts || {});
+      // ── Record counts ────────────────────────────────────────────────────
+      const counts: RecordCounts = data.records_counts || {};
+      setRecordsCounts(counts);
 
-      // ── Activities ─────────────────────────────────────────────────────────
+      // ── Document Distribution ────────────────────────────────────────────
+      if (data.document_distribution?.length) {
+        setDocumentDistribution(data.document_distribution);
+      } else {
+        const grandTotal = Object.values(counts).reduce((s, c) => s + c.total, 0);
+        setDocumentDistribution(
+          Object.entries(counts).map(([type, c]) => ({
+            type,
+            count:      c.total,
+            percentage: grandTotal > 0
+              ? Math.round((c.total / grandTotal) * 10000) / 100
+              : 0,
+          }))
+        );
+      }
+
+      // ── Monthly Comparison ───────────────────────────────────────────────
+      if (data.monthly_comparison?.length) {
+        setMonthlyComparison(data.monthly_comparison);
+      } else {
+        const currPeriod = allPeriods[allPeriods.length - 1] ?? "";
+        const prevPeriod = allPeriods[allPeriods.length - 2] ?? "";
+
+        const getCount = (arr: any[], period: string) =>
+          arr.find((d: any) => d.period === period)?.count ?? 0;
+
+        const services = [
+          { type: "Barangay Clearance",   arr: barangayData    },
+          { type: "Business Clearance",   arr: businessData    },
+          { type: "Building Clearance",   arr: buildingData    },
+          { type: "Barangay Certificate", arr: certificateData },
+        ];
+
+        setMonthlyComparison(
+          services.map(({ type, arr }) => {
+            const current  = getCount(arr, currPeriod);
+            const previous = getCount(arr, prevPeriod);
+            const change   = previous > 0
+              ? Math.round(((current - previous) / previous) * 10000) / 100
+              : current > 0 ? 100 : 0;
+            return {
+              type,
+              current_count:   current,
+              previous_count:  previous,
+              change_percent:  change,
+              current_period:  currPeriod || "Current",
+              previous_period: prevPeriod || "Previous",
+            };
+          })
+        );
+      }
+
+      // ── Activities ───────────────────────────────────────────────────────
       setLatestActivities((data.latest_activities ?? []).map((item: any) => ({
         action:      item.action,
         description: item.description,
@@ -133,41 +209,36 @@ const Dashboard = () => {
     }
   };
 
-  useEffect(() => { fetchDashboard(); }, [timeFilter, statusFilter, fromDate, toDate]);
+  useEffect(() => { fetchDashboard(); }, [timeFilter, fromDate, toDate]);
 
-  useEffect(() => {
-    const today       = new Date();
-    const defaultTo   = format(today, "yyyy-MM-dd");
-    const defaultFrom =
-      timeFilter === "week"  ? format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd")
-    : timeFilter === "month" ? format(startOfMonth(today), "yyyy-MM-dd")
-    : "";
-    setFromDate(defaultFrom);
-    setToDate(defaultTo);
-  }, [timeFilter]);
+  // ── Derived chart data ────────────────────────────────────────────────────
 
-  // ── Prepare Records Count Chart Data ────────────────────────────────────────
-  const recordsCountChartData = useMemo(() => {
-    return Object.entries(recordsCounts).map(([service, counts]) => ({
-      service: service
-        .replace("Barangay Clearance",    "Barangay")
-        .replace("Business Clearance",    "Business")
-        .replace("Building Clearance",    "Building")
-        .replace("Barangay Certificate",  "Certificate"),
-      total: counts.total,
-      released: counts.released,
+  const recordsCountChartData = useMemo(() =>
+    Object.entries(recordsCounts).map(([service, counts]) => ({
+      service:    shorten(service),
+      total:      counts.total,
+      released:   counts.released,
       incomplete: counts.incomplete,
-      rejected: counts.rejected,
-    }));
-  }, [recordsCounts]);
+      rejected:   counts.rejected,
+    })),
+  [recordsCounts]);
 
-  // Loading state
+  const monthlyChartData = useMemo(() =>
+    monthlyComparison.map((item) => ({
+      type:     shorten(item.type),
+      Current:  item.current_count,
+      Previous: item.previous_count,
+    })),
+  [monthlyComparison]);
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+
   if (isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
             <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
           </div>
         </div>
@@ -181,32 +252,93 @@ const Dashboard = () => {
     <Layout>
       <div className="space-y-6">
 
-        {/* ── Record Count Cards ────────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            GLOBAL FILTER BAR
+        ══════════════════════════════════════════════════════════════════════ */}
+        <Card className="border-2 border-primary/20 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Dashboard Filters</CardTitle>
+            <CardDescription className="text-xs">
+              All charts, counts, distribution, and comparisons update with these filters.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-end">
+
+              {/* Date Range */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                  Date Range
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="border rounded-md px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                  />
+                  <span className="text-xs text-muted-foreground font-medium">to</span>
+                  <input
+                    type="date"
+                    className="border rounded-md px-2.5 py-1.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Quick Range Presets */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                  Quick Range
+                </span>
+                <div className="flex gap-1.5">
+                  {timeFilters.map((filter) => (
+                    <Button
+                      key={filter}
+                      size="sm"
+                      variant={timeFilter === filter ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => setTimeFilter(filter)}
+                    >
+                      {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Apply */}
+              <div className="flex flex-col justify-end">
+                <Button
+                  size="sm"
+                  className="h-8 px-5 text-xs font-semibold"
+                  onClick={fetchDashboard}
+                >
+                  Apply Filters
+                </Button>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            RECORD COUNT CARDS
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(recordsCounts).map(([service, counts]) => {
             const color = serviceColors[service] || "#9ca3af";
-            const shortName = service
-              .replace("Barangay Clearance",    "Barangay")
-              .replace("Business Clearance",    "Business")
-              .replace("Building Clearance",    "Building")
-              .replace("Barangay Certificate",  "Certificate");
-
             return (
               <Card key={service} className="border-l-4" style={{ borderLeftColor: color }}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold text-foreground">
-                    {shortName}
-                  </CardTitle>
+                  <CardTitle className="text-sm font-semibold">{shorten(service)}</CardTitle>
                   <CardDescription className="text-xs">Record Summary</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Total Records</p>
-                    <p className="text-3xl font-bold" style={{ color }}>
-                      {counts.total}
-                    </p>
+                    <p className="text-3xl font-bold" style={{ color }}>{counts.total}</p>
                   </div>
-                  
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t">
                     <div className="text-center">
                       <p className="text-[10px] text-muted-foreground mb-1">Released</p>
@@ -221,21 +353,19 @@ const Dashboard = () => {
                       <p className="text-lg font-bold text-red-600">{counts.rejected}</p>
                     </div>
                   </div>
-
-                  {/* Status Breakdown */}
                   <div className="space-y-1.5 pt-2 border-t text-[11px]">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Released:</span>
-                      <span className="font-semibold">{counts.released} ({counts.total > 0 ? Math.round((counts.released / counts.total) * 100) : 0}%)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Incomplete:</span>
-                      <span className="font-semibold">{counts.incomplete} ({counts.total > 0 ? Math.round((counts.incomplete / counts.total) * 100) : 0}%)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Rejected:</span>
-                      <span className="font-semibold">{counts.rejected} ({counts.total > 0 ? Math.round((counts.rejected / counts.total) * 100) : 0}%)</span>
-                    </div>
+                    {[
+                      { label: "Released",   value: counts.released,   cls: "text-green-600"  },
+                      { label: "Incomplete", value: counts.incomplete, cls: "text-yellow-600" },
+                      { label: "Rejected",   value: counts.rejected,   cls: "text-red-600"    },
+                    ].map(({ label, value, cls }) => (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-muted-foreground">{label}:</span>
+                        <span className={`font-semibold ${cls}`}>
+                          {value} ({counts.total > 0 ? Math.round((value / counts.total) * 100) : 0}%)
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -243,55 +373,22 @@ const Dashboard = () => {
           })}
         </div>
 
-        {/* ── Application Trend Chart + Status Breakdown ────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            APPLICATION TREND + STATUS BREAKDOWN
+        ══════════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
 
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
-              <div>
-                <CardTitle>Application Trend</CardTitle>
-                <CardDescription>Application trends over time</CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center pt-2">
-                {timeFilters.map((filter) => (
-                  <Button
-                    key={filter}
-                    size="sm"
-                    variant={timeFilter === filter ? "default" : "outline"}
-                    onClick={() => { setTimeFilter(filter); setFromDate(""); setToDate(""); }}
-                  >
-                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                  </Button>
-                ))}
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="date"
-                    className="border rounded px-2 py-1 text-xs"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                  />
-                  <span className="text-xs text-muted-foreground">to</span>
-                  <input
-                    type="date"
-                    className="border rounded px-2 py-1 text-xs"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                  />
-                </div>
-                {statuses.map((status) => (
-                  <Button
-                    key={status}
-                    size="sm"
-                    variant={statusFilter === status ? "default" : "outline"}
-                    onClick={() => setStatusFilter(status)}
-                  >
-                    {status}
-                  </Button>
-                ))}
-                <Button size="sm" variant="default" onClick={fetchDashboard}>
-                  Submit
-                </Button>
-              </div>
+              <CardTitle>Application Trend</CardTitle>
+              <CardDescription>
+                Application volume over time
+                {fromDate && toDate && (
+                  <span className="ml-1 text-primary font-medium">
+                    · {fromDate} to {toDate}
+                  </span>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               <ResponsiveContainer width="100%" height={360}>
@@ -308,16 +405,15 @@ const Dashboard = () => {
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: "12px" }} />
+                  <Line type="monotone" dataKey="Barangay"    stroke={serviceChartColors.Barangay}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Business"    stroke={serviceChartColors.Business}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Building"    stroke={serviceChartColors.Building}    strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="Barangay"    stroke={serviceChartColors.Barangay}    strokeWidth={2} dot={{ r: 3 }} />
                   <Line type="monotone" dataKey="Certificate" stroke={serviceChartColors.Certificate} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Status Breakdown Bar Chart */}
           <Card className="flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Status Breakdown</CardTitle>
@@ -338,9 +434,9 @@ const Dashboard = () => {
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: "11px" }} />
-                  <Bar dataKey="released" name="Released" fill="#22c55e" />
+                  <Bar dataKey="released"   name="Released"   fill="#22c55e" />
                   <Bar dataKey="incomplete" name="Incomplete" fill="#f59e0b" />
-                  <Bar dataKey="rejected" name="Rejected" fill="#ef4444" />
+                  <Bar dataKey="rejected"   name="Rejected"   fill="#ef4444" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -348,7 +444,150 @@ const Dashboard = () => {
 
         </div>
 
-        {/* ── Recent Activity Card ────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            DOCUMENT DISTRIBUTION + PERIOD COMPARISON
+        ══════════════════════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* Document Distribution — Donut + legend */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Document Distribution by Type</CardTitle>
+              <CardDescription>Share of total documents across all service types</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+
+                <div className="flex-shrink-0">
+                  <ResponsiveContainer width={200} height={200}>
+                    <PieChart>
+                      <Pie
+                        data={documentDistribution}
+                        dataKey="count"
+                        nameKey="type"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={52}
+                        outerRadius={88}
+                        paddingAngle={3}
+                      >
+                        {documentDistribution.map((item, i) => (
+                          <Cell
+                            key={item.type}
+                            fill={serviceColors[item.type] || PIE_COLORS[i % PIE_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "var(--radius)",
+                          fontSize: "12px",
+                        }}
+                        formatter={(value: any, name: any) => [`${value} docs`, shorten(name)]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="flex-1 w-full space-y-3">
+                  {documentDistribution.map((item, i) => {
+                    const color = serviceColors[item.type] || PIE_COLORS[i % PIE_COLORS.length];
+                    return (
+                      <div key={item.type} className="flex items-center gap-2.5">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline mb-0.5">
+                            <span className="text-xs font-medium truncate">{shorten(item.type)}</span>
+                            <span className="text-xs font-bold ml-2 tabular-nums">{item.count}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${item.percentage}%`, backgroundColor: color }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">{item.percentage}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Period Comparison */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Period Comparison</CardTitle>
+              <CardDescription>
+                {monthlyComparison[0]
+                  ? `${monthlyComparison[0].current_period} vs ${monthlyComparison[0].previous_period}`
+                  : "Current period vs previous period"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={monthlyChartData} margin={{ top: 4, right: 10, left: -20, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="type" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "var(--radius)",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Bar dataKey="Current"  name="Current Period"  fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Previous" name="Previous Period" fill="#94a3b8" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+
+              <div className="space-y-2 pt-2 border-t">
+                {monthlyComparison.map((item, i) => {
+                  const isUp  = item.change_percent >= 0;
+                  const color = serviceColors[item.type] || PIE_COLORS[i % PIE_COLORS.length];
+                  return (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-muted-foreground">{shorten(item.type)}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground tabular-nums">
+                          {item.previous_count} →{" "}
+                          <span className="text-foreground font-semibold">{item.current_count}</span>
+                        </span>
+                        <span
+                          className={`font-bold text-[11px] px-1.5 py-0.5 rounded ${
+                            isUp
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          }`}
+                        >
+                          {isUp ? "▲" : "▼"} {Math.abs(item.change_percent)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </CardContent>
+          </Card>
+
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            RECENT ACTIVITY
+        ══════════════════════════════════════════════════════════════════════ */}
         <Card className="flex flex-col">
           <CardHeader className="flex-shrink-0 pb-2">
             <CardTitle className="text-base">Recent Activity</CardTitle>
@@ -367,12 +606,8 @@ const Dashboard = () => {
                     `}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-semibold text-foreground leading-tight">
-                        {activity.action}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                        {activity.date}
-                      </p>
+                      <p className="text-xs font-semibold text-foreground leading-tight">{activity.action}</p>
+                      <p className="text-[10px] text-muted-foreground flex-shrink-0">{activity.date}</p>
                     </div>
                     <p className="text-[10px] text-muted-foreground leading-tight truncate">
                       {activity.description}
