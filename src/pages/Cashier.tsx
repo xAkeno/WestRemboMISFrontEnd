@@ -35,7 +35,6 @@ function getStatusBadge(status: string) {
     return STATUS_BADGE[key] ?? { bg: "bg-gray-100", text: "text-gray-700", label: key || "—" };
 }
 
-// ── CMS Service interface ─────────────────────────────────────────────────────
 interface CmsService {
     id: number;
     name: string;
@@ -44,7 +43,6 @@ interface CmsService {
     processing_time?: string;
 }
 
-// ── Fee helpers ────────────────────────────────────────────────────────────────
 function isCmsFree(fee: string | undefined): boolean {
     if (!fee) return true;
     const trimmed = fee.trim().toLowerCase();
@@ -53,14 +51,11 @@ function isCmsFree(fee: string | undefined): boolean {
     return isNaN(num) || num === 0;
 }
 
-// ── TIN formatting helper ─────────────────────────────────────────────────────
 function formatTin(raw: string): string {
-    // Strip non-digits
     const digits = raw.replace(/\D/g, "").slice(0, 13);
-    // Insert hyphens every 3 digits: 123-456-789-0123
     const parts: string[] = [];
     let i = 0;
-    const sizes = [3, 3, 3, 4]; // groups
+    const sizes = [3, 3, 3, 4];
     for (const size of sizes) {
         if (i >= digits.length) break;
         parts.push(digits.slice(i, i + size));
@@ -89,6 +84,13 @@ const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
     </svg>
 );
 
+const ReleaseIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
 // ── OR + TIN panel ────────────────────────────────────────────────────────────
 interface OrTinPanelProps {
     row: any;
@@ -100,23 +102,30 @@ interface OrTinPanelProps {
     fetchingTin: Set<number>;
     savingRow: Set<number>;
     isPaid: boolean;
+    isReleased: boolean;
+    releasingRow: Set<number>;
     onOrChange: (rowIndex: number, value: string) => void;
     onTinChange: (rowIndex: number, value: string) => void;
     onSave: () => void;
+    onRelease: () => void;
+    isFreeService: boolean;
 }
 
 const OrTinPanel = ({
-    row, rowIndex, orInputs, tinInputs, tinByOr, fetchingTin,
-    savingRow, isPaid, onOrChange, onTinChange, onSave,
+    row, rowIndex, orInputs, tinInputs, tinByOr,
+    savingRow, isPaid, isReleased, releasingRow,
+    onOrChange, onTinChange, onSave, onRelease, isFreeService,
 }: OrTinPanelProps) => {
     const displayTin = tinInputs[rowIndex] !== undefined
         ? tinInputs[rowIndex]
         : (row.or_no && tinByOr[row.or_no] !== undefined ? tinByOr[row.or_no] : "");
 
     const displayOr = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
+    const fieldsDisabled = isPaid || isReleased;
 
-    // Fields are enabled only when record is NOT paid
-    const fieldsDisabled = isPaid;
+    // Show release button when: paid AND (free service OR OR number is present)
+    const orValue = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
+    const canShowRelease = isPaid && !isReleased && (isFreeService || orValue.trim().length > 0);
 
     return (
         <div className="flex flex-col gap-2">
@@ -124,8 +133,7 @@ const OrTinPanel = ({
                 {/* TIN */}
                 <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">TIN Number (optional)</span>
-                        {fetchingTin.has(rowIndex) && <Spinner className="w-2.5 h-2.5 text-gray-300" />}
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">TIN (optional)</span>
                     </div>
                     <input
                         type="text"
@@ -137,12 +145,9 @@ const OrTinPanel = ({
                                 : "border-gray-200 bg-white"
                         }`}
                         value={displayTin}
-                        onChange={(e) => {
-                            const formatted = formatTin(e.target.value);
-                            onTinChange(rowIndex, formatted);
-                        }}
+                        onChange={(e) => onTinChange(rowIndex, formatTin(e.target.value))}
                         onKeyDown={(e) => { if (e.key === "Enter") onSave(); }}
-                        maxLength={16} // 13 digits + 3 hyphens
+                        maxLength={16}
                     />
                 </div>
 
@@ -169,19 +174,39 @@ const OrTinPanel = ({
                 </div>
 
                 {/* Save */}
-                <button
-                    onClick={onSave}
-                    disabled={savingRow.has(rowIndex) || fieldsDisabled}
-                    title="Save OR & TIN"
-                    className={`flex-shrink-0 inline-flex items-center justify-center px-2.5 py-[7px] rounded transition-colors ${
-                        fieldsDisabled
-                            ? "bg-gray-100 text-gray-300 cursor-not-allowed"
-                            : "text-white bg-green-500 hover:bg-green-600 disabled:bg-green-200"
-                    }`}
-                >
-                    {savingRow.has(rowIndex) ? <Spinner className="w-2.5 h-2.5" /> : <CheckIcon className="w-2.5 h-2.5" />}
-                </button>
+                {!fieldsDisabled && (
+                    <button
+                        onClick={onSave}
+                        disabled={savingRow.has(rowIndex)}
+                        title="Save OR & TIN"
+                        className="flex-shrink-0 inline-flex items-center justify-center px-2.5 py-[7px] rounded transition-colors text-white bg-green-500 hover:bg-green-600 disabled:bg-green-200"
+                    >
+                        {savingRow.has(rowIndex) ? <Spinner className="w-2.5 h-2.5" /> : <CheckIcon className="w-2.5 h-2.5" />}
+                    </button>
+                )}
             </div>
+
+            {/* Release button — appears when paid + OR filled (or free service) */}
+            {canShowRelease && (
+                <button
+                    onClick={onRelease}
+                    disabled={releasingRow.has(rowIndex)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 transition-colors border border-green-700"
+                >
+                    {releasingRow.has(rowIndex) ? (
+                        <><Spinner className="w-3 h-3" /> Releasing…</>
+                    ) : (
+                        <><ReleaseIcon /> Release Document</>
+                    )}
+                </button>
+            )}
+
+            {/* Released badge */}
+            {isReleased && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-green-700 bg-green-50 border border-green-200">
+                    <CheckIcon className="w-3 h-3" /> Released
+                </div>
+            )}
         </div>
     );
 };
@@ -257,11 +282,8 @@ const Cashier = () => {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("REVIEWED");
 
-    // ── CMS service data ──────────────────────────────────────────────────────
     const [cmsServices, setCmsServices] = useState<CmsService[]>([]);
     const [cmsLoaded, setCmsLoaded] = useState(false);
-
-    // Legacy price map (kept as fallback, populated from CMS data)
     const [servicePrices, setServicePrices] = useState<{ [type: string]: number }>({});
 
     const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
@@ -270,12 +292,12 @@ const Cashier = () => {
     const [savingRow, setSavingRow] = useState<Set<number>>(new Set());
     const [markingPaid, setMarkingPaid] = useState<Set<number>>(new Set());
     const [deletingRow, setDeletingRow] = useState<Set<number>>(new Set());
+    const [releasingRow, setReleasingRow] = useState<Set<number>>(new Set());
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [reviewedCount, setReviewedCount] = useState(0);
 
     const fetchDataRef = useRef<() => Promise<void>>();
 
-    // ── Resolve fee from CMS by service display name ───────────────────────────
     const CMS_NAME_MAP: Record<string, string> = {
         "Barangay Clearance":   "barangay clearance",
         "Business Clearance":   "business clearance",
@@ -289,38 +311,25 @@ const Cashier = () => {
             const legacyFee = servicePrices[type] ?? 0;
             return { fee: legacyFee, free: legacyFee === 0, found: false };
         }
-
         const needle = CMS_NAME_MAP[displayName]?.toLowerCase() ?? displayName.toLowerCase();
         const matched = cmsServices.find(s =>
             s.name.toLowerCase().includes(needle) ||
             needle.includes(s.name.toLowerCase())
         );
-
         if (!matched) {
             const type = TYPE_MAP[displayName];
             const legacyFee = servicePrices[type] ?? 0;
             return { fee: legacyFee, free: legacyFee === 0, found: false };
         }
-
         const free = isCmsFree(matched.fee);
         const fee = free ? 0 : (parseFloat(matched.fee) || 0);
         return { fee, free, found: true };
     }, [cmsLoaded, cmsServices, servicePrices]);
 
-    const getCurrentServiceFee = useCallback((): number => {
-        return getFeeByCmsName(choose).fee;
-    }, [choose, getFeeByCmsName]);
+    const getCurrentServiceFee = useCallback((): number => getFeeByCmsName(choose).fee, [choose, getFeeByCmsName]);
+    const isFreeService = useCallback((): boolean => getFeeByCmsName(choose).free, [choose, getFeeByCmsName]);
+    const formatFee = useCallback((fee: number): string => fee === 0 ? "₱0.00" : `₱${fee.toFixed(2)}`, []);
 
-    const isFreeService = useCallback((): boolean => {
-        return getFeeByCmsName(choose).free;
-    }, [choose, getFeeByCmsName]);
-
-    const formatFee = useCallback((fee: number): string => {
-        if (fee === 0) return "₱0.00";
-        return `₱${fee.toFixed(2)}`;
-    }, []);
-
-    // ── Fetch CMS services ─────────────────────────────────────────────────────
     useEffect(() => {
         const fetchCmsServices = async () => {
             setCmsLoaded(false);
@@ -337,7 +346,6 @@ const Cashier = () => {
         fetchCmsServices();
     }, []);
 
-    // ── Legacy service prices (fallback only) ─────────────────────────────────
     useEffect(() => {
         const fetchPrices = async () => {
             try {
@@ -353,7 +361,6 @@ const Cashier = () => {
         fetchPrices();
     }, []);
 
-    // ── TIN ───────────────────────────────────────────────────────────────────
     const fetchTinByOrNumber = useCallback(async (orNumber: string, rowIndex: number) => {
         if (!orNumber || tinByOr[orNumber] !== undefined) return;
         try {
@@ -373,7 +380,6 @@ const Cashier = () => {
         });
     }, [tableData]);
 
-    // ── Endpoints ─────────────────────────────────────────────────────────────
     const getEndpoint = useCallback(() => {
         if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
         if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
@@ -402,7 +408,16 @@ const Cashier = () => {
         }
     };
 
-    // ── Data key map ──────────────────────────────────────────────────────────
+    const getReleaseEndpoint = (row: any): string => {
+        switch (choose) {
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/documents/release/business-clearances/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/documents/release/building-clearances/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${row.id}`;
+            default: return "";
+        }
+    };
+
     const getDataKey = (displayName: string): string => {
         const keyMap: { [key: string]: string } = {
             "ID":            "id",
@@ -445,7 +460,6 @@ const Cashier = () => {
         });
     }, []);
 
-    // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchData = useCallback(async (silent = false) => {
         const endpoint = getEndpoint();
         if (!endpoint) { setTableData([]); return; }
@@ -489,9 +503,8 @@ const Cashier = () => {
         fetchData();
     }, [choose, search, statusFilter]);
 
-    // ── Mark as paid (triggered by green checkbox only) ───────────────────────
     const handleMarkPaid = async (row: any, rowIndex: number) => {
-        if (row.status === "PAID") return; // Already paid — irreversible
+        if (row.status === "PAID") return;
         setMarkingPaid((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
@@ -510,12 +523,39 @@ const Cashier = () => {
         }
     };
 
-    // ── Save OR + TIN ─────────────────────────────────────────────────────────
+    // ── Duplicate OR check ────────────────────────────────────────────────────
+    const checkOrDuplicate = async (orNumber: string, excludeRowId?: number): Promise<boolean> => {
+        if (!orNumber.trim()) return false;
+        try {
+            const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
+                params: { or_number: orNumber.trim() }, withCredentials: true,
+            });
+            const existing = res.data?.data;
+            if (!existing) return false;
+            // If found and it belongs to a different record, it's a duplicate
+            if (excludeRowId && existing.id === excludeRowId) return false;
+            return true;
+        } catch {
+            // 404 = not found = not a duplicate; other errors — allow through
+            return false;
+        }
+    };
+
     const handleSaveOrAndTin = async (row: any, rowIndex: number) => {
         const orValue  = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
         const tinValue = tinInputs[rowIndex] !== undefined ? tinInputs[rowIndex] : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
+
+        // ── Duplicate OR check ─────────────────────────────────────────────
+        if (orValue.trim()) {
+            const isDuplicate = await checkOrDuplicate(orValue.trim(), row.id);
+            if (isDuplicate) {
+                toast.error(`OR Number "${orValue.trim()}" is already in use. Please use a different OR number.`);
+                return;
+            }
+        }
+
         setSavingRow((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.put(endpoint, { or_no: orValue.trim() || null }, { withCredentials: true });
@@ -523,7 +563,6 @@ const Cashier = () => {
                 const newOrNo = orValue.trim() || null;
                 setTableData((prev) => { const u = [...prev]; u[rowIndex] = { ...u[rowIndex], or_no: newOrNo }; return u; });
                 if (newOrNo && tinValue.trim()) {
-                    // Strip hyphens before sending TIN
                     const rawTin = tinValue.replace(/-/g, "");
                     await axios.patch("https://westrembomis.onrender.com/api/official-receipts/by-or",
                         { or_number: newOrNo, tin_no: rawTin }, { withCredentials: true });
@@ -541,9 +580,46 @@ const Cashier = () => {
         }
     };
 
-    // ── Delete row (only when Paid) ───────────────────────────────────────────
+    // ── Release document ──────────────────────────────────────────────────────
+    const handleRelease = async (row: any, rowIndex: number) => {
+        const releaseEndpoint = getReleaseEndpoint(row);
+        if (!releaseEndpoint) return;
+        setReleasingRow((prev) => new Set(prev).add(rowIndex));
+        try {
+            // Trigger release — this sets status to RELEASED on the backend
+            await axios.post(releaseEndpoint, {}, { withCredentials: true });
+
+            // Update local state to RELEASED
+            setTableData((prev) => {
+                const u = [...prev];
+                u[rowIndex] = { ...u[rowIndex], status: "RELEASED" };
+                return u;
+            });
+            toast.success("Document released successfully.");
+        } catch (err: any) {
+            // Some backends return 200 via PUT on the status endpoint — try fallback
+            try {
+                await axios.put(
+                    getStatusEndpoint(row),
+                    { status: "RELEASED" },
+                    { withCredentials: true }
+                );
+                setTableData((prev) => {
+                    const u = [...prev];
+                    u[rowIndex] = { ...u[rowIndex], status: "RELEASED" };
+                    return u;
+                });
+                toast.success("Document released successfully.");
+            } catch (fallbackErr: any) {
+                toast.error(fallbackErr?.response?.data?.message ?? err?.response?.data?.message ?? "Failed to release document.");
+            }
+        } finally {
+            setReleasingRow((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
+        }
+    };
+
     const handleDelete = async (row: any, rowIndex: number) => {
-        if (row.status !== "PAID") return; // Guard: only paid records can be deleted
+        if (row.status !== "PAID") return;
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
         setDeletingRow((prev) => new Set(prev).add(rowIndex));
@@ -572,16 +648,9 @@ const Cashier = () => {
         <Layout>
             <div className="relative w-full max-w-full bg-neutral-primary-soft h-full shadow-xs rounded-base border border-default flex flex-col">
 
-                {/* ── Fee Table Banner ─────────────────────────────────────── */}
-                <FeeTable
-                    serviceName={choose}
-                    fee={fee}
-                    isFree={free}
-                    formatFee={formatFee}
-                    cmsLoaded={cmsLoaded}
-                />
+                <FeeTable serviceName={choose} fee={fee} isFree={free} formatFee={formatFee} cmsLoaded={cmsLoaded} />
 
-                {/* ── Toolbar ─────────────────────────────────────────────── */}
+                {/* Toolbar */}
                 <div className="p-4 flex items-center justify-between gap-4 flex-wrap border-b border-default-medium">
                     <div className="relative flex-1 min-w-[200px] max-w-sm">
                         <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
@@ -596,11 +665,8 @@ const Cashier = () => {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                        {/* Fee indicator pill */}
                         <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
-                            free
-                                ? "bg-green-50 text-green-700 border-green-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            free ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"
                         }`}>
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                                 <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -609,7 +675,6 @@ const Cashier = () => {
                             {!cmsLoaded ? "Loading fee…" : feeLabel}
                         </div>
 
-                        {/* Refresh */}
                         <button onClick={() => fetchData()} disabled={isRefreshing}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
                             <svg className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24">
@@ -618,7 +683,6 @@ const Cashier = () => {
                             {isRefreshing ? "Refreshing..." : "Refresh"}
                         </button>
 
-                        {/* Service type dropdown */}
                         <div className="relative">
                             <button onClick={() => setDropdownOpen(!dropdownOpen)}
                                 className="inline-flex items-center gap-1.5 text-body bg-neutral-secondary-medium border border-default-medium px-3 py-2 rounded-base text-sm" type="button">
@@ -648,7 +712,7 @@ const Cashier = () => {
                     </div>
                 </div>
 
-                {/* ── Status tabs ──────────────────────────────────────────── */}
+                {/* Status tabs */}
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-default-medium bg-gray-50/50">
                     <span className="text-xs font-semibold text-gray-400 mr-1">Show:</span>
                     {STATUS_TABS.map(tab => (
@@ -666,7 +730,7 @@ const Cashier = () => {
                     ))}
                 </div>
 
-                {/* ── Table ────────────────────────────────────────────────── */}
+                {/* Table */}
                 <div className="w-full overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left text-body">
                         <thead className="text-sm bg-neutral-secondary-medium border-b">
@@ -691,17 +755,20 @@ const Cashier = () => {
                                     </td>
                                 </tr>
                             ) : tableData.map((row, rowIndex) => {
-                                const isPaid = row.status === "PAID";
+                                const isPaid     = row.status === "PAID";
+                                const isReleased = row.status === "RELEASED";
 
                                 return (
-                                    <tr key={rowIndex} className={`border-b border-default-medium transition-colors align-top ${
-                                        !isPaid ? "bg-purple-50/30 hover:bg-purple-50/60" : "hover:bg-gray-50/60"
+                                    <tr key={rowIndex} className={`border-b border-default-medium transition-colors align-middle ${
+                                        isReleased ? "bg-green-50/20 hover:bg-green-50/40" :
+                                        !isPaid    ? "bg-purple-50/30 hover:bg-purple-50/60"
+                                                   : "hover:bg-gray-50/60"
                                     }`}>
                                         {loadedColumn.map((col, colIndex) => {
 
                                             // ── Fee column ──────────────────
                                             if (col === "Fee") return (
-                                                <td key={colIndex} className="px-6 py-3">
+                                                <td key={colIndex} className="px-6 py-3 align-middle">
                                                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
                                                         free
                                                             ? "bg-green-50 text-green-700 border-green-200"
@@ -714,7 +781,7 @@ const Cashier = () => {
 
                                             // ── Status column ───────────────
                                             if (col === "Status") return (
-                                                <td key={colIndex} className="px-6 py-3">
+                                                <td key={colIndex} className="px-6 py-3 align-middle">
                                                     <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(row.status).bg} ${getStatusBadge(row.status).text}`}>
                                                         {getStatusBadge(row.status).label}
                                                     </span>
@@ -723,25 +790,25 @@ const Cashier = () => {
 
                                             // ── Action column ───────────────
                                             if (col === "Action") return (
-                                                <td key={colIndex} className="px-4 py-3 min-w-[340px] max-w-[400px]">
+                                                <td key={colIndex} className="px-4 py-3 align-middle min-w-[320px] max-w-[400px]">
                                                     <div className="flex flex-col gap-2">
 
-                                                        {/* ── Payment row: green checkbox + delete icon ── */}
+                                                        {/* Payment row */}
                                                         <div className="flex items-center gap-2">
-                                                            {/* Green checkbox — triggers payment */}
+                                                            {/* Green checkbox */}
                                                             <button
-                                                                onClick={() => !isPaid && handleMarkPaid(row, rowIndex)}
-                                                                disabled={isPaid || markingPaid.has(rowIndex) || !cmsLoaded}
-                                                                title={isPaid ? "Already paid" : "Mark as Paid"}
+                                                                onClick={() => !isPaid && !isReleased && handleMarkPaid(row, rowIndex)}
+                                                                disabled={isPaid || isReleased || markingPaid.has(rowIndex) || !cmsLoaded}
+                                                                title={isPaid || isReleased ? "Already paid" : "Mark as Paid"}
                                                                 className={`flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border-2 transition-colors ${
-                                                                    isPaid
+                                                                    isPaid || isReleased
                                                                         ? "bg-green-500 border-green-500 cursor-not-allowed"
                                                                         : markingPaid.has(rowIndex)
                                                                             ? "bg-green-200 border-green-300 cursor-wait"
                                                                             : "bg-white border-gray-300 hover:border-green-500 hover:bg-green-50 cursor-pointer"
                                                                 }`}
                                                             >
-                                                                {isPaid ? (
+                                                                {isPaid || isReleased ? (
                                                                     <CheckIcon className="w-3.5 h-3.5 text-white" />
                                                                 ) : markingPaid.has(rowIndex) ? (
                                                                     <Spinner className="w-3 h-3 text-green-500" />
@@ -750,43 +817,43 @@ const Cashier = () => {
                                                                 )}
                                                             </button>
 
-                                                            {/* Payment label */}
-                                                            <span className={`text-xs font-semibold ${isPaid ? "text-green-700" : "text-gray-400"}`}>
-                                                                {isPaid
+                                                            <span className={`text-xs font-semibold ${isPaid || isReleased ? "text-green-700" : "text-gray-400"}`}>
+                                                                {isPaid || isReleased
                                                                     ? `Paid — ${!cmsLoaded ? "…" : (free ? "₱0.00" : formatFee(fee))}`
-                                                                    : `Click to confirm payment`}
+                                                                    : "Click to confirm payment"}
                                                             </span>
 
-                                                            {/* Delete button — enabled only when Paid */}
-                                                            <button
-                                                                onClick={() => isPaid && handleDelete(row, rowIndex)}
-                                                                disabled={!isPaid || deletingRow.has(rowIndex)}
-                                                                title={isPaid ? "Delete record" : "Only paid records can be deleted"}
-                                                                className={`ml-auto flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
-                                                                    !isPaid
-                                                                        ? "text-gray-200 cursor-not-allowed"
-                                                                        : deletingRow.has(rowIndex)
+                                                            {/* Delete — only for paid (not released) */}
+                                                            {isPaid && !isReleased && (
+                                                                <button
+                                                                    onClick={() => handleDelete(row, rowIndex)}
+                                                                    disabled={deletingRow.has(rowIndex)}
+                                                                    title="Delete record"
+                                                                    className={`ml-auto flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+                                                                        deletingRow.has(rowIndex)
                                                                             ? "text-red-300 cursor-wait"
                                                                             : "text-red-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                                                                }`}
-                                                            >
-                                                                {deletingRow.has(rowIndex)
-                                                                    ? <Spinner className="w-3.5 h-3.5" />
-                                                                    : <TrashIcon className="w-3.5 h-3.5" />
-                                                                }
-                                                            </button>
+                                                                    }`}
+                                                                >
+                                                                    {deletingRow.has(rowIndex) ? <Spinner className="w-3.5 h-3.5" /> : <TrashIcon className="w-3.5 h-3.5" />}
+                                                                </button>
+                                                            )}
                                                         </div>
 
-                                                        {/* ── TIN + OR panel ── */}
+                                                        {/* TIN + OR + Release panel */}
                                                         <OrTinPanel
                                                             row={row} rowIndex={rowIndex} fee={fee}
                                                             orInputs={orInputs} tinInputs={tinInputs} tinByOr={tinByOr}
-                                                            fetchingTin={new Set()} // fetchingTin state removed from panel display
+                                                            fetchingTin={new Set()}
                                                             savingRow={savingRow}
                                                             isPaid={isPaid}
+                                                            isReleased={isReleased}
+                                                            releasingRow={releasingRow}
                                                             onOrChange={(i, v) => setOrInputs(p => ({ ...p, [i]: v }))}
                                                             onTinChange={(i, v) => setTinInputs(p => ({ ...p, [i]: v }))}
                                                             onSave={() => handleSaveOrAndTin(row, rowIndex)}
+                                                            onRelease={() => handleRelease(row, rowIndex)}
+                                                            isFreeService={free}
                                                         />
 
                                                     </div>
@@ -794,7 +861,7 @@ const Cashier = () => {
                                             );
 
                                             return (
-                                                <td key={colIndex} className="px-6 py-3 text-gray-700">
+                                                <td key={colIndex} className="px-6 py-3 align-middle text-gray-700">
                                                     {row[getDataKey(col)] ?? ""}
                                                 </td>
                                             );

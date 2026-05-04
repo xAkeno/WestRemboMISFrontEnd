@@ -1299,7 +1299,7 @@ const BuildingClearance = () => {
                               <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                 <Eye className="h-3 w-3" /> View/Edit
                               </button>
-                              <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}`)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
+                              <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}` , { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
                               <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
                               {/* Delete is removed. Disable is only available for Released records via the modal. */}
                               {isItemReleased && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Pencil, Trash2, Clock, DollarSign, FileText, MoreHorizontal, Eye } from 'lucide-react';
+import { Pencil, Trash2, Clock, DollarSign, FileText, MoreHorizontal, Eye, Lock } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import {
 import { Layout } from '@/components/Layout';
 
 const API_BASE = 'https://westrembomis.onrender.com/api';
+const STORAGE_KEY = 'services_overrides';
 
 interface Service {
   id: number;
@@ -37,27 +38,53 @@ const defaultServices: Service[] = [
   { id: 5, name: 'Barangay Certificate', description: 'Get official certification from Barangay West Rembo.', requirements: ["Valid ID", "Purpose of certificate", "Application form"], processing_time: '1-2 business days', fee: 'Free' },
 ];
 
+// ─── localStorage helpers ────────────────────────────────────────────────────
+
+const loadOverrides = (): Record<number, Partial<Service>> => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveOverride = (service: Service) => {
+  try {
+    const overrides = loadOverrides();
+    overrides[service.id] = service;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+  } catch { /* ignore */ }
+};
+
+const removeOverride = (id: number) => {
+  try {
+    const overrides = loadOverrides();
+    delete overrides[id];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+  } catch { /* ignore */ }
+};
+
+/** Merge API data with locally saved overrides */
+const applyOverrides = (services: Service[]): Service[] => {
+  const overrides = loadOverrides();
+  return services.map(s => overrides[s.id] ? { ...s, ...overrides[s.id] } : s);
+};
+
 // ─── Fee helpers ────────────────────────────────────────────────────────────
 
-/** Canonical check: is this fee value "free"? */
 const isFree = (fee: string | undefined) =>
   !fee || fee.trim() === '' || fee.trim().toLowerCase() === 'free' || parseFloat(fee) === 0;
 
-/** Pretty-print a fee for display */
 const formatFeeDisplay = (fee: string) =>
   isFree(fee) ? 'Free' : `₱${parseFloat(fee).toFixed(2)}`;
 
-/**
- * Normalise a fee before saving.
- * - Empty / "0" / "free" → "Free"
- * - Otherwise keep the numeric string as-is (backend stores it)
- */
 const normaliseFee = (raw: string): string => {
   const trimmed = raw.trim();
   if (!trimmed || trimmed.toLowerCase() === 'free') return 'Free';
   const num = parseFloat(trimmed);
   if (isNaN(num) || num === 0) return 'Free';
-  return String(num); // e.g. "50", "150.5"
+  return String(num);
 };
 
 // ─── Requirements helpers ────────────────────────────────────────────────────
@@ -66,10 +93,7 @@ const parseRequirements = (requirements: string | string[] | undefined) => {
   if (!requirements) return [];
   if (Array.isArray(requirements))
     return requirements.map(r => String(r).trim()).filter(Boolean);
-  return requirements
-    .split(/\n+/)
-    .map(r => r.trim())
-    .filter(Boolean);
+  return requirements.split(/\n+/).map(r => r.trim()).filter(Boolean);
 };
 
 const requirementsToString = (reqs: string | string[]) =>
@@ -88,14 +112,13 @@ const ServicesCms = () => {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // feeMode: 'free' | 'paid'  — drives what we show in the fee section
   const [feeMode, setFeeMode] = useState<'free' | 'paid'>('free');
   const [form, setForm] = useState({
     name: '',
     description: '',
     requirements: '',
     processing_time: '',
-    fee: '',   // raw numeric string when paid, '' when free
+    fee: '',
   });
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -106,7 +129,9 @@ const ServicesCms = () => {
       let data: Service[] = res.data?.data ?? res.data ?? defaultServices;
       const latestMap = new Map<number, Service>();
       data.forEach(item => latestMap.set(item.id, item));
-      setServices(Array.from(latestMap.values()));
+      // Apply locally saved overrides on top of API data
+      const merged = applyOverrides(Array.from(latestMap.values()));
+      setServices(merged);
     } catch (err: any) {
       console.error(err);
       toast({
@@ -114,7 +139,8 @@ const ServicesCms = () => {
         description: err.response?.data?.message ?? err.message ?? 'Could not fetch services.',
         variant: 'destructive',
       });
-      setServices(defaultServices);
+      // Apply overrides on top of defaults too
+      setServices(applyOverrides(defaultServices));
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +158,6 @@ const ServicesCms = () => {
       description: s.description,
       requirements: requirementsToString(s.requirements),
       processing_time: s.processing_time,
-      // Store the numeric portion for the input; empty when free
       fee: free ? '' : String(parseFloat(s.fee)),
     });
     setDialogOpen(true);
@@ -147,7 +172,6 @@ const ServicesCms = () => {
   const handleSave = async () => {
     if (!form.name.trim() || !editingService) return;
 
-    // Determine the canonical fee string to persist
     const canonicalFee = feeMode === 'free' ? 'Free' : normaliseFee(form.fee);
 
     const payload = {
@@ -166,10 +190,11 @@ const ServicesCms = () => {
         { withCredentials: true },
       );
 
-      // Merge API response (preferred) with our payload as fallback
       const updated: Service = { ...editingService, ...payload, ...(res.data?.data ?? res.data ?? {}) };
-      // Always trust our canonical fee — API might echo a different format
       updated.fee = canonicalFee;
+
+      // Persist to localStorage so it survives refresh
+      saveOverride(updated);
 
       setServices(prev => prev.map(s => (s.id === editingService.id ? updated : s)));
 
@@ -179,9 +204,16 @@ const ServicesCms = () => {
       });
     } catch (err: any) {
       console.error(err);
+
+      // Even if API fails, save locally and update UI
+      const localUpdated: Service = { ...editingService, ...payload };
+      localUpdated.fee = canonicalFee;
+      saveOverride(localUpdated);
+      setServices(prev => prev.map(s => (s.id === editingService.id ? localUpdated : s)));
+
       toast({
-        title: 'Update Failed',
-        description: err.response?.data?.message ?? 'Could not update the service.',
+        title: 'Saved Locally',
+        description: 'API update failed, but your changes are saved locally and will persist.',
         variant: 'destructive',
       });
     } finally {
@@ -194,6 +226,7 @@ const ServicesCms = () => {
   const handleDelete = async () => {
     if (!deleteId) return;
     try { await axios.delete(`${API_BASE}/services/${deleteId}`, { withCredentials: true }); } catch { /* local fallback */ }
+    removeOverride(deleteId);
     setServices(prev => prev.filter(s => s.id !== deleteId));
     setDeleteId(null);
     toast({ title: 'Service Deleted', description: 'The service has been removed.' });
@@ -201,14 +234,10 @@ const ServicesCms = () => {
 
   // ── Fee input handler ─────────────────────────────────────────────────────
   const handleFeeInput = (raw: string) => {
-    // Strip non-numeric chars except dot
     let val = raw.replace(/[^\d.]/g, '');
-    // Only one decimal point
     const parts = val.split('.');
     if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-    // Max 2 decimal places
     if (parts.length === 2) val = parts[0] + '.' + parts[1].slice(0, 2);
-    // Cap at 99999
     if (parseFloat(val) > 99999) val = '99999';
     setForm(f => ({ ...f, fee: val }));
   };
@@ -377,10 +406,21 @@ const ServicesCms = () => {
                 <DialogTitle>{editingService ? 'Edit Service' : 'Add New Service'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
+
+                {/* Service Name — disabled/locked */}
                 <div className="space-y-2">
-                  <Label>Service Name</Label>
-                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Barangay Clearance" />
+                  <Label className="flex items-center gap-1.5">
+                    Service Name
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                  </Label>
+                  <Input
+                    value={form.name}
+                    disabled
+                    className="bg-muted/50 text-muted-foreground cursor-not-allowed"
+                  />
+                  <p className="text-xs text-muted-foreground">Service name cannot be changed</p>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Description</Label>
                   <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description of the service" rows={3} className="resize-none" />
@@ -406,7 +446,7 @@ const ServicesCms = () => {
                   <div className="space-y-2">
                     <Label>Fee</Label>
 
-                    {/* Free / Paid toggle */}
+                    {/* Free / Fee toggle */}
                     <div className="flex rounded-md border border-border overflow-hidden text-sm">
                       <button
                         type="button"
@@ -428,7 +468,7 @@ const ServicesCms = () => {
                             : 'bg-card text-muted-foreground hover:bg-muted/50'
                         }`}
                       >
-                        Paid
+                        Fee
                       </button>
                     </div>
 
