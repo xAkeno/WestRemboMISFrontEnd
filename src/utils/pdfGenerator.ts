@@ -1,29 +1,8 @@
-/**
- * pdfGenerator.ts
- *
- * AUTO-CENTER COORDINATE CONTRACT
- * ─────────────────────────────────────────────────────────────────────────────
- * When TextField.autoCenter is true, field.x is the HORIZONTAL CENTER ANCHOR
- * in PDF points.
- *
- * Screen (DraggableTextField):
- *   position: absolute; left: field.x(px); transform: translateX(-50%)
- *   → visual centre of the div sits exactly at field.x px.
- *
- * PDF (here):
- *   totalWidth = font.widthOfTextAtSize(text, size) + letterSpacing * (chars-1)
- *   drawX = field.x - totalWidth / 2
- *   → pdf-lib draws from left edge; shifting by half total width centres it.
- *
- * letterSpacing is included because it visually widens the text and must be
- * accounted for to match what the browser renders.
- */
-
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { TextField } from '@/types/certificate';
 import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
 
-export interface PDFPageInfo  { width: number; height: number; }
+export interface PDFPageInfo     { width: number; height: number; }
 export interface PDFTemplateInfo { pageCount: number; pages: PDFPageInfo[]; }
 
 export async function loadPDFTemplate(buffer: ArrayBuffer): Promise<{ info: PDFTemplateInfo }> {
@@ -40,6 +19,24 @@ export function pdfBytesToBlobUrl(bytes: Uint8Array): string {
   return URL.createObjectURL(blob);
 }
 
+// ─── HMAC-SHA256 signing (Web Crypto API) ─────────────────────────────────────
+async function signRef(ref: string): Promise<string> {
+  const secret = import.meta.env.VITE_QR_SECRET_KEY ?? 'fallback-secret';
+  const enc    = new TextEncoder();
+  const key    = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(ref));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// ─── QR → PNG bytes ───────────────────────────────────────────────────────────
 async function qrToPngBytes(value: string, sizePts: number): Promise<Uint8Array> {
   const QRCode     = (await import('qrcode')).default;
   const renderSize = Math.round(sizePts * 2);
@@ -60,6 +57,51 @@ async function qrToPngBytes(value: string, sizePts: number): Promise<Uint8Array>
   });
 }
 
+// ─── Add label text below QR image ───────────────────────────────────────────
+async function addTextToQRImage(qrBytes: Uint8Array, sizePts: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const canvas     = document.createElement('canvas');
+    const renderSize = Math.round(sizePts * 2);
+    const blob       = new Blob([qrBytes], { type: 'image/png' });
+    const url        = URL.createObjectURL(blob);
+    const img        = new Image();
+
+    img.onload = () => {
+      const textHeight = 40;
+      canvas.width     = renderSize;
+      canvas.height    = renderSize + textHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Could not get canvas context'));
+
+      // White background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw QR
+      ctx.drawImage(img, 0, 0, renderSize, renderSize);
+
+      // Draw label
+      ctx.fillStyle    = '#000000';
+      ctx.font         = 'bold 11px Arial';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('This QR/Document is Authenticated', renderSize / 2, renderSize + 5);
+
+      canvas.toBlob((canvasBlob) => {
+        if (!canvasBlob) return reject(new Error('toBlob failed'));
+        canvasBlob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf)));
+      }, 'image/png');
+
+      URL.revokeObjectURL(url);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load QR image'));
+    img.src = url;
+  });
+}
+
+// ─── Main PDF generator ───────────────────────────────────────────────────────
 export async function generatePDF(
   templateBytes: ArrayBuffer,
   fields:        TextField[],
@@ -89,7 +131,7 @@ export async function generatePDF(
     const font        = await getFont(field.fontFamily ?? 'Helvetica');
     const fontSize    = field.fontSize ?? 12;
     const text        = String(field.value ?? '');
-    const ls          = field.letterSpacing ?? 0; // pts of extra spacing per char gap
+    const ls          = field.letterSpacing ?? 0;
 
     const hex = (field.color ?? '#000000').replace('#', '');
     const r   = parseInt(hex.slice(0, 2), 16) / 255;
@@ -97,48 +139,50 @@ export async function generatePDF(
     const b   = parseInt(hex.slice(4, 6), 16) / 255;
 
     let drawX = field.x;
-
     if (field.autoCenter && text.length > 0) {
       try {
-        // Base glyph width from the font
-        const glyphWidth = font.widthOfTextAtSize(text, fontSize);
-        // Letter spacing adds (charCount - 1) extra gaps between characters
-        // browser CSS letter-spacing applies after each character except last
+        const glyphWidth   = font.widthOfTextAtSize(text, fontSize);
         const spacingExtra = ls * Math.max(0, text.length - 1);
-        const totalWidth   = glyphWidth + spacingExtra;
-        drawX = field.x - totalWidth / 2;
+        drawX = field.x - (glyphWidth + spacingExtra) / 2;
       } catch {
-        drawX = field.x; // graceful fallback
+        drawX = field.x;
       }
     }
 
-    // field.y = top-of-text in PDF points (down-positive / top-left origin).
-    // pdf-lib draws from baseline with bottom-left origin, so:
     const pdfY = height - field.y - fontSize;
-
     page.drawText(text, {
-      x:            drawX,
-      y:            pdfY,
-      size:         fontSize,
+      x:       drawX,
+      y:       pdfY,
+      size:    fontSize,
       font,
-      color:        rgb(r, g, b),
-      opacity:      field.opacity ?? 1,
-      // pdf-lib's characterSpacing is in PDF points — same unit as our letterSpacing
+      color:   rgb(r, g, b),
+      opacity: field.opacity ?? 1,
       ...(ls > 0 ? { characterSpacing: ls } : {}),
     });
   }
 
+  // ── Embed signed QR into PDF ──────────────────────────────────────────────
   if (qrField?.visible && bcertNumber) {
     const targetPage = pages[qrField.page];
     if (targetPage) {
       const { height } = targetPage.getSize();
-      const pngBytes   = await qrToPngBytes(bcertNumber, qrField.size);
-      const pngImage   = await pdfDoc.embedPng(pngBytes);
+      const baseUrl    = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
+
+      // ✅ Sign the bcert number and embed the signed URL in the QR
+      const sig     = await signRef(bcertNumber);
+      const qrValue = `${baseUrl}/verify/${bcertNumber}?key=${sig}`;
+
+      let pngBytes = await qrToPngBytes(qrValue, qrField.size);
+      pngBytes     = await addTextToQRImage(pngBytes, qrField.size);
+
+      const pngImage    = await pdfDoc.embedPng(pngBytes);
+      const textPadding = 40;
+
       targetPage.drawImage(pngImage, {
         x:      qrField.x,
-        y:      height - qrField.y - qrField.size,
+        y:      height - qrField.y - qrField.size - textPadding,
         width:  qrField.size,
-        height: qrField.size,
+        height: qrField.size + textPadding,
       });
     }
   }

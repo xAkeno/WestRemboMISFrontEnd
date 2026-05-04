@@ -67,11 +67,20 @@ function QRCanvas({ value, size }: { value: string; size: number }) {
 
   useEffect(() => {
     if (!canvasRef.current || !value) return;
-    QRCode.toCanvas(canvasRef.current, value, {
+    
+    // Generate full verification URL for QR code
+    const baseUrl = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
+    const verifyUrl = `${baseUrl}/verify/${value}`;
+    
+    // Create QR code with custom authentication message
+    // When scanned, it shows: "This QR/Document is Authenticated" + the link
+    const qrMessage = `This QR/Document is Authenticated\n\nFor further details, follow this link:\n${verifyUrl}`;
+    
+    QRCode.toCanvas(canvasRef.current, qrMessage, {
       width: size,
       margin: 1,
       color: { dark: '#000000', light: '#ffffff' },
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'H', // Use 'H' (high) error correction for text readability
     }).catch(console.error);
   }, [value, size]);
 
@@ -205,7 +214,7 @@ export function QRCodeField({
       // Diagonal drag delta in DOM pixels → convert to PDF points
       const dxPx  = ev.clientX - resizeStart.current.mouseX;
       const dyPx  = ev.clientY - resizeStart.current.mouseY;
-      const delta = (Math.abs(dxPx) > Math.abs(dyPx) ? dxPx : dyPx) / sx;
+      const delta = (Math.abs(dxPx) > Math.abs(dyPx) ? dxPx : dyPy) / sx;
 
       // Min 36 pts (~0.5 inch), max 200 pts (~2.8 inch)
       const newSizePts = Math.max(36, Math.min(200, resizeStart.current.size + delta));

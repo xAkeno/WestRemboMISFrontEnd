@@ -144,6 +144,8 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Created By': 'created_by',
 };
 
+  console.log(import.meta.env.VITE_WEB_URL)
+
 const NON_DATE_KEYS = new Set([
   'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
   'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
@@ -971,6 +973,7 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
+
   const handleMarkAsPaid = async () => {
     if (!isForwardTransition(status, 'PAID')) {
       toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
@@ -1268,6 +1271,7 @@ function EditableDetailModal({
       </div>
     );
   }
+
 
   return (
     <>

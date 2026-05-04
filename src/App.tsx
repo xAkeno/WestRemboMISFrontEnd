@@ -113,6 +113,7 @@ const App = () => {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/email-verification" element={<EmailVerification />} />
                 <Route path="/verify" element={<QRScanner />} />
+                <Route path="/verify/:bcertNumber" element={<QRScanner />} />
                 <Route path="/document-edit/:id/:bcertNumber" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
                 <Route path="/document-edit/:id" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><CertificateEditor /></ProtectedRoute>} />
                 <Route path="/certificatehome" element={<ProtectedRoute allowedRoles={["ADMIN","STAFF"]}><Certificate /></ProtectedRoute>} /> 
