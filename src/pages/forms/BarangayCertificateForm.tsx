@@ -285,6 +285,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   const [showSchedulingModal, setShowSchedulingModal] = useState(false);
   const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
   const [loadingServiceInfo, setLoadingServiceInfo] = useState(true);
+  const [isRegisteringMinor, setIsRegisteringMinor] = useState(false);
+  const [parentInfo, setParentInfo] = useState({ prefix: "", first_name: "", middle_name: "", surname: "", extension: "" });
 
   const [errors, setErrors] = useState({
     period_of_residency: "",
@@ -346,9 +348,9 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     schedule_date: "",
     time_group: "",
     document_type: "barangay_certificate",
+    requested_by: "", // Will store parent name if registering minor
   });
 
-  // Only uppercase free-text fields; do NOT uppercase select fields to preserve matching
   const upd = (f: string, v: string) => {
     const textFields = ["purpose_details"];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
@@ -402,9 +404,17 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...formData,
+        age: formData.age ? Number(formData.age) : null,
+        requested_by: isRegisteringMinor 
+          ? `${parentInfo.prefix} ${parentInfo.first_name} ${parentInfo.middle_name} ${parentInfo.surname} ${parentInfo.extension}`.trim().replace(/\s+/g, ' ')
+          : formData.requested_by,
+      };
+
       const certRes = await axios.post(
         "https://westrembomis.onrender.com/api/barangay-certificates",
-        { ...formData, age: formData.age ? Number(formData.age) : null },
+        submitData,
         { withCredentials: true }
       );
       if (certRes.status === 201 || certRes.status === 200) {
@@ -432,7 +442,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     } finally { setIsSubmitting(false); }
   };
 
-  // ── Auto-fill from authenticated user ──
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -448,6 +457,22 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
           );
           if (foundStreet) matchedStreet = toUpperCase(foundStreet.name);
         }
+
+        const userAge = normalizedDob ? calculateAge(normalizedDob) : 0;
+        const isMinor = userAge < MIN_AGE;
+
+        // Store parent info if user is minor
+        if (isMinor) {
+          setParentInfo({
+            prefix: user.prefix ?? "",
+            first_name: user.first_name ?? "",
+            middle_name: user.middle_name ?? "",
+            surname: user.surname ?? "",
+            extension: user.extension_name ?? "",
+          });
+          setIsRegisteringMinor(true);
+        }
+
         setFormData((prev) => ({
           ...prev,
           prefix: user.prefix ?? "",
@@ -481,7 +506,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
 
   const getMaxScheduleDate = () => "2026-12-31";
 
-  // ── Shared styles ──
   const readonlyStyle: React.CSSProperties = { borderBottomColor: "#c7d2fe", backgroundColor: "#f0f4ff" };
   const editableRequiredStyle: React.CSSProperties = { borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" };
   const editableOptionalStyle: React.CSSProperties = { borderBottomColor: "#bbf7d0", backgroundColor: "#f0fdf4" };
@@ -510,6 +534,62 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         <div className="p-8 md:p-10">
+
+          {/* ── Minor Registration Toggle ── */}
+          {parseInt(formData.age) < MIN_AGE && (
+            <div className="mb-8 p-6 rounded-lg border" style={{ backgroundColor: "#fef3f2", borderColor: "#fed7aa" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wider mb-2" style={{ color: "#b91c1c" }}>⚠️ Minor Registration</h3>
+                  <p className="text-sm" style={{ color: "#7f1d1d" }}>The applicant is under {MIN_AGE} years old. A parent or guardian must register and submit this application.</p>
+                </div>
+                {/* Toggle Switch */}
+                <button
+                  type="button"
+                  onClick={() => setIsRegisteringMinor(!isRegisteringMinor)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all"
+                  style={{
+                    backgroundColor: isRegisteringMinor ? "#10b981" : "#e5e7eb",
+                    color: isRegisteringMinor ? "white" : "#6b7280",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isRegisteringMinor) {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "#059669";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isRegisteringMinor) {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "#10b981";
+                    }
+                  }}
+                >
+                  <div
+                    className="w-6 h-6 rounded-full transition-all flex items-center justify-center"
+                    style={{
+                      backgroundColor: isRegisteringMinor ? "white" : "#9ca3af",
+                      color: isRegisteringMinor ? "#10b981" : "white",
+                    }}
+                  >
+                    {isRegisteringMinor ? "✓" : "○"}
+                  </div>
+                  {isRegisteringMinor ? "Parent/Guardian Registering" : "Enable Parent Registration"}
+                </button>
+              </div>
+
+              {/* Parent Info Display */}
+              {isRegisteringMinor && (
+                <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                  <p className="text-xs font-semibold mb-2" style={{ color: "#15803d" }}>Parent/Guardian Information:</p>
+                  <p className="text-sm" style={{ color: "#166534" }}>
+                    {parentInfo.prefix} {parentInfo.first_name} {parentInfo.middle_name} {parentInfo.surname} {parentInfo.extension}
+                  </p>
+                  <p className="text-xs mt-2 italic" style={{ color: "#15803d" }}>
+                    This parent/guardian name will appear in the "Requested By" field and all search records.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Before You Apply ── */}
           <div className="mb-8 p-6 rounded-lg border" style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}>
@@ -559,11 +639,13 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
 
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* ═══ Section 1 — Personal Information (READ-ONLY) ═══ */}
+            {/* ═══ Section 1 — Personal Information ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Personal Information</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>
+                  {isRegisteringMinor ? "Child Information" : "Personal Information"}
+                </h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>Auto-filled</span>
               </div>
@@ -600,7 +682,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
               </div>
             </div>
 
-            {/* ═══ Section 2 — Contact Information (READ-ONLY) ═══ */}
+            {/* ═══ Section 2 — Contact Information ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
@@ -620,7 +702,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
               </div>
             </div>
 
-            {/* ═══ Section 3 — Address Information (READ-ONLY incl. House Owner & Relationship) ═══ */}
+            {/* ═══ Section 3 — Address Information ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -642,7 +724,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 ))}
               </div>
 
-              {/* House Owner & Relationship — READ-ONLY on this form */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House Owner</Label>
@@ -655,7 +736,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
               </div>
             </div>
 
-            {/* ═══ Section 4 — Certificate Details (EDITABLE) ═══ */}
+            {/* ═══ Section 4 — Certificate Details ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
@@ -832,7 +913,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
                                 </div>
-                                
                               </label>
                             </div>
                           );
