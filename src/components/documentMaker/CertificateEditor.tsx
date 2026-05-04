@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import type { TextField, PDFTemplateInfo } from '@/types/certificate';
 import { DEFAULT_FIELD } from '@/types/certificate';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Layout } from '../Layout';
 import { type QRCodeFieldData } from './QRCodeField';
 import { useReleaseDocument } from '@/pages/useReleaseDocument';
+import { ArrowLeft } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -288,19 +289,25 @@ function buildPDFFields(fields: TextField[]): TextField[] {
 
 // ─── Default QR position in PDF points (A4: 595×842 pts) ─────────────────────
 const DEFAULT_QR: Omit<QRCodeFieldData, 'page'> = {
-  x: 20,       // 20 pts from left edge
-  y: 20,       // 20 pts from top edge
-  size: 80,    // 80×80 pts square
+  x: 20,
+  y: 20,
+  size: 80,
   visible: true,
 };
 
+// (PreviewModeView removed — preview mode reuses the existing PDFPreview canvas directly)
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function   CertificateEditor() {
+export function CertificateEditor() {
   const { id, bcertNumber } = useParams<{ id: string; bcertNumber: string }>();
   const location  = useLocation();
+  const navigate  = useNavigate();
   const ticket    = location.state?.ticket;
   const autoPrint = location.state?.autoPrint;
+
+  // ── Preview mode: read from router state ────────────────────────────────────
+  const isPreviewMode: boolean = !!(location.state?.previewMode);
 
   const [selectedClearanceType, setSelectedClearanceType] = useState<string | null>(null);
   const [fields, setFields]             = useState<TextField[]>([]);
@@ -517,12 +524,10 @@ export function   CertificateEditor() {
             ? metadata.layout : JSON.parse(metadata.layout);
 
           if (parsed.fields !== undefined) {
-            // New SavedLayout format
             const layout = parsed as SavedLayout;
             savedLayout = layout;
             restoredQr  = layout.qrField ?? null;
           } else {
-            // Legacy format (just TextField[])
             savedLayout = parsed as TextField[];
           }
         } catch { console.error('Invalid layout format'); }
@@ -530,7 +535,6 @@ export function   CertificateEditor() {
 
       const record = existingData ?? null;
 
-      // Extract fields from layout
       const layoutFields = Array.isArray(savedLayout)
         ? savedLayout
         : (savedLayout as SavedLayout).fields || [];
@@ -545,12 +549,10 @@ export function   CertificateEditor() {
 
       setFields(mergedFields);
 
-      // ── FIX: restore saved QR position, mark layout as loaded ──────────────
       if (restoredQr) {
         setQrField(restoredQr);
         layoutLoadedRef.current = true;
       } else {
-        // No QR in saved layout — clear it; bcert effect will set default later
         setQrField(null);
         layoutLoadedRef.current = false;
       }
@@ -625,19 +627,16 @@ export function   CertificateEditor() {
     } else { fetchUserDocument(); }
   }, [bcertNumber]);
 
-  // ── FIX: only set default QR position when the layout did NOT restore one ────
   useEffect(() => {
     if (!resolvedBcert || resolvedBcert === 'new') return;
-
-    // If fetchPDFTemplate already restored a saved QR position, don't overwrite it
     if (layoutLoadedRef.current) return;
-
-    // Only set the default when there is currently no QR field at all
     setQrField((prev) => {
       if (prev !== null) return prev;
       return { ...DEFAULT_QR, page: currentPage };
     });
   }, [resolvedBcert]);
+
+  // (no extra effect needed for preview mode — PDFPreview renders from blobUrl directly)
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -744,7 +743,6 @@ export function   CertificateEditor() {
     } catch { toast.error("Failed to generate PDF"); }
   }, [fields, qrField, resolvedBcert]);
 
-  // ── Save layout — includes QR field in PDF-point coordinates ─────────────────
   const handleSaveLayout = useCallback(() => {
     const layoutToSave: SavedLayout = {
       fields,
@@ -762,7 +760,6 @@ export function   CertificateEditor() {
     }).catch(() => toast.error('Failed to save layout'));
   }, [fields, qrField, id]);
 
-  // ── Load layout from file — restores QR field ────────────────────────────────
   const handleLoadLayout = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -773,15 +770,12 @@ export function   CertificateEditor() {
         const parsed = JSON.parse(reader.result as string) as SavedLayout | TextField[];
 
         if (Array.isArray(parsed)) {
-          // Legacy format (just array of fields)
           setFields(parsed);
           setQrField(null);
           layoutLoadedRef.current = false;
         } else if ((parsed as SavedLayout).fields !== undefined) {
-          // New SavedLayout format
           const layout = parsed as SavedLayout;
           setFields(layout.fields);
-          // ── FIX: restore QR from file and mark layout as loaded ────────────
           if (layout.qrField) {
             setQrField(layout.qrField);
             layoutLoadedRef.current = true;
@@ -860,8 +854,14 @@ export function   CertificateEditor() {
     } finally { setIsMarkingToPay(false); }
   };
 
+  // ── Back handler for preview mode ─────────────────────────────────────────────
+  const handleBackFromPreview = () => {
+    navigate(-1);
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // ── Shared loading state ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <Layout>
@@ -871,6 +871,97 @@ export function   CertificateEditor() {
       </Layout>
     );
   }
+
+  // ── PREVIEW MODE: same canvas, no toolbar/sidebar, slim back bar ──────────────
+  if (isPreviewMode) {
+    return (
+      <Layout>
+        <div className="flex h-screen flex-col bg-background text-foreground">
+          {/* ── Slim preview bar replaces the full toolbar ── */}
+          <div
+            style={{
+              height: 48,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 16px',
+              borderBottom: '1px solid hsl(var(--border))',
+              background: 'hsl(var(--background))',
+              flexShrink: 0,
+            }}
+          >
+            <button
+              onClick={handleBackFromPreview}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 14px',
+                borderRadius: 6,
+                border: '1px solid hsl(var(--border))',
+                background: 'hsl(var(--background))',
+                color: 'hsl(var(--foreground))',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowLeft size={14} />
+              Back
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  padding: '2px 10px',
+                  borderRadius: 20,
+                  background: 'hsl(var(--muted))',
+                  color: 'hsl(var(--muted-foreground))',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Preview
+              </span>
+              {resolvedBcert && (
+                <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                  {resolvedBcert}
+                </span>
+              )}
+            </div>
+
+            {/* Right spacer */}
+            <div style={{ width: 80 }} />
+          </div>
+
+          {/* ── Full-width canvas, no sidebar ── */}
+          <div className="flex flex-1 min-h-0">
+            <PDFPreview
+              blobUrl={blobUrl}
+              templateInfo={templateInfo}
+              fields={fields}
+              selectedId={null}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              onSelectField={() => {}}
+              onDragField={() => {}}
+              onDeleteField={() => {}}
+              onDeselect={() => {}}
+              qrField={qrField}
+              onQRChange={() => {}}
+              onQRRemove={() => {}}
+              bcertNumber={resolvedBcert}
+              isAdmin={false}
+            />
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ── EDIT MODE (unchanged from original) ──────────────────────────────────────
 
   return (
     <Layout>

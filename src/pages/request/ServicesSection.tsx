@@ -22,25 +22,25 @@ const services = [
     icon: Shield,
     title: "Barangay Clearance",
     href: "/services/barangay-clearance",
-    number: "01",
+    
   },
   {
     icon: Briefcase,
     title: "Business Clearance",
     href: "/services/business-clearance",
-    number: "02",
+    
   },
   {
     icon: Building2,
     title: "Building Clearance",
     href: "/services/building-clearance",
-    number: "03",
+    
   },
   {
     icon: FileText,
     title: "Barangay Certificate",
     href: "/services/barangay-certificate",
-    number: "04",
+    
   },  
 ];
 

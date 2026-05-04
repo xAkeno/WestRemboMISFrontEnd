@@ -1979,45 +1979,55 @@ const BarangayClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <button
-                                onClick={() => setSelectedDetailRecord(item)}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
-                                <Eye className="h-3 w-3" /> View/Edit
-                              </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/2/${item.bcert_number}`)}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                              >
-                                Preview
-                              </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
-                                Print
-                              </button>
-
-                              {/*
-                                ─── Delete / Disable logic ───────────────────────
-                                • Released  → show "Disable" button (soft delete)
-                                • All other → no delete button at all
-                              */}
-                              {isItemReleased ? (
-                                <button
-                                  onClick={() => {
-                                    // Open the record's detail modal which has the disable flow,
-                                    // OR call the API directly here for a quick inline path.
-                                    // Here we open the detail modal so the confirm step is shown.
-                                    setSelectedDetailRecord(item);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
-                                  title="Disable this released record"
-                                >
-                                  <Ban className="h-3 w-3" /> Disable
-                                </button>
-                              ) : null}
-                              {/* Delete button is intentionally hidden for ALL statuses */}
+                              {/* If DISABLED — show only these two */}
+                              {itemStatus === 'DISABLED' ? (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedDetailRecord(item)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed opacity-60 whitespace-nowrap"
+                                    title="This document has been disabled"
+                                  >
+                                    <Ban className="h-3 w-3" /> Disabled Document
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                </>
+                              ) : (
+                                /* Normal actions for all other statuses */
+                                <>
+                                  <button
+                                    onClick={() => setSelectedDetailRecord(item)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    <Eye className="h-3 w-3" /> View/Edit
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { previewMode: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
+                                  >
+                                    Preview
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                  {isItemReleased && (
+                                    <button
+                                      onClick={() => setSelectedDetailRecord(item)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                                      title="Disable this released record"
+                                    >
+                                      <Ban className="h-3 w-3" /> Disable
+                                    </button>
+                                  )}
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
