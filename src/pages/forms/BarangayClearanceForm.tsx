@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
@@ -35,12 +35,35 @@ const isWeekend = (date: Date) => {
   return day === 0 || day === 6;
 };
 
-const PH_HOLIDAYS_2026 = [
-  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
-  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
+const PH_HOLIDAYS: string[] = [
+  // 2025
+  "2025-01-01", "2025-04-09", "2025-04-17", "2025-04-18",
+  "2025-05-01", "2025-06-12", "2025-08-21", "2025-08-25",
+  "2025-11-01", "2025-11-30", "2025-12-08", "2025-12-25", "2025-12-30", "2025-12-31",
+  // 2026
+  "2026-01-01", "2026-04-02", "2026-04-03", "2026-04-09",
+  "2026-05-01", "2026-06-12", "2026-08-21", "2026-08-25",
+  "2026-11-01", "2026-11-30", "2026-12-08", "2026-12-25", "2026-12-30", "2026-12-31",
 ];
 
-const isHoliday = (dateStr: string) => PH_HOLIDAYS_2026.includes(dateStr);
+const isHoliday = (dateStr: string) => PH_HOLIDAYS.includes(dateStr);
+
+const toDateString = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const isSelectableDate = (dateStr: string): boolean => {
+  const date = new Date(dateStr + "T00:00:00");
+  const today = todayDate();
+  if (date < today) return false;
+  if (date.getFullYear() > 2026) return false;
+  if (isWeekend(date)) return false;
+  if (isHoliday(dateStr)) return false;
+  return true;
+};
 
 const validateScheduleDate = (value: string): string => {
   if (!value) return "Schedule date is required.";
@@ -50,12 +73,6 @@ const validateScheduleDate = (value: string): string => {
   if (isWeekend(date)) return "Weekends (Saturday & Sunday) are not available. Please choose a weekday.";
   if (isHoliday(value)) return "Selected date is a Philippine holiday. Barangay services are unavailable on this day.";
   return "";
-};
-
-const maxDob = () => {
-  const d = todayDate();
-  d.setFullYear(d.getFullYear() - MIN_AGE);
-  return d;
 };
 
 const validateRequired = (value: string, fieldName: string): string => {
@@ -75,13 +92,122 @@ const validatePurpose = (value: string): string => {
   return "";
 };
 
+// DOB must be strictly in the past — today and any future date are invalid
+const validateDob = (value: string): string => {
+  if (!value) return "Date of birth is required.";
+  const dob = new Date(value + "T00:00:00");
+  const today = todayDate();
+  if (dob >= today) return "Date of birth must be in the past. Today and future dates are not allowed.";
+  return "";
+};
+
 const parseAddress = (address: string) => {
   if (!address) return { house_block_lot_no: "", street: "", zone: "" };
   const parts = address.split(",").map((p) => p.trim());
   return { house_block_lot_no: parts[0] || "", street: parts[1] || "", zone: parts[2] || "" };
 };
 
-const toInputMax = (d: Date) => d.toISOString().split("T")[0];
+const getTimeSlotAvailability = (selectedDate: string) => {
+  const today = toDateString(new Date());
+  if (selectedDate !== today) {
+    return { morningDisabled: false, afternoonDisabled: false };
+  }
+  const now = new Date();
+  const currentHour = now.getHours();
+  const morningDisabled = currentHour >= 12;
+  const afternoonDisabled = currentHour >= 18;
+  return { morningDisabled, afternoonDisabled };
+};
+
+// ─── Register Dependent Toggle ─────────────────────────────────────────────────
+function RegisterDependentToggle({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between gap-4 px-5 py-4 rounded-lg mb-6 transition-all"
+      style={{
+        backgroundColor: enabled ? "#fffbeb" : "#f9fafb",
+        border: `1.5px solid ${enabled ? "#f59e0b" : "#e5e7eb"}`,
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+          style={{ backgroundColor: enabled ? "#fef3c7" : "#f3f4f6" }}
+        >
+          <svg
+            className="w-4 h-4"
+            style={{ color: enabled ? "#d97706" : "#9ca3af" }}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-bold" style={{ color: enabled ? "#92400e" : "#374151" }}>
+            Register Dependent
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: enabled ? "#b45309" : "#9ca3af" }}>
+            {enabled
+              ? "Auto-fill is OFF — all fields are now manually editable for dependent registration"
+              : "Toggle on to register a family member or dependent instead of yourself"}
+          </p>
+          {enabled && (
+            <div
+              className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full w-fit"
+              style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d" }}
+            >
+              <svg
+                className="w-3 h-3"
+                style={{ color: "#d97706" }}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span className="text-xs font-semibold" style={{ color: "#92400e" }}>
+                Enter the dependent's information in all fields below
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Slider toggle */}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={() => onChange(!enabled)}
+        className="relative inline-flex h-6 w-11 items-center rounded-full flex-shrink-0 focus:outline-none transition-colors duration-200"
+        style={{ backgroundColor: enabled ? "#f59e0b" : "#d1d5db" }}
+      >
+        <span
+          className="inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200"
+          style={{ transform: enabled ? "translateX(24px)" : "translateX(4px)" }}
+        />
+      </button>
+    </div>
+  );
+}
 
 // ─── Scheduling Info Modal ────────────────────────────────────────────────────
 const SchedulingInfoModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -288,6 +414,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
   const [loadingServiceInfo, setLoadingServiceInfo] = useState(true);
 
+  // ── Dependent toggle state ──
+  const [isDependent, setIsDependent] = useState(false);
+  // Stores the auto-fetched user data so we can restore it when toggling back off
+  const autoFilledDataRef = useRef<Partial<typeof formData>>({});
+
   const [errors, setErrors] = useState({
     period_of_residency: "",
     purpose: "",
@@ -295,6 +426,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     time_group: "",
     house_owner: "",
     relationship_to_owner: "",
+    dob: "",
   });
 
   const { toast } = useToast();
@@ -353,14 +485,44 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     document_type: "barangay_clearance",
   });
 
-  // FIX 1: Only apply toUpperCase to free-text fields, NOT to select fields
-  // "relationship_to_owner" removed from textFields to prevent value mismatch with SelectItem options
   const upd = (f: string, v: string) => {
-    const textFields = ["purpose_details", "house_owner"];
-    const value = textFields.includes(f) ? toUpperCase(v) : v;
+    // Fields that should NOT be uppercased (dates, email, and select-driven fields whose values must match exactly)
+    const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "issued_on", "prefix"];
+    const value = noUppercaseFields.includes(f) ? v : toUpperCase(v);
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [f]: "" }));
+    }
+  };
+
+  // ── Handle dependent toggle ──
+  const handleDependentToggle = (enabled: boolean) => {
+    setIsDependent(enabled);
+    if (enabled) {
+      // Clear all auto-filled personal / contact / address fields
+      setFormData((prev) => ({
+        ...prev,
+        prefix: "",
+        first_name: "",
+        middle_name: "",
+        surname: "",
+        ext_name: "",
+        age: "",
+        dob: "",
+        pob: "",
+        contact_no: "",
+        email: "",
+        house_block_lot_no: "",
+        street: "",
+        zone: "",
+        period_of_residency: "",
+        registered_voter: "",
+        house_owner: "",
+        relationship_to_owner: "",
+      }));
+    } else {
+      // Restore the saved auto-filled data
+      setFormData((prev) => ({ ...prev, ...autoFilledDataRef.current }));
     }
   };
 
@@ -383,9 +545,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     if (err) {
       upd("schedule_date", "");
       setAvailableSlots(null);
+      setFormData((p) => ({ ...p, time_group: "" }));
       return;
     }
     upd("schedule_date", date);
+    setFormData((p) => ({ ...p, schedule_date: date, time_group: "" }));
     fetchAvailableSlots(date);
   };
 
@@ -398,6 +562,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
       time_group: validateRequired(formData.time_group, "Time slot"),
       house_owner: validateRequired(formData.house_owner, "House owner"),
       relationship_to_owner: validateRequired(formData.relationship_to_owner, "Relationship to owner"),
+      dob: isDependent ? validateDob(formData.dob) : "",
     };
     const isValid = Object.values(newErrors).every((e) => e === "");
     setErrors(newErrors);
@@ -440,8 +605,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     } finally { setIsSubmitting(false); }
   };
 
-  // ── Auto-fill from authenticated user ──
+  // ── Auto-fill from authenticated user — skipped when isDependent is on ──
   useEffect(() => {
+    if (isDependent) return; // Do not auto-fill when registering a dependent
+
     const loadUser = async () => {
       try {
         const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
@@ -456,8 +623,15 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           );
           if (foundStreet) matchedStreet = toUpperCase(foundStreet.name);
         }
-        setFormData((prev) => ({
-          ...prev,
+
+        const profileHouseOwner = user.house_owner ?? user.houseOwner ?? user.house_owner_name ?? "";
+        const VALID_RELATIONSHIPS = ["Owner", "Tenant", "Son", "Daughter", "Spouse", "Parent", "Sibling", "Relative", "Other"];
+        const profileRelationship = user.relationship_to_owner ?? user.relationshipToOwner ?? user.relationship ?? "";
+        const matchedRelationship = VALID_RELATIONSHIPS.find(
+          (r) => r.toLowerCase() === String(profileRelationship).toLowerCase()
+        ) ?? "";
+
+        const filled = {
           prefix: user.prefix ?? "",
           first_name: user.first_name ?? "",
           middle_name: user.middle_name ?? "",
@@ -470,23 +644,27 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           house_block_lot_no: toUpperCase(addressParts.house_block_lot_no),
           street: matchedStreet,
           zone: toUpperCase(addressParts.zone),
-          // house_owner and relationship_to_owner are intentionally left for user to fill
+          house_owner: profileHouseOwner ? toUpperCase(profileHouseOwner) : "",
+          relationship_to_owner: matchedRelationship,
           period_of_residency: user.period_of_residency ?? "",
           age: normalizedDob ? String(calculateAge(normalizedDob)) : "",
           registered_voter: user.voter_status ? "Yes" : "No",
-        }));
+        };
+
+        // Save a snapshot so we can restore it if the toggle is turned back off
+        autoFilledDataRef.current = filled;
+
+        setFormData((prev) => ({ ...prev, ...filled }));
       } catch (error) { console.error("Failed to load authenticated user:", error); }
     };
     loadUser();
-  }, [streets]);
+  }, [streets, isDependent]); // re-runs when isDependent turns back off
 
   const getMinScheduleDate = () => {
     const d = new Date();
-    d.setDate(d.getDate());
     return d.toISOString().split("T")[0];
   };
 
-  // Max date = end of 2026
   const getMaxScheduleDate = () => "2026-12-31";
 
   // ── Shared styles ──
@@ -502,11 +680,43 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     borderBottomColor: "#bbf7d0",
     backgroundColor: "#f0fdf4",
   };
+  // When isDependent is on, auto-filled fields switch to this style
+  const dependentEditableStyle: React.CSSProperties = {
+    borderBottomColor: "#fcd34d",
+    backgroundColor: "#fffbeb",
+  };
 
   const readonlyInputCls = "rounded-none border-0 border-b-2 px-0 text-sm cursor-not-allowed opacity-80";
   const editableInputCls = "rounded-none border-0 border-b-2 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
+  // ── Compute time-slot disabled states whenever schedule_date changes ──
+  const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
+    getTimeSlotAvailability(formData.schedule_date);
+
   if (successData) return <SuccessModal successData={successData} onBack={handleBack} />;
+
+  // ── Helper: badge for sections 1 & 2 ──
+  const SectionBadge = () =>
+    isDependent ? (
+      <span
+        className="text-xs px-2 py-0.5 rounded-full font-semibold"
+        style={{ backgroundColor: "#fef3c7", color: "#d97706", border: "1px solid #fcd34d" }}
+      >
+        Enter Manually
+      </span>
+    ) : (
+      <span
+        className="text-xs px-2 py-0.5 rounded-full font-semibold"
+        style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}
+      >
+        Auto-filled
+      </span>
+    );
+
+  // ── Derive unique zones from streets data ──
+  const uniqueZones = Array.from(
+    new Set(streets.map((s) => s.sitio).filter(Boolean))
+  ) as string[];
 
   return (
     <>
@@ -585,66 +795,211 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           {/* ── Field Legend ── */}
           <FieldLegend />
 
+          {/* ── Register Dependent Toggle ── */}
+          <RegisterDependentToggle enabled={isDependent} onChange={handleDependentToggle} />
+
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* ═══════════════ Section 1 — Personal Information (READ-ONLY) ═══════════════ */}
+            {/* ═══════════════ Section 1 — Personal Information ═══════════════ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Personal Information</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>
-                  Auto-filled
-                </span>
+                <SectionBadge />
               </div>
 
+              {/* Row 1: Prefix (Select in dependent mode), Surname, First Name, Middle Name */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[
-                  { label: "Prefix", value: formData.prefix, placeholder: "e.g. Mr., Ms." },
-                  { label: "Surname *", value: formData.surname, placeholder: "de la Cruz" },
-                  { label: "First Name *", value: formData.first_name, placeholder: "Juan" },
-                  { label: "Middle Name", value: formData.middle_name, placeholder: "Reyes" },
-                ].map(({ label, value, placeholder }) => (
+
+                {/* Prefix — Select dropdown in dependent mode */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Prefix</Label>
+                  {isDependent ? (
+                    <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
+                      <SelectTrigger
+                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
+                        style={{ ...dependentEditableStyle, textTransform: "uppercase" }}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
+                      >
+                        <SelectValue placeholder="e.g. Mr., Ms." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["Mr.", "Mrs.", "Ms.", "Dr.", "Engr.", "Atty.", "Prof."].map((p) => (
+                          <SelectItem key={p} value={p} style={{ textTransform: "uppercase" }}>{p}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={formData.prefix}
+                      readOnly
+                      disabled
+                      placeholder="e.g. Mr., Ms."
+                      className={readonlyInputCls}
+                      style={readonlyStyle}
+                    />
+                  )}
+                </div>
+
+                {/* Surname, First Name, Middle Name */}
+                {(
+                  [
+                    { label: "Surname *", field: "surname", placeholder: "de la Cruz" },
+                    { label: "First Name *", field: "first_name", placeholder: "Juan" },
+                    { label: "Middle Name", field: "middle_name", placeholder: "Reyes" },
+                  ] as const
+                ).map(({ label, field, placeholder }) => (
                   <div key={label} className="space-y-1.5">
                     <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>{label}</Label>
-                    <Input value={value} readOnly disabled placeholder={placeholder} className={readonlyInputCls} style={readonlyStyle} />
+                    <Input
+                      value={formData[field as keyof typeof formData] as string}
+                      readOnly={!isDependent}
+                      disabled={!isDependent}
+                      placeholder={placeholder}
+                      onChange={isDependent ? (e) => upd(field, e.target.value) : undefined}
+                      className={isDependent ? editableInputCls : readonlyInputCls}
+                      style={isDependent ? dependentEditableStyle : readonlyStyle}
+                      onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                      onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                    />
                   </div>
                 ))}
               </div>
 
+              {/* Row 2: Extension, Age, Date of Birth (no min/max), Place of Birth */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                {[
-                  { label: "Extension", value: formData.ext_name, placeholder: "Jr., Sr." },
-                  { label: "Age", value: formData.age, placeholder: "", type: "number" },
-                  { label: "Date of Birth *", value: formData.dob, placeholder: "", type: "date" },
-                  { label: "Place of Birth *", value: formData.pob, placeholder: "Manila" },
-                ].map(({ label, value, placeholder, type }) => (
-                  <div key={label} className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>{label}</Label>
-                    <Input type={type ?? "text"} value={value} readOnly disabled placeholder={placeholder} className={readonlyInputCls} style={readonlyStyle} />
-                  </div>
-                ))}
+
+                {/* Extension */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Extension</Label>
+                  <Input
+                    type="text"
+                    value={formData.ext_name}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    placeholder="Jr., Sr."
+                    onChange={isDependent ? (e) => upd("ext_name", e.target.value) : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={isDependent ? dependentEditableStyle : readonlyStyle}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                  />
+                </div>
+
+                {/* Age — read-only always (auto-calculated from DOB) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Age</Label>
+                  <Input
+                    type="number"
+                    value={formData.age}
+                    readOnly
+                    disabled
+                    placeholder=""
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                </div>
+
+                {/* Date of Birth — max = yesterday (today & future dates not allowed); auto-computes age */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
+                  <Input
+                    type="date"
+                    value={formData.dob}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    // max = yesterday so today and future dates are blocked at browser level too
+                    max={(() => {
+                      const yesterday = new Date();
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      return toDateString(yesterday);
+                    })()}
+                    onChange={isDependent ? (e) => {
+                      const val = e.target.value;
+                      const dobErr = val ? validateDob(val) : "Date of birth is required.";
+                      setErrors((prev) => ({ ...prev, dob: dobErr }));
+                      if (val) {
+                        const computedAge = calculateAge(val);
+                        setFormData((p) => ({ ...p, dob: val, age: String(computedAge) }));
+                      } else {
+                        setFormData((p) => ({ ...p, dob: val, age: "" }));
+                      }
+                    } : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={{
+                      ...(isDependent ? dependentEditableStyle : readonlyStyle),
+                      borderBottomColor: errors.dob ? "#ef4444" : isDependent ? "#fcd34d" : "#c7d2fe",
+                    }}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = errors.dob ? "#ef4444" : "#fcd34d") : undefined}
+                  />
+                  {errors.dob && isDependent && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {errors.dob}
+                    </p>
+                  )}
+                </div>
+
+                {/* Place of Birth */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
+                  <Input
+                    type="text"
+                    value={formData.pob}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    placeholder="Manila"
+                    onChange={isDependent ? (e) => upd("pob", e.target.value) : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={isDependent ? dependentEditableStyle : readonlyStyle}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* ═══════════════ Section 2 — Contact Information (READ-ONLY) ═══════════════ */}
+            {/* ═══════════════ Section 2 — Contact Information ═══════════════ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Contact Information</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>
-                  Auto-filled
-                </span>
+                <SectionBadge />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Contact Number *</Label>
-                  <Input type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
+                  <Input
+                    type="tel"
+                    placeholder="09XX XXX XXXX"
+                    value={formData.contact_no}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    onChange={isDependent ? (e) => upd("contact_no", e.target.value) : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={isDependent ? dependentEditableStyle : readonlyStyle}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
-                  <Input type="email" placeholder="juan@email.com" value={formData.email} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
+                  <Input
+                    type="email"
+                    placeholder="juan@email.com"
+                    value={formData.email}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    onChange={isDependent ? (e) => upd("email", e.target.value) : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={isDependent ? dependentEditableStyle : readonlyStyle}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                  />
                 </div>
               </div>
             </div>
@@ -655,23 +1010,96 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Address Information</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+                {isDependent && <SectionBadge />}
               </div>
 
-              {/* Read-only address fields */}
+              {/* House/Block/Lot, Street (Select in dependent), Zone (Select in dependent) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { label: "House / Block / Lot No. *", value: formData.house_block_lot_no, placeholder: "e.g., 123-A" },
-                  { label: "Street *", value: formData.street, placeholder: "Street" },
-                  { label: "Zone / Purok *", value: formData.zone, placeholder: "Zone / Purok" },
-                ].map(({ label, value, placeholder }) => (
-                  <div key={label} className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>{label}</Label>
-                    <Input placeholder={placeholder} value={value} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
-                  </div>
-                ))}
+
+                {/* House / Block / Lot No. */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No. *</Label>
+                  <Input
+                    placeholder="e.g., 123-A"
+                    value={formData.house_block_lot_no}
+                    readOnly={!isDependent}
+                    disabled={!isDependent}
+                    onChange={isDependent ? (e) => upd("house_block_lot_no", e.target.value) : undefined}
+                    className={isDependent ? editableInputCls : readonlyInputCls}
+                    style={isDependent ? dependentEditableStyle : readonlyStyle}
+                    onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
+                    onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
+                  />
+                </div>
+
+                {/* Street — Select dropdown populated from API in dependent mode */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
+                  {isDependent ? (
+                    <Select value={formData.street} onValueChange={(v) => upd("street", v)}>
+                      <SelectTrigger
+                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
+                        style={dependentEditableStyle}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
+                      >
+                        <SelectValue placeholder="Select street" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {streets.map((s) => (
+                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
+                            {toUpperCase(s.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={formData.street}
+                      readOnly
+                      disabled
+                      placeholder="Street"
+                      className={readonlyInputCls}
+                      style={readonlyStyle}
+                    />
+                  )}
+                </div>
+
+                {/* Zone / Purok — Select dropdown from unique sitio values in dependent mode */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
+                  {isDependent ? (
+                    <Select value={formData.zone} onValueChange={(v) => upd("zone", v)}>
+                      <SelectTrigger
+                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
+                        style={dependentEditableStyle}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
+                      >
+                        <SelectValue placeholder="Select zone / purok" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueZones.map((sitio) => (
+                          <SelectItem key={sitio} value={toUpperCase(sitio)}>
+                            {toUpperCase(sitio)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={formData.zone}
+                      readOnly
+                      disabled
+                      placeholder="Zone / Purok"
+                      className={readonlyInputCls}
+                      style={readonlyStyle}
+                    />
+                  )}
+                </div>
               </div>
 
-              {/* Editable: House Owner + Relationship */}
+              {/* House Owner + Relationship — always editable */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
@@ -695,8 +1123,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                     Relationship to Owner <span style={{ color: "#ef4444" }}>*</span>
                   </Label>
-                  {/* FIX 1: value is stored as-is (e.g. "Owner"), not uppercased,
-                      so it correctly matches the SelectItem value strings */}
                   <Select
                     value={formData.relationship_to_owner}
                     onValueChange={(v) => {
@@ -768,23 +1194,48 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 </div>
               </div>
 
+              {/* CTC/VRR No. */}
               <div className="mt-6 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                   CTC / VRR No. <span style={{ color: "#ef4444" }}>*</span>
                 </Label>
                 <Input
-                  type="number"
+                  inputMode="numeric"
                   placeholder="Enter CTC or VRR number"
                   value={formData.ctc_vrr_no}
-                  onChange={(e) => upd("ctc_vrr_no", e.target.value)}
+                  maxLength={20}
+                  onKeyDown={(e) => {
+                    const allowedKeys = ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+                    if ((e.ctrlKey || e.metaKey) && ["a", "c", "v", "x"].includes(e.key.toLowerCase())) return;
+                    if (allowedKeys.includes(e.key)) return;
+                    if (!/^\d$/.test(e.key)) { e.preventDefault(); }
+                    if (formData.ctc_vrr_no.length >= 20 && !allowedKeys.includes(e.key)) { e.preventDefault(); }
+                  }}
+                  onChange={(e) => {
+                    const numericOnly = e.target.value.replace(/\D/g, "").slice(0, 20);
+                    upd("ctc_vrr_no", numericOnly);
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasted = e.clipboardData.getData("text");
+                    const numericOnly = pasted.replace(/\D/g, "").slice(0, 20);
+                    const current = formData.ctc_vrr_no;
+                    const combined = (current + numericOnly).slice(0, 20);
+                    upd("ctc_vrr_no", combined);
+                  }}
                   className={editableInputCls}
                   style={{ ...editableRequiredStyle, borderBottomColor: "#bbf7d0" }}
                   onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                   onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#bbf7d0")}
                 />
-                <p className="text-xs" style={{ color: "#9ca3af" }}>
-                  Community Tax Certificate or Voter's Registration Record number
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs" style={{ color: "#9ca3af" }}>
+                    Community Tax Certificate or Voter's Registration Record number (numbers only)
+                  </p>
+                  <p className="text-xs" style={{ color: formData.ctc_vrr_no.length >= 20 ? "#ef4444" : "#9ca3af" }}>
+                    {formData.ctc_vrr_no.length}/20
+                  </p>
+                </div>
               </div>
 
               <div className="mt-6 space-y-1.5">
@@ -837,7 +1288,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Schedule Appointment</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-                {/* Info trigger button */}
                 <button
                   type="button"
                   onClick={() => setShowSchedulingModal(true)}
@@ -851,15 +1301,15 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 </button>
               </div>
 
-              {/* Compact scheduling rules notice */}
               <div className="mb-5 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
                 <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
                 <div>
                   <p className="text-xs font-bold" style={{ color: "#0369a1" }}>
-                    Appointments are available Monday – Friday only .
+                    Appointments are available Monday – Friday only.
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "#0369a1" }}>
                     Weekends, public holidays, and special non-working holidays are not available.
+                    Weekends and holidays are automatically disabled in the date picker.
                     <button type="button" onClick={() => setShowSchedulingModal(true)} className="underline ml-1 font-semibold" style={{ color: "#0284c7" }}>
                       Learn more
                     </button>
@@ -872,33 +1322,74 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                     Select Date <span style={{ color: "#ef4444" }}>*</span>
                   </Label>
-                  <Input
-                    type="date"
-                    min={getMinScheduleDate()}
-                    max={getMaxScheduleDate()}
-                    value={formData.schedule_date}
-                    onChange={(e) => handleScheduleDateChange(e.target.value)}
-                    className={editableInputCls}
-                    style={{
-                      ...editableRequiredStyle,
-                      borderBottomColor: errors.schedule_date ? "#ef4444" : "#fed7aa",
-                    }}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#fed7aa")}
-                  />
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      min={getMinScheduleDate()}
+                      max={getMaxScheduleDate()}
+                      value={formData.schedule_date}
+                      onChange={(e) => handleScheduleDateChange(e.target.value)}
+                      className={editableInputCls}
+                      style={{
+                        ...editableRequiredStyle,
+                        borderBottomColor: errors.schedule_date ? "#ef4444" : "#fed7aa",
+                      }}
+                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#fed7aa")}
+                    />
+                  </div>
                   {errors.schedule_date && (
                     <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {errors.schedule_date}
                     </p>
                   )}
+                  {(() => {
+                    const today = new Date();
+                    const todayStr = toDateString(today);
+                    if (!isSelectableDate(todayStr)) {
+                      const next = new Date(today);
+                      for (let i = 1; i <= 14; i++) {
+                        next.setDate(today.getDate() + i);
+                        const nextStr = toDateString(next);
+                        if (isSelectableDate(nextStr)) {
+                          return (
+                            <p className="text-xs mt-1" style={{ color: "#0369a1" }}>
+                              💡 Today is a weekend or holiday. Next available date:{" "}
+                              <button
+                                type="button"
+                                className="underline font-semibold"
+                                style={{ color: "#0284c7" }}
+                                onClick={() => handleScheduleDateChange(nextStr)}
+                              >
+                                {next.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              </button>
+                            </p>
+                          );
+                        }
+                      }
+                    }
+                    return null;
+                  })()}
                 </div>
 
-                {formData.schedule_date && (
+                {formData.schedule_date && !errors.schedule_date && (
                   <div>
                     <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>
                       Select Time Slot <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
+
+                    {formData.schedule_date === toDateString(new Date()) && (isMorningPastDue || isAfternoonPastDue) && (
+                      <div className="mb-3 p-3 rounded-lg flex items-start gap-2" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
+                        <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
+                        <p className="text-xs" style={{ color: "#c2410c" }}>
+                          {isAfternoonPastDue
+                            ? "The barangay office is now closed for today. Please select a different date."
+                            : "The morning slot has passed. Only the afternoon slot is available for today."}
+                        </p>
+                      </div>
+                    )}
+
                     {loadingSlots ? (
                       <div className="flex items-center gap-2 text-gray-500">
                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -908,9 +1399,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                         <span className="text-sm">Loading available slots...</span>
                       </div>
                     ) : availableSlots ? (
-                      // FIX 2: RadioGroup handles all selection logic via onValueChange.
-                      // The wrapper div no longer has an onClick — that was causing
-                      // conflicts when switching between already-selected time slots.
                       <RadioGroup
                         value={formData.time_group}
                         onValueChange={(v) => {
@@ -924,25 +1412,39 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                           { key: "afternoon", label: "Afternoon Slot", time: "1:00 PM – 5:50 PM" },
                         ].map(({ key, label, time }) => {
                           const slot = availableSlots[key as "morning" | "afternoon"];
+                          const timeDisabled =
+                            key === "morning" ? isMorningPastDue :
+                            key === "afternoon" ? isAfternoonPastDue : false;
+                          const isDisabled = !slot.available || timeDisabled;
                           const isSelected = formData.time_group === key;
+                          const disabledReason = !slot.available
+                            ? "Fully booked"
+                            : timeDisabled
+                            ? key === "morning" ? "Morning has passed" : "Office closed"
+                            : "";
+
                           return (
                             <div
                               key={key}
                               className="flex items-center space-x-3 p-4 rounded-lg border-2 transition-all"
                               style={{
-                                borderColor: isSelected ? "#0f2a5e" : slot.available ? "#fed7aa" : "#e5e7eb",
-                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : slot.available ? "#fff7ed" : "#f9fafb",
-                                cursor: slot.available ? "pointer" : "not-allowed",
-                                opacity: slot.available ? 1 : 0.5,
+                                borderColor: isSelected ? "#0f2a5e" : isDisabled ? "#e5e7eb" : "#fed7aa",
+                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : isDisabled ? "#f9fafb" : "#fff7ed",
+                                cursor: isDisabled ? "not-allowed" : "pointer",
+                                opacity: isDisabled ? 0.5 : 1,
                               }}
                             >
-                              <RadioGroupItem value={key} id={`slot-${key}`} disabled={!slot.available} />
-                              <label htmlFor={`slot-${key}`} className="flex-1" style={{ cursor: slot.available ? "pointer" : "not-allowed" }}>
+                              <RadioGroupItem value={key} id={`slot-${key}`} disabled={isDisabled} />
+                              <label htmlFor={`slot-${key}`} className="flex-1" style={{ cursor: isDisabled ? "not-allowed" : "pointer" }}>
                                 <div className="flex items-center gap-2 mb-1">
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
+                                  {isDisabled && disabledReason && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "10px", fontWeight: 600 }}>
+                                      {disabledReason}
+                                    </span>
+                                  )}
                                 </div>
-                                
                               </label>
                             </div>
                           );

@@ -2012,7 +2012,7 @@ const BarangayClearance = () => {
                                     Preview
                                   </button>
                                   <button
-                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true} })}
                                     className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
                                   >
                                     Print

@@ -1950,7 +1950,7 @@ const Certificate = () => {
                               <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">
                                 Preview
                               </button>
-                              <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
+                              <button onClick={() => navigate(`/document-edit/1/${item.bcert_number}`, { state: { autoPrint: true,previewMode: true} })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                 Print
                               </button>
                               {isItemReleased && (
