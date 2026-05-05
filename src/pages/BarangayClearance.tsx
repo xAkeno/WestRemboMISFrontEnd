@@ -363,22 +363,44 @@ const STATUS_STYLES: Record<string, string> = {
   disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
 
-function normaliseStatus(raw: string | null | undefined): string {
+function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
   if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
   if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
+  if (
+    requesterType?.toLowerCase() === 'walk-in' &&
+    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
+  ) {
+    return 'PENDING';
+  }
   return raw.toUpperCase();
 }
 
-function StatusBadge({ status }: { status: string | null | undefined }) {
+function StatusBadge({ status, requesterType }: {
+  status: string | null | undefined;
+  requesterType?: string;
+}) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const display = normaliseStatus(status);
+  const display = normaliseStatus(status, requesterType);
   const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+  const reqType = requesterType?.toLowerCase();
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
-      {display}
-    </span>
+    <div className="flex flex-col gap-1 w-fit">
+      {reqType === 'walk-in' && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-slate-100 text-slate-600 border-slate-300 w-fit">
+           Walk-in
+        </span>
+      )}
+      {reqType === 'online' && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-cyan-50 text-cyan-700 border-cyan-200 w-fit">
+           Online
+        </span>
+      )}
+      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
+        {display}
+      </span>
+    </div>
   );
 }
 
@@ -668,14 +690,14 @@ function RescheduleModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!newDate || !newTime) {
-      toast({ title: 'Missing fields', description: 'Please select both a date and time.', variant: 'destructive' });
-      return;
-    }
-    if (new Date(`${newDate}T${newTime}`) <= new Date()) {
-      toast({ title: 'Invalid date', description: 'New schedule must be in the future.', variant: 'destructive' });
-      return;
-    }
+  if (record.requester_type?.toLowerCase() === 'walk-in') {
+    toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
+    return;
+  }
+  if (!newDate || !newTime) {
+    toast({ title: 'Missing fields', description: 'Please select both a date and time.', variant: 'destructive' });
+    return;
+  }
 
     setIsSubmitting(true);
     try {
@@ -1007,11 +1029,25 @@ function EditableDetailModal({
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
-      const normalisedStatus = normaliseStatus(full.status ?? '');
+      const normalisedStatus = normaliseStatus(full.status ?? '', full.requester_type ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
       // Store current schedule for no-show logic
       setCurrentSchedule(full.schedule ?? null);
+
+
+      // Auto-fix: walk-in records should never be RESCHEDULED or SCHEDULED
+      if (
+        full.requester_type?.toLowerCase() === 'walk-in' &&
+        (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
+      ) {
+        axios.put(
+          `https://westrembomis.onrender.com/api/barangay-clearances/${full.id}`,
+          { status: 'PENDING' },
+          { withCredentials: true }
+        ).catch(() => {});
+      }
+
       setFormData({
         first_name:               full.first_name               || '',
         middle_name:              full.middle_name              || '',
@@ -1529,7 +1565,9 @@ function EditableDetailModal({
                 <FormField name="bcert_number" value={formData.bcert_number || ''} onChange={handleInputChange} isEditing={false} label="Barangay Clearance No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
+                  <div className="mt-1">
+                    <StatusBadge status={currentStatus} requesterType={formData.requester_type} />
+                  </div>
                 </div>
                 {formData.rejection_reason && (
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Reason of rejection" />
@@ -2187,7 +2225,7 @@ const BarangayClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
-                      const itemStatus = normaliseStatus(item.status);
+                      const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
                       const isItemArchived = itemStatus === 'ARCHIVED' || itemStatus === 'DISABLED';
                       const isItemReleased = itemStatus === 'RELEASED';
                       // Determine no-show for table row
@@ -2226,7 +2264,9 @@ const BarangayClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
                             {new Date(item.dob).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
+                          </td>
                           <td className="py-3 px-4">
                             <ScheduleCell
                               schedule={itemSchedule}
