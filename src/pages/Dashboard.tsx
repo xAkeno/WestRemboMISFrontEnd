@@ -255,15 +255,15 @@ const Dashboard = () => {
         {/* ══════════════════════════════════════════════════════════════════════
             GLOBAL FILTER BAR
         ══════════════════════════════════════════════════════════════════════ */}
-        <Card className="border-2 border-primary/20 shadow-sm">
-          <CardHeader className="pb-3">
+        <Card className="border-2 border-primary/20 shadow-sm flex items-center justify-between">
+          <CardHeader className="">
             <CardTitle className="text-sm font-semibold">Dashboard Filters</CardTitle>
             <CardDescription className="text-xs">
               All charts, counts, distribution, and comparisons update with these filters.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-wrap gap-4 items-end mt-4">
 
               {/* Date Range */}
               <div className="flex flex-col gap-1">
