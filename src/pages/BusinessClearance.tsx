@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
-  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X, RefreshCw, 
+  Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X, RefreshCw,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Archive,
+  CalendarClock, AlertTriangle, History,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -97,24 +98,64 @@ const NON_DATE_KEYS = new Set([
   'inspected_by','height_cm','weight_kg','created_by','extension',
 ]);
 
+const FIELD_WRAP_CONFIG: Record<string, number> = {
+  'Full Address': 50,'Address': 50,'House Block Lot No': 40,'Street': 35,'Zone': 20,
+  'Full Name': 40,'Purpose': 45,'Purpose Details': 55,'Remarks': 60,
+  'Business Name': 45,'Business Type': 35,'Inspected Remarks': 60,'Inspected Note': 60,
+};
+
+function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
+  if (!value) return [''];
+  const configKey = Object.keys(FIELD_WRAP_CONFIG).find(key => fieldLabel?.toLowerCase().includes(key.toLowerCase()));
+  const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
+  if (value.length <= maxChars) return [value];
+  const words = value.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const word of words) {
+    if ((currentLine + ' ' + word).length <= maxChars) {
+      currentLine += (currentLine ? ' ' : '') + word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
 // ─── Status ordering for forward-only enforcement ──────────────────────────────
 const STATUS_ORDER: Record<string, number> = {
-  'PENDING': 0,'SCHEDULED': 1,'ENCODED': 2,'INSPECTING': 3,
-  'REVIEWED': 4,'PAID': 5,'RELEASED': 6,
-  'INCOMPLETE': -1,'REJECTED': -1,
+  'PENDING':      0,
+  'RESCHEDULED':  0, // same priority level as PENDING — awaiting new schedule
+  'SCHEDULED':    1,
+  'ENCODED':      2,
+  'INSPECTING':   3,
+  'REVIEWED':     4,
+  'PAID':         5,
+  'RELEASED':     6,
+  'INCOMPLETE':  -1,
+  'REJECTED':    -1,
 };
 
 function isForwardTransition(current: string, next: string): boolean {
-  if (current.toUpperCase() === 'RELEASED') return false;
   const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
   const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
+  if (current.toUpperCase() === 'RELEASED') return false;
   if (nxt === -1) return true;
   return nxt > cur;
 }
 
-function normaliseStatus(raw: string | null | undefined): string {
+function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
   if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
+  if (
+    requesterType?.toLowerCase() === 'walk-in' &&
+    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
+  ) {
+    return 'PENDING';
+  }
   return raw.toUpperCase();
 }
 
@@ -198,9 +239,25 @@ function buildReleasePDFFields(fields: TextField[], labelValueMap: Record<string
   return [...base, ...extras];
 }
 
+// ─── Schedule History Entry ────────────────────────────────────────────────────
+interface ScheduleHistoryEntry {
+  schedule_date: string;
+  schedule_time: string;
+  missed_at: string; // ISO timestamp when it was logged as no-show
+  note?: string | null;
+}
+
 interface ScheduleData {
-  id: number; document_type: string; document_number: string;
-  schedule_date: string; schedule_time: string; note?: string | null; status?: string;
+  id: number;
+  document_type: string;
+  document_number: string;
+  schedule_date: string;
+  schedule_time: string;
+  note?: string | null;
+  status?: string;
+  user_id?: number;
+  // history of missed schedules (stored as JSON in the API or derived client-side)
+  missed_history?: ScheduleHistoryEntry[];
 }
 
 interface Street { id: number; name: string; }
@@ -288,6 +345,17 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
   catch { return false; }
 }
 
+/** Returns true if the schedule date+time has passed */
+function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
+  if (!schedule) return false;
+  try {
+    return new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) < new Date();
+  } catch { return false; }
+}
+
+/** Terminal statuses — a record in these states is considered "completed" */
+const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','ARCHIVED','DISABLED','EXPIRED']);
+
 function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
@@ -297,46 +365,100 @@ function countActiveFilters(f: FilterState): number {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
-  rejected: 'bg-rose-100 text-rose-800 border-rose-200',
-  released: 'bg-green-100 text-green-800 border-green-200',
-  scheduled: 'bg-blue-100 text-blue-800 border-blue-200',
-  encoded: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  reviewed: 'bg-purple-100 text-purple-800 border-purple-200',
-  to_pay: 'bg-purple-100 text-purple-800 border-purple-200',
-  paid: 'bg-teal-100 text-teal-800 border-teal-200',
-  inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  disabled: 'bg-gray-200 text-gray-600 border-gray-300',
+  pending:      'bg-yellow-100 text-yellow-800 border-yellow-200',
+  rescheduled:  'bg-sky-100 text-sky-800 border-sky-200',
+  incomplete:   'bg-orange-50 text-orange-700 border-orange-200',
+  rejected:     'bg-rose-100 text-rose-800 border-rose-200',
+  released:     'bg-green-100 text-green-800 border-green-200',
+  scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
+  encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
+  to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
+  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
+  paid:         'bg-teal-100 text-teal-800 border-teal-200',
+  inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
+  archived:     'bg-gray-200 text-gray-600 border-gray-300',
+  disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
 
-function StatusBadge({ status }: { status: string | null | undefined }) {
+function StatusBadge({ status, requesterType }: {
+  status: string | null | undefined;
+  requesterType?: string;
+}) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const display = normaliseStatus(status);
+  const display = normaliseStatus(status, requesterType);
   const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+  const reqType = requesterType?.toLowerCase();
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
-      {display}
-    </span>
+    <div className="flex flex-col gap-1 w-fit">
+      {reqType === 'walk-in' && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-slate-100 text-slate-600 border-slate-300 w-fit">
+          Walk-in
+        </span>
+      )}
+      {reqType === 'online' && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-cyan-50 text-cyan-700 border-cyan-200 w-fit">
+          Online
+        </span>
+      )}
+      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
+        {display}
+      </span>
+    </div>
   );
 }
 
-function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
-  if (!schedule) {
+// ─── ScheduleCell — handles walk-in, no-show, and normal scheduled states ─────
+function ScheduleCell({
+  schedule, requesterType,
+}: {
+  schedule: ScheduleData | null | undefined;
+  requesterType?: string;
+}) {
+  // Walk-in: no schedule needed
+  if (requesterType?.toLowerCase() === 'walk-in') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-sm">
-        <CalendarX className="h-3 w-3" />Not yet scheduled
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-sm italic">
+        No schedule required (Walk-in)
       </span>
     );
   }
-  const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
+
+  if (!schedule) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-sm">
+        <CalendarX className="h-3 w-3" />
+        Not yet scheduled
+      </span>
+    );
+  }
+
+  const isPast = isSchedulePast(schedule);
+
+  // No-Show: schedule has passed
+  if (isPast) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-red-50 text-red-700 border-red-200">
+          <CalendarX className="h-3 w-3" />
+          No Show
+        </span>
+        <span className="text-[10px] text-gray-400 pl-0.5 line-through">
+          {formatDateShort(schedule.schedule_date)} · {formatTimeRange(schedule.schedule_time)}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-        <CalendarCheck className="h-3 w-3" />{formatDateShort(schedule.schedule_date)}
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-green-100 text-green-800 border-green-200">
+        <CalendarCheck className="h-3 w-3" />
+        {formatDateShort(schedule.schedule_date)}
       </span>
-      <span className="text-[10px] text-gray-500 pl-0.5">{formatTimeRange(schedule.schedule_time)}</span>
+      <span className="text-[10px] text-gray-500 pl-0.5">
+        {formatTimeRange(schedule.schedule_time)}
+      </span>
     </div>
   );
 }
@@ -487,6 +609,214 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
+// ─── Reschedule Modal ──────────────────────────────────────────────────────────
+function RescheduleModal({
+  record,
+  missedSchedule,
+  onClose,
+  onSuccess,
+  toast,
+}: {
+  record: BusinessClearanceType;
+  missedSchedule: ScheduleData;
+  onClose: () => void;
+  onSuccess: () => void;
+  toast: any;
+}) {
+  const today = new Date().toISOString().split('T')[0];
+  const [newDate, setNewDate]       = useState('');
+  const [newTime, setNewTime]       = useState('');
+  const [note, setNote]             = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if ((record as any).requester_type?.toLowerCase() === 'walk-in') {
+      toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
+      return;
+    }
+    if (!newDate || !newTime) {
+      toast({ title: 'Missing fields', description: 'Please select both a date and time.', variant: 'destructive' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // 1. Log the missed schedule to history
+      const missedEntry: ScheduleHistoryEntry = {
+        schedule_date: missedSchedule.schedule_date,
+        schedule_time: missedSchedule.schedule_time,
+        missed_at:     new Date().toISOString(),
+        note:          missedSchedule.note ?? null,
+      };
+      const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
+      const updatedHistory = [...existingHistory, missedEntry];
+
+      // 2. Update schedule with new date/time + append history
+      await axios.put(
+        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
+        {
+          schedule_date:  newDate,
+          schedule_time:  newTime,
+          note:           note.trim() || null,
+          missed_history: updatedHistory,
+        },
+        { withCredentials: true }
+      );
+
+      // 3. Reset request status to RESCHEDULED
+      await axios.put(
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
+        { status: 'RESCHEDULED' },
+        { withCredentials: true }
+      );
+
+      toast({ title: 'Rescheduled', description: `New appointment set for ${formatDateShort(newDate)} at ${formatTimeRange(newTime)}.` });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to reschedule. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-sky-100 rounded-md">
+              <CalendarClock className="h-4 w-4 text-sky-700" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Reschedule Appointment</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Ref: {record.brgy_business_no}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Missed schedule notice */}
+        <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
+          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
+            <p className="text-[11px] text-red-500 mt-0.5">
+              {formatDateShort(missedSchedule.schedule_date)} · {formatTimeRange(missedSchedule.schedule_time)}
+            </p>
+            <p className="text-[10px] text-red-400 mt-1">This missed appointment will be logged in the record's history.</p>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              New Appointment Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              min={today}
+              value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              Appointment Time <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="time"
+              value={newTime}
+              onChange={e => setNewTime(e.target.value)}
+              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              Note <span className="text-gray-400 font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Please bring original business documents…"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !newDate || !newTime}
+            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
+          >
+            <CalendarClock className="h-4 w-4" />
+            {isSubmitting ? 'Saving…' : 'Confirm Reschedule'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Missed Schedule History Panel ─────────────────────────────────────────────
+function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] }) {
+  if (!history || history.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <History className="h-3.5 w-3.5 text-amber-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-700">
+          Missed Appointment History ({history.length})
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {history.map((entry, idx) => (
+          <div key={idx} className="flex items-start gap-2 text-[11px] text-amber-800">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">
+              {idx + 1}
+            </span>
+            <div>
+              <span className="font-semibold">
+                {formatDateShort(entry.schedule_date)} · {formatTimeRange(entry.schedule_time)}
+              </span>
+              <span className="text-amber-500 ml-1.5">
+                — No show logged {formatCreatedAt(entry.missed_at)}
+              </span>
+              {entry.note && (
+                <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Memoized Form Field Component ─────────────────────────────────────────────
 const FormField = memo(({ name, value, onChange, type = 'text', options, isTextArea = false, isEditing, label }: any) => {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
@@ -576,10 +906,16 @@ function EditableDetailModal({
   const [dispositionType, setDispositionType] = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
   const [dispositionReason, setDispositionReason] = useState('');
   const [isDisposing, setIsDisposing] = useState(false);
-  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
-  const [isDisabling, setIsDisabling] = useState(false);
   const [streets, setStreets] = useState<Street[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
+
+  // Archive confirmation state
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving]               = useState(false);
+
+  // Reschedule modal state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
 
   useEffect(() => {
     const loadStreets = async () => {
@@ -610,9 +946,23 @@ function EditableDetailModal({
         { withCredentials: true }
       );
       const fullRecord = response.data.data.data[0];
-      const normalisedStatus = normaliseStatus(fullRecord.status ?? '');
+      const normalisedStatus = normaliseStatus(fullRecord.status ?? '', fullRecord.requester_type ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(fullRecord.released_document_path ?? null);
+      // Store current schedule for no-show logic
+      setCurrentSchedule(fullRecord.schedule ?? null);
+
+      // Auto-fix: walk-in records should never be RESCHEDULED or SCHEDULED
+      if (
+        fullRecord.requester_type?.toLowerCase() === 'walk-in' &&
+        (fullRecord.status?.toUpperCase() === 'RESCHEDULED' || fullRecord.status?.toUpperCase() === 'SCHEDULED')
+      ) {
+        axios.put(
+          `https://westrembomis.onrender.com/api/business-clearances/${fullRecord.id}`,
+          { status: 'PENDING' },
+          { withCredentials: true }
+        ).catch(() => {});
+      }
       setFormData({
         first_name: fullRecord.first_name || '',middle_name: fullRecord.middle_name || '',
         surname: fullRecord.surname || '',ext_name: fullRecord.ext_name || '',
@@ -651,17 +1001,44 @@ function EditableDetailModal({
   if (!record) return null;
 
   const status = currentStatus.toUpperCase();
-  const isReleased = status === 'RELEASED';
-  const canMarkReviewed = isForwardTransition(status, 'REVIEWED') &&
-  (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
-    status === 'INCOMPLETE' || status === 'REJECTED');
-  const canMarkAsPaid = isForwardTransition(status, 'PAID') && status === 'REVIEWED';
-  const canRelease = isForwardTransition(status, 'RELEASED') && status === 'PAID';
-  const canMarkToInspection = isForwardTransition(status, 'INSPECTING') &&
-    (status === 'ENCODED' || status === 'SCHEDULED');
-  const canDispose = !isReleased;
 
-    const handleMarkReviewed = async () => {
+  // ─── Derived capability flags ──────────────────────────────────────────────
+  const isReleased  = status === 'RELEASED';
+  const isArchived  = status === 'ARCHIVED' || status === 'DISABLED';
+  const isNonEditable = isArchived;
+
+  const canMarkReviewed = !isReleased && !isArchived &&
+    isForwardTransition(status, 'REVIEWED') &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
+      status === 'RESCHEDULED' || status === 'INCOMPLETE' || status === 'REJECTED');
+
+  const canMarkAsPaid = !isArchived && isForwardTransition(status, 'PAID') && status === 'REVIEWED';
+
+  const canRelease = !isArchived && isForwardTransition(status, 'RELEASED') && status === 'PAID';
+
+  const canMarkToInspection = !isReleased && !isArchived &&
+    isForwardTransition(status, 'INSPECTING') &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
+
+  const canDispose = !isReleased && !isArchived;
+  const canArchive = isReleased && !isArchived;
+
+  // No-Show / Reschedule logic:
+  // A record is "no-show" when: it has a schedule, the schedule is past,
+  // the status is not terminal, and it's an Online request.
+  const isNoShow =
+    currentSchedule !== null &&
+    isSchedulePast(currentSchedule) &&
+    !TERMINAL_STATUSES.has(status) &&
+    formData.requester_type?.toLowerCase() !== 'walk-in';
+
+  // Can reschedule only when no-show (not released, not archived)
+  const canReschedule = isNoShow && !isReleased && !isArchived;
+
+  // Missed schedule history
+  const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
+
+  const handleMarkReviewed = async () => {
     if (!isForwardTransition(status, 'REVIEWED')) {
       toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
       return;
@@ -739,7 +1116,7 @@ function EditableDetailModal({
       toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' }); return;
     }
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'A released or archived record cannot be changed.', variant: 'destructive' }); return;
     }
     setIsDisposing(true);
     try {
@@ -760,29 +1137,42 @@ function EditableDetailModal({
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'A released or archived record cannot be changed.', variant: 'destructive' }); return;
     }
     setDispositionType(type); setDispositionReason(''); setShowDispositionModal(true);
   };
 
-  const handleDisable = async () => {
+  const handleArchive = async () => {
     if (!isReleased) {
-      toast({ title: 'Not allowed', description: 'Only released records can be disabled.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'Only released records can be archived.', variant: 'destructive' });
+      return;
     }
-    setIsDisabling(true);
+    setIsArchiving(true);
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { status: 'DISABLED' }, { withCredentials: true }
+        { status: 'ARCHIVED' },
+        { withCredentials: true }
       );
-      setCurrentStatus('DISABLED');
-      setFormData((p: any) => ({ ...p, status: 'DISABLED' }));
-      toast({ title: 'Disabled', description: 'Record has been disabled successfully.' });
-      setShowDisableConfirm(false);
+      setCurrentStatus('ARCHIVED');
+      setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
+      toast({ title: 'Archived', description: 'Record has been archived successfully.' });
+      setShowArchiveConfirm(false);
       onUpdate();
     } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to disable record.', variant: 'destructive' });
-    } finally { setIsDisabling(false); }
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to archive record.',
+        variant: 'destructive',
+      });
+    } finally { setIsArchiving(false); }
+  };
+
+  const handleRescheduleSuccess = () => {
+    setCurrentStatus('RESCHEDULED');
+    setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
+    setRefreshKey(prev => prev + 1); // full refresh to get updated schedule
+    onUpdate();
   };
 
   const handleReleaseAndSave = async () => {
@@ -906,6 +1296,38 @@ function EditableDetailModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
+          {/* Archived banner */}
+          {isArchived && (
+            <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
+              <Archive className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Archived Record</span>
+              <span className="text-xs text-gray-500 ml-1">— This record is read-only and cannot be modified.</span>
+            </div>
+          )}
+
+          {/* No-Show alert banner */}
+          {isNoShow && !isArchived && !isReleased && (
+            <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                <span className="text-sm font-semibold text-red-700">No Show — Scheduled appointment was missed</span>
+                <span className="text-xs text-red-500">
+                  ({formatDateShort(currentSchedule!.schedule_date)} · {formatTimeRange(currentSchedule!.schedule_time)})
+                </span>
+              </div>
+              {canReschedule && (
+                <button
+                  onClick={() => setShowRescheduleModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors flex-shrink-0"
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Reschedule Now
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Header */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Business Clearance Details</h2>
@@ -915,74 +1337,79 @@ function EditableDetailModal({
               <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
-              {!isEditing ? (
-                <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
-                  <Edit2 className="h-4 w-4" /> Edit
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
-                  <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
-                    <Save className="h-4 w-4" />{isSaving ? 'Saving...' : 'Save Changes'}
+              {!isNonEditable && (
+                !isEditing ? (
+                  <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                    <Edit2 className="h-4 w-4" /> Edit
                   </button>
-                </>
+                ) : (
+                  <>
+                    <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                    <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                      <Save className="h-4 w-4" />{isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )
               )}
               <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors"><X className="h-5 w-5" /></button>
             </div>
           </div>
 
-          <div className="p-6">
+          <div className={`p-6 ${isNonEditable ? 'opacity-80 pointer-events-none select-none' : ''}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {formData.requester_type === 'Online' && (
-                <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
+                <UserIdViewer userId={(record as any)?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
               )}
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Owner Information</h3>
-                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing} label="First Name" />
-                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Middle Name" />
-                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing} label="Surname" />
-                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Extension Name" />
-                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing} label="Prefix" />
-                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing} label="Email" />
-                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing} label="Requester Type" />
+                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="First Name" />
+                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Middle Name" />
+                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Surname" />
+                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Extension Name" />
+                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing && !isNonEditable} label="Prefix" />
+                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && !isNonEditable} label="Email" />
+                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing && !isNonEditable} label="Requester Type" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Business Information</h3>
                 <FormField name="brgy_business_no" value={formData.brgy_business_no || ''} onChange={handleInputChange} isEditing={false} label="Business No." />
-                <FormField name="business_name" value={formData.business_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Business Name" />
-                <FormField name="business_type" value={formData.business_type || ''} onChange={handleInputChange} type="select" options={BUSINESS_TYPE_OPTIONS} isEditing={isEditing} label="Business Type" />
-                <FormField name="issued_date" value={formData.issued_date || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issue Date" />
-                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
-                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
-                <FormField name="capital" value={formData.capital || ''} onChange={handleInputChange} type="number" isEditing={isEditing} label="Capital" />
+                <FormField name="business_name" value={formData.business_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Business Name" />
+                <FormField name="business_type" value={formData.business_type || ''} onChange={handleInputChange} type="select" options={BUSINESS_TYPE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Business Type" />
+                <FormField name="issued_date" value={formData.issued_date || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Issue Date" />
+                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Issued On" />
+                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Issued At" />
+                <FormField name="capital" value={formData.capital || ''} onChange={handleInputChange} type="number" isEditing={isEditing && !isNonEditable} label="Capital" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing} label="House/Block/Lot No." />
-                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing} label="Street" />
-                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing} label="Zone" />
+                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="House/Block/Lot No." />
+                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && !isNonEditable} label="Street" />
+                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Zone" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Inspection Information</h3>
-                <FormField name="inspected_by" value={formData.inspected_by || ''} onChange={handleInputChange} isEditing={isEditing} label="Inspected By" />
-                <FormField name="date_inspected" value={formData.date_inspected || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Date Inspected" />
-                <FormField name="inspected_remarks" value={formData.inspected_remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Inspected Remarks" />
-                <FormField name="inspected_note" value={formData.inspected_note || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Inspected Note" />
+                <FormField name="inspected_by" value={formData.inspected_by || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Inspected By" />
+                <FormField name="date_inspected" value={formData.date_inspected || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Date Inspected" />
+                <FormField name="inspected_remarks" value={formData.inspected_remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Remarks" />
+                <FormField name="inspected_note" value={formData.inspected_note || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Note" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
+                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="CTC/VRR No." />
+                <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="OR No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
+                  <div className="mt-1">
+                    <StatusBadge status={currentStatus} requesterType={formData.requester_type} />
+                  </div>
                 </div>
                 {formData.rejection_reason && (
-                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Reason of rejection" />
+                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Reason of rejection" />
                 )}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
@@ -995,15 +1422,69 @@ function EditableDetailModal({
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule Information</h3>
-                {(record as any).schedule ? (
+                <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
+
+                {/* Schedule display: walk-in vs online */}
+                {formData.requester_type?.toLowerCase() === 'walk-in' ? (
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
+                    <p className="text-sm text-gray-400 italic mt-1">No schedule required (Walk-in)</p>
+                  </div>
+                ) : currentSchedule ? (
                   <>
-                    <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label><p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p></div>
-                    <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label><p className="text-sm text-gray-700 mt-1">{formatTimeRange((record as any).schedule.schedule_time)}</p></div>
-                    {(record as any).schedule.note && <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label><p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p></div>}
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
+                      <p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                      <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
+                    </div>
+
+                    {/* No-Show panel inside detail */}
+                    {isNoShow && !TERMINAL_STATUSES.has(status) && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                            <p className="text-xs font-semibold text-red-700">
+                              Scheduled time has passed — No Show
+                            </p>
+                          </div>
+                          {canReschedule && (
+                            <button
+                              onClick={() => setShowRescheduleModal(true)}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex-shrink-0"
+                            >
+                              <CalendarClock className="h-3 w-3" />
+                              Reschedule
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-red-500">
+                          Original: {formatDateShort(currentSchedule.schedule_date)} · {formatTimeRange(currentSchedule.schedule_time)}
+                        </p>
+                      </div>
+                    )}
+
+                    {currentSchedule.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
+                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
+                      </div>
+                    )}
+
+                    {/* Missed history log */}
+                    <MissedScheduleHistory history={missedHistory} />
                   </>
-                ) : <p className="text-sm text-gray-500 italic">No schedule assigned.</p>}
-                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Remarks" />
+                ) : (
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
+                    <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
+                  </div>
+                )}
+
+                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Remarks" />
               </div>
             </div>
           </div>
@@ -1032,75 +1513,137 @@ function EditableDetailModal({
             </div>
           )}
 
-          {showDisableConfirm && (
+          {/* Archive confirmation panel */}
+          {showArchiveConfirm && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
-              <div className="flex items-center gap-2"><Ban className="h-4 w-4 text-gray-600" /><span className="text-sm font-semibold text-gray-800">Confirm Disable</span></div>
-              <p className="text-sm text-gray-600">This will mark the record as <strong>Disabled</strong>. The action cannot be undone via the UI. Are you sure?</p>
+              <div className="flex items-center gap-2">
+                <Archive className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Archive</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                This will mark the record as <strong>Archived</strong>. Archived records are read-only and
+                cannot be edited or updated. Are you sure you want to continue?
+              </p>
               <div className="flex items-center justify-end gap-2">
-                <button onClick={() => setShowDisableConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
-                <button onClick={handleDisable} disabled={isDisabling} className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
-                  <Ban className="h-3.5 w-3.5" />{isDisabling ? 'Disabling…' : 'Yes, Disable Record'}
+                <button onClick={() => setShowArchiveConfirm(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleArchive} disabled={isArchiving}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  <Archive className="h-3.5 w-3.5" />
+                  {isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
                 </button>
               </div>
             </div>
           )}
 
+          {/* Footer action bar */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                {canMarkReviewed && (
-                  <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
-                    <CreditCard className="h-4 w-4" />{actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
-                  </button>
-                )}
-                {canMarkAsPaid && (
-                  <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
-                    <CreditCard className="h-4 w-4" />{actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
-                  </button>
-                )}
-                {canRelease && (
-                  <button onClick={handleReleaseAndSave} disabled={isReleasing}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
-                    <Mail className="h-4 w-4" />{isReleasing ? 'Releasing...' : 'Release Document'}
-                  </button>
-                )}
-                {hasReleasedDocument && (
-                  <button onClick={downloadReleased} disabled={isDownloading}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
-                    <Download className="h-4 w-4" />{isDownloading ? 'Downloading...' : 'Download Released'}
-                  </button>
-                )}
-                {canDispose && (
+
+                {isReleased ? (
                   <>
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
-                    <button onClick={() => openDisposition('INCOMPLETE')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
-                      <X className="h-4 w-4" />Mark as Incomplete
-                    </button>
-                    <button onClick={() => openDisposition('REJECTED')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                      <X className="h-4 w-4" />Reject
-                    </button>
+                    {hasReleasedDocument && (
+                      <button onClick={downloadReleased} disabled={isDownloading}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                        <Download className="h-4 w-4" />
+                        {isDownloading ? 'Downloading...' : 'Download Released'}
+                      </button>
+                    )}
+                    {canArchive && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button onClick={() => setShowArchiveConfirm(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
+                          <Archive className="h-4 w-4" />
+                          Archive Record
+                        </button>
+                      </>
+                    )}
+                    <p className="text-xs text-gray-400 italic">
+                      This record has been released. Status cannot be changed.
+                    </p>
+                  </>
+                ) : isArchived ? (
+                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5">
+                    <Archive className="h-3.5 w-3.5" />
+                    This record is archived and cannot be modified.
+                  </p>
+                ) : (
+                  <>
+                    {/* Reschedule button in footer when no-show */}
+                    {canReschedule && (
+                      <>
+                        <button
+                          onClick={() => setShowRescheduleModal(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors"
+                        >
+                          <CalendarClock className="h-4 w-4" />
+                          Reschedule Appointment
+                        </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                      </>
+                    )}
+
+                    {canMarkReviewed && (
+                      <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
+                        <CreditCard className="h-4 w-4" />
+                        {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
+                      </button>
+                    )}
+
+                    {canMarkAsPaid && (
+                      <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
+                        <CreditCard className="h-4 w-4" />
+                        {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
+                      </button>
+                    )}
+
+                    {canRelease && (
+                      <button onClick={handleReleaseAndSave} disabled={isReleasing}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
+                        <Mail className="h-4 w-4" />
+                        {isReleasing ? 'Releasing...' : 'Release Document'}
+                      </button>
+                    )}
+
+                    {canDispose && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button onClick={() => openDisposition('INCOMPLETE')}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
+                          <X className="h-4 w-4" />
+                          Mark as Incomplete
+                        </button>
+                        <button onClick={() => openDisposition('REJECTED')}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                          <X className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {canMarkToInspection && (
+                      <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+                        <Eye className="h-4 w-4" />
+                        {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
+                      </button>
+                    )}
+
+                    {status === 'REVIEWED' && (
+                      <p className="text-xs text-purple-600 italic flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Forwarded to Cashier for payment processing.
+                      </p>
+                    )}
                   </>
                 )}
-                {canMarkToInspection && (
-                  <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
-                    <Eye className="h-4 w-4" />{actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
-                  </button>
-                )}
-                {isReleased && status !== 'DISABLED' && (
-                  <>
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
-                    <button onClick={() => setShowDisableConfirm(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
-                      <Ban className="h-4 w-4" />Disable Record
-                    </button>
-                  </>
-                )}
-                {isReleased && <p className="text-xs text-gray-400 italic">This record has been released. Status cannot be changed.</p>}
+
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
@@ -1108,6 +1651,17 @@ function EditableDetailModal({
         </div>
       </div>
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && currentSchedule && (
+        <RescheduleModal
+          record={record}
+          missedSchedule={currentSchedule}
+          onClose={() => setShowRescheduleModal(false)}
+          onSuccess={handleRescheduleSuccess}
+          toast={toast}
+        />
+      )}
     </>
   );
 }
@@ -1146,7 +1700,7 @@ function FilterBar({ filters, onChange, onReset, activeCount, streets }: {
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'DISABLED'] as const).map(v => (
+                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
                   <button key={v} className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ status: v })}>
                     {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
@@ -1359,10 +1913,23 @@ const BusinessClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
-                      const itemStatus = normaliseStatus(item.status);
+                      const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
+                      const isItemArchived = itemStatus === 'ARCHIVED' || itemStatus === 'DISABLED';
                       const isItemReleased = itemStatus === 'RELEASED';
+                      // Determine no-show for table row
+                      const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
+                      const itemRequesterType: string = (item as any).requester_type ?? '';
+                      const isItemNoShow =
+                        itemSchedule !== null &&
+                        isSchedulePast(itemSchedule) &&
+                        !TERMINAL_STATUSES.has(itemStatus) &&
+                        itemRequesterType.toLowerCase() !== 'walk-in';
+
                       return (
-                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
+                        <tr
+                          key={item.id}
+                          className={`${isNew ? 'bg-blue-50/30' : ''} ${isItemArchived ? 'opacity-60' : ''} hover:bg-gray-50 transition-colors`}
+                        >
                           <td className="pl-3 pr-0 py-3">{isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}</td>
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">{`${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim()}</td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.brgy_business_no}</td>
@@ -1374,23 +1941,65 @@ const BusinessClearance = () => {
                           </td>
                           <td className="py-3 px-4 text-sm font-medium">{item.business_name ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.business_type ?? '—'}</td>
-                          <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
-                          <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <ScheduleCell
+                              schedule={itemSchedule}
+                              requesterType={itemRequesterType}
+                            />
+                          </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}</td>
                           <td className="py-3 px-4 text-sm font-medium">{item.capital != null ? formatCurrency(item.capital) : '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
-                                <Eye className="h-3 w-3" /> View/Edit
-                              </button>
-                              <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
-                              <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true,previewMode: true} })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
-                              {isItemReleased && (
-                                <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap" title="Disable this released record">
-                                  <Ban className="h-3 w-3" /> Disable
-                                </button>
+                              {isItemArchived ? (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedDetailRecord(item)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed opacity-60 whitespace-nowrap"
+                                    title="This document has been archived"
+                                  >
+                                    <Archive className="h-3 w-3" /> Archived
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
+                                    <Eye className="h-3 w-3" /> View/Edit
+                                  </button>
+                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
+                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true,previewMode: true} })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
+                                  {/* Released rows: Archive shortcut */}
+                                  {isItemReleased && (
+                                    <button
+                                      onClick={() => setSelectedDetailRecord(item)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                                      title="Archive this released record"
+                                    >
+                                      <Archive className="h-3 w-3" /> Archive
+                                    </button>
+                                  )}
+                                  {/* No-show rows: Reschedule shortcut */}
+                                  {isItemNoShow && (
+                                    <button
+                                      onClick={() => setSelectedDetailRecord(item)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors whitespace-nowrap"
+                                      title="Reschedule this no-show appointment"
+                                    >
+                                      <CalendarClock className="h-3 w-3" /> Reschedule
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>
