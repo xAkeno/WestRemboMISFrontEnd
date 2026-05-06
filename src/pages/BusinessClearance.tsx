@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X, RefreshCw,
-  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Archive,
-  CalendarClock, AlertTriangle, History,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Download,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban, Archive,
+  CalendarClock, AlertTriangle, History, Lock, Sun, Moon,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { generatePDF } from '@/utils/pdfGenerator';
-import type { TextField } from '@/types/certificate';
-import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
-import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
 import { businessTypes } from '@/components/purpose/purpose';
+
 interface StreetOption {
   id: number;
   name: string;
@@ -31,213 +28,6 @@ const ZONE_OPTIONS = [
   'Zone 1','Zone 2','Zone 3','Zone 4','Zone 5',
   'Zone 6','Zone 7','Zone 8','Zone 9','Zone 10',
 ];
-
-// ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
-interface ConcatGroup {
-  label: string;
-  members: string[];
-  separator: string;
-}
-
-const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
-  {
-    label: 'Full Name',
-    members: ['Prefix', 'First Name', 'Middle Name', 'Last Name', 'Ext Name', 'Extension'],
-    separator: ' ',
-  },
-  {
-    label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Zone'],
-    separator: ', ',
-  },
-];
-
-const normLabel = (s: string) =>
-  s.trim().toLowerCase().replace(/[.\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-
-const LABEL_TO_KEY: Record<string, string> = {
-  'First Name': 'first_name','Middle Name': 'middle_name','M.I.': 'middle_name',
-  'Last Name': 'surname','Prefix': 'prefix','Ext Name': 'ext_name','Extension': 'extension',
-  'Nickname': 'nick_name','Sex': 'sex','Marital Status': 'marital_status',
-  'Name of Spouse': 'name_of_spouse','Age': 'age','Date of Birth': 'dob',
-  'Place of Birth': 'pob','Date': 'created_at','House Block Lot No': 'house_block_lot_no',
-  'Street': 'street','Zone': 'zone','Resident Status': 'resident_status',
-  'Period of Residency': 'period_of_residency','House Owner': 'house_owner',
-  'Relationship to House Owner': 'relationship_to_owner','Contact No': 'contact_no',
-  'Phone Number': 'phone_number','Email Address': 'email_address',
-  'Business Name': 'business_name','Business Type': 'business_type',
-  'Business Details': 'business_details','Capital': 'capital','Establishment': 'establishment',
-  'Inspected By': 'inspected_by','Date of Inspection': 'date_of_inspection',
-  'Inspection Remarks': 'inspection_remarks','Inspected Remarks': 'inspected_remarks',
-  'Date Inspected': 'date_inspected','Inspected Note': 'inspected_note',
-  'OR No': 'or_no','OR No Alt': 'orNo','CTC/VRR No': 'ctc_vrr_no',
-  'Issued At': 'issued_at','Issued On': 'issued_on','Issued Date': 'issued_date',
-  'Purpose': 'purpose','Purpose Details': 'purpose_details','Remarks': 'remarks',
-  'Barangay Clearance No': 'bcert_number','Business Clearance No': 'brgy_business_no',
-  'Brgy Business No': 'brgy_business_no','Punong Barangay': 'punong_barangay',
-  'For The Punong Barangay': 'for_the_punong_barangay','Barangay Position': 'barangay_position',
-  'Status': 'status','Registered Voter': 'registered_voter','Photo': 'photo','Notes': 'notes',
-  'Position': 'position','Occupation': 'occupation','Employment Status': 'emp_status',
-  'Blood Type': 'blood_type','Complexion': 'complexion','PWD': 'pwd','Precinct No': 'precinct_no',
-  'Religion': 'religion','Voter Status': 'voter_status','Height (cm)': 'height_cm',
-  'Weight (kg)': 'weight_kg','ID': 'id','Resident ID': 'resident_id',
-  'Requester ID': 'requester_id','Requester Type': 'requester_type',
-  'Created At': 'created_at','Updated At': 'updated_at','Created By': 'created_by',
-};
-
-const NON_DATE_KEYS = new Set([
-  'zone','house_block_lot_no','street','houseBlockLot','houseBlockLotNo','resident_status',
-  'period_of_residency','house_owner','relationship_to_owner','contact_no','phone_number',
-  'email_address','business_name','business_type','business_details','establishment',
-  'inspection_remarks','inspected_remarks','inspected_note','or_no','orNo','ctc_vrr_no',
-  'issued_at','purpose','purpose_details','remarks','bcert_number','brgy_business_no',
-  'punong_barangay','for_the_punong_barangay','barangay_position','status','registered_voter',
-  'notes','position','occupation','emp_status','blood_type','complexion','pwd','precinct_no',
-  'religion','voter_status','resident_id','prefix','ext_name','nick_name','sex','marital_status',
-  'name_of_spouse','place_of_birth','pob','first_name','middle_name','surname','capital',
-  'inspected_by','height_cm','weight_kg','created_by','extension',
-]);
-
-const FIELD_WRAP_CONFIG: Record<string, number> = {
-  'Full Address': 50,'Address': 50,'House Block Lot No': 40,'Street': 35,'Zone': 20,
-  'Full Name': 40,'Purpose': 45,'Purpose Details': 55,'Remarks': 60,
-  'Business Name': 45,'Business Type': 35,'Inspected Remarks': 60,'Inspected Note': 60,
-};
-
-function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
-  if (!value) return [''];
-  const configKey = Object.keys(FIELD_WRAP_CONFIG).find(key => fieldLabel?.toLowerCase().includes(key.toLowerCase()));
-  const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
-  if (value.length <= maxChars) return [value];
-  const words = value.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-  for (const word of words) {
-    if ((currentLine + ' ' + word).length <= maxChars) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines;
-}
-
-// ─── Status ordering for forward-only enforcement ──────────────────────────────
-const STATUS_ORDER: Record<string, number> = {
-  'PENDING':      0,
-  'RESCHEDULED':  0, // same priority level as PENDING — awaiting new schedule
-  'SCHEDULED':    1,
-  'ENCODED':      2,
-  'INSPECTING':   3,
-  'REVIEWED':     4,
-  'PAID':         5,
-  'RELEASED':     6,
-  'INCOMPLETE':  -1,
-  'REJECTED':    -1,
-};
-
-function isForwardTransition(current: string, next: string): boolean {
-  const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
-  const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
-  if (current.toUpperCase() === 'RELEASED') return false;
-  if (nxt === -1) return true;
-  return nxt > cur;
-}
-
-function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
-  if (!raw) return '';
-  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
-  if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
-  if (
-    requesterType?.toLowerCase() === 'walk-in' &&
-    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
-  ) {
-    return 'PENDING';
-  }
-  return raw.toUpperCase();
-}
-
-function cleanZoneNumber(value: string): string {
-  if (!value) return '';
-  const zoneMatch = value.match(/(?:Zone|Sitio)\s*(\d+)/i);
-  if (zoneMatch) return zoneMatch[1];
-  const numberMatch = value.match(/^\d+$/);
-  if (numberMatch) return numberMatch[0];
-  const anyNumberMatch = value.match(/\d+/);
-  if (anyNumberMatch) return anyNumberMatch[0];
-  return value.trim();
-}
-
-function buildLabelValueMap(formData: any): Record<string, string> {
-  const prefix = formData.prefix ?? '';
-  const firstName = formData.first_name ?? '';
-  const middleName = formData.middle_name ?? '';
-  const lastName = formData.surname ?? '';
-  const extName = formData.ext_name ?? '';
-  const extension = formData.extension ?? '';
-  const nameParts = [];
-  if (prefix) nameParts.push(prefix);
-  if (firstName) nameParts.push(firstName);
-  if (middleName) nameParts.push(middleName);
-  if (lastName) nameParts.push(lastName);
-  if (extName) nameParts.push(extName);
-  if (extension) nameParts.push(extension);
-  const fullName = nameParts.join(' ');
-  const houseBlockLot = formData.house_block_lot_no ?? '';
-  const street = formData.street ?? '';
-  let zone = formData.zone ?? '';
-  zone = cleanZoneNumber(zone);
-  const addressParts = [];
-  if (houseBlockLot) addressParts.push(houseBlockLot);
-  if (street) addressParts.push(street);
-  if (zone) addressParts.push(zone);
-  const fullAddress = addressParts.join(', ');
-  return {
-    'Prefix': prefix,'First Name': firstName,'Middle Name': middleName,'Last Name': lastName,
-    'Ext Name': extName,'Extension': extension,'Full Name': fullName,
-    'House Block Lot No': houseBlockLot,'Street': street,'Zone': zone,'Full Address': fullAddress,
-    'Age': formData.age ?? '','Date of Birth': formData.dob ?? '',
-    'Period of Residency': formData.period_of_residency ?? '',
-    'Registered Voter': formData.registered_voter ?? '','Purpose': formData.purpose ?? '',
-    'BCert Number': formData.bcert_number ?? '','Issued Date': formData.issued_date ?? '',
-    'Issued At': formData.issued_at ?? '','Issued On': formData.issued_on ?? '',
-    'OR No': formData.or_no ?? '','CTC/VRR No': formData.ctc_vrr_no ?? '',
-    'Remarks': formData.remarks ?? '','Status': formData.status ?? '',
-    'Created By': formData.created_by ?? '','Date': formData.created_at ?? '',
-    'Email Address': formData.email ?? '','Requester Type': formData.requester_type ?? '',
-    'Business Name': formData.business_name ?? '','Business Type': formData.business_type ?? '',
-    'Capital': formData.capital ?? '','Inspected By': formData.inspected_by ?? '',
-    'Date Inspected': formData.date_inspected ?? '',
-    'Inspected Remarks': formData.inspected_remarks ?? '',
-    'Inspected Note': formData.inspected_note ?? '',
-  };
-}
-
-function buildReleasePDFFields(fields: TextField[], labelValueMap: Record<string, string>): TextField[] {
-  const suppressedNorm = new Set<string>();
-  const extras: TextField[] = [];
-  const fieldsToSuppress = [
-    'first name','middle name','m i','mi','last name','surname',
-    'prefix','ext name','extension','house block lot no','street','zone'
-  ];
-  for (const group of RELEASE_CONCAT_GROUPS) {
-    const anchor = group.members.map(m => fields.find(f => normLabel(f.label) === normLabel(m))).find(Boolean);
-    if (!anchor) continue;
-    let combinedValue = '';
-    if (group.label === 'Full Name') combinedValue = labelValueMap['Full Name'] || '';
-    else if (group.label === 'Full Address') combinedValue = labelValueMap['Full Address'] || '';
-    if (combinedValue) extras.push({ ...anchor, label: group.label, value: combinedValue });
-    group.members.forEach(m => suppressedNorm.add(normLabel(m)));
-  }
-  const base = fields.filter(f => {
-    const normalizedLabel = normLabel(f.label);
-    if (fieldsToSuppress.some(suppress => normalizedLabel === suppress)) return false;
-    return !suppressedNorm.has(normalizedLabel);
-  });
-  return [...base, ...extras];
-}
 
 // ─── Schedule History Entry ────────────────────────────────────────────────────
 interface ScheduleHistoryEntry {
@@ -343,16 +133,60 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
   catch { return false; }
 }
 
-/** Returns true if the schedule date+time has passed */
-function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
-  if (!schedule) return false;
+// ─── Session-based No-Show helpers ─────────────────────────────────────────────
+// AM session is considered booked from its slot until 12:00 (noon).
+// PM session is considered booked from its slot until 17:00 (5 PM).
+// A record is only flagged "No Show" AFTER the entire session window has passed —
+// not the moment the exact appointment time elapses.
+const AM_SESSION_END_HOUR = 12; // noon
+const PM_SESSION_END_HOUR = 17; // 5 PM
+
+/** Returns 'AM' if the schedule slot is before noon, 'PM' otherwise. */
+function getScheduleSession(schedule: ScheduleData | null | undefined): 'AM' | 'PM' | null {
+  if (!schedule) return null;
   try {
-    return new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) < new Date();
-  } catch { return false; }
+    const [hStr] = schedule.schedule_time.split(':');
+    const hour = parseInt(hStr, 10);
+    return hour < 12 ? 'AM' : 'PM';
+  } catch { return null; }
+}
+
+/** Returns a human-readable label for the schedule's session. */
+function getScheduleSessionLabel(schedule: ScheduleData | null | undefined): string {
+  const s = getScheduleSession(schedule);
+  if (s === 'AM') return 'Morning Session (until 12:00 NN)';
+  if (s === 'PM') return 'Afternoon Session (until 5:00 PM)';
+  return '';
+}
+
+/** Returns the Date when this schedule's session window ends (noon or 5 PM of schedule_date). */
+function getScheduleSessionEnd(schedule: ScheduleData | null | undefined): Date | null {
+  if (!schedule) return null;
+  try {
+    const session = getScheduleSession(schedule);
+    if (!session) return null;
+    const endHour = session === 'AM' ? AM_SESSION_END_HOUR : PM_SESSION_END_HOUR;
+    const hh = String(endHour).padStart(2, '0');
+    return new Date(`${schedule.schedule_date}T${hh}:00:00`);
+  } catch { return null; }
+}
+
+/**
+ * Returns true ONLY when the entire AM/PM session window has fully ended.
+ * (e.g. 9:00 AM appointment is NOT flagged at 9:30 AM — only after 12:00 NN.)
+ */
+function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
+  const sessionEnd = getScheduleSessionEnd(schedule);
+  if (!sessionEnd) return false;
+  return sessionEnd < new Date();
 }
 
 /** Terminal statuses — a record in these states is considered "completed" */
-const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','ARCHIVED','DISABLED','EXPIRED']);
+const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','INCOMPLETE','ARCHIVED','DISABLED','EXPIRED']);
+/** Frozen statuses — record is read-only and completely non-interactive (archived) */
+const FROZEN_STATUSES = new Set(['ARCHIVED','DISABLED','EXPIRED']);
+/** Blocked statuses — record cannot progress further (rejected / incomplete) */
+const BLOCKED_STATUSES = new Set(['REJECTED','INCOMPLETE']);
 
 function countActiveFilters(f: FilterState): number {
   return [
@@ -360,6 +194,34 @@ function countActiveFilters(f: FilterState): number {
     f.filter_date === 'custom' && f.from ? 'from' : '',
     f.zone, f.street, f.business_type, f.schedule_filter,
   ].filter(Boolean).length;
+}
+
+// ─── Status ordering ───────────────────────────────────────────────────────────
+const STATUS_ORDER: Record<string, number> = {
+  'PENDING':      0,
+  'RESCHEDULED':  0, // same priority level as PENDING — awaiting applicant to rebook
+  'SCHEDULED':    1,
+  'ENCODED':      2,
+  'INSPECTING':   3,
+  'REVIEWED':     4,
+  'PAID':         5,
+  'RELEASED':     6,
+  'INCOMPLETE':  -1,
+  'REJECTED':    -1,
+};
+
+/**
+ * Returns true when a transition from `current` to `next` is a legal forward move.
+ * Hardened to refuse ANY transition out of a terminal/blocked/frozen state.
+ */
+function isForwardTransition(current: string, next: string): boolean {
+  const currentUpper = (current ?? '').toUpperCase();
+  const nextUpper    = (next ?? '').toUpperCase();
+  if (TERMINAL_STATUSES.has(currentUpper)) return false;
+  const cur = STATUS_ORDER[currentUpper] ?? -1;
+  const nxt = STATUS_ORDER[nextUpper] ?? -1;
+  if (nxt === -1) return true; // dispositions allowed from active records
+  return nxt > cur;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -377,6 +239,19 @@ const STATUS_STYLES: Record<string, string> = {
   archived:     'bg-gray-200 text-gray-600 border-gray-300',
   disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
+
+function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
+  if (!raw) return '';
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
+  if (
+    requesterType?.toLowerCase() === 'walk-in' &&
+    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
+  ) {
+    return 'PENDING';
+  }
+  return raw.toUpperCase();
+}
 
 function StatusBadge({ status, requesterType }: {
   status: string | null | undefined;
@@ -406,19 +281,39 @@ function StatusBadge({ status, requesterType }: {
   );
 }
 
-// ─── ScheduleCell — handles walk-in, no-show, and normal scheduled states ─────
+// ─── ScheduleCell — handles walk-in, no-show, awaiting-reschedule, and normal states ─────
 function ScheduleCell({
-  schedule, requesterType,
+  schedule, requesterType, status,
 }: {
   schedule: ScheduleData | null | undefined;
   requesterType?: string;
+  status?: string;
 }) {
+  const statusUpper = (status ?? '').toUpperCase();
+
   // Walk-in: no schedule needed
   if (requesterType?.toLowerCase() === 'walk-in') {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-sm italic">
         No schedule required (Walk-in)
       </span>
+    );
+  }
+
+  // Status RESCHEDULED — admin already requested a new slot from the applicant
+  if (statusUpper === 'RESCHEDULED') {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-sky-50 text-sky-700 border-sky-200">
+          <CalendarClock className="h-3 w-3" />
+          Awaiting Applicant
+        </span>
+        {schedule && (
+          <span className="text-[10px] text-gray-400 pl-0.5 line-through">
+            {formatDateShort(schedule.schedule_date)} · {formatTimeRange(schedule.schedule_time)}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -431,18 +326,20 @@ function ScheduleCell({
     );
   }
 
-  const isPast = isSchedulePast(schedule);
+  const isPast    = isSchedulePast(schedule);
+  const session   = getScheduleSession(schedule);
+  const isTerminal = TERMINAL_STATUSES.has(statusUpper);
 
-  // No-Show: schedule has passed
-  if (isPast) {
+  // No-Show: ENTIRE session window has passed AND record is not terminal/rescheduled
+  if (isPast && !isTerminal) {
     return (
       <div className="flex flex-col gap-0.5">
         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-red-50 text-red-700 border-red-200">
           <CalendarX className="h-3 w-3" />
-          No Show
+          No Show ({session === 'AM' ? 'Morning' : 'Afternoon'})
         </span>
         <span className="text-[10px] text-gray-400 pl-0.5 line-through">
-          {formatDateShort(schedule.schedule_date)} · {formatTimeRange(schedule.schedule_time)}
+          {formatDateShort(schedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
         </span>
       </div>
     );
@@ -454,8 +351,9 @@ function ScheduleCell({
         <CalendarCheck className="h-3 w-3" />
         {formatDateShort(schedule.schedule_date)}
       </span>
-      <span className="text-[10px] text-gray-500 pl-0.5">
-        {formatTimeRange(schedule.schedule_time)}
+      <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 pl-0.5">
+        {session === 'AM' ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
+        {session === 'AM' ? 'Morning' : 'Afternoon'} · {formatTimeRange(schedule.schedule_time)}
       </span>
     </div>
   );
@@ -607,179 +505,6 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
-// ─── Reschedule Modal ──────────────────────────────────────────────────────────
-function RescheduleModal({
-  record,
-  missedSchedule,
-  onClose,
-  onSuccess,
-  toast,
-}: {
-  record: BusinessClearanceType;
-  missedSchedule: ScheduleData;
-  onClose: () => void;
-  onSuccess: () => void;
-  toast: any;
-}) {
-  const today = new Date().toISOString().split('T')[0];
-  const [newDate, setNewDate]       = useState('');
-  const [newTime, setNewTime]       = useState('');
-  const [note, setNote]             = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async () => {
-    if ((record as any).requester_type?.toLowerCase() === 'walk-in') {
-      toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
-      return;
-    }
-    if (!newDate || !newTime) {
-      toast({ title: 'Missing fields', description: 'Please select both a date and time.', variant: 'destructive' });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // 1. Log the missed schedule to history
-      const missedEntry: ScheduleHistoryEntry = {
-        schedule_date: missedSchedule.schedule_date,
-        schedule_time: missedSchedule.schedule_time,
-        missed_at:     new Date().toISOString(),
-        note:          missedSchedule.note ?? null,
-      };
-      const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
-      const updatedHistory = [...existingHistory, missedEntry];
-
-      // 2. Update schedule with new date/time + append history
-      await axios.put(
-        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
-        {
-          schedule_date:  newDate,
-          schedule_time:  newTime,
-          note:           note.trim() || null,
-          missed_history: updatedHistory,
-        },
-        { withCredentials: true }
-      );
-
-      // 3. Reset request status to RESCHEDULED
-      await axios.put(
-        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { status: 'RESCHEDULED' },
-        { withCredentials: true }
-      );
-
-      toast({ title: 'Rescheduled', description: `New appointment set for ${formatDateShort(newDate)} at ${formatTimeRange(newTime)}.` });
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to reschedule. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-sky-100 rounded-md">
-              <CalendarClock className="h-4 w-4 text-sky-700" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Reschedule Appointment</h3>
-              <p className="text-[11px] text-gray-500 mt-0.5">Ref: {record.brgy_business_no}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-
-        {/* Missed schedule notice */}
-        <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
-          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
-            <p className="text-[11px] text-red-500 mt-0.5">
-              {formatDateShort(missedSchedule.schedule_date)} · {formatTimeRange(missedSchedule.schedule_time)}
-            </p>
-            <p className="text-[10px] text-red-400 mt-1">This missed appointment will be logged in the record's history.</p>
-          </div>
-        </div>
-
-        {/* Form */}
-        <div className="px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              New Appointment Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              min={today}
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Appointment Time <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="time"
-              value={newTime}
-              onChange={e => setNewTime(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Note <span className="text-gray-400 font-normal normal-case">(optional)</span>
-            </label>
-            <textarea
-              rows={2}
-              placeholder="e.g. Please bring original business documents…"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !newDate || !newTime}
-            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
-          >
-            <CalendarClock className="h-4 w-4" />
-            {isSubmitting ? 'Saving…' : 'Confirm Reschedule'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Missed Schedule History Panel ─────────────────────────────────────────────
 function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] }) {
   if (!history || history.length === 0) return null;
@@ -792,24 +517,27 @@ function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] })
         </span>
       </div>
       <div className="space-y-1.5">
-        {history.map((entry, idx) => (
-          <div key={idx} className="flex items-start gap-2 text-[11px] text-amber-800">
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">
-              {idx + 1}
-            </span>
-            <div>
-              <span className="font-semibold">
-                {formatDateShort(entry.schedule_date)} · {formatTimeRange(entry.schedule_time)}
+        {history.map((entry, idx) => {
+          const session = getScheduleSession({ schedule_date: entry.schedule_date, schedule_time: entry.schedule_time } as any);
+          return (
+            <div key={idx} className="flex items-start gap-2 text-[11px] text-amber-800">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">
+                {idx + 1}
               </span>
-              <span className="text-amber-500 ml-1.5">
-                — No show logged {formatCreatedAt(entry.missed_at)}
-              </span>
-              {entry.note && (
-                <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>
-              )}
+              <div>
+                <span className="font-semibold">
+                  {formatDateShort(entry.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
+                </span>
+                <span className="text-amber-500 ml-1.5">
+                  — No show logged {formatCreatedAt(entry.missed_at)}
+                </span>
+                {entry.note && (
+                  <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -897,9 +625,6 @@ function EditableDetailModal({
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [initialReleasedPath, setInitialReleasedPath] = useState<string | null>(null);
-  const [isReleasing, setIsReleasing] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [releasedPath, setReleasedPath] = useState<string | null>(null);
   const [showDispositionModal, setShowDispositionModal] = useState(false);
   const [dispositionType, setDispositionType] = useState<'REJECTED' | 'INCOMPLETE' | null>(null);
   const [dispositionReason, setDispositionReason] = useState('');
@@ -912,9 +637,6 @@ function EditableDetailModal({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving]               = useState(false);
 
-  // Reschedule modal state
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-
   useEffect(() => {
     const loadStreets = async () => {
       try {
@@ -926,13 +648,13 @@ function EditableDetailModal({
   }, []);
 
   const [formData, setFormData] = useState<any>({
-    first_name: '',middle_name: '',surname: '',ext_name: '',prefix: '',
-    business_name: '',business_type: '',brgy_business_no: '',issued_date: '',
-    issued_at: '',issued_on: '',capital: '',house_block_lot_no: '',street: '',zone: '',
-    or_no: '',ctc_vrr_no: '',inspected_by: '',inspected_remarks: '',date_inspected: '',
-    inspected_note: '',status: '',created_by: '',requester_type: '',email: '',
-    punong_barangay: '',for_the_punong_barangay: '',barangay_position: '',
-    rejection_reason: '',created_at: '',remarks: '',
+    first_name: '', middle_name: '', surname: '', ext_name: '', prefix: '',
+    business_name: '', business_type: '', brgy_business_no: '', issued_date: '',
+    issued_at: '', issued_on: '', capital: '', house_block_lot_no: '', street: '', zone: '',
+    or_no: '', ctc_vrr_no: '', inspected_by: '', inspected_remarks: '', date_inspected: '',
+    inspected_note: '', status: '', created_by: '', requester_type: '', email: '',
+    punong_barangay: '', for_the_punong_barangay: '', barangay_position: '',
+    rejection_reason: '', created_at: '', remarks: '',
   });
 
   const fetchFullRecord = useCallback(async () => {
@@ -947,7 +669,6 @@ function EditableDetailModal({
       const normalisedStatus = normaliseStatus(fullRecord.status ?? '', fullRecord.requester_type ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(fullRecord.released_document_path ?? null);
-      // Store current schedule for no-show logic
       setCurrentSchedule(fullRecord.schedule ?? null);
 
       // Auto-fix: walk-in records should never be RESCHEDULED or SCHEDULED
@@ -961,23 +682,24 @@ function EditableDetailModal({
           { withCredentials: true }
         ).catch(() => {});
       }
+
       setFormData({
-        first_name: fullRecord.first_name || '',middle_name: fullRecord.middle_name || '',
-        surname: fullRecord.surname || '',ext_name: fullRecord.ext_name || '',
-        prefix: fullRecord.prefix || '',business_name: fullRecord.business_name || '',
-        business_type: fullRecord.business_type || '',brgy_business_no: fullRecord.brgy_business_no || '',
-        issued_date: fullRecord.issued_date || '',issued_at: fullRecord.issued_at || '',
-        issued_on: fullRecord.issued_on || '',capital: fullRecord.capital || '',
-        house_block_lot_no: fullRecord.house_block_lot_no || '',street: fullRecord.street || '',
-        zone: fullRecord.zone || '',or_no: fullRecord.or_no || '',
-        ctc_vrr_no: fullRecord.ctc_vrr_no || '',inspected_by: fullRecord.inspected_by || '',
-        inspected_remarks: fullRecord.inspected_remarks || '',date_inspected: fullRecord.date_inspected || '',
-        inspected_note: fullRecord.inspected_note || '',status: normalisedStatus,
-        created_by: fullRecord.created_by || '',requester_type: fullRecord.requester_type || '',
-        email: fullRecord.email || '',punong_barangay: fullRecord.punong_barangay || '',
+        first_name: fullRecord.first_name || '', middle_name: fullRecord.middle_name || '',
+        surname: fullRecord.surname || '', ext_name: fullRecord.ext_name || '',
+        prefix: fullRecord.prefix || '', business_name: fullRecord.business_name || '',
+        business_type: fullRecord.business_type || '', brgy_business_no: fullRecord.brgy_business_no || '',
+        issued_date: fullRecord.issued_date || '', issued_at: fullRecord.issued_at || '',
+        issued_on: fullRecord.issued_on || '', capital: fullRecord.capital || '',
+        house_block_lot_no: fullRecord.house_block_lot_no || '', street: fullRecord.street || '',
+        zone: fullRecord.zone || '', or_no: fullRecord.or_no || '',
+        ctc_vrr_no: fullRecord.ctc_vrr_no || '', inspected_by: fullRecord.inspected_by || '',
+        inspected_remarks: fullRecord.inspected_remarks || '', date_inspected: fullRecord.date_inspected || '',
+        inspected_note: fullRecord.inspected_note || '', status: normalisedStatus,
+        created_by: fullRecord.created_by || '', requester_type: fullRecord.requester_type || '',
+        email: fullRecord.email || '', punong_barangay: fullRecord.punong_barangay || '',
         for_the_punong_barangay: fullRecord.for_the_punong_barangay || '',
         barangay_position: fullRecord.barangay_position || '',
-        rejection_reason: fullRecord.rejection_reason || '',created_at: fullRecord.created_at || '',
+        rejection_reason: fullRecord.rejection_reason || '', created_at: fullRecord.created_at || '',
         remarks: fullRecord.remarks || '',
       });
     } catch (error) {
@@ -993,52 +715,47 @@ function EditableDetailModal({
     toast({ title: 'Refreshed', description: 'Record data has been refreshed' });
   };
 
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [releasedPath, setReleasedPath] = useState<string | null>(null);
   useEffect(() => { if (initialReleasedPath) setReleasedPath(initialReleasedPath); }, [initialReleasedPath]);
-
   const hasReleasedDocument = !!releasedPath;
-  if (!record) return null;
 
+  if (!record) return null;
   const status = currentStatus.toUpperCase();
 
   // ─── Derived capability flags ──────────────────────────────────────────────
-  const isReleased  = status === 'RELEASED';
-  const isArchived  = status === 'ARCHIVED' || status === 'DISABLED';
-  const isNonEditable = isArchived;
+  const isReleased       = status === 'RELEASED';
+  const isArchived       = FROZEN_STATUSES.has(status);
+  const isBlocked        = BLOCKED_STATUSES.has(status);
+  const isNonEditable    = isArchived || isBlocked;
+  const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
-  const canMarkReviewed = !isReleased && !isArchived &&
+  // Cashier-exclusive actions — these MUST NOT appear here:
+  //   • "Mark as Paid"     (cashier records the payment)
+  //   • "Release Document" (cashier issues / releases the document after payment)
+  // We expose only the workflow stages that belong to the admin role.
+  const canMarkReviewed = !isWorkflowFrozen &&
     isForwardTransition(status, 'REVIEWED') &&
-    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' ||
-      status === 'RESCHEDULED' || status === 'INCOMPLETE' || status === 'REJECTED');
-
-  const canMarkAsPaid = !isArchived && isForwardTransition(status, 'PAID') && status === 'REVIEWED';
-
-  const canRelease = !isArchived && isForwardTransition(status, 'RELEASED') && status === 'PAID';
-
-  const canMarkToInspection = !isReleased && !isArchived &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' || status === 'RESCHEDULED');
+  const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
-
-  const canDispose = !isReleased && !isArchived;
+  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
   const canArchive = isReleased && !isArchived;
 
-  // No-Show / Reschedule logic:
-  // A record is "no-show" when: it has a schedule, the schedule is past,
-  // the status is not terminal, and it's an Online request.
+  // ─── No-Show / Reschedule logic ────────────────────────────────────────────
+  const isAwaitingReschedule = status === 'RESCHEDULED';
   const isNoShow =
     currentSchedule !== null &&
     isSchedulePast(currentSchedule) &&
     !TERMINAL_STATUSES.has(status) &&
+    !isAwaitingReschedule &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
-
-  // Can reschedule only when no-show (not released, not archived)
-  const canReschedule = isNoShow && !isReleased && !isArchived;
-
-  // Missed schedule history
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
 
   const handleMarkReviewed = async () => {
-    if (!isForwardTransition(status, 'REVIEWED')) {
-      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+    if (isWorkflowFrozen || !isForwardTransition(status, 'REVIEWED')) {
+      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
       return;
     }
     setActionLoading('reviewed');
@@ -1048,41 +765,19 @@ function EditableDetailModal({
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
-
+      setCurrentStatus('REVIEWED');
+      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
       try {
         await axios.put(
           `https://westrembomis.onrender.com/api/business-clearances/status/${record.id}`,
           { status: 'TO_PAY' },
           { withCredentials: true }
         );
-      } catch {
-        // Silent — main status already set above
-      }
-
-      setCurrentStatus('REVIEWED');
-      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      toast({ title: 'Success', description: 'Status set to Reviewed. Record forwarded to Cashier.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleMarkAsPaid = async () => {
-    if (!isForwardTransition(status, 'PAID')) {
-      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' }); return;
-    }
-    setActionLoading('paid');
-    try {
-      await axios.put(
-        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { status: 'PAID' }, { withCredentials: true }
-      );
-      setCurrentStatus('PAID');
-      setFormData((p: any) => ({ ...p, status: 'PAID' }));
-      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      } catch { /* silent */ }
+      toast({
+        title: 'Forwarded to Cashier',
+        description: 'Record marked as Reviewed. Payment AND release are handled by the cashier from this point.',
+      });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -1090,8 +785,9 @@ function EditableDetailModal({
   };
 
   const handleMarkToInspection = async () => {
-    if (!isForwardTransition(status, 'INSPECTING')) {
-      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' }); return;
+    if (isWorkflowFrozen || !isForwardTransition(status, 'INSPECTING')) {
+      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
+      return;
     }
     setActionLoading('inspection');
     try {
@@ -1101,7 +797,7 @@ function EditableDetailModal({
       );
       setCurrentStatus('INSPECTING');
       setFormData((p: any) => ({ ...p, status: 'INSPECTING' }));
-      toast({ title: 'Success', description: 'Status set to Inspection successfully.' });
+      toast({ title: 'Success', description: 'Status set to Inspecting successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -1114,7 +810,7 @@ function EditableDetailModal({
       toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' }); return;
     }
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released or archived record cannot be changed.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' }); return;
     }
     setIsDisposing(true);
     try {
@@ -1125,7 +821,7 @@ function EditableDetailModal({
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
-      toast({ title: 'Success', description: `Record ${label} successfully.` });
+      toast({ title: 'Success', description: `Record ${label} successfully. No further actions are available.` });
       setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null);
       onUpdate();
     } catch (err: any) {
@@ -1135,7 +831,7 @@ function EditableDetailModal({
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released or archived record cannot be changed.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' }); return;
     }
     setDispositionType(type); setDispositionReason(''); setShowDispositionModal(true);
   };
@@ -1154,7 +850,7 @@ function EditableDetailModal({
       );
       setCurrentStatus('ARCHIVED');
       setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
-      toast({ title: 'Archived', description: 'Record has been archived successfully.' });
+      toast({ title: 'Archived', description: 'Record archived. It is now read-only and non-interactive.' });
       setShowArchiveConfirm(false);
       onUpdate();
     } catch (err: any) {
@@ -1166,67 +862,8 @@ function EditableDetailModal({
     } finally { setIsArchiving(false); }
   };
 
-  const handleRescheduleSuccess = () => {
-    setCurrentStatus('RESCHEDULED');
-    setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
-    setRefreshKey(prev => prev + 1); // full refresh to get updated schedule
-    onUpdate();
-  };
-
-  const handleReleaseAndSave = async () => {
-    if (!record?.id) { toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' }); return; }
-    if (!isForwardTransition(status, 'RELEASED')) {
-      toast({ title: 'Not allowed', description: 'Cannot release from the current status.', variant: 'destructive' }); return;
-    }
-    setIsReleasing(true);
-    try {
-      const metaRes = await axios.get(`https://westrembomis.onrender.com/api/documents/single/4`, { withCredentials: true });
-      const fileUrl = metaRes.data?.file_url;
-      if (!fileUrl) throw new Error('Template file URL missing.');
-      const resolvedUrl = fileUrl.startsWith('http') ? fileUrl : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
-      const pdfRes = await axios.get(resolvedUrl, { responseType: 'arraybuffer', withCredentials: true });
-      const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
-      let savedFields: TextField[] = [];
-      let savedQrField: QRCodeFieldData | null = null;
-      if (metaRes.data?.layout) {
-        try {
-          const parsed = Array.isArray(metaRes.data.layout) ? metaRes.data.layout : JSON.parse(metaRes.data.layout);
-          if (Array.isArray(parsed)) { savedFields = parsed; savedQrField = null; }
-          else if (parsed.fields !== undefined) { const layout = parsed as SavedLayout; savedFields = layout.fields ?? []; savedQrField = layout.qrField ?? null; }
-        } catch { console.error('Could not parse template layout JSON'); }
-      }
-      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return { ...field, value: field.value ?? '' };
-        let value: any = (formData as any)[key] ?? '';
-        if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
-          const d = new Date(value);
-          if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
-        }
-        return { ...field, value: value ?? '' };
-      });
-      const labelValueMap = buildLabelValueMap(formData);
-      const finalFields = buildReleasePDFFields(fieldsWithValues, labelValueMap);
-      const renderedBytes = await generatePDF(templateBytes, finalFields, savedQrField, record.brgy_business_no ?? null);
-      const filename = `business-clearances-${record.id}-${record.brgy_business_no ?? 'doc'}.pdf`;
-      const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: "application/pdf" });
-      const fd = new FormData();
-      fd.append('file', blob, filename);
-      const res = await axios.post(
-        `https://westrembomis.onrender.com/api/documents/release/business-clearances/${record.id}`,
-        fd, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-      const path = res.data?.data?.released_document_path;
-      if (path) setReleasedPath(path);
-      setCurrentStatus('RELEASED');
-      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
-      toast({ title: 'Success', description: 'Document released successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to release document.', variant: 'destructive' });
-    } finally { setIsReleasing(false); }
-  };
-
+  // NOTE: Document release is handled by the cashier role.
+  // The admin only downloads an already-released document or archives it.
   const downloadReleased = async () => {
     if (!record?.id) { toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' }); return; }
     setIsDownloading(true);
@@ -1244,6 +881,10 @@ function EditableDetailModal({
   };
 
   const handleUpdate = async () => {
+    if (isNonEditable) {
+      toast({ title: 'Not allowed', description: 'This record is read-only and cannot be edited.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       let existingId: number | null = null;
@@ -1256,9 +897,12 @@ function EditableDetailModal({
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
       if (existingId) {
+        // Strip status from the payload — status only flows through dedicated workflow handlers.
+        const { status: _ignoredStatus, ...payload } = formData;
         await axios.put(
           `https://westrembomis.onrender.com/api/business-clearances/${existingId}`,
-          { ...formData }, { withCredentials: true }
+          { ...payload, requester_type: formData.requester_type || 'Online' },
+          { withCredentials: true }
         );
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false); onUpdate(); handleRefresh();
@@ -1289,39 +933,62 @@ function EditableDetailModal({
     );
   }
 
+  const blockedLabel = status === 'REJECTED' ? 'Rejected' : status === 'INCOMPLETE' ? 'Incomplete' : '';
+  const session = getScheduleSession(currentSchedule);
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-
           {/* Archived banner */}
           {isArchived && (
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
-              <Archive className="h-4 w-4 text-gray-500" />
+              <Lock className="h-4 w-4 text-gray-500" />
               <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Archived Record</span>
-              <span className="text-xs text-gray-500 ml-1">— This record is read-only and cannot be modified.</span>
+              <span className="text-xs text-gray-500 ml-1">— This record is locked. All actions, edits, and status updates are disabled.</span>
             </div>
           )}
 
-          {/* No-Show alert banner */}
-          {isNoShow && !isArchived && !isReleased && (
-            <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                <span className="text-sm font-semibold text-red-700">No Show — Scheduled appointment was missed</span>
-                <span className="text-xs text-red-500">
-                  ({formatDateShort(currentSchedule!.schedule_date)} · {formatTimeRange(currentSchedule!.schedule_time)})
-                </span>
+          {/* Blocked banner */}
+          {isBlocked && !isArchived && (
+            <div className={`border-b px-6 py-3 flex items-center gap-2 ${
+              status === 'REJECTED' ? 'bg-rose-50 border-rose-200' : 'bg-orange-50 border-orange-200'
+            }`}>
+              <Ban className={`h-4 w-4 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`} />
+              <span className={`text-sm font-semibold uppercase tracking-wide ${
+                status === 'REJECTED' ? 'text-rose-700' : 'text-orange-700'
+              }`}>
+                {blockedLabel} — workflow halted
+              </span>
+              <span className={`text-xs ml-1 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`}>
+                — This request cannot progress to the next step. All workflow actions are disabled.
+              </span>
+            </div>
+          )}
+
+          {/* Awaiting reschedule banner */}
+          {isAwaitingReschedule && !isArchived && !isReleased && !isBlocked && (
+            <div className="bg-sky-50 border-b border-sky-200 px-6 py-3 flex items-center gap-3">
+              <CalendarClock className="h-4 w-4 text-sky-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-sky-700">Awaiting applicant to book a new appointment slot</p>
+                <p className="text-[11px] text-sky-600 mt-0.5">
+                  The applicant chooses the new date and session through their own portal. The status will return to <strong>SCHEDULED</strong> automatically once they rebook.
+                </p>
               </div>
-              {canReschedule && (
-                <button
-                  onClick={() => setShowRescheduleModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors flex-shrink-0"
-                >
-                  <CalendarClock className="h-3.5 w-3.5" />
-                  Reschedule Now
-                </button>
-              )}
+            </div>
+          )}
+
+          {/* No-Show alert banner — informational only, applicant rebooks via portal */}
+          {isNoShow && !isArchived && !isReleased && !isBlocked && (
+            <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center gap-3">
+              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              <span className="text-sm font-semibold text-red-700">
+                No Show — {session === 'AM' ? 'Morning' : 'Afternoon'} session was missed
+              </span>
+              <span className="text-xs text-red-500">
+                ({formatDateShort(currentSchedule!.schedule_date)} · {session === 'AM' ? 'until 12:00 NN' : 'until 5:00 PM'})
+              </span>
             </div>
           )}
 
@@ -1343,22 +1010,30 @@ function EditableDetailModal({
                 ) : (
                   <>
                     <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
-                    <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                    <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                       <Save className="h-4 w-4" />{isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
                   </>
                 )
               )}
+              {isNonEditable && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-gray-100 text-gray-600 border-gray-300">
+                  <Lock className="h-3 w-3" /> Read-only
+                </span>
+              )}
               <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors"><X className="h-5 w-5" /></button>
             </div>
           </div>
 
-          <div className={`p-6 ${isNonEditable ? 'opacity-80 pointer-events-none select-none' : ''}`}>
+          {/* Body */}
+          <div className={`p-6 ${
+            isArchived ? 'opacity-70 pointer-events-none select-none' :
+            isBlocked  ? 'opacity-90' : ''
+          }`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {formData.requester_type === 'Online' && (
                 <UserIdViewer userId={(record as any)?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
               )}
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Owner Information</h3>
                 <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="First Name" />
@@ -1369,7 +1044,6 @@ function EditableDetailModal({
                 <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && !isNonEditable} label="Email" />
                 <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing && !isNonEditable} label="Requester Type" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Business Information</h3>
                 <FormField name="brgy_business_no" value={formData.brgy_business_no || ''} onChange={handleInputChange} isEditing={false} label="Business No." />
@@ -1380,14 +1054,12 @@ function EditableDetailModal({
                 <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Issued At" />
                 <FormField name="capital" value={formData.capital || ''} onChange={handleInputChange} type="number" isEditing={isEditing && !isNonEditable} label="Capital" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
                 <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="House/Block/Lot No." />
                 <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && !isNonEditable} label="Street" />
                 <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Zone" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Inspection Information</h3>
                 <FormField name="inspected_by" value={formData.inspected_by || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Inspected By" />
@@ -1395,7 +1067,6 @@ function EditableDetailModal({
                 <FormField name="inspected_remarks" value={formData.inspected_remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Remarks" />
                 <FormField name="inspected_note" value={formData.inspected_note || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Note" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
                 <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="CTC/VRR No." />
@@ -1407,7 +1078,7 @@ function EditableDetailModal({
                   </div>
                 </div>
                 {formData.rejection_reason && (
-                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Reason of rejection" />
+                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
@@ -1418,16 +1089,42 @@ function EditableDetailModal({
                   <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
                 </div>
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
-
-                {/* Schedule display: walk-in vs online */}
+                {/* Schedule display */}
                 {formData.requester_type?.toLowerCase() === 'walk-in' ? (
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
                     <p className="text-sm text-gray-400 italic mt-1">No schedule required (Walk-in)</p>
                   </div>
+                ) : isAwaitingReschedule ? (
+                  <>
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CalendarClock className="h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Awaiting Applicant Booking</span>
+                      </div>
+                      <p className="text-[11px] text-sky-600 leading-relaxed">
+                        The applicant has been notified to choose a new appointment slot through their own portal. Admins do not pick the date or session.
+                      </p>
+                    </div>
+                    {currentSchedule && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Last (missed) appointment</label>
+                        <p className="text-sm text-gray-500 mt-1 line-through">
+                          {formatDateShort(currentSchedule.schedule_date)} · {getScheduleSession(currentSchedule) === 'AM' ? 'Morning' : 'Afternoon'} session
+                          {' '}({formatTimeRange(currentSchedule.schedule_time)})
+                        </p>
+                      </div>
+                    )}
+                    {currentSchedule?.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Note to applicant</label>
+                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
+                      </div>
+                    )}
+                    <MissedScheduleHistory history={missedHistory} />
+                  </>
                 ) : currentSchedule ? (
                   <>
                     <div>
@@ -1435,44 +1132,33 @@ function EditableDetailModal({
                       <p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
-                      <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Session</label>
+                      <p className="text-sm text-gray-700 mt-1 inline-flex items-center gap-1.5">
+                        {getScheduleSession(currentSchedule) === 'AM' ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
+                        {getScheduleSessionLabel(currentSchedule)}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Booked slot: {formatTimeRange(currentSchedule.schedule_time)}</p>
                     </div>
-
-                    {/* No-Show panel inside detail */}
-                    {isNoShow && !TERMINAL_STATUSES.has(status) && (
+                    {/* No-Show informational panel — no action button */}
+                    {isNoShow && !TERMINAL_STATUSES.has(status) && !isBlocked && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <CalendarX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                            <p className="text-xs font-semibold text-red-700">
-                              Scheduled time has passed — No Show
-                            </p>
-                          </div>
-                          {canReschedule && (
-                            <button
-                              onClick={() => setShowRescheduleModal(true)}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex-shrink-0"
-                            >
-                              <CalendarClock className="h-3 w-3" />
-                              Reschedule
-                            </button>
-                          )}
+                        <div className="flex items-center gap-1.5">
+                          <CalendarX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                          <p className="text-xs font-semibold text-red-700">
+                            {session === 'AM' ? 'Morning' : 'Afternoon'} session has fully passed — No Show
+                          </p>
                         </div>
                         <p className="text-[11px] text-red-500">
-                          Original: {formatDateShort(currentSchedule.schedule_date)} · {formatTimeRange(currentSchedule.schedule_time)}
+                          {session === 'AM' ? 'AM session ended at 12:00 NN' : 'PM session ended at 5:00 PM'} on {formatDateShort(currentSchedule.schedule_date)}.
                         </p>
                       </div>
                     )}
-
                     {currentSchedule.note && (
                       <div>
                         <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
                         <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
                       </div>
                     )}
-
-                    {/* Missed history log */}
                     <MissedScheduleHistory history={missedHistory} />
                   </>
                 ) : (
@@ -1481,30 +1167,38 @@ function EditableDetailModal({
                     <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
                   </div>
                 )}
-
                 <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Remarks" />
               </div>
             </div>
           </div>
 
-          {showDispositionModal && (
+          {/* Disposition panel */}
+          {showDispositionModal && canDispose && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${dispositionType === 'REJECTED' ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${
+                    dispositionType === 'REJECTED'
+                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                      : 'bg-orange-50 text-orange-700 border-orange-200'
+                  }`}>
                     {dispositionType === 'REJECTED' ? 'Reject' : 'Mark as Incomplete'}
                   </span>
                   <span className="text-sm font-semibold text-gray-800">Provide a reason</span>
                 </div>
                 <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }} className="p-1 hover:bg-gray-200 rounded-md transition-colors"><X className="h-4 w-4 text-gray-500" /></button>
               </div>
+              <p className="text-[11px] text-gray-500 italic">
+                Heads up: marking the record as <strong>{dispositionType === 'REJECTED' ? 'Rejected' : 'Incomplete'}</strong> halts the workflow.
+                After this, no further status updates are allowed on this record.
+              </p>
               <textarea rows={3} placeholder={dispositionType === 'REJECTED' ? 'e.g. Insufficient documents, unverifiable information…' : 'e.g. Missing documents, incomplete information…'}
                 value={dispositionReason} onChange={e => setDispositionReason(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white" />
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
                 <button onClick={handleDisposition} disabled={isDisposing || !dispositionReason.trim()}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
                   {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
                 </button>
               </div>
@@ -1512,15 +1206,15 @@ function EditableDetailModal({
           )}
 
           {/* Archive confirmation panel */}
-          {showArchiveConfirm && (
+          {showArchiveConfirm && canArchive && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Archive className="h-4 w-4 text-gray-600" />
                 <span className="text-sm font-semibold text-gray-800">Confirm Archive</span>
               </div>
               <p className="text-sm text-gray-600">
-                This will mark the record as <strong>Archived</strong>. Archived records are read-only and
-                cannot be edited or updated. Are you sure you want to continue?
+                This will lock the record as <strong>Archived</strong>. Archived records are completely
+                non-interactive — no edits, no actions, no status changes. Continue?
               </p>
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setShowArchiveConfirm(false)}
@@ -1528,7 +1222,7 @@ function EditableDetailModal({
                   Cancel
                 </button>
                 <button onClick={handleArchive} disabled={isArchiving}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   <Archive className="h-3.5 w-3.5" />
                   {isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
                 </button>
@@ -1540,14 +1234,25 @@ function EditableDetailModal({
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-
-                {isReleased ? (
+                {isArchived ? (
+                  <p className="text-xs text-gray-500 italic flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5" />
+                    This record is archived. All actions are disabled.
+                  </p>
+                ) : isBlocked ? (
+                  <p className={`text-xs italic flex items-center gap-1.5 ${
+                    status === 'REJECTED' ? 'text-rose-600' : 'text-orange-600'
+                  }`}>
+                    <Ban className="h-3.5 w-3.5" />
+                    Workflow halted — this record was marked <strong>{blockedLabel}</strong>. No further status changes allowed.
+                  </p>
+                ) : isReleased ? (
                   <>
                     {hasReleasedDocument && (
                       <button onClick={downloadReleased} disabled={isDownloading}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         <Download className="h-4 w-4" />
-                        {isDownloading ? 'Downloading...' : 'Download Released'}
+                        {isDownloading ? 'Downloading...' : 'Download Released Document'}
                       </button>
                     )}
                     {canArchive && (
@@ -1561,54 +1266,18 @@ function EditableDetailModal({
                       </>
                     )}
                     <p className="text-xs text-gray-400 italic">
-                      This record has been released. Status cannot be changed.
+                      Released by cashier. Status cannot be changed.
                     </p>
                   </>
-                ) : isArchived ? (
-                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5">
-                    <Archive className="h-3.5 w-3.5" />
-                    This record is archived and cannot be modified.
-                  </p>
                 ) : (
                   <>
-                    {/* Reschedule button in footer when no-show */}
-                    {canReschedule && (
-                      <>
-                        <button
-                          onClick={() => setShowRescheduleModal(true)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors"
-                        >
-                          <CalendarClock className="h-4 w-4" />
-                          Reschedule Appointment
-                        </button>
-                        <div className="w-px h-6 bg-gray-200 mx-1" />
-                      </>
-                    )}
-
                     {canMarkReviewed && (
                       <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         <CreditCard className="h-4 w-4" />
                         {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
                       </button>
                     )}
-
-                    {canMarkAsPaid && (
-                      <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
-                        <CreditCard className="h-4 w-4" />
-                        {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
-                      </button>
-                    )}
-
-                    {canRelease && (
-                      <button onClick={handleReleaseAndSave} disabled={isReleasing}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
-                        <Mail className="h-4 w-4" />
-                        {isReleasing ? 'Releasing...' : 'Release Document'}
-                      </button>
-                    )}
-
                     {canDispose && (
                       <>
                         <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -1624,24 +1293,27 @@ function EditableDetailModal({
                         </button>
                       </>
                     )}
-
                     {canMarkToInspection && (
                       <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         <Eye className="h-4 w-4" />
                         {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                       </button>
                     )}
-
                     {status === 'REVIEWED' && (
                       <p className="text-xs text-purple-600 italic flex items-center gap-1.5">
                         <CreditCard className="h-3.5 w-3.5" />
-                        Forwarded to Cashier for payment processing.
+                        Forwarded to Cashier. Payment AND release are handled in the cashier portal.
+                      </p>
+                    )}
+                    {status === 'PAID' && (
+                      <p className="text-xs text-teal-600 italic flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Payment confirmed by cashier. Awaiting cashier to release the document.
                       </p>
                     )}
                   </>
                 )}
-
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
@@ -1649,17 +1321,6 @@ function EditableDetailModal({
         </div>
       </div>
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
-
-      {/* Reschedule Modal */}
-      {showRescheduleModal && currentSchedule && (
-        <RescheduleModal
-          record={record}
-          missedSchedule={currentSchedule}
-          onClose={() => setShowRescheduleModal(false)}
-          onSuccess={handleRescheduleSuccess}
-          toast={toast}
-        />
-      )}
     </>
   );
 }
@@ -1691,7 +1352,6 @@ function FilterBar({ filters, onChange, onReset, activeCount, streets }: {
         {filters.business_type && <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">Type: <strong>{filters.business_type}</strong><button onClick={() => onChange({ business_type: '' })} className="text-blue-400 hover:text-blue-600"><X className="h-3 w-3" /></button></span>}
         {activeCount > 0 && <button className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1" onClick={onReset}><RotateCcw className="h-3 w-3" /> Reset all</button>}
       </div>
-
       {open && (
         <div className="absolute top-full right-0 mt-2 min-w-[600px] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="grid grid-cols-2">
@@ -1764,11 +1424,9 @@ const BusinessClearance = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-
   const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
   const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
   const [filters, setFiltersRaw] = useState<FilterState>(() => filtersFromParams(searchParams));
-
   const [data, setData] = useState<BusinessClearanceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -1830,9 +1488,7 @@ const BusinessClearance = () => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
   };
-
   const handleRefresh = () => { loadData(); toast({ title: 'Refreshed', description: 'Data has been refreshed' }); };
-
   const handleQRScan = useCallback((scannedValue: string) => {
     const trimmed = scannedValue.trim();
     setSearchValue(trimmed);
@@ -1858,7 +1514,6 @@ const BusinessClearance = () => {
             </div>
             <Button className="gap-2" onClick={() => navigate('/document-edit/4')}><Plus className="h-4 w-4" /> New Clearance</Button>
           </div>
-
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
@@ -1868,7 +1523,6 @@ const BusinessClearance = () => {
             </div>
             <FilterBar filters={filters} onChange={patch => setFilters(prev => ({ ...prev, ...patch }))} onReset={() => setFilters(EMPTY_FILTERS)} activeCount={activeFilterCount} streets={streets} />
           </div>
-
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
             <p className="text-xs text-gray-500 mb-3 mt-1">
               Showing <strong className="text-gray-900">{total}</strong> result{total !== 1 ? 's' : ''}
@@ -1876,7 +1530,6 @@ const BusinessClearance = () => {
               {searchValue && <> for <strong className="text-gray-900">"{searchValue}"</strong></>}
             </p>
           )}
-
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
@@ -1912,22 +1565,22 @@ const BusinessClearance = () => {
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
                       const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
-                      const isItemArchived = itemStatus === 'ARCHIVED' || itemStatus === 'DISABLED';
+                      const isItemArchived = FROZEN_STATUSES.has(itemStatus);
+                      const isItemBlocked  = BLOCKED_STATUSES.has(itemStatus);
                       const isItemReleased = itemStatus === 'RELEASED';
-                      // Determine no-show for table row
                       const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
                       const itemRequesterType: string = (item as any).requester_type ?? '';
-                      const isItemNoShow =
-                        itemSchedule !== null &&
-                        isSchedulePast(itemSchedule) &&
-                        !TERMINAL_STATUSES.has(itemStatus) &&
-                        itemRequesterType.toLowerCase() !== 'walk-in';
+                      const isItemAwaitingReschedule = itemStatus === 'RESCHEDULED';
+
+                      const rowClass = [
+                        isNew ? 'bg-blue-50/30' : '',
+                        isItemArchived ? 'opacity-50 bg-gray-50' : '',
+                        isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
+                        'hover:bg-gray-50 transition-colors',
+                      ].filter(Boolean).join(' ');
 
                       return (
-                        <tr
-                          key={item.id}
-                          className={`${isNew ? 'bg-blue-50/30' : ''} ${isItemArchived ? 'opacity-60' : ''} hover:bg-gray-50 transition-colors`}
-                        >
+                        <tr key={item.id} className={rowClass}>
                           <td className="pl-3 pr-0 py-3">{isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}</td>
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">{`${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim()}</td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.brgy_business_no}</td>
@@ -1943,10 +1596,7 @@ const BusinessClearance = () => {
                             <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
                           </td>
                           <td className="py-3 px-4">
-                            <ScheduleCell
-                              schedule={itemSchedule}
-                              requesterType={itemRequesterType}
-                            />
+                            <ScheduleCell schedule={itemSchedule} requesterType={itemRequesterType} status={itemStatus} />
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}</td>
                           <td className="py-3 px-4 text-sm font-medium">{item.capital != null ? formatCurrency(item.capital) : '—'}</td>
@@ -1955,20 +1605,39 @@ const BusinessClearance = () => {
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {isItemArchived ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none whitespace-nowrap"
+                                  title="This record is archived and locked"
+                                  aria-disabled="true"
+                                >
+                                  <Lock className="h-3 w-3" /> Archived · Locked
+                                </span>
+                              ) : isItemBlocked ? (
                                 <>
                                   <button
                                     onClick={() => setSelectedDetailRecord(item)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed opacity-60 whitespace-nowrap"
-                                    title="This document has been archived"
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                    title={`View ${itemStatus.toLowerCase()} record (read-only workflow)`}
                                   >
-                                    <Archive className="h-3 w-3" /> Archived
+                                    <Eye className="h-3 w-3" /> View
                                   </button>
                                   <button
-                                    onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true } })}
+                                    onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })}
                                     className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
                                   >
                                     Print
                                   </button>
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${
+                                      itemStatus === 'REJECTED'
+                                        ? 'bg-rose-50 text-rose-500 border-rose-200'
+                                        : 'bg-orange-50 text-orange-500 border-orange-200'
+                                    }`}
+                                    title="Workflow halted — no further actions allowed"
+                                    aria-disabled="true"
+                                  >
+                                    <Ban className="h-3 w-3" /> No actions
+                                  </span>
                                 </>
                               ) : (
                                 <>
@@ -1976,8 +1645,7 @@ const BusinessClearance = () => {
                                     <Eye className="h-3 w-3" /> View/Edit
                                   </button>
                                   <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
-                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true,previewMode: true} })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
-                                  {/* Released rows: Archive shortcut */}
+                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
                                   {isItemReleased && (
                                     <button
                                       onClick={() => setSelectedDetailRecord(item)}
@@ -1987,15 +1655,13 @@ const BusinessClearance = () => {
                                       <Archive className="h-3 w-3" /> Archive
                                     </button>
                                   )}
-                                  {/* No-show rows: Reschedule shortcut */}
-                                  {isItemNoShow && (
-                                    <button
-                                      onClick={() => setSelectedDetailRecord(item)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors whitespace-nowrap"
-                                      title="Reschedule this no-show appointment"
+                                  {isItemAwaitingReschedule && (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-sky-50 text-sky-600 border-sky-200 cursor-default select-none whitespace-nowrap"
+                                      title="Awaiting applicant to book a new slot via their portal"
                                     >
-                                      <CalendarClock className="h-3 w-3" /> Reschedule
-                                    </button>
+                                      <CalendarClock className="h-3 w-3" /> Awaiting Applicant
+                                    </span>
                                   )}
                                 </>
                               )}
@@ -2009,11 +1675,9 @@ const BusinessClearance = () => {
               </div>
             )}
           </div>
-
           <ClearancePagination currentPage={currentPage} totalPages={totalPages} total={total} onPageChange={setCurrentPage} />
         </div>
       </div>
-
       {selectedDetailRecord && (
         <EditableDetailModal record={selectedDetailRecord} onClose={() => setSelectedDetailRecord(null)} onUpdate={loadData} toast={toast} />
       )}

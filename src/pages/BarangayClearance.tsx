@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
-  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban, Archive,
-  CalendarClock, Clock, AlertTriangle, History, Lock, Send, Sun, Moon,
+  Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -25,8 +24,16 @@ interface StreetOption {
 }
 
 const ZONE_OPTIONS = [
-  'Sitio 1','Sitio 2','Sitio 3','Sitio 4','Sitio 5',
-  'Sitio 6','Sitio 7','Sitio 8','Sitio 9','Sitio 10',
+  'Sitio 1',
+  'Sitio 2',
+  'Sitio 3',
+  'Sitio 4',
+  'Sitio 5',
+  'Sitio 6',
+  'Sitio 7',
+  'Sitio 8',
+  'Sitio 9',
+  'Sitio 10',
 ];
 
 console.log(import.meta.env.VITE_WEB_URL);
@@ -47,9 +54,6 @@ interface ScheduleData {
   schedule_time: string;
   note?: string | null;
   status?: string;
-  user_id?: number;
-  // history of missed schedules (stored as JSON in the API or derived client-side)
-  missed_history?: ScheduleHistoryEntry[];
 }
 
 interface Street {
@@ -74,8 +78,8 @@ const EMPTY_FILTERS: FilterState = {
 };
 
 const PURPOSE_OPTIONS = [
-  'Employment','Business','Travel','Legal Purposes',
-  'School Requirement','Bank Transaction','Other','Government Transaction',
+  'Employment', 'Business', 'Travel', 'Legal Purposes',
+  'School Requirement', 'Bank Transaction', 'Other', 'Government Transaction',
 ];
 
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
@@ -117,7 +121,7 @@ function formatTimeRange(timeStr: string) {
   try {
     const [hStr, mStr] = timeStr.split(':');
     const startH = parseInt(hStr, 10);
-    const endH = startH + 1;
+    const endH   = startH + 1;
     const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
     return `${fmt(startH)}–${fmt(endH)} ${endH >= 12 ? 'PM' : 'AM'}`;
   } catch { return timeStr; }
@@ -134,7 +138,7 @@ function formatDateShort(dateStr: string) {
 function formatCreatedAt(raw: string | null | undefined): string {
   if (!raw) return '—';
   try {
-    const d = new Date(raw);
+    const d    = new Date(raw);
     const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return `${date} · ${time}`;
@@ -214,16 +218,16 @@ function countActiveFilters(f: FilterState): number {
 
 // ─── Status ordering ───────────────────────────────────────────────────────────
 const STATUS_ORDER: Record<string, number> = {
-  'PENDING':      0,
-  'RESCHEDULED':  0, // same priority level as PENDING — awaiting applicant to rebook
-  'SCHEDULED':    1,
-  'ENCODED':      2,
-  'INSPECTING':   3,
-  'REVIEWED':     4,
-  'PAID':         5,
-  'RELEASED':     6,
-  'INCOMPLETE':  -1,
-  'REJECTED':    -1,
+  'PENDING':    0,
+  'SCHEDULED':  1,
+  'ENCODED':    2,
+  'INSPECTING': 3,
+  'REVIEWED':   4,  // formerly TO_PAY
+  'PAID':       5,
+  'RELEASED':   6,
+  // Side states — not on the main forward path
+  'INCOMPLETE': -1,
+  'REJECTED':   -1,
 };
 
 /**
@@ -231,41 +235,34 @@ const STATUS_ORDER: Record<string, number> = {
  * Hardened to refuse ANY transition out of a terminal/blocked/frozen state.
  */
 function isForwardTransition(current: string, next: string): boolean {
-  const currentUpper = (current ?? '').toUpperCase();
-  const nextUpper    = (next ?? '').toUpperCase();
-  if (TERMINAL_STATUSES.has(currentUpper)) return false;
-  const cur = STATUS_ORDER[currentUpper] ?? -1;
-  const nxt = STATUS_ORDER[nextUpper] ?? -1;
-  if (nxt === -1) return true; // dispositions allowed from active records
+  const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
+  const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
+  // Released is terminal — nothing can come after
+  if (current.toUpperCase() === 'RELEASED') return false;
+  // Side states (INCOMPLETE / REJECTED) can always be set unless current is RELEASED
+  if (nxt === -1) return true;
+  // Forward only
   return nxt > cur;
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:      'bg-yellow-100 text-yellow-800 border-yellow-200',
-  rescheduled:  'bg-sky-100 text-sky-800 border-sky-200',
-  incomplete:   'bg-orange-50 text-orange-700 border-orange-200',
-  rejected:     'bg-rose-100 text-rose-800 border-rose-200',
-  released:     'bg-green-100 text-green-800 border-green-200',
-  scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
-  encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
-  to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
-  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
-  paid:         'bg-teal-100 text-teal-800 border-teal-200',
-  inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
-  archived:     'bg-gray-200 text-gray-600 border-gray-300',
-  disabled:     'bg-gray-200 text-gray-600 border-gray-300',
+  pending:    'bg-yellow-100 text-yellow-800 border-yellow-200',
+  incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
+  rejected:   'bg-rose-100 text-rose-800 border-rose-200',
+  released:   'bg-green-100 text-green-800 border-green-200',
+  scheduled:  'bg-blue-100 text-blue-800 border-blue-200',
+  encoded:    'bg-emerald-50 text-emerald-800 border-emerald-200',
+  // "to_pay" kept for legacy data coming from the server; display as "REVIEWED"
+  to_pay:     'bg-purple-100 text-purple-800 border-purple-200',
+  reviewed:   'bg-purple-100 text-purple-800 border-purple-200',
+  paid:       'bg-teal-100 text-teal-800 border-teal-200',
+  inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
+  // Treat legacy "TO_PAY" as "REVIEWED" for display
   if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
-  if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
-  if (
-    requesterType?.toLowerCase() === 'walk-in' &&
-    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
-  ) {
-    return 'PENDING';
-  }
   return raw.toUpperCase();
 }
 
@@ -274,26 +271,13 @@ function StatusBadge({ status, requesterType }: {
   requesterType?: string;
 }) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const display = normaliseStatus(status, requesterType);
+  const display = normaliseStatus(status);
   const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
-  const reqType = requesterType?.toLowerCase();
   return (
-    <div className="flex flex-col gap-1 w-fit">
-      {reqType === 'walk-in' && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-slate-100 text-slate-600 border-slate-300 w-fit">
-           Walk-in
-        </span>
-      )}
-      {reqType === 'online' && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-cyan-50 text-cyan-700 border-cyan-200 w-fit">
-           Online
-        </span>
-      )}
-      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
-        {display}
-      </span>
-    </div>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
+      {display}
+    </span>
   );
 }
 
@@ -338,32 +322,17 @@ function ScheduleCell({
       </span>
     );
   }
-  const isPast    = isSchedulePast(schedule);
-  const session   = getScheduleSession(schedule);
-  const isTerminal = TERMINAL_STATUSES.has(statusUpper);
-  // No-Show: ENTIRE session window has passed AND record is not terminal/rescheduled
-  if (isPast && !isTerminal) {
-    return (
-      <div className="flex flex-col gap-0.5">
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-red-50 text-red-700 border-red-200">
-          <CalendarX className="h-3 w-3" />
-          No Show ({session === 'AM' ? 'Morning' : 'Afternoon'})
-        </span>
-        <span className="text-[10px] text-gray-400 pl-0.5 line-through">
-          {formatDateShort(schedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
-        </span>
-      </div>
-    );
-  }
+  const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-green-100 text-green-800 border-green-200">
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${
+        isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'
+      }`}>
         <CalendarCheck className="h-3 w-3" />
         {formatDateShort(schedule.schedule_date)}
       </span>
-      <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 pl-0.5">
-        {session === 'AM' ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
-        {session === 'AM' ? 'Morning' : 'Afternoon'} · {formatTimeRange(schedule.schedule_time)}
+      <span className="text-[10px] text-gray-500 pl-0.5">
+        {formatTimeRange(schedule.schedule_time)}
       </span>
     </div>
   );
@@ -776,7 +745,7 @@ function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] })
 }
 
 // ─── Memoized Form Field Component ─────────────────────────────────────────────
-const FormField = memo(({
+const FormField = memo(({ 
   name, value, onChange, type = 'text', options, isTextArea = false, isEditing, label
 }: any) => {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
@@ -960,7 +929,7 @@ function EditableDetailModal({
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
-      const normalisedStatus = normaliseStatus(full.status ?? '', full.requester_type ?? '');
+      const normalisedStatus = normaliseStatus(full.status ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
       setCurrentSchedule(full.schedule ?? null);
@@ -1083,12 +1052,13 @@ function EditableDetailModal({
 
   // ─── handleMarkReviewed ────────────────────────────────────────────────────
   const handleMarkReviewed = async () => {
-    if (isWorkflowFrozen || !isForwardTransition(status, 'REVIEWED')) {
-      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
+    if (!isForwardTransition(status, 'REVIEWED')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
       return;
     }
     setActionLoading('reviewed');
     try {
+      // Send 'TO_PAY' to the server (legacy API value), display as REVIEWED
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
@@ -1096,17 +1066,28 @@ function EditableDetailModal({
       );
       setCurrentStatus('REVIEWED');
       setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      try {
-        await axios.put(
-          `https://westrembomis.onrender.com/api/barangay-clearances/status/${record.id}`,
-          { status: 'TO_PAY' },
-          { withCredentials: true }
-        );
-      } catch { /* silent */ }
-      toast({
-        title: 'Forwarded to Cashier',
-        description: 'Record marked as Reviewed. Payment AND release are handled by the cashier from this point.',
-      });
+      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
+    } finally { setActionLoading(null); }
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!isForwardTransition(status, 'PAID')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+      return;
+    }
+    setActionLoading('paid');
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        { status: 'PAID' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PAID');
+      setFormData((p: any) => ({ ...p, status: 'PAID' }));
+      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -1114,8 +1095,8 @@ function EditableDetailModal({
   };
 
   const handleMarkToInspection = async () => {
-    if (isWorkflowFrozen || !isForwardTransition(status, 'INSPECTING')) {
-      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
+    if (!isForwardTransition(status, 'INSPECTING')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
       return;
     }
     setActionLoading('inspection');
@@ -1141,7 +1122,7 @@ function EditableDetailModal({
       return;
     }
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
       return;
     }
     setIsDisposing(true);
@@ -1154,7 +1135,7 @@ function EditableDetailModal({
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
-      toast({ title: 'Success', description: `Record ${label} successfully. No further actions are available.` });
+      toast({ title: 'Success', description: `Record ${label} successfully.` });
       setShowDispositionModal(false);
       setDispositionReason('');
       setDispositionType(null);
@@ -1170,7 +1151,7 @@ function EditableDetailModal({
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
       return;
     }
     setDispositionType(type);
@@ -1180,25 +1161,25 @@ function EditableDetailModal({
 
   const handleArchive = async () => {
     if (!isReleased) {
-      toast({ title: 'Not allowed', description: 'Only released records can be archived.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'Only released records can be disabled.', variant: 'destructive' });
       return;
     }
-    setIsArchiving(true);
+    setIsDisabling(true);
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
-        { status: 'ARCHIVED' },
+        { status: 'DISABLED' },
         { withCredentials: true }
       );
-      setCurrentStatus('ARCHIVED');
-      setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
-      toast({ title: 'Archived', description: 'Record archived. It is now read-only and non-interactive.' });
-      setShowArchiveConfirm(false);
+      setCurrentStatus('DISABLED');
+      setFormData((p: any) => ({ ...p, status: 'DISABLED' }));
+      toast({ title: 'Disabled', description: 'Record has been disabled successfully.' });
+      setShowDisableConfirm(false);
       onUpdate();
     } catch (err: any) {
       toast({
         title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to archive record.',
+        description: err?.response?.data?.message ?? 'Failed to disable record.',
         variant: 'destructive',
       });
     } finally { setIsArchiving(false); }
@@ -1237,10 +1218,6 @@ function EditableDetailModal({
   };
 
   const handleUpdate = async () => {
-    if (isNonEditable) {
-      toast({ title: 'Not allowed', description: 'This record is read-only and cannot be edited.', variant: 'destructive' });
-      return;
-    }
     setIsSaving(true);
     try {
       let existingId: number | null = null;
@@ -1254,11 +1231,9 @@ function EditableDetailModal({
       } catch (error) { console.error('Check existing failed:', error); }
 
       if (existingId) {
-        // Strip status from the payload — status only flows through dedicated workflow handlers.
-        const { status: _ignoredStatus, ...payload } = formData;
         await axios.put(
           `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
-          { ...payload, requester_type: formData.requester_type || 'Online' },
+          { ...formData, requester_type: formData.requester_type || 'Online' },
           { withCredentials: true }
         );
         toast({ title: 'Success', description: 'Record updated successfully' });
@@ -1385,26 +1360,19 @@ function EditableDetailModal({
               <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
-              {!isNonEditable && (
-                !isEditing ? (
-                  <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
-                    <Edit2 className="h-4 w-4" /> Edit
+              {!isEditing ? (
+                <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                  <Edit2 className="h-4 w-4" /> Edit
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                  <button onClick={handleUpdate} disabled={isSaving}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                    <Save className="h-4 w-4" />
+                    {isSaving ? 'Saving...' : 'Save Changes'}
                   </button>
-                ) : (
-                  <>
-                    <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
-                    <button onClick={handleUpdate} disabled={isSaving}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      <Save className="h-4 w-4" />
-                      {isSaving ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  </>
-                )
-              )}
-              {isNonEditable && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-gray-100 text-gray-600 border-gray-300">
-                  <Lock className="h-3 w-3" /> Read-only
-                </span>
+                </>
               )}
               <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
                 <X className="h-5 w-5" />
@@ -1413,10 +1381,7 @@ function EditableDetailModal({
           </div>
 
           {/* Body */}
-          <div className={`p-6 ${
-            isArchived ? 'opacity-70 pointer-events-none select-none' :
-            isBlocked  ? 'opacity-90' : ''
-          }`}>
+          <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
               {formData.requester_type === 'Online' && (
@@ -1425,46 +1390,44 @@ function EditableDetailModal({
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="First Name" />
-                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Middle Name" />
-                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Surname" />
-                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Extension Name" />
-                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing && !isNonEditable} label="Prefix" />
-                <FormField name="dob" value={formData.dob || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Date of Birth" />
-                <FormField name="pob" value={formData.pob || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Place of Birth" />
-                <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing && !isNonEditable} label="Contact Number" />
-                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && !isNonEditable} label="Email" />
+                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing} label="First Name" />
+                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Middle Name" />
+                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing} label="Surname" />
+                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Extension Name" />
+                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} isEditing={isEditing} label="Prefix" />
+                <FormField name="dob" value={formData.dob || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Date of Birth" />
+                <FormField name="pob" value={formData.pob || ''} onChange={handleInputChange} isEditing={isEditing} label="Place of Birth" />
+                <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing} label="Contact Number" />
+                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing} label="Email" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Zone" />
-                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && !isNonEditable} label="Street" />
-                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="House/Block/Lot No." />
-                <FormField name="period_of_residency" value={formData.period_of_residency || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Period of Residency" />
-                <FormField name="house_owner" value={formData.house_owner || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="House Owner" />
-                <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Relationship to Owner" />
-                <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes','No']} isEditing={isEditing && !isNonEditable} label="Registered Voter" />
+                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing} label="Zone" />
+                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing} label="Street" />
+                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing} label="House/Block/Lot No." />
+                <FormField name="period_of_residency" value={formData.period_of_residency || ''} onChange={handleInputChange} isEditing={isEditing} label="Period of Residency" />
+                <FormField name="house_owner" value={formData.house_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="House Owner" />
+                <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="Relationship to Owner" />
+                <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes', 'No']} isEditing={isEditing} label="Registered Voter" />
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Purpose" />
-                <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Purpose Details" />
-                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Issued On" />
-                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Issued At" />
-                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="CTC/VRR No." />
+                <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing} label="Purpose" />
+                <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Purpose Details" />
+                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
+                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
+                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
                 <FormField name="bcert_number" value={formData.bcert_number || ''} onChange={handleInputChange} isEditing={false} label="Barangay Clearance No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                  <div className="mt-1">
-                    <StatusBadge status={currentStatus} requesterType={formData.requester_type} />
-                  </div>
+                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
                 </div>
                 {formData.rejection_reason && (
-                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
+                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Reason of rejection" />
                 )}
-                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing && !isNonEditable} label="Requester Type" />
+                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online', 'Walk-in']} isEditing={isEditing} label="Requester Type" />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
@@ -1530,15 +1493,11 @@ function EditableDetailModal({
                   <>
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                      <p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p>
+                      <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Session</label>
-                      <p className="text-sm text-gray-700 mt-1 inline-flex items-center gap-1.5">
-                        {getScheduleSession(currentSchedule) === 'AM' ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
-                        {getScheduleSessionLabel(currentSchedule)}
-                      </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Booked slot: {formatTimeRange(currentSchedule.schedule_time)}</p>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
                     </div>
 
                     {/* No-Show panel inside the detail body */}
@@ -1570,16 +1529,10 @@ function EditableDetailModal({
                     {currentSchedule.note && (
                       <div>
                         <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
-                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
+                        <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
                       </div>
                     )}
-                    <MissedScheduleHistory history={missedHistory} />
                   </>
-                ) : (
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
-                    <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
-                  </div>
                 )}
 
                 <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Remarks" />
@@ -1589,7 +1542,7 @@ function EditableDetailModal({
           </div>
 
           {/* Disposition panel */}
-          {showDispositionModal && canDispose && (
+          {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1607,10 +1560,6 @@ function EditableDetailModal({
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
-              <p className="text-[11px] text-gray-500 italic">
-                Heads up: marking the record as <strong>{dispositionType === 'REJECTED' ? 'Rejected' : 'Incomplete'}</strong> halts the workflow.
-                After this, no further status updates are allowed on this record.
-              </p>
               <textarea rows={3}
                 placeholder={dispositionType === 'REJECTED'
                   ? 'e.g. Insufficient documents, unverifiable information…'
@@ -1625,7 +1574,7 @@ function EditableDetailModal({
                   Cancel
                 </button>
                 <button onClick={handleDisposition} disabled={isDisposing || !dispositionReason.trim()}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${
                     dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'
                   }`}>
                   {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
@@ -1638,22 +1587,22 @@ function EditableDetailModal({
           {showArchiveConfirm && canArchive && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Archive className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-semibold text-gray-800">Confirm Archive</span>
+                <Ban className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Disable</span>
               </div>
               <p className="text-sm text-gray-600">
-                This will lock the record as <strong>Archived</strong>. Archived records are completely
-                non-interactive — no edits, no actions, no status changes. Continue?
+                This will mark the record as <strong>Disabled</strong>. The action cannot be undone via the UI.
+                Are you sure you want to continue?
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button onClick={() => setShowArchiveConfirm(false)}
+                <button onClick={() => setShowDisableConfirm(false)}
                   className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
                   Cancel
                 </button>
-                <button onClick={handleArchive} disabled={isArchiving}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Archive className="h-3.5 w-3.5" />
-                  {isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
+                <button onClick={handleDisable} disabled={isDisabling}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  <Ban className="h-3.5 w-3.5" />
+                  {isDisabling ? 'Disabling…' : 'Yes, Disable Record'}
                 </button>
               </div>
             </div>
@@ -1885,7 +1834,8 @@ function FilterBar({
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
+                {/* REVIEWED replaces TO_PAY in the filter UI */}
+                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE'] as const).map(v => (
                   <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -2199,7 +2149,7 @@ const BarangayClearance = () => {
                       ].filter(Boolean).join(' ');
 
                       return (
-                        <tr key={item.id} className={rowClass}>
+                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
                           <td className="pl-3 pr-0 py-3">
                             {isNew && (
                               <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
