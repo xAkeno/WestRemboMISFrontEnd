@@ -54,6 +54,10 @@ const Login = () => {
         { withCredentials: true }
       );
 
+      const detailsRes = await api.get("/api/details", { withCredentials: true });
+      localStorage.setItem("user", JSON.stringify(detailsRes.data.data));
+      window.dispatchEvent(new Event("user-login")); // ← signal the header
+
       // Reset on success
       setFailedAttempts(0);
       setCaptchaToken(null);
