@@ -16,7 +16,8 @@ import {
 import { toUpperCase } from "./formUtils";
 import Header from "@/components/forms/Header";
 import { calculateAge } from "./BarangayCertificateForm";
-
+import QRCodeLib from "qrcode";
+import { clearancePurposes } from "@/components/purpose/purpose";
 interface BarangayClearanceFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -333,22 +334,77 @@ const SuccessModal = ({
 }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+ 
+  // Generate QR code when component mounts or refNo changes
+  useEffect(() => {
+    if (!canvasRef.current || !successData?.refNo) return;
+    QRCodeLib.toCanvas(canvasRef.current, successData.refNo, {
+      width: 152,
+      margin: 1,
+      color: { dark: "#0f2a5e", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    }).catch(console.error);
+  }, [successData?.refNo]);
+ 
   if (!successData) return null;
-
+ 
+  const handleBackClick = () => {
+    navigate("/");
+  };
+ 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
-      <div className="w-full sm:max-w-lg md:max-w-xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+      <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+        {/* Header */}
         <div className="relative overflow-hidden px-6 pt-8 pb-6 text-center" style={{ backgroundColor: "#0f2a5e" }}>
           <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10" style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
             <CheckCircle className="h-8 w-8 text-white" />
           </div>
-          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
+          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted Successfully!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Barangay Clearance & Appointment Scheduled</p>
         </div>
-        <div className="px-6 py-6 space-y-4">
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
+ 
+        {/* Content */}
+        <div className="px-6 py-6 space-y-6">
+          
+          {/* QR Code Section */}
+          <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
+            <canvas
+              ref={canvasRef}
+              className="rounded-lg"
+              style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }}
+            />
+          </div>
+ 
+          {/* Instructions Text */}
+          <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>
+                  Present this at the counter
+                </p>
+                <div className="text-xs space-y-2" style={{ color: "#92400e", lineHeight: 1.6 }}>
+                  <p>
+                    Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
+                  </p>
+                  {/* <p className="font-semibold">
+                    Barangay Clearance {successData.refNo}
+                  </p> */}
+                  <p>
+                    Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+ 
+          {/* Reference Number */}
+          {/* <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Reference Number</p>
               <p className="text-lg font-black font-mono" style={{ color: "#0f2a5e" }}>{successData.refNo}</p>
@@ -356,7 +412,9 @@ const SuccessModal = ({
             <button onClick={() => { navigator.clipboard.writeText(successData.refNo); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="p-2 rounded-lg" style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}>
               {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
             </button>
-          </div>
+          </div> */}
+ 
+          {/* Appointment Details */}
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
@@ -367,15 +425,40 @@ const SuccessModal = ({
               </div>
             </div>
           </div>
-          <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
+ 
+          {/* Reminder Text */}
+          {/* <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
             Please arrive 10 minutes early on your scheduled date.
-          </p>
-          <button onClick={() => navigate(`/request/barangay_clearance/${successData.id}?fromSubmit=1`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90" style={{ backgroundColor: "#0f2a5e" }}>
-            View My Request
-          </button>
-          <button onClick={onBack} className="w-full py-3 text-sm font-semibold rounded-lg" style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}>
-            Back to Services
-          </button>
+          </p> */}
+ 
+          {/* Buttons */}
+          <div className="space-y-3 pt-2">
+            <button 
+              onClick={() => navigate(`/request/barangay_clearance/${successData.id}?fromSubmit=1`)} 
+              className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity" 
+              style={{ backgroundColor: "#0f2a5e" }}
+            >
+              View My Request
+            </button>
+            <button 
+              onClick={handleBackClick} 
+              className="w-full py-2 text-sm font-semibold text-center transition-colors"
+              style={{ 
+                color: "#0f2a5e",
+                textDecoration: "underline",
+                textDecorationThickness: "1.5px",
+                textUnderlineOffset: "4px",
+                backgroundColor: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "8px 0"
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Back to Services
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1245,7 +1328,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     <SelectValue placeholder="Select purpose" />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Employment", "Business", "Travel", "Legal Purposes", "School Requirement", "Bank Transaction", "Other"].map((p) => (
+                    {clearancePurposes.map((p) => (
                       <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
                   </SelectContent>
