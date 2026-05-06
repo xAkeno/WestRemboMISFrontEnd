@@ -21,6 +21,7 @@ import type { TextField } from '@/types/certificate';
 import type { QRCodeFieldData }from '@/components/documentMaker/QRCodeField';
 import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
 import { clearancePurposes } from '@/components/purpose/purpose';
+
 interface StreetOption {
   id: number;
   name: string;
@@ -300,12 +301,26 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
   catch { return false; }
 }
 
-function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
+/**
+ * A no-show is only flagged after the scheduled DAY has fully ended (end of business day = 17:00),
+ * not at the exact scheduled time. This prevents a morning slot from showing "No Show"
+ * while the afternoon window is still open.
+ *
+ * Logic:
+ *   - Take the schedule_date and set the end-of-business cutoff to 17:00 on that date.
+ *   - Only return true if NOW is past that cutoff (i.e. the whole day is done).
+ */
+function isScheduleNoShow(schedule: ScheduleData | null | undefined): boolean {
   if (!schedule) return false;
   try {
-    return new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) < new Date();
+    // End of business hours on the scheduled date (17:00 / 5 PM)
+    const endOfDay = new Date(`${schedule.schedule_date}T17:00:00`);
+    return new Date() > endOfDay;
   } catch { return false; }
 }
+
+// Keep the old name as an alias so nothing else breaks
+const isSchedulePast = isScheduleNoShow;
 
 const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','ARCHIVED','DISABLED','EXPIRED']);
 
@@ -418,9 +433,10 @@ function ScheduleCell({
     );
   }
 
-  const isPast = isSchedulePast(schedule);
+  // Use end-of-day check so morning + afternoon slots are both respected
+  const isNoShow = isScheduleNoShow(schedule);
 
-  if (isPast) {
+  if (isNoShow) {
     return (
       <div className="flex flex-col gap-0.5">
         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-red-50 text-red-700 border-red-200">
@@ -657,6 +673,11 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
+/**
+ * UPDATED: Admin no longer picks a new date/time.
+ * Instead, the record is reset to PENDING and the missed appointment is logged —
+ * the user will see PENDING in their portal and can reschedule themselves online.
+ */
 function RescheduleModal({
   record,
   missedSchedule,
@@ -670,24 +691,18 @@ function RescheduleModal({
   onSuccess: () => void;
   toast: any;
 }) {
-  const today = new Date().toISOString().split('T')[0];
-  const [newDate, setNewDate]       = useState('');
-  const [newTime, setNewTime]       = useState('');
   const [note, setNote]             = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-  if (record.requester_type?.toLowerCase() === 'walk-in') {
-    toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
-    return;
-  }
-  if (!newDate || !newTime) {
-    toast({ title: 'Missing fields', description: 'Please select both a date and time.', variant: 'destructive' });
-    return;
-  }
+    if (record.requester_type?.toLowerCase() === 'walk-in') {
+      toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      // Log the missed appointment into history
       const missedEntry: ScheduleHistoryEntry = {
         schedule_date: missedSchedule.schedule_date,
         schedule_time: missedSchedule.schedule_time,
@@ -697,30 +712,37 @@ function RescheduleModal({
       const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
       const updatedHistory = [...existingHistory, missedEntry];
 
+      // Update schedule record: preserve existing schedule fields,
+      // just append the missed history. The user will pick a new slot themselves.
       await axios.put(
         `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
         {
-          schedule_date:  newDate,
-          schedule_time:  newTime,
-          note:           note.trim() || null,
+          // Keep the original date/time (history is what matters here)
+          schedule_date:  missedSchedule.schedule_date,
+          schedule_time:  missedSchedule.schedule_time,
+          note:           note.trim() || missedSchedule.note || null,
           missed_history: updatedHistory,
         },
         { withCredentials: true }
       );
 
+      // Reset clearance status back to PENDING so the user can reschedule via the portal
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
-        { status: 'RESCHEDULED' },
+        { status: 'PENDING' },
         { withCredentials: true }
       );
 
-      toast({ title: 'Rescheduled', description: `New appointment set for ${formatDateShort(newDate)} at ${formatTimeRange(newTime)}.` });
+      toast({
+        title: 'Returned to Pending',
+        description: 'The missed appointment has been logged. The applicant can now reschedule through their online portal.',
+      });
       onSuccess();
       onClose();
     } catch (err: any) {
       toast({
         title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to reschedule. Please try again.',
+        description: err?.response?.data?.message ?? 'Failed to process. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -741,7 +763,7 @@ function RescheduleModal({
               <CalendarClock className="h-4 w-4 text-sky-700" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Reschedule Appointment</h3>
+              <h3 className="text-sm font-semibold text-gray-900">Mark as No Show & Return to Pending</h3>
               <p className="text-[11px] text-gray-500 mt-0.5">Ref: {record.bcert_number}</p>
             </div>
           </div>
@@ -750,10 +772,11 @@ function RescheduleModal({
           </button>
         </div>
 
+        {/* Missed appointment notice */}
         <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
+            <p className="text-xs font-semibold text-red-700">Appointment was missed (No Show)</p>
             <p className="text-[11px] text-red-500 mt-0.5">
               {formatDateShort(missedSchedule.schedule_date)} · {formatTimeRange(missedSchedule.schedule_time)}
             </p>
@@ -761,39 +784,26 @@ function RescheduleModal({
           </div>
         </div>
 
+        {/* What happens next */}
+        <div className="mx-5 mt-3 rounded-lg bg-sky-50 border border-sky-200 px-4 py-3 flex gap-3">
+          <CalendarClock className="h-4 w-4 text-sky-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-sky-700">Applicant will reschedule online</p>
+            <p className="text-[11px] text-sky-600 mt-0.5">
+              The record will be reset to <strong>PENDING</strong>. The applicant can log in to their portal
+              and choose a new appointment slot at their convenience.
+            </p>
+          </div>
+        </div>
+
         <div className="px-5 py-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              New Appointment Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              min={today}
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Appointment Time <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="time"
-              value={newTime}
-              onChange={e => setNewTime(e.target.value)}
-              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Note <span className="text-gray-400 font-normal normal-case">(optional)</span>
+              Admin Note <span className="text-gray-400 font-normal normal-case">(optional — visible to applicant)</span>
             </label>
             <textarea
-              rows={2}
-              placeholder="e.g. Please bring original documents…"
+              rows={3}
+              placeholder="e.g. Please bring your original documents when you reschedule…"
               value={note}
               onChange={e => setNote(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none transition-all"
@@ -810,11 +820,11 @@ function RescheduleModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !newDate || !newTime}
+            disabled={isSubmitting}
             className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
           >
             <CalendarClock className="h-4 w-4" />
-            {isSubmitting ? 'Saving…' : 'Confirm Reschedule'}
+            {isSubmitting ? 'Processing…' : 'Confirm & Notify Applicant'}
           </button>
         </div>
       </div>
@@ -968,7 +978,7 @@ function EditableDetailModal({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving]               = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  
+
   // State for created_by name (lazy loaded)
   const [createdByName, setCreatedByName] = useState<string>('');
   const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
@@ -1001,17 +1011,9 @@ function EditableDetailModal({
   useEffect(() => {
     const loadCreatorName = async () => {
       const userId = formData.created_by;
-      if (!userId) {
-        setCreatedByName('—');
-        return;
-      }
-      
+      if (!userId) { setCreatedByName('—'); return; }
       const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-      if (isNaN(userIdNum)) {
-        setCreatedByName('—');
-        return;
-      }
-      
+      if (isNaN(userIdNum)) { setCreatedByName('—'); return; }
       setLoadingCreatedBy(true);
       try {
         const user = await fetchUserById(userIdNum);
@@ -1024,7 +1026,6 @@ function EditableDetailModal({
         setLoadingCreatedBy(false);
       }
     };
-    
     loadCreatorName();
   }, [formData.created_by]);
 
@@ -1103,7 +1104,6 @@ function EditableDetailModal({
     toast({ title: 'Refreshed', description: 'Record data has been refreshed' });
   };
 
-  const [isReleasing,   setIsReleasing]   = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [releasedPath,  setReleasedPath]  = useState<string | null>(null);
 
@@ -1124,16 +1124,17 @@ function EditableDetailModal({
     isForwardTransition(status, 'REVIEWED') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' || status === 'RESCHEDULED');
 
-  const canRelease = !isArchived && isForwardTransition(status, 'RELEASED') && status === 'PAID';
+  // Release is handled by Cashier — NOT shown here
   const canMarkToInspection = !isReleased && !isArchived &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
   const canDispose = !isReleased && !isArchived;
   const canArchive = isReleased && !isArchived;
 
+  // No-show: uses end-of-business-day check, not exact scheduled time
   const isNoShow =
     currentSchedule !== null &&
-    isSchedulePast(currentSchedule) &&
+    isScheduleNoShow(currentSchedule) &&
     !TERMINAL_STATUSES.has(status) &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
 
@@ -1259,107 +1260,12 @@ function EditableDetailModal({
     } finally { setIsArchiving(false); }
   };
 
+  // After the admin marks no-show and resets to PENDING, reflect in local state
   const handleRescheduleSuccess = () => {
-    setCurrentStatus('RESCHEDULED');
-    setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
+    setCurrentStatus('PENDING');
+    setFormData((p: any) => ({ ...p, status: 'PENDING' }));
     setRefreshKey(prev => prev + 1);
     onUpdate();
-  };
-
-  const handleReleaseAndSave = async () => {
-    if (!record?.id) {
-      toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
-      return;
-    }
-    if (!isForwardTransition(status, 'RELEASED')) {
-      toast({ title: 'Not allowed', description: 'Cannot release from the current status.', variant: 'destructive' });
-      return;
-    }
-    setIsReleasing(true);
-    try {
-      const metaRes = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/single/2`,
-        { withCredentials: true }
-      );
-      const fileUrl = metaRes.data?.file_url;
-      if (!fileUrl) throw new Error('Template file URL missing.');
-
-      const resolvedUrl = fileUrl.startsWith('http')
-        ? fileUrl
-        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
-
-      const pdfRes = await axios.get(resolvedUrl, {
-        responseType: 'arraybuffer',
-        withCredentials: true,
-      });
-      const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
-
-      let savedFields: TextField[] = [];
-      let savedQrField: QRCodeFieldData | null = null;
-
-      if (metaRes.data?.layout) {
-        try {
-          const parsed = Array.isArray(metaRes.data.layout)
-            ? metaRes.data.layout
-            : JSON.parse(metaRes.data.layout);
-
-          if (Array.isArray(parsed)) {
-            savedFields  = parsed;
-            savedQrField = null;
-          } else if (parsed.fields !== undefined) {
-            const layout = parsed as SavedLayout;
-            savedFields  = layout.fields ?? [];
-            savedQrField = layout.qrField ?? null;
-          }
-        } catch {
-          console.error('Could not parse template layout JSON');
-        }
-      }
-
-      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return { ...field, value: field.value ?? '' };
-        let value: any = (formData as any)[key] ?? '';
-        if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
-          const d = new Date(value);
-          if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
-        }
-        return { ...field, value: value ?? '' };
-      });
-
-      const labelValueMap = buildLabelValueMap(formData);
-      const finalFields   = buildReleasePDFFields(fieldsWithValues, labelValueMap);
-
-      const renderedBytes = await generatePDF(
-        templateBytes, finalFields, savedQrField, record.bcert_number ?? null
-      );
-
-      const filename = `barangay-clearances-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
-      const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: 'application/pdf' });
-      const fd = new FormData();
-      fd.append('file', blob, filename);
-
-      const res = await axios.post(
-        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}`,
-        fd,
-        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-
-      const path = res.data?.data?.released_document_path;
-      if (path) setReleasedPath(path);
-      setCurrentStatus('RELEASED');
-      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
-      toast({ title: 'Success', description: 'Document released successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to release document.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsReleasing(false);
-    }
   };
 
   const downloadReleased = async () => {
@@ -1475,7 +1381,7 @@ function EditableDetailModal({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors flex-shrink-0"
                 >
                   <CalendarClock className="h-3.5 w-3.5" />
-                  Reschedule Now
+                  Mark No Show & Return to Pending
                 </button>
               )}
             </div>
@@ -1565,8 +1471,8 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
-                
-                {/* Created By - Shows NAME instead of ID with lazy loading */}
+
+                {/* Created By — shows full name, not raw ID */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
                   <div className="mt-1">
@@ -1609,7 +1515,7 @@ function EditableDetailModal({
                           <div className="flex items-center gap-1.5">
                             <CalendarX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
                             <p className="text-xs font-semibold text-red-700">
-                              Scheduled time has passed — No Show
+                              Appointment day has passed — No Show
                             </p>
                           </div>
                           {canReschedule && (
@@ -1618,12 +1524,15 @@ function EditableDetailModal({
                               className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex-shrink-0"
                             >
                               <CalendarClock className="h-3 w-3" />
-                              Reschedule
+                              Mark &amp; Return to Pending
                             </button>
                           )}
                         </div>
                         <p className="text-[11px] text-red-500">
-                          Original: {formatDateShort(currentSchedule.schedule_date)} · {formatTimeRange(currentSchedule.schedule_time)}
+                          Scheduled: {formatDateShort(currentSchedule.schedule_date)} · {formatTimeRange(currentSchedule.schedule_time)}
+                        </p>
+                        <p className="text-[10px] text-red-400">
+                          The applicant did not show up during business hours on the scheduled day.
                         </p>
                       </div>
                     )}
@@ -1715,6 +1624,7 @@ function EditableDetailModal({
             </div>
           )}
 
+          {/* ── Footer action bar ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1756,7 +1666,7 @@ function EditableDetailModal({
                           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors"
                         >
                           <CalendarClock className="h-4 w-4" />
-                          Reschedule Appointment
+                          Mark No Show &amp; Return to Pending
                         </button>
                         <div className="w-px h-6 bg-gray-200 mx-1" />
                       </>
@@ -1770,13 +1680,7 @@ function EditableDetailModal({
                       </button>
                     )}
 
-                    {canRelease && (
-                      <button onClick={handleReleaseAndSave} disabled={isReleasing}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
-                        <Mail className="h-4 w-4" />
-                        {isReleasing ? 'Releasing...' : 'Release Document'}
-                      </button>
-                    )}
+                    {/* ── Release Document button REMOVED — belongs to Cashier portal ── */}
 
                     {canDispose && (
                       <>
@@ -1806,6 +1710,13 @@ function EditableDetailModal({
                       <p className="text-xs text-purple-600 italic flex items-center gap-1.5">
                         <CreditCard className="h-3.5 w-3.5" />
                         Forwarded to Cashier for payment processing.
+                      </p>
+                    )}
+
+                    {status === 'PAID' && (
+                      <p className="text-xs text-teal-600 italic flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5" />
+                        Payment confirmed. Document release is handled by the Cashier.
                       </p>
                     )}
                   </>
@@ -2089,12 +2000,12 @@ const BarangayClearance = () => {
         ...(filters.purpose ? { purpose: filters.purpose } : {}),
         ...(filters.schedule_filter ? { schedule_filter: filters.schedule_filter } : {}),
       };
-      
+
       const response = await fetchBarangayClearances(params);
       setData(response.data);
       setTotal(response.total);
       setTotalPages(response.totalPages);
-      
+
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
       console.error(error);
@@ -2226,9 +2137,10 @@ const BarangayClearance = () => {
                       const isItemReleased = itemStatus === 'RELEASED';
                       const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
                       const itemRequesterType: string = (item as any).requester_type ?? '';
+                      // Use end-of-business-day check in the table too
                       const isItemNoShow =
                         itemSchedule !== null &&
-                        isSchedulePast(itemSchedule) &&
+                        isScheduleNoShow(itemSchedule) &&
                         !TERMINAL_STATUSES.has(itemStatus) &&
                         itemRequesterType.toLowerCase() !== 'walk-in';
 
@@ -2269,7 +2181,6 @@ const BarangayClearance = () => {
                             />
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">
-                            {/* Show only the ID in the table - no API call here */}
                             {item.created_by ? `ID: ${item.created_by}` : '—'}
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
@@ -2324,9 +2235,9 @@ const BarangayClearance = () => {
                                     <button
                                       onClick={() => setSelectedDetailRecord(item)}
                                       className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors whitespace-nowrap"
-                                      title="Reschedule this no-show appointment"
+                                      title="Mark no-show and return to pending"
                                     >
-                                      <CalendarClock className="h-3 w-3" /> Reschedule
+                                      <CalendarClock className="h-3 w-3" /> No Show
                                     </button>
                                   )}
                                 </>
