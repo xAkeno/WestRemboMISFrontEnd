@@ -18,6 +18,7 @@ import Header from "@/components/forms/Header";
 import { calculateAge } from "./BarangayCertificateForm";
 import QRCodeLib from "qrcode";
 import { clearancePurposes } from "@/components/purpose/purpose";
+
 interface BarangayClearanceFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -37,11 +38,9 @@ const isWeekend = (date: Date) => {
 };
 
 const PH_HOLIDAYS: string[] = [
-  // 2025
   "2025-01-01", "2025-04-09", "2025-04-17", "2025-04-18",
   "2025-05-01", "2025-06-12", "2025-08-21", "2025-08-25",
   "2025-11-01", "2025-11-30", "2025-12-08", "2025-12-25", "2025-12-30", "2025-12-31",
-  // 2026
   "2026-01-01", "2026-04-02", "2026-04-03", "2026-04-09",
   "2026-05-01", "2026-06-12", "2026-08-21", "2026-08-25",
   "2026-11-01", "2026-11-30", "2026-12-08", "2026-12-25", "2026-12-30", "2026-12-31",
@@ -81,10 +80,33 @@ const validateRequired = (value: string, fieldName: string): string => {
   return "";
 };
 
-const validatePeriodOfResidency = (value: string): string => {
+// Helper function to parse period of residency string to years (as a decimal)
+const parsePeriodToYears = (period: string): number | null => {
+  if (!period) return null;
+  const match = period.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(year|years|month|months)?$/);
+  if (!match) return null;
+  
+  const value = parseFloat(match[1]);
+  const unit = match[2] || 'years';
+  
+  if (unit.startsWith('month')) {
+    return value / 12;
+  }
+  return value;
+};
+
+const validatePeriodOfResidency = (value: string, age: number): string => {
   if (!value || value.trim() === "") return "Period of residency is required.";
-  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim()))
-    return "Please enter a valid period (e.g., 5 years, 6 months).";
+  if (!/^\d+(?:\.\d+)?\s*(year|years|month|months)?$/i.test(value.trim()))
+    return "Please enter a valid period (e.g., 5 years, 6 months, 1.5 years)";
+  
+  const periodYears = parsePeriodToYears(value.trim());
+  if (periodYears === null) return "Please enter a valid period (e.g., 5 years, 6 months)";
+  
+  if (periodYears > age) {
+    return `Period of residency (${value.trim()}) cannot exceed your age (${age} ${age === 1 ? 'year' : 'years'}). Please enter a valid period.`;
+  }
+  
   return "";
 };
 
@@ -99,6 +121,10 @@ const validateDob = (value: string): string => {
   const dob = new Date(value + "T00:00:00");
   const today = todayDate();
   if (dob >= today) return "Date of birth must be in the past. Today and future dates are not allowed.";
+  
+  const age = calculateAge(value);
+  if (age < MIN_AGE) return `Applicant must be at least ${MIN_AGE} years old. Current age: ${age} years.`;
+  
   return "";
 };
 
@@ -192,7 +218,6 @@ function RegisterDependentToggle({
         </div>
       </div>
 
-      {/* Slider toggle */}
       <button
         type="button"
         role="switch"
@@ -336,7 +361,6 @@ const SuccessModal = ({
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
  
-  // Generate QR code when component mounts or refNo changes
   useEffect(() => {
     if (!canvasRef.current || !successData?.refNo) return;
     QRCodeLib.toCanvas(canvasRef.current, successData.refNo, {
@@ -356,7 +380,6 @@ const SuccessModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
       <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
-        {/* Header */}
         <div className="relative overflow-hidden px-6 pt-8 pb-6 text-center" style={{ backgroundColor: "#0f2a5e" }}>
           <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
@@ -367,10 +390,7 @@ const SuccessModal = ({
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Barangay Clearance & Appointment Scheduled</p>
         </div>
  
-        {/* Content */}
         <div className="px-6 py-6 space-y-6">
-          
-          {/* QR Code Section */}
           <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
             <canvas
@@ -380,7 +400,6 @@ const SuccessModal = ({
             />
           </div>
  
-          {/* Instructions Text */}
           <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
@@ -392,9 +411,6 @@ const SuccessModal = ({
                   <p>
                     Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
                   </p>
-                  {/* <p className="font-semibold">
-                    Barangay Clearance {successData.refNo}
-                  </p> */}
                   <p>
                     Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
                   </p>
@@ -403,18 +419,6 @@ const SuccessModal = ({
             </div>
           </div>
  
-          {/* Reference Number */}
-          {/* <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Reference Number</p>
-              <p className="text-lg font-black font-mono" style={{ color: "#0f2a5e" }}>{successData.refNo}</p>
-            </div>
-            <button onClick={() => { navigator.clipboard.writeText(successData.refNo); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="p-2 rounded-lg" style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}>
-              {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-            </button>
-          </div> */}
- 
-          {/* Appointment Details */}
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
@@ -426,12 +430,6 @@ const SuccessModal = ({
             </div>
           </div>
  
-          {/* Reminder Text */}
-          {/* <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>
-            Please arrive 10 minutes early on your scheduled date.
-          </p> */}
- 
-          {/* Buttons */}
           <div className="space-y-3 pt-2">
             <button 
               onClick={() => navigate(`/request/barangay_clearance/${successData.id}?fromSubmit=1`)} 
@@ -497,9 +495,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
   const [loadingServiceInfo, setLoadingServiceInfo] = useState(true);
 
-  // ── Dependent toggle state ──
   const [isDependent, setIsDependent] = useState(false);
-  // Stores the auto-fetched user data so we can restore it when toggling back off
   const autoFilledDataRef = useRef<Partial<typeof formData>>({});
 
   const [errors, setErrors] = useState({
@@ -569,7 +565,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   });
 
   const upd = (f: string, v: string) => {
-    // Fields that should NOT be uppercased (dates, email, and select-driven fields whose values must match exactly)
     const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "issued_on", "prefix", "registered_voter"];
     const value = noUppercaseFields.includes(f) ? v : toUpperCase(v);
     setFormData((p) => ({ ...p, [f]: value }));
@@ -578,11 +573,9 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     }
   };
 
-  // ── Handle dependent toggle ──
   const handleDependentToggle = (enabled: boolean) => {
     setIsDependent(enabled);
     if (enabled) {
-      // Clear all auto-filled personal / contact / address fields
       setFormData((prev) => ({
         ...prev,
         prefix: "",
@@ -603,9 +596,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
         house_owner: "",
         relationship_to_owner: "",
       }));
+      setErrors((prev) => ({ ...prev, dob: "", period_of_residency: "" }));
     } else {
-      // Restore the saved auto-filled data
       setFormData((prev) => ({ ...prev, ...autoFilledDataRef.current }));
+      setErrors((prev) => ({ ...prev, dob: "", period_of_residency: "" }));
     }
   };
 
@@ -637,9 +631,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   };
 
   const validateForm = (): boolean => {
+    const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
+    
     const newErrors = {
       ...errors,
-      period_of_residency: validatePeriodOfResidency(formData.period_of_residency),
+      period_of_residency: validatePeriodOfResidency(formData.period_of_residency, currentAge),
       purpose: validatePurpose(formData.purpose),
       schedule_date: validateRequired(formData.schedule_date, "Schedule date"),
       time_group: validateRequired(formData.time_group, "Time slot"),
@@ -688,9 +684,8 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     } finally { setIsSubmitting(false); }
   };
 
-  // ── Auto-fill from authenticated user — skipped when isDependent is on ──
   useEffect(() => {
-    if (isDependent) return; // Do not auto-fill when registering a dependent
+    if (isDependent) return;
 
     const loadUser = async () => {
       try {
@@ -734,14 +729,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           registered_voter: user.voter_status ? "Yes" : "No",
         };
 
-        // Save a snapshot so we can restore it if the toggle is turned back off
         autoFilledDataRef.current = filled;
-
         setFormData((prev) => ({ ...prev, ...filled }));
       } catch (error) { console.error("Failed to load authenticated user:", error); }
     };
     loadUser();
-  }, [streets, isDependent]); // re-runs when isDependent turns back off
+  }, [streets, isDependent]);
 
   const getMinScheduleDate = () => {
     const d = new Date();
@@ -750,7 +743,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
 
   const getMaxScheduleDate = () => "2026-12-31";
 
-  // ── Shared styles ──
   const readonlyStyle: React.CSSProperties = {
     borderBottomColor: "#c7d2fe",
     backgroundColor: "#f0f4ff",
@@ -763,7 +755,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     borderBottomColor: "#bbf7d0",
     backgroundColor: "#f0fdf4",
   };
-  // When isDependent is on, auto-filled fields switch to this style
   const dependentEditableStyle: React.CSSProperties = {
     borderBottomColor: "#fcd34d",
     backgroundColor: "#fffbeb",
@@ -772,13 +763,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   const readonlyInputCls = "rounded-none border-0 border-b-2 px-0 text-sm cursor-not-allowed opacity-80";
   const editableInputCls = "rounded-none border-0 border-b-2 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
-  // ── Compute time-slot disabled states whenever schedule_date changes ──
   const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
     getTimeSlotAvailability(formData.schedule_date);
 
   if (successData) return <SuccessModal successData={successData} onBack={handleBack} />;
 
-  // ── Helper: badge for sections 1 & 2 ──
   const SectionBadge = () =>
     isDependent ? (
       <span
@@ -795,7 +784,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
         Auto-filled
       </span>
     );
-  
 
   return (
     <>
@@ -807,7 +795,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
         className="w-full max-w-4xl bg-white overflow-hidden items-start mx-auto my-24"
         style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}
       >
-        {/* ── Page Header ── */}
         <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>
@@ -822,7 +809,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
 
         <div className="p-8 md:p-10">
 
-          {/* ── Before You Apply ── */}
           <div className="mb-8 p-6 rounded-lg border" style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}>
             <h3 className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2" style={{ color: "#854d0e" }}>
               📌 Before You Apply
@@ -871,15 +857,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
             )}
           </div>
 
-          {/* ── Field Legend ── */}
           <FieldLegend />
-
-          {/* ── Register Dependent Toggle ── */}
           <RegisterDependentToggle enabled={isDependent} onChange={handleDependentToggle} />
 
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* ═══════════════ Section 1 — Personal Information ═══════════════ */}
+            {/* Section 1 — Personal Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
@@ -888,10 +871,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <SectionBadge />
               </div>
 
-              {/* Row 1: Prefix (Select in dependent mode), Surname, First Name, Middle Name */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-
-                {/* Prefix — Select dropdown in dependent mode */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Prefix</Label>
                   {isDependent ? (
@@ -922,14 +902,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   )}
                 </div>
 
-                {/* Surname, First Name, Middle Name */}
-                {(
-                  [
-                    { label: "Surname *", field: "surname", placeholder: "de la Cruz" },
-                    { label: "First Name *", field: "first_name", placeholder: "Juan" },
-                    { label: "Middle Name", field: "middle_name", placeholder: "Reyes" },
-                  ] as const
-                ).map(({ label, field, placeholder }) => (
+                {[
+                  { label: "Surname *", field: "surname", placeholder: "de la Cruz" },
+                  { label: "First Name *", field: "first_name", placeholder: "Juan" },
+                  { label: "Middle Name", field: "middle_name", placeholder: "Reyes" },
+                ].map(({ label, field, placeholder }) => (
                   <div key={label} className="space-y-1.5">
                     <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>{label}</Label>
                     <Input
@@ -947,10 +924,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 ))}
               </div>
 
-              {/* Row 2: Extension, Age, Date of Birth (no min/max), Place of Birth */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-
-                {/* Extension */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Extension</Label>
                   <Input
@@ -967,7 +941,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   />
                 </div>
 
-                {/* Age — read-only always (auto-calculated from DOB) */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Age</Label>
                   <Input
@@ -975,13 +948,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     value={formData.age}
                     readOnly
                     disabled
-                    placeholder=""
                     className={readonlyInputCls}
                     style={readonlyStyle}
                   />
                 </div>
 
-                {/* Date of Birth — max = yesterday (today & future dates not allowed); auto-computes age */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
                   <Input
@@ -989,7 +960,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     value={formData.dob}
                     readOnly={!isDependent}
                     disabled={!isDependent}
-                    // max = yesterday so today and future dates are blocked at browser level too
                     max={(() => {
                       const yesterday = new Date();
                       yesterday.setDate(yesterday.getDate() - 1);
@@ -1002,6 +972,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                       if (val) {
                         const computedAge = calculateAge(val);
                         setFormData((p) => ({ ...p, dob: val, age: String(computedAge) }));
+                        if (formData.period_of_residency) {
+                          const periodErr = validatePeriodOfResidency(formData.period_of_residency, computedAge);
+                          setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                        }
                       } else {
                         setFormData((p) => ({ ...p, dob: val, age: "" }));
                       }
@@ -1022,7 +996,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   )}
                 </div>
 
-                {/* Place of Birth */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
                   <Input
@@ -1041,7 +1014,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══════════════ Section 2 — Contact Information ═══════════════ */}
+            {/* Section 2 — Contact Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
@@ -1083,7 +1056,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══════════════ Section 3 — Address Information ═══════════════ */}
+            {/* Section 3 — Address Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -1092,10 +1065,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 {isDependent && <SectionBadge />}
               </div>
 
-              {/* House/Block/Lot, Street (Select in dependent), Zone (Select in dependent) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                {/* House / Block / Lot No. */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No. *</Label>
                   <Input
@@ -1111,7 +1081,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   />
                 </div>
 
-                {/* Street — Select dropdown populated from API in dependent mode */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
                   {isDependent ? (
@@ -1151,7 +1120,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   )}
                 </div>
 
-                {/* Zone / Purok — Select dropdown from unique sitio values in dependent mode */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
                   <Input
@@ -1168,7 +1136,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 </div>
               </div>
 
-              {/* House Owner + Relationship — always editable */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
@@ -1219,7 +1186,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══════════════ Section 4 — Clearance Details (EDITABLE) ═══════════════ */}
+            {/* Section 4 — Clearance Details */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
@@ -1236,9 +1203,15 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     Period of Residency <span style={{ color: "#ef4444" }}>*</span>
                   </Label>
                   <Input
-                    placeholder="e.g., 5 years"
+                    placeholder="e.g., 5 years, 6 months, 1.5 years"
                     value={formData.period_of_residency}
-                    onChange={(e) => upd("period_of_residency", e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      upd("period_of_residency", value);
+                      const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
+                      const periodErr = validatePeriodOfResidency(value, currentAge);
+                      setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                    }}
                     className={editableInputCls}
                     style={{
                       ...editableRequiredStyle,
@@ -1247,7 +1220,17 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.period_of_residency ? "#ef4444" : "#fed7aa")}
                   />
-                  {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
+                  {errors.period_of_residency && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {errors.period_of_residency}
+                    </p>
+                  )}
+                  {formData.age && !errors.period_of_residency && formData.period_of_residency && (
+                    <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />Valid period
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -1263,7 +1246,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 </div>
               </div>
 
-              {/* CTC/VRR No. */}
               <div className="mt-6 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                   CTC / VRR No. <span style={{ color: "#ef4444" }}>*</span>
@@ -1351,7 +1333,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══════════════ Section 5 — Schedule Appointment ═══════════════ */}
+            {/* Section 5 — Schedule Appointment */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
@@ -1526,7 +1508,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ── Form Actions ── */}
+            {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"

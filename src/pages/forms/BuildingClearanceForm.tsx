@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -10,15 +10,16 @@ import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  CheckCircle, Copy, Check, X, FileText, DollarSign, IdCard, Timer,
-  Calendar, Clock, Info, AlertTriangle, ClipboardCheck,
+  CheckCircle, Clock, FileText, DollarSign, IdCard, Timer,
+  Calendar, Info, AlertTriangle, ClipboardCheck, X,
 } from "lucide-react";
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
-import { add } from "date-fns";
 import { constructionPurposes } from "@/components/purpose/purpose";
-interface BuildingClearanceFormProps { onBack: () => void; }
+import QRCodeLib from "qrcode";
+
+interface BuildingClearanceFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
 
@@ -36,12 +37,33 @@ const isWeekend = (date: Date) => {
   return day === 0 || day === 6;
 };
 
-const PH_HOLIDAYS_2026 = [
-  "2026-01-01", "2026-04-09", "2026-05-01", "2026-06-12",
-  "2026-08-25", "2026-11-30", "2026-12-25", "2026-12-30",
+const PH_HOLIDAYS: string[] = [
+  "2025-01-01", "2025-04-09", "2025-04-17", "2025-04-18",
+  "2025-05-01", "2025-06-12", "2025-08-21", "2025-08-25",
+  "2025-11-01", "2025-11-30", "2025-12-08", "2025-12-25", "2025-12-30", "2025-12-31",
+  "2026-01-01", "2026-04-02", "2026-04-03", "2026-04-09",
+  "2026-05-01", "2026-06-12", "2026-08-21", "2026-08-25",
+  "2026-11-01", "2026-11-30", "2026-12-08", "2026-12-25", "2026-12-30", "2026-12-31",
 ];
 
-const isHoliday = (dateStr: string) => PH_HOLIDAYS_2026.includes(dateStr);
+const isHoliday = (dateStr: string) => PH_HOLIDAYS.includes(dateStr);
+
+const toDateString = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const isSelectableDate = (dateStr: string): boolean => {
+  const date = new Date(dateStr + "T00:00:00");
+  const today = todayDate();
+  if (date < today) return false;
+  if (date.getFullYear() > 2026) return false;
+  if (isWeekend(date)) return false;
+  if (isHoliday(dateStr)) return false;
+  return true;
+};
 
 const validateScheduleDate = (value: string): string => {
   if (!value) return "Schedule date is required.";
@@ -52,14 +74,6 @@ const validateScheduleDate = (value: string): string => {
   if (isHoliday(value)) return "Selected date is a Philippine holiday. Barangay services are unavailable on this day.";
   return "";
 };
-
-const maxDob = () => {
-  const d = todayDate();
-  d.setFullYear(d.getFullYear() - MIN_AGE);
-  return d;
-};
-
-const toInputMax = (d: Date) => d.toISOString().split("T")[0];
 
 const validateRequired = (value: string, fieldName: string): string => {
   if (!value || value.trim() === "") return `${fieldName} is required.`;
@@ -86,6 +100,18 @@ const calculateAge = (dob: string): number => {
   const monthDiff = now.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age--;
   return age;
+};
+
+const getTimeSlotAvailability = (selectedDate: string) => {
+  const today = toDateString(new Date());
+  if (selectedDate !== today) {
+    return { morningDisabled: false, afternoonDisabled: false };
+  }
+  const now = new Date();
+  const currentHour = now.getHours();
+  const morningDisabled = currentHour >= 12;
+  const afternoonDisabled = currentHour >= 18;
+  return { morningDisabled, afternoonDisabled };
 };
 
 // ── Scheduling Info Modal ────────────────────────────────────────────────────
@@ -195,7 +221,7 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   );
 };
 
-// ── Success Modal ──────────────────────────────────────────────────────────
+// ── Success Modal (with QR Code) ────────────────────────────────────────────
 const SuccessModal = ({
   successData,
   onBack,
@@ -204,30 +230,62 @@ const SuccessModal = ({
   onBack: () => void;
 }) => {
   const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !successData?.refNo) return;
+    QRCodeLib.toCanvas(canvasRef.current, successData.refNo, {
+      width: 152,
+      margin: 1,
+      color: { dark: "#0f2a5e", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    }).catch(console.error);
+  }, [successData?.refNo]);
+
   if (!successData) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
-      <div className="w-full sm:max-w-lg md:max-w-xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+      <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
         <div className="relative overflow-hidden px-6 pt-8 pb-6 text-center" style={{ backgroundColor: "#0f2a5e" }}>
           <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10" style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
             <CheckCircle className="h-8 w-8 text-white" />
           </div>
-          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
+          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted Successfully!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Building Clearance & Appointment Scheduled</p>
         </div>
-        <div className="px-6 py-6 space-y-4">
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Reference Number</p>
-              <p className="text-lg font-black font-mono" style={{ color: "#0f2a5e" }}>{successData.refNo}</p>
-            </div>
-            <button onClick={() => { navigator.clipboard.writeText(successData.refNo); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="p-2 rounded-lg" style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}>
-              {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-            </button>
+
+        <div className="px-6 py-6 space-y-6">
+          <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
+            <canvas
+              ref={canvasRef}
+              className="rounded-lg"
+              style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }}
+            />
           </div>
+
+          <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>
+                  Present this at the counter
+                </p>
+                <div className="text-xs space-y-2" style={{ color: "#92400e", lineHeight: 1.6 }}>
+                  <p>
+                    Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
+                  </p>
+                  <p>
+                    Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
@@ -238,9 +296,34 @@ const SuccessModal = ({
               </div>
             </div>
           </div>
-          <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>Please arrive 10 minutes early on your scheduled date.</p>
-          <button onClick={() => navigate(`/request/building_clearance/${successData.id}?fromSubmit=1`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90" style={{ backgroundColor: "#0f2a5e" }}>View My Request</button>
-          <button onClick={onBack} className="w-full py-3 text-sm font-semibold rounded-lg" style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}>Back to Services</button>
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => navigate(`/request/building_clearance/${successData.id}?fromSubmit=1`)}
+              className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: "#0f2a5e" }}
+            >
+              View My Request
+            </button>
+            <button
+              onClick={onBack}
+              className="w-full py-2 text-sm font-semibold text-center transition-colors"
+              style={{
+                color: "#0f2a5e",
+                textDecoration: "underline",
+                textDecorationThickness: "1.5px",
+                textUnderlineOffset: "4px",
+                backgroundColor: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "8px 0",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Back to Services
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -267,7 +350,7 @@ const FieldLegend = () => (
 );
 
 // ── Main Component ──────────────────────────────────────────────────────────
-const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
+const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
@@ -339,9 +422,8 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     document_type: "building_clearance",
   });
 
-  // Only uppercase free-text editable fields
   const upd = (f: string, v: string) => {
-    const textFields = ["establishment", "purpose_details",];
+    const textFields = ["establishment", "purpose_details"];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {
@@ -368,15 +450,16 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     if (err) {
       upd("schedule_date", "");
       setAvailableSlots(null);
+      setFormData((p) => ({ ...p, time_group: "" }));
       return;
     }
     upd("schedule_date", date);
+    setFormData((p) => ({ ...p, schedule_date: date, time_group: "" }));
     fetchAvailableSlots(date);
   };
 
   const getMinScheduleDate = () => {
     const d = new Date();
-    d.setDate(d.getDate());
     return d.toISOString().split("T")[0];
   };
 
@@ -428,7 +511,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         );
         if (scheduleRes.status === 201) {
           const schedule = scheduleRes.data?.data?.schedule;
-          setSuccessData({ id: newId, refNo: `REF-${String(newId).padStart(4, "0")}`, scheduleTime: schedule?.schedule_time, scheduleDate: schedule?.schedule_date });
+          setSuccessData({
+            id: newId,
+            refNo: `REF-${String(newId).padStart(4, "0")}`,
+            scheduleTime: schedule?.schedule_time,
+            scheduleDate: schedule?.schedule_date,
+          });
         } else {
           setSuccessData({ id: newId, refNo: `REF-${String(newId).padStart(4, "0")}` });
         }
@@ -478,10 +566,13 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
     loadUser();
   }, [streets]);
 
+  // ── Compute time-slot disabled states ──
+  const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
+    getTimeSlotAvailability(formData.schedule_date);
+
   // ── Shared styles ──
   const readonlyStyle: React.CSSProperties = { borderBottomColor: "#c7d2fe", backgroundColor: "#f0f4ff" };
   const editableRequiredStyle: React.CSSProperties = { borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" };
-  const editableOptionalStyle: React.CSSProperties = { borderBottomColor: "#bbf7d0", backgroundColor: "#f0fdf4" };
   const readonlyInputCls = "rounded-none border-0 border-b-2 px-0 text-sm cursor-not-allowed opacity-80";
   const editableInputCls = "rounded-none border-0 border-b-2 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
@@ -497,7 +588,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
         className="w-full max-w-4xl bg-white overflow-hidden items-start mx-auto my-24"
         style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}
       >
-        {/* ── Page Header ── */}
         <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>Republic of the Philippines · City of Taguig</p>
@@ -551,7 +641,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
             )}
           </div>
 
-          {/* ── Field Legend ── */}
           <FieldLegend />
 
           <form onSubmit={handleSubmit} className="space-y-8">
@@ -615,10 +704,55 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
 
-            {/* ═══ Section 3 — Building Details (EDITABLE) ═══ */}
+            {/* ═══ Section 3 — Project Location (READ-ONLY - Auto-filled from user address) ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Project Location</h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>Auto-filled</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No.</Label>
+                  <Input
+                    value={formData.house_block_lot_no}
+                    readOnly
+                    disabled
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street</Label>
+                  <Input
+                    value={formData.street}
+                    readOnly
+                    disabled
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok</Label>
+                  <Input
+                    value={formData.zone}
+                    readOnly
+                    disabled
+                    className={readonlyInputCls}
+                    style={readonlyStyle}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ═══ Section 4 — Building Details (EDITABLE) ═══ */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Building Details</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>Fill in required fields</span>
@@ -644,18 +778,14 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose</Label>
                   <Select
                     value={formData.purpose}
-                    onValueChange={(v) => {
-                      setFormData((p) => ({ ...p, purpose: v }));
-                    }}
+                    onValueChange={(v) => setFormData((p) => ({ ...p, purpose: v }))}
                   >
                     <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm uppercase" style={editableRequiredStyle}>
                       <SelectValue placeholder="Select purpose" />
                     </SelectTrigger>
                     <SelectContent>
                       {constructionPurposes.map((p) => (
-                        <SelectItem key={p} value={p} className="uppercase">
-                          {p}
-                        </SelectItem>
+                        <SelectItem key={p} value={p} className="uppercase">{p}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -680,109 +810,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               </div>
             </div>
 
-            {/* ═══ Section 4 — Project Location (FULLY EDITABLE) ═══ */}
-            <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Project Location</h3>
-                <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>
-                  Fill in required fields
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                {/* House / Block / Lot */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    House / Block / Lot No.
-                  </Label>
-                  <Input
-                    placeholder="e.g., 123-A"
-                    value={formData.house_block_lot_no}
-                    onChange={(e) => upd("house_block_lot_no", e.target.value)}
-                    className={editableInputCls}
-                    style={editableRequiredStyle}
-                  />
-                </div>
-
-                {/* Street ComboBox */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Street
-                  </Label>
-                  <Select
-                    value={formData.street}
-                    onValueChange={(v) => {
-                      const selectedStreet = streets.find(
-                        (s) => toUpperCase(s.name) === v
-                      );
-
-                      setFormData((prev) => ({
-                        ...prev,
-                        street: v,
-                        zone: selectedStreet
-                          ? toUpperCase(selectedStreet.sitio)
-                          : prev.zone,
-                      }));
-                    }}
-                  >
-                    <SelectTrigger
-                      className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                      style={editableRequiredStyle}
-                    >
-                      <SelectValue placeholder="Select street" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      {streets.map((street) => (
-                        <SelectItem
-                          key={street.id}
-                          value={toUpperCase(street.name)}
-                        >
-                          {toUpperCase(street.name)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Zone ComboBox */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Zone / Purok
-                  </Label>
-                  <Select
-                    value={formData.zone}
-                    onValueChange={(v) => upd("zone", v)}
-                  >
-                    <SelectTrigger
-                      className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                      style={editableRequiredStyle}
-                    >
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      {[...new Set(streets.map((s) => s.sitio))]
-                      .filter(Boolean)
-                      .map((zone, i) => {
-                        const upperZone = toUpperCase(zone);
-
-                        return (
-                          <SelectItem key={i} value={upperZone}>
-                            {upperZone}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-              </div>
-            </div>
-
             {/* ═══ Section 5 — Schedule Appointment ═══ */}
             <div>
               <div className="flex items-center gap-3 mb-5">
@@ -804,7 +831,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
               <div className="mb-5 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
                 <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
                 <div>
-                  <p className="text-xs font-bold" style={{ color: "#0369a1" }}>Appointments are available Monday – Friday only, within 2026.</p>
+                  <p className="text-xs font-bold" style={{ color: "#0369a1" }}>Appointments are available Monday – Friday only.</p>
                   <p className="text-xs mt-0.5" style={{ color: "#0369a1" }}>
                     Weekends, public holidays, and special non-working holidays are not available.
                     <button type="button" onClick={() => setShowSchedulingModal(true)} className="underline ml-1 font-semibold" style={{ color: "#0284c7" }}>Learn more</button>
@@ -833,13 +860,52 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                       <AlertTriangle className="w-3 h-3" />{errors.schedule_date}
                     </p>
                   )}
+                  {(() => {
+                    const today = new Date();
+                    const todayStr = toDateString(today);
+                    if (!isSelectableDate(todayStr)) {
+                      const next = new Date(today);
+                      for (let i = 1; i <= 14; i++) {
+                        next.setDate(today.getDate() + i);
+                        const nextStr = toDateString(next);
+                        if (isSelectableDate(nextStr)) {
+                          return (
+                            <p className="text-xs mt-1" style={{ color: "#0369a1" }}>
+                              💡 Today is a weekend or holiday. Next available date:{" "}
+                              <button
+                                type="button"
+                                className="underline font-semibold"
+                                style={{ color: "#0284c7" }}
+                                onClick={() => handleScheduleDateChange(nextStr)}
+                              >
+                                {next.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              </button>
+                            </p>
+                          );
+                        }
+                      }
+                    }
+                    return null;
+                  })()}
                 </div>
 
-                {formData.schedule_date && (
+                {formData.schedule_date && !errors.schedule_date && (
                   <div>
                     <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>
                       Select Time Slot <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
+
+                    {formData.schedule_date === toDateString(new Date()) && (isMorningPastDue || isAfternoonPastDue) && (
+                      <div className="mb-3 p-3 rounded-lg flex items-start gap-2" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
+                        <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
+                        <p className="text-xs" style={{ color: "#c2410c" }}>
+                          {isAfternoonPastDue
+                            ? "The barangay office is now closed for today. Please select a different date."
+                            : "The morning slot has passed. Only the afternoon slot is available for today."}
+                        </p>
+                      </div>
+                    )}
+
                     {loadingSlots ? (
                       <div className="flex items-center gap-2 text-gray-500">
                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -862,25 +928,39 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                           { key: "afternoon", label: "Afternoon Slot", time: "1:00 PM – 5:50 PM" },
                         ].map(({ key, label, time }) => {
                           const slot = availableSlots[key as "morning" | "afternoon"];
+                          const timeDisabled =
+                            key === "morning" ? isMorningPastDue :
+                            key === "afternoon" ? isAfternoonPastDue : false;
+                          const isDisabled = !slot.available || timeDisabled;
                           const isSelected = formData.time_group === key;
+                          const disabledReason = !slot.available
+                            ? "Fully booked"
+                            : timeDisabled
+                            ? key === "morning" ? "Morning has passed" : "Office closed"
+                            : "";
+
                           return (
                             <div
                               key={key}
                               className="flex items-center space-x-3 p-4 rounded-lg border-2 transition-all"
                               style={{
-                                borderColor: isSelected ? "#0f2a5e" : slot.available ? "#fed7aa" : "#e5e7eb",
-                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : slot.available ? "#fff7ed" : "#f9fafb",
-                                cursor: slot.available ? "pointer" : "not-allowed",
-                                opacity: slot.available ? 1 : 0.5,
+                                borderColor: isSelected ? "#0f2a5e" : isDisabled ? "#e5e7eb" : "#fed7aa",
+                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : isDisabled ? "#f9fafb" : "#fff7ed",
+                                cursor: isDisabled ? "not-allowed" : "pointer",
+                                opacity: isDisabled ? 0.5 : 1,
                               }}
                             >
-                              <RadioGroupItem value={key} id={`bldg-slot-${key}`} disabled={!slot.available} />
-                              <label htmlFor={`bldg-slot-${key}`} className="flex-1" style={{ cursor: slot.available ? "pointer" : "not-allowed" }}>
+                              <RadioGroupItem value={key} id={`bldg-slot-${key}`} disabled={isDisabled} />
+                              <label htmlFor={`bldg-slot-${key}`} className="flex-1" style={{ cursor: isDisabled ? "not-allowed" : "pointer" }}>
                                 <div className="flex items-center gap-2 mb-1">
                                   <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
                                   <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
+                                  {isDisabled && disabledReason && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "10px", fontWeight: 600 }}>
+                                      {disabledReason}
+                                    </span>
+                                  )}
                                 </div>
-                          
                               </label>
                             </div>
                           );
