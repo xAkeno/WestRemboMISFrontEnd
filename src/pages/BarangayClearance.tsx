@@ -297,6 +297,37 @@ function StatusBadge({ status, requesterType }: {
   );
 }
 
+// ─── Smart priority sort ───────────────────────────────────────────────────────
+// Order: today-scheduled → active records → archived/frozen last
+function prioritySortData(items: BarangayClearanceType[]): BarangayClearanceType[] {
+  const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+  function getRowPriority(item: any): number {
+    const status = normaliseStatus(item.status ?? '', item.requester_type ?? '');
+
+    // Tier 0 — frozen/archived: always last
+    if (FROZEN_STATUSES.has(status)) return 3;
+
+    // Tier 1 — today's scheduled appointment
+    const schedule: ScheduleData | null = item.schedule ?? null;
+    if (schedule && schedule.schedule_date === todayStr) return 0;
+
+    // Tier 2 — active, no-show, or awaiting reschedule
+    return 1;
+  }
+
+  return [...items].sort((a, b) => {
+    const pa = getRowPriority(a);
+    const pb = getRowPriority(b);
+    if (pa !== pb) return pa - pb;
+
+    // Within the same tier, keep most-recent-created first
+    const ta = new Date((a as any).created_at ?? 0).getTime();
+    const tb = new Date((b as any).created_at ?? 0).getTime();
+    return tb - ta;
+  });
+}
+
 // ─── ScheduleCell — handles walk-in, no-show, awaiting-reschedule, and normal states ─────
 function ScheduleCell({
   schedule, requesterType, status,
@@ -1307,7 +1338,7 @@ function EditableDetailModal({
             </div>
           )}
 
-          {isNoShow && !isArchived && !isReleased && !isBlocked && (
+          {/* {isNoShow && !isArchived && !isReleased && !isBlocked && (
             <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -1328,7 +1359,7 @@ function EditableDetailModal({
                 </button>
               )}
             </div>
-          )}
+          )} */}
 
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
@@ -1494,7 +1525,7 @@ function EditableDetailModal({
                               {session === 'AM' ? 'Morning' : 'Afternoon'} session has fully passed — No Show
                             </p>
                           </div>
-                          {canReschedule && (
+                          {/* {canReschedule && (
                             <button
                               onClick={() => setShowRescheduleModal(true)}
                               className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex-shrink-0"
@@ -1502,7 +1533,7 @@ function EditableDetailModal({
                               <Send className="h-3 w-3" />
                               Request Reschedule
                             </button>
-                          )}
+                          )} */}
                         </div>
                         <p className="text-[11px] text-red-500">
                           {session === 'AM' ? 'AM session ended at 12:00 NN' : 'PM session ended at 5:00 PM'} on {formatDateShort(currentSchedule.schedule_date)}.
@@ -1640,7 +1671,7 @@ function EditableDetailModal({
                   </>
                 ) : (
                   <>
-                    {canReschedule && (
+                    {/* {canReschedule && (
                       <>
                         <button
                           onClick={() => setShowRescheduleModal(true)}
@@ -1651,7 +1682,7 @@ function EditableDetailModal({
                         </button>
                         <div className="w-px h-6 bg-gray-200 mx-1" />
                       </>
-                    )}
+                    )} */}
 
                     {canMarkReviewed && (
                       <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
@@ -1980,7 +2011,7 @@ const BarangayClearance = () => {
         ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
       };
       const response = await fetchBarangayClearances(params);
-      setData(response.data as any[]);
+      setData(prioritySortData(response.data as any[]));
       setTotal(response.total);
       setTotalPages(response.totalPages);
     } catch {
@@ -2032,9 +2063,9 @@ const BarangayClearance = () => {
               <h1 className="text-2xl font-semibold text-gray-900">Barangay Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage barangay clearance records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('/document-edit/2')}>
+            {/* <Button className="gap-2" onClick={() => navigate('/document-edit/2')}>
               <Plus className="h-4 w-4" /> New Clearance
-            </Button>
+            </Button> */}
           </div>
 
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
@@ -2179,12 +2210,12 @@ const BarangayClearance = () => {
                                 </span>
                               ) : isItemBlocked ? (
                                 <>
-                                  <button
+                                  {/* <button
                                     onClick={() => setSelectedDetailRecord(item)}
                                     className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
                                   >
                                     <Eye className="h-3 w-3" /> View
-                                  </button>
+                                  </button> */}
                                   <button
                                     onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })}
                                     className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
@@ -2209,12 +2240,12 @@ const BarangayClearance = () => {
                                   >
                                     <Eye className="h-3 w-3" /> View/Edit
                                   </button>
-                                  <button
+                                  {/* <button
                                     onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { previewMode: true } })}
                                     className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
                                   >
                                     Preview
-                                  </button>
+                                  </button> */}
                                   <button
                                     onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })}
                                     className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
@@ -2229,21 +2260,21 @@ const BarangayClearance = () => {
                                       <Archive className="h-3 w-3" /> Archive
                                     </button>
                                   )}
-                                  {isItemAwaitingReschedule && (
+                                  {/* {isItemAwaitingReschedule && (
                                     <span
                                       className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-sky-50 text-sky-600 border-sky-200 cursor-default select-none whitespace-nowrap"
                                     >
                                       <CalendarClock className="h-3 w-3" /> Awaiting Applicant
                                     </span>
-                                  )}
-                                  {isItemNoShow && (
+                                  )} */}
+                                  {/* {isItemNoShow && (
                                     <button
                                       onClick={() => setSelectedDetailRecord(item)}
                                       className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors whitespace-nowrap"
                                     >
                                       <Send className="h-3 w-3" /> Request Reschedule
                                     </button>
-                                  )}
+                                  )} */}
                                 </>
                               )}
                             </div>
