@@ -73,9 +73,8 @@ const menuSections = [
     ],
   },
   {
-    title: "Analytics",
+    title: "Analytic",
     items: [
-      { title: "Reports", path: "/reports", icon: BarChart3, permission: "reports" },
       { title: "Activity Log", path: "/activity-log", icon: Activity, permission: "settings" },
     ],
   },

@@ -1275,9 +1275,9 @@ const BuildingClearance = () => {
               <h1 className="text-2xl font-semibold text-gray-900">Building Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage building clearance records</p>
             </div>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               <Button className="gap-2" onClick={() => navigate('/document-edit/3')}><Plus className="h-4 w-4" />New Clearance</Button>
-            </div>
+            </div> */}
           </div>
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
@@ -1392,7 +1392,7 @@ const BuildingClearance = () => {
                                     <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                       <Eye className="h-3 w-3" /> View/Edit
                                     </button>
-                                    <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button>
+                                    {/* <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button> */}
                                     <button onClick={() => navigate(`/document-edit/3/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
                                     {isItemReleased && (
                                       <button onClick={() => setSelectedDetailRecord(item)}
