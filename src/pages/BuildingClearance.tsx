@@ -16,6 +16,7 @@ import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { constructionPurposes } from '@/components/purpose/purpose';
+import { fetchUserById, getUserFullName } from '@/components/services/userApi';
 
 const ZONE_OPTIONS = [
   'Zone 1','Zone 2','Zone 3','Zone 4','Zone 5',
@@ -107,10 +108,6 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
 }
 
 // ─── Session-based No-Show helpers ─────────────────────────────────────────────
-// AM session is considered booked from its slot until 12:00 (noon).
-// PM session is considered booked from its slot until 17:00 (5 PM).
-// A record is only flagged "No Show" AFTER the entire session window has passed —
-// not the moment the exact appointment time elapses.
 const AM_SESSION_END_HOUR = 12; // noon
 const PM_SESSION_END_HOUR = 17; // 5 PM
 
@@ -144,11 +141,8 @@ function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
   return sessionEnd < new Date();
 }
 
-/** Terminal statuses — a record in these states is considered "completed" */
 const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','INCOMPLETE','ARCHIVED','DISABLED','EXPIRED']);
-/** Frozen statuses — record is read-only and completely non-interactive (archived) */
 const FROZEN_STATUSES = new Set(['ARCHIVED','DISABLED','EXPIRED']);
-/** Blocked statuses — record cannot progress further (rejected / incomplete) */
 const BLOCKED_STATUSES = new Set(['REJECTED','INCOMPLETE']);
 
 const STATUS_ORDER: Record<string, number> = {
@@ -224,7 +218,6 @@ function StatusBadge({ status, requesterType }: { status: string | null | undefi
   );
 }
 
-// ─── ScheduleCell — handles walk-in, no-show, awaiting-reschedule, and normal states ─────
 function ScheduleCell({ schedule, requesterType, status }: {
   schedule: ScheduleData | null | undefined; requesterType?: string; status?: string;
 }) {
@@ -520,6 +513,10 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
 
+  // Created By name state (lazy loaded when modal opens)
+  const [createdByName, setCreatedByName] = useState<string>('');
+  const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
+
   useEffect(() => {
     const loadStreets = async () => {
       try {
@@ -540,6 +537,37 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
     contact_no: '', period_of_residency: '', house_owner: '', relationship_to_owner: '',
     registered_voter: '', bcert_number: '',
   });
+
+  // Fetch user name when modal opens (lazy loading)
+  useEffect(() => {
+    const loadCreatorName = async () => {
+      const userId = formData.created_by;
+      if (!userId) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+      if (isNaN(userIdNum)) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      setLoadingCreatedBy(true);
+      try {
+        const user = await fetchUserById(userIdNum);
+        const fullName = getUserFullName(user);
+        setCreatedByName(fullName);
+      } catch (error) {
+        console.error('Failed to load creator name:', error);
+        setCreatedByName('—');
+      } finally {
+        setLoadingCreatedBy(false);
+      }
+    };
+    
+    loadCreatorName();
+  }, [formData.created_by]);
 
   const fetchFullRecord = useCallback(async () => {
     if (!record) return;
@@ -588,16 +616,12 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
   if (!record) return null;
   const status = currentStatus.toUpperCase();
 
-  // ─── Derived capability flags ──────────────────────────────────────────────
   const isReleased       = status === 'RELEASED';
   const isArchived       = FROZEN_STATUSES.has(status);
   const isBlocked        = BLOCKED_STATUSES.has(status);
   const isNonEditable    = isArchived || isBlocked;
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
-  // Cashier-exclusive actions — these MUST NOT appear here:
-  //   • "Mark as Paid"     (cashier records the payment)
-  //   • "Release Document" (cashier issues / releases the document after payment)
   const canMarkReviewed = !isWorkflowFrozen &&
     isForwardTransition(status, 'REVIEWED') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' || status === 'RESCHEDULED');
@@ -607,8 +631,6 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
   const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
   const canArchive = isReleased && !isArchived;
 
-  // ─── No-Show / Reschedule logic ────────────────────────────────────────────
-  // Admins do NOT send reschedule requests — the applicant rebooks via their portal.
   const isAwaitingReschedule = status === 'RESCHEDULED';
   const isNoShow =
     currentSchedule !== null &&
@@ -686,8 +708,6 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
     } finally { setIsArchiving(false); }
   };
 
-  // NOTE: Document release is handled by the cashier role.
-  // The admin only downloads an already-released document or archives it.
   const downloadReleased = async () => {
     if (!record?.id) { toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' }); return; }
     setIsDownloading(true);
@@ -711,7 +731,6 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
       if (existingId) {
-        // Strip status from the payload — status only flows through dedicated workflow handlers.
         const { status: _ignoredStatus, ...payload } = formData;
         await axios.put(`https://westrembomis.onrender.com/api/building-clearances/${existingId}`, { ...payload, requester_type: formData.requester_type || 'Online' }, { withCredentials: true });
         toast({ title: 'Success', description: 'Record updated successfully' });
@@ -863,7 +882,23 @@ function EditableDetailModal({ record, onClose, onUpdate, toast }: {
                 <div><label className="text-xs text-gray-500 uppercase tracking-wider">Status</label><div className="mt-1"><StatusBadge status={currentStatus} requesterType={formData.requester_type} /></div></div>
                 {formData.rejection_reason && <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />}
                 <div><label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label><p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p></div>
-                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label><p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p></div>
+                
+                {/* Created By - Shows NAME instead of ID (lazy loaded when modal opens) */}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                  <div className="mt-1">
+                    {loadingCreatedBy ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {createdByName || (formData.created_by ? `ID: ${formData.created_by}` : '—')}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
@@ -1319,7 +1354,8 @@ const BuildingClearance = () => {
                             <td className="py-3 px-4 text-sm text-gray-600">{item.purpose ?? '—'}</td>
                             <td className="py-3 px-4 text-sm text-gray-600">{[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}</td>
                             <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
-                            <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
+                            {/* Table shows only the ID - no API call here for performance */}
+                            <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ? `ID: ${item.created_by}` : '—'}</td>
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {isItemArchived ? (

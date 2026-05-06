@@ -16,6 +16,7 @@ import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { businessTypes } from '@/components/purpose/purpose';
+import { fetchUserById, getUserFullName } from '@/components/services/userApi';
 
 interface StreetOption {
   id: number;
@@ -636,6 +637,10 @@ function EditableDetailModal({
   // Archive confirmation state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving]               = useState(false);
+  
+  // Created By name state (lazy loaded when modal opens)
+  const [createdByName, setCreatedByName] = useState<string>('');
+  const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
 
   useEffect(() => {
     const loadStreets = async () => {
@@ -656,6 +661,37 @@ function EditableDetailModal({
     punong_barangay: '', for_the_punong_barangay: '', barangay_position: '',
     rejection_reason: '', created_at: '', remarks: '',
   });
+
+  // Fetch user name when modal opens (lazy loading)
+  useEffect(() => {
+    const loadCreatorName = async () => {
+      const userId = formData.created_by;
+      if (!userId) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+      if (isNaN(userIdNum)) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      setLoadingCreatedBy(true);
+      try {
+        const user = await fetchUserById(userIdNum);
+        const fullName = getUserFullName(user);
+        setCreatedByName(fullName);
+      } catch (error) {
+        console.error('Failed to load creator name:', error);
+        setCreatedByName('—');
+      } finally {
+        setLoadingCreatedBy(false);
+      }
+    };
+    
+    loadCreatorName();
+  }, [formData.created_by]);
 
   const fetchFullRecord = useCallback(async () => {
     if (!record) return;
@@ -1084,9 +1120,22 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
+                
+                {/* Created By - Shows NAME instead of ID (lazy loaded when modal opens) */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+                  <div className="mt-1">
+                    {loadingCreatedBy ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {createdByName || (formData.created_by ? `ID: ${formData.created_by}` : '—')}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -1600,7 +1649,8 @@ const BusinessClearance = () => {
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}</td>
                           <td className="py-3 px-4 text-sm font-medium">{item.capital != null ? formatCurrency(item.capital) : '—'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ?? '—'}</td>
+                          {/* Table shows only the ID - no API call here for performance */}
+                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ? `ID: ${item.created_by}` : '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
