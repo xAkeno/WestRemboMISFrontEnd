@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { toUpperCase } from "./formUtils";
 import Header from "@/components/forms/Header";
-import { certificatePurposes} from "@/components/purpose/purpose";
+import { certificatePurposes } from "@/components/purpose/purpose";
+import QRCodeLib from "qrcode";
+
 interface BarangayCertificateFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -83,15 +85,42 @@ export const calculateAge = (dob: string): number => {
   return age;
 };
 
-const validateRequired = (value: string, fieldName: string): string => {
-  if (!value || value.trim() === "") return `${fieldName} is required.`;
-  return "";
+// Helper function to parse period of residency string to years (as a decimal)
+const parsePeriodToYears = (period: string): number | null => {
+  if (!period) return null;
+  const match = period.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(year|years|month|months)?$/);
+  if (!match) return null;
+  
+  const value = parseFloat(match[1]);
+  const unit = match[2] || 'years';
+  
+  if (unit.startsWith('month')) {
+    return value / 12;
+  }
+  return value;
 };
 
-const validatePeriodOfResidency = (value: string): string => {
+// Format years to a readable string for error messages
+const formatYears = (years: number): string => {
+  if (years >= 1) {
+    return `${years} ${years === 1 ? 'year' : 'years'}`;
+  }
+  const months = Math.round(years * 12);
+  return `${months} ${months === 1 ? 'month' : 'months'}`;
+};
+
+const validatePeriodOfResidency = (value: string, age: number): string => {
   if (!value || value.trim() === "") return "Period of residency is required.";
-  if (!/^\d+\s*(year|years|month|months)?$/i.test(value.trim()))
-    return "Please enter a valid period (e.g., 5 years, 6 months).";
+  if (!/^\d+(?:\.\d+)?\s*(year|years|month|months)?$/i.test(value.trim()))
+    return "Please enter a valid period (e.g., 5 years, 6 months, 1.5 years)";
+  
+  const periodYears = parsePeriodToYears(value.trim());
+  if (periodYears === null) return "Please enter a valid period (e.g., 5 years, 6 months)";
+  
+  if (periodYears > age) {
+    return `Period of residency (${value.trim()}) cannot exceed your age (${age} ${age === 1 ? 'year' : 'years'}). Please enter a valid period.`;
+  }
+  
   return "";
 };
 
@@ -100,12 +129,15 @@ const validatePurpose = (value: string): string => {
   return "";
 };
 
-// DOB must be strictly in the past — today and any future date are invalid
 const validateDob = (value: string): string => {
   if (!value) return "Date of birth is required.";
   const dob = new Date(value + "T00:00:00");
   const today = todayDate();
   if (dob >= today) return "Date of birth must be in the past. Today and future dates are not allowed.";
+  
+  const age = calculateAge(value);
+  if (age < MIN_AGE) return `Applicant must be at least ${MIN_AGE} years old. Current age: ${age} years.`;
+  
   return "";
 };
 
@@ -195,7 +227,6 @@ function RegisterDependentToggle({
         </div>
       </div>
 
-      {/* Slider toggle */}
       <button
         type="button"
         role="switch"
@@ -333,29 +364,66 @@ const SuccessModal = ({
 }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !successData?.refNo) return;
+    QRCodeLib.toCanvas(canvasRef.current, successData.refNo, {
+      width: 152,
+      margin: 1,
+      color: { dark: "#0f2a5e", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    }).catch(console.error);
+  }, [successData?.refNo]);
+
   if (!successData) return null;
+
+  const handleBackClick = () => {
+    navigate("/");
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
-      <div className="w-full sm:max-w-lg md:max-w-xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+      <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
         <div className="relative overflow-hidden px-6 pt-8 pb-6 text-center" style={{ backgroundColor: "#0f2a5e" }}>
           <div className="absolute right-[-24px] bottom-[-24px] w-24 h-24 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="absolute left-[-16px] top-[-16px] w-16 h-16 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 relative z-10" style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
             <CheckCircle className="h-8 w-8 text-white" />
           </div>
-          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted!</p>
+          <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted Successfully!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Barangay Certificate & Appointment Scheduled</p>
         </div>
-        <div className="px-6 py-6 space-y-4">
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb" }}>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#9ca3af" }}>Reference Number</p>
-              <p className="text-lg font-black font-mono" style={{ color: "#0f2a5e" }}>{successData.refNo}</p>
-            </div>
-            <button onClick={() => { navigator.clipboard.writeText(successData.refNo); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="p-2 rounded-lg" style={{ backgroundColor: "#f3f4f6", color: copied ? "#16a34a" : "#9ca3af" }}>
-              {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-            </button>
+
+        <div className="px-6 py-6 space-y-6">
+          <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
+            <canvas
+              ref={canvasRef}
+              className="rounded-lg"
+              style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }}
+            />
           </div>
+
+          <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>
+                  Present this at the counter
+                </p>
+                <div className="text-xs space-y-2" style={{ color: "#92400e", lineHeight: 1.6 }}>
+                  <p>
+                    Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
+                  </p>
+                  <p>
+                    Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
@@ -366,9 +434,34 @@ const SuccessModal = ({
               </div>
             </div>
           </div>
-          <p className="text-sm text-center leading-relaxed" style={{ color: "#6b7280" }}>Please arrive 10 minutes early on your scheduled date.</p>
-          <button onClick={() => navigate(`/request/barangay_certificate/${successData.id}?fromSubmit=1`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90" style={{ backgroundColor: "#0f2a5e" }}>View My Request</button>
-          <button onClick={onBack} className="w-full py-3 text-sm font-semibold rounded-lg" style={{ backgroundColor: "#f3f4f6", color: "#6b7280" }}>Back to Services</button>
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => navigate(`/request/barangay_certificate/${successData.id}?fromSubmit=1`)}
+              className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: "#0f2a5e" }}
+            >
+              View My Request
+            </button>
+            <button
+              onClick={handleBackClick}
+              className="w-full py-2 text-sm font-semibold text-center transition-colors"
+              style={{
+                color: "#0f2a5e",
+                textDecoration: "underline",
+                textDecorationThickness: "1.5px",
+                textUnderlineOffset: "4px",
+                backgroundColor: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "8px 0",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Back to Services
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -476,7 +569,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   });
 
   const upd = (f: string, v: string) => {
-    // Fields that should NOT be uppercased (dates, email, select-driven fields)
     const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "prefix", "registered_voter"];
     const value = noUppercaseFields.includes(f) ? v : toUpperCase(v);
     setFormData((p) => ({ ...p, [f]: value }));
@@ -509,10 +601,10 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
         period_of_residency: "",
         registered_voter: "",
       }));
-      setErrors((prev) => ({ ...prev, dob: "" }));
+      setErrors((prev) => ({ ...prev, dob: "", period_of_residency: "" }));
     } else {
       setFormData((prev) => ({ ...prev, ...autoFilledDataRef.current }));
-      setErrors((prev) => ({ ...prev, dob: "" }));
+      setErrors((prev) => ({ ...prev, dob: "", period_of_residency: "" }));
     }
   };
 
@@ -544,9 +636,12 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   };
 
   const validateForm = (): boolean => {
+    // Get current age from form data
+    const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
+    
     const newErrors = {
       ...errors,
-      period_of_residency: validatePeriodOfResidency(formData.period_of_residency),
+      period_of_residency: validatePeriodOfResidency(formData.period_of_residency, currentAge),
       purpose: validatePurpose(formData.purpose),
       schedule_date: validateRequired(formData.schedule_date, "Schedule date"),
       time_group: validateRequired(formData.time_group, "Time slot"),
@@ -556,6 +651,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     setErrors(newErrors);
     if (!isValid) toast({ title: "Validation Error", description: "Please fix the errors before submitting.", variant: "destructive" });
     return isValid;
+  };
+
+  const validateRequired = (value: string, fieldName: string): string => {
+    if (!value || value.trim() === "") return `${fieldName} is required.`;
+    return "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -593,7 +693,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     } finally { setIsSubmitting(false); }
   };
 
-  // ── Auto-fill from authenticated user — skipped when isDependent is on ──
+  // ── Auto-fill from authenticated user ──
   useEffect(() => {
     if (isDependent) return;
 
@@ -660,14 +760,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
     getTimeSlotAvailability(formData.schedule_date);
 
-  // ── Derive unique zones from streets data ──
-  const uniqueZones = Array.from(
-    new Set(streets.map((s) => s.sitio).filter(Boolean))
-  ) as string[];
-
   if (successData) return <SuccessModal successData={successData} onBack={handleBack} />;
 
-  // ── Section badge ──
   const SectionBadge = () =>
     isDependent ? (
       <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fef3c7", color: "#d97706", border: "1px solid #fcd34d" }}>
@@ -760,10 +854,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 <SectionBadge />
               </div>
 
-              {/* Row 1: Prefix (Select in dependent), Surname, First Name, Middle Name */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-
-                {/* Prefix */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Prefix</Label>
                   {isDependent ? (
@@ -783,18 +874,10 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={formData.prefix}
-                      readOnly
-                      disabled
-                      placeholder="e.g. Mr., Ms."
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                    <Input value={formData.prefix} readOnly disabled placeholder="e.g. Mr., Ms." className={readonlyInputCls} style={readonlyStyle} />
                   )}
                 </div>
 
-                {/* Surname, First Name, Middle Name */}
                 {(
                   [
                     { label: "Surname *", field: "surname", placeholder: "de la Cruz" },
@@ -819,10 +902,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 ))}
               </div>
 
-              {/* Row 2: Extension, Age (read-only), DOB (with validation), Place of Birth */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-
-                {/* Extension */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Extension</Label>
                   <Input
@@ -839,21 +919,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   />
                 </div>
 
-                {/* Age — always read-only, auto-calculated from DOB */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Age</Label>
-                  <Input
-                    type="number"
-                    value={formData.age}
-                    readOnly
-                    disabled
-                    placeholder=""
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
+                  <Input type="number" value={formData.age} readOnly disabled placeholder="" className={readonlyInputCls} style={readonlyStyle} />
                 </div>
 
-                {/* Date of Birth — max = yesterday; auto-computes age */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
                   <Input
@@ -873,6 +943,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                       if (val) {
                         const computedAge = calculateAge(val);
                         setFormData((p) => ({ ...p, dob: val, age: String(computedAge) }));
+                        // Also revalidate period of residency when DOB changes
+                        if (formData.period_of_residency) {
+                          const periodErr = validatePeriodOfResidency(formData.period_of_residency, computedAge);
+                          setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                        }
                       } else {
                         setFormData((p) => ({ ...p, dob: val, age: "" }));
                       }
@@ -887,13 +962,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   />
                   {errors.dob && isDependent && (
                     <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      {errors.dob}
+                      <AlertTriangle className="w-3 h-3" />{errors.dob}
                     </p>
                   )}
                 </div>
 
-                {/* Place of Birth */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
                   <Input
@@ -963,10 +1036,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                 {isDependent && <SectionBadge />}
               </div>
 
-              {/* Row 1: House No. · Street · Zone */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                {/* House / Block / Lot No. */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No. *</Label>
                   <Input
@@ -982,7 +1052,6 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                   />
                 </div>
 
-                {/* Street */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
                   {isDependent ? (
@@ -1004,25 +1073,15 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                       </SelectTrigger>
                       <SelectContent>
                         {streets.map((s) => (
-                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                            {toUpperCase(s.name)}
-                          </SelectItem>
+                          <SelectItem key={s.id} value={toUpperCase(s.name)}>{toUpperCase(s.name)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={formData.street}
-                      readOnly
-                      disabled
-                      placeholder="Street"
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                    <Input value={formData.street} readOnly disabled placeholder="Street" className={readonlyInputCls} style={readonlyStyle} />
                   )}
                 </div>
 
-                {/* Zone / Purok — always read-only, auto-derived from street */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
                   <Input
@@ -1037,10 +1096,8 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>No sitio mapped for this street.</p>
                   )}
                 </div>
+              </div>
 
-              </div> {/* ← END of 3-column grid */}
-
-              {/* Row 2: House Owner · Relationship — separate grid, sibling to the one above */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House Owner</Label>
@@ -1078,19 +1135,11 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      placeholder="e.g., Owner, Tenant"
-                      value={formData.relationship_to_owner}
-                      readOnly
-                      disabled
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                    <Input placeholder="e.g., Owner, Tenant" value={formData.relationship_to_owner} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
                   )}
                 </div>
               </div>
-
-            </div> {/* ← END of Section 3 */}
+            </div>
 
             {/* ═══════════════ Section 4 — Certificate Details ═══════════════ */}
             <div>
@@ -1107,15 +1156,31 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     Period of Residency <span style={{ color: "#ef4444" }}>*</span>
                   </Label>
                   <Input
-                    placeholder="e.g., 5 years"
+                    placeholder="e.g., 5 years, 6 months, 1.5 years"
                     value={formData.period_of_residency}
-                    onChange={(e) => upd("period_of_residency", e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      upd("period_of_residency", value);
+                      // Revalidate when user types
+                      const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
+                      const periodErr = validatePeriodOfResidency(value, currentAge);
+                      setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                    }}
                     className={editableInputCls}
                     style={{ ...editableRequiredStyle, borderBottomColor: errors.period_of_residency ? "#ef4444" : "#fed7aa" }}
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.period_of_residency ? "#ef4444" : "#fed7aa")}
                   />
-                  {errors.period_of_residency && <p className="mt-1 text-xs text-red-500">{errors.period_of_residency}</p>}
+                  {errors.period_of_residency && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />{errors.period_of_residency}
+                    </p>
+                  )}
+                  {formData.age && !errors.period_of_residency && formData.period_of_residency && (
+                    <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />Valid period
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

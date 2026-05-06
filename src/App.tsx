@@ -74,6 +74,7 @@ import BuildingClearanceFormGood from "./pages/forms/BuildingClearanceForm";
 import BusinessClearanceForm from "./pages/forms/BusinessClearanceForm";
 import ResidentRegistrationForm from "./pages/forms/ResidentRegistrationForm";
 import StreetCms from "./pages/admin/StreetCms";
+import CitizensCharter from "./components/CitizensCharter";
 const App = () => { 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const { showMaintenance, message } = useMaintenance(user);
@@ -99,6 +100,7 @@ const App = () => {
             )}
 
               <Routes>
+                <Route path="/citizens-charter" element={<CitizensCharter />} />
                 <Route path="/login" element={<Login />} /> {/*Login*/}
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/event-detail/:id" element={<EventDetail />} />
