@@ -15,7 +15,7 @@ import {
 import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
-
+import { businessTypes } from "@/components/purpose/purpose";
 interface BusinessClearanceFormProps { onBack: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -693,7 +693,7 @@ const BusinessClearanceForm = ({ onBack }: BusinessClearanceFormProps) => {
                       <SelectValue placeholder="Select business type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {["Retail", "Food & Beverage", "Services", "Manufacturing", "Construction", "Transportation", "Other"].map((t) => (
+                      {businessTypes.map((t) => (
                         <SelectItem key={t} value={t} className="uppercase">{t}</SelectItem>
                       ))}
                     </SelectContent>

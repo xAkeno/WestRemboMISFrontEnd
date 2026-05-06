@@ -26,14 +26,33 @@ export interface FetchClearanceParams {
   search?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+  status?: string;
+  filter_date?: string;
+  from?: string;
+  to?: string;
+  zone?: string;
+  street?: string;
+  purpose?: string;
+  schedule_filter?: string;
 }
 
 // Barangay Clearance API
-export const fetchBarangayClearances = async (params: FetchClearanceParams = {}): Promise<ClearanceResponse<BarangayClearance>> => {
+export const fetchBarangayClearances = async (params: FetchClearanceParams = {}) => {
   try {
-    const response = await api.get('/barangay-clearances', { params,withCredentials: true });
+    const response = await api.get('/barangay-clearances', { params, withCredentials: true });
     console.log('API response:', response.data);
-    return response.data.data;
+    
+    // The API returns: { data: { data: [...], current_page, last_page, total, per_page } }
+    const paginatedData = response.data.data;
+    
+    // Return the pagination metadata along with the data
+    return {
+      data: paginatedData.data || [],
+      total: paginatedData.total || 0,
+      currentPage: paginatedData.current_page || 1,
+      totalPages: paginatedData.last_page || 1,
+      perPage: paginatedData.per_page || 15,
+    };
   } catch (error) {
     console.log('API not available, using mock data:', error);
     return generateMockBarangayClearances(params);
@@ -90,29 +109,36 @@ const generateDate = () => {
   return date.toLocaleDateString('en-US');
 };
 
-const generateMockBarangayClearances = (params: FetchClearanceParams): ClearanceResponse<BarangayClearance> => {
+const generateMockBarangayClearances = (params: FetchClearanceParams) => {
   const total = 500;
   const page = params.page || 1;
   const pageSize = params.pageSize || 15;
   
   const data: BarangayClearance[] = Array.from({ length: pageSize }, (_, i) => ({
     id: String((page - 1) * pageSize + i + 1),
-    bcertNumber: generateId(),
-    issueDate: generateDate(),
+    bcert_number: generateId(),
+    created_at: generateDate(),
     surname: surnames[Math.floor(Math.random() * surnames.length)],
-    firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
-    middleName: middleNames[Math.floor(Math.random() * middleNames.length)],
-    ext: Math.random() > 0.8 ? 'Jr.' : undefined,
-    blockNo: String(Math.floor(Math.random() * 50) + 1),
+    first_name: firstNames[Math.floor(Math.random() * firstNames.length)],
+    middle_name: middleNames[Math.floor(Math.random() * middleNames.length)],
+    ext_name: Math.random() > 0.8 ? 'Jr.' : undefined,
+    house_block_lot_no: String(Math.floor(Math.random() * 50) + 1),
     street: streets[Math.floor(Math.random() * streets.length)],
     zone: `Zone ${Math.floor(Math.random() * 10) + 1}`,
-    dateOfBirth: generateDate(),
-    placeOfBirth: 'Manila',
-    created_by: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${surnames[Math.floor(Math.random() * surnames.length)]}`,
+    dob: generateDate(),
+    pob: 'Manila',
+    created_by: Math.floor(Math.random() * 100) + 1, // Make it a number (ID)
     purpose: purposes[Math.floor(Math.random() * purposes.length)],
+    status: ['PENDING', 'APPROVED', 'RELEASED', 'REJECTED'][Math.floor(Math.random() * 4)],
   }));
 
-  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  return { 
+    data, 
+    total, 
+    currentPage: page, 
+    totalPages: Math.ceil(total / pageSize),
+    perPage: pageSize 
+  };
 };
 
 const generateMockBusinessClearances = (params: FetchClearanceParams): ClearanceResponse<BusinessClearance> => {

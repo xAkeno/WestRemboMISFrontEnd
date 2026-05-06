@@ -19,7 +19,7 @@ import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
 import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
-
+import { businessTypes } from '@/components/purpose/purpose';
 interface StreetOption {
   id: number;
   name: string;
@@ -272,9 +272,7 @@ const EMPTY_FILTERS: FilterState = {
   zone: '', street: '', business_type: '', schedule_filter: '',
 };
 
-const BUSINESS_TYPE_OPTIONS = [
-  'Sole Proprietorship','Partnership','Corporation','Cooperative','Other',
-];
+const BUSINESS_TYPE_OPTIONS = businessTypes;
 
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   status: 'status', filter_date: 'date', from: 'from', to: 'to',

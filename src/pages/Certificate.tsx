@@ -19,6 +19,7 @@ import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
 import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
+import { certificatePurposes } from '@/components/purpose/purpose';
 interface StreetOption {
   id: number;
   name: string;
@@ -220,10 +221,9 @@ interface FilterState {
 const EMPTY_FILTERS: FilterState = {
   status:'',filter_date:'',from:'',to:'',purpose:'',schedule_filter:'',
 };
-const PURPOSE_OPTIONS = [
-  'Employment','Business','Travel','Legal Purposes',
-  'School Requirement','Bank Transaction','Other',
-];
+
+const PURPOSE_OPTIONS = certificatePurposes;
+
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   status:'status',filter_date:'date',from:'from',to:'to',
   purpose:'purpose',schedule_filter:'schedule',

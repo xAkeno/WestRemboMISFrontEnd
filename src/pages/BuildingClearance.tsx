@@ -19,6 +19,7 @@ import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
 import type { QRCodeFieldData } from '@/components/documentMaker/QRCodeField';
+import { constructionPurposes } from '@/components/purpose/purpose';
 const ZONE_OPTIONS = [
   'Zone 1','Zone 2','Zone 3','Zone 4','Zone 5',
   'Zone 6','Zone 7','Zone 8','Zone 9','Zone 10',
@@ -187,7 +188,9 @@ interface FilterState {
   zone:string; street:string; purpose:string; schedule_filter:string;
 }
 const EMPTY_FILTERS:FilterState={status:'',filter_date:'',from:'',to:'',zone:'',street:'',purpose:'',schedule_filter:''};
-const PURPOSE_OPTIONS=['New Construction','Renovation','Extension','Demolition','Change of Use','Other'];
+
+const PURPOSE_OPTIONS = constructionPurposes;
+
 const FILTER_PARAM_KEYS:Record<keyof FilterState,string>={
   status:'status',filter_date:'date',from:'from',to:'to',zone:'zone',street:'street',purpose:'purpose',schedule_filter:'schedule',
 };

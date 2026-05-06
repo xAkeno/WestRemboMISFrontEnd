@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ClearanceSearchBar } from '@/components/clearance/ClearanceSearchBar';
 import { ClearancePagination } from '@/components/clearance/ClearancePagination';
 import { fetchBarangayClearances, FetchClearanceParams, deleteBarangayClearance } from '@/components/services/clearanceApi';
+import { fetchUserById, getUserFullName, User } from '@/components/services/userApi';
 import { BarangayClearance as BarangayClearanceType } from '@/types/clearance';
 import { useToast } from '@/hooks/use-toast';
 import { Layout } from "@/components/Layout";
@@ -19,7 +20,7 @@ import { generatePDF } from '@/utils/pdfGenerator';
 import type { TextField } from '@/types/certificate';
 import type { QRCodeFieldData }from '@/components/documentMaker/QRCodeField';
 import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
-
+import { clearancePurposes } from '@/components/purpose/purpose';
 interface StreetOption {
   id: number;
   name: string;
@@ -72,8 +73,6 @@ const LABEL_TO_KEY: Record<string, string> = {
   'Requester Type': 'requester_type','Created At': 'created_at','Updated At': 'updated_at',
   'Created By': 'created_by',
 };
-
-console.log(import.meta.env.VITE_WEB_URL);
 
 const NON_DATE_KEYS = new Set([
   'zone','house_block_lot_no','street','houseBlockLot','houseBlockLotNo','resident_status',
@@ -190,11 +189,10 @@ function buildReleasePDFFields(fields: TextField[], labelValueMap: Record<string
   return [...base, ...extras];
 }
 
-// ─── Schedule History Entry ────────────────────────────────────────────────────
 interface ScheduleHistoryEntry {
   schedule_date: string;
   schedule_time: string;
-  missed_at: string; // ISO timestamp when it was logged as no-show
+  missed_at: string;
   note?: string | null;
 }
 
@@ -207,7 +205,6 @@ interface ScheduleData {
   note?: string | null;
   status?: string;
   user_id?: number;
-  // history of missed schedules (stored as JSON in the API or derived client-side)
   missed_history?: ScheduleHistoryEntry[];
 }
 
@@ -232,10 +229,7 @@ const EMPTY_FILTERS: FilterState = {
   zone: '', street: '', purpose: '', schedule_filter: '',
 };
 
-const PURPOSE_OPTIONS = [
-  'Employment','Business','Travel','Legal Purposes',
-  'School Requirement','Bank Transaction','Other','Government Transaction',
-];
+const PURPOSE_OPTIONS = clearancePurposes;
 
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
   status: 'status', filter_date: 'date', from: 'from', to: 'to',
@@ -306,7 +300,6 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
   catch { return false; }
 }
 
-/** Returns true if the schedule date+time has passed */
 function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
   if (!schedule) return false;
   try {
@@ -314,7 +307,6 @@ function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
   } catch { return false; }
 }
 
-/** Terminal statuses — a record in these states is considered "completed" */
 const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','ARCHIVED','DISABLED','EXPIRED']);
 
 function countActiveFilters(f: FilterState): number {
@@ -325,10 +317,9 @@ function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
-// ─── Status ordering ───────────────────────────────────────────────────────────
 const STATUS_ORDER: Record<string, number> = {
   'PENDING':      0,
-  'RESCHEDULED':  0, // same priority level as PENDING — awaiting new schedule
+  'RESCHEDULED':  0,
   'SCHEDULED':    1,
   'ENCODED':      2,
   'INSPECTING':   3,
@@ -404,14 +395,12 @@ function StatusBadge({ status, requesterType }: {
   );
 }
 
-// ─── ScheduleCell — handles walk-in, no-show, and normal scheduled states ─────
 function ScheduleCell({
   schedule, requesterType,
 }: {
   schedule: ScheduleData | null | undefined;
   requesterType?: string;
 }) {
-  // Walk-in: no schedule needed
   if (requesterType?.toLowerCase() === 'walk-in') {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-sm italic">
@@ -431,7 +420,6 @@ function ScheduleCell({
 
   const isPast = isSchedulePast(schedule);
 
-  // No-Show: schedule has passed
   if (isPast) {
     return (
       <div className="flex flex-col gap-0.5">
@@ -669,7 +657,6 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
-// ─── Reschedule Modal ──────────────────────────────────────────────────────────
 function RescheduleModal({
   record,
   missedSchedule,
@@ -701,7 +688,6 @@ function RescheduleModal({
 
     setIsSubmitting(true);
     try {
-      // 1. Log the missed schedule to history
       const missedEntry: ScheduleHistoryEntry = {
         schedule_date: missedSchedule.schedule_date,
         schedule_time: missedSchedule.schedule_time,
@@ -711,7 +697,6 @@ function RescheduleModal({
       const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
       const updatedHistory = [...existingHistory, missedEntry];
 
-      // 2. Update schedule with new date/time + append history
       await axios.put(
         `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
         {
@@ -723,7 +708,6 @@ function RescheduleModal({
         { withCredentials: true }
       );
 
-      // 3. Reset request status to RESCHEDULED
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'RESCHEDULED' },
@@ -751,7 +735,6 @@ function RescheduleModal({
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-sky-100 rounded-md">
@@ -767,7 +750,6 @@ function RescheduleModal({
           </button>
         </div>
 
-        {/* Missed schedule notice */}
         <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
@@ -779,7 +761,6 @@ function RescheduleModal({
           </div>
         </div>
 
-        {/* Form */}
         <div className="px-5 py-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
@@ -820,7 +801,6 @@ function RescheduleModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
           <button
             onClick={onClose}
@@ -842,7 +822,6 @@ function RescheduleModal({
   );
 }
 
-// ─── Missed Schedule History Panel ─────────────────────────────────────────────
 function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] }) {
   if (!history || history.length === 0) return null;
   return (
@@ -877,7 +856,6 @@ function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] })
   );
 }
 
-// ─── Memoized Form Field Component ─────────────────────────────────────────────
 const FormField = memo(({
   name, value, onChange, type = 'text', options, isTextArea = false, isEditing, label
 }: any) => {
@@ -965,7 +943,6 @@ const FormField = memo(({
 
 FormField.displayName = 'FormField';
 
-// ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
   record, onClose, onUpdate, toast,
 }: {
@@ -988,13 +965,13 @@ function EditableDetailModal({
   const [streets, setStreets] = useState<Street[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
-
-  // Archive confirmation state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving]               = useState(false);
-
-  // Reschedule modal state
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  
+  // State for created_by name (lazy loaded)
+  const [createdByName, setCreatedByName] = useState<string>('');
+  const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
 
   useEffect(() => {
     const loadStreets = async () => {
@@ -1020,6 +997,37 @@ function EditableDetailModal({
     rejection_reason: '', created_at: '',
   });
 
+  // Fetch user name when the modal opens or created_by changes
+  useEffect(() => {
+    const loadCreatorName = async () => {
+      const userId = formData.created_by;
+      if (!userId) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+      if (isNaN(userIdNum)) {
+        setCreatedByName('—');
+        return;
+      }
+      
+      setLoadingCreatedBy(true);
+      try {
+        const user = await fetchUserById(userIdNum);
+        const fullName = getUserFullName(user);
+        setCreatedByName(fullName);
+      } catch (error) {
+        console.error('Failed to load creator name:', error);
+        setCreatedByName('—');
+      } finally {
+        setLoadingCreatedBy(false);
+      }
+    };
+    
+    loadCreatorName();
+  }, [formData.created_by]);
+
   const fetchFullRecord = useCallback(async () => {
     if (!record) return;
     setIsLoading(true);
@@ -1032,11 +1040,8 @@ function EditableDetailModal({
       const normalisedStatus = normaliseStatus(full.status ?? '', full.requester_type ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
-      // Store current schedule for no-show logic
       setCurrentSchedule(full.schedule ?? null);
 
-
-      // Auto-fix: walk-in records should never be RESCHEDULED or SCHEDULED
       if (
         full.requester_type?.toLowerCase() === 'walk-in' &&
         (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
@@ -1111,8 +1116,6 @@ function EditableDetailModal({
   if (!record) return null;
 
   const status = currentStatus.toUpperCase();
-
-  // ─── Derived capability flags ──────────────────────────────────────────────
   const isReleased  = status === 'RELEASED';
   const isArchived  = status === 'ARCHIVED' || status === 'DISABLED';
   const isNonEditable = isArchived;
@@ -1121,33 +1124,22 @@ function EditableDetailModal({
     isForwardTransition(status, 'REVIEWED') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' || status === 'RESCHEDULED');
 
-  const canMarkAsPaid = false; // cashier handles
-
   const canRelease = !isArchived && isForwardTransition(status, 'RELEASED') && status === 'PAID';
-
   const canMarkToInspection = !isReleased && !isArchived &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
-
   const canDispose = !isReleased && !isArchived;
   const canArchive = isReleased && !isArchived;
 
-  // No-Show / Reschedule logic:
-  // A record is "no-show" when: it has a schedule, the schedule is past,
-  // the status is not terminal, and it's an Online request.
   const isNoShow =
     currentSchedule !== null &&
     isSchedulePast(currentSchedule) &&
     !TERMINAL_STATUSES.has(status) &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
 
-  // Can reschedule only when no-show (not released, not archived)
   const canReschedule = isNoShow && !isReleased && !isArchived;
-
-  // Missed schedule history
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
 
-  // ─── handleMarkReviewed ────────────────────────────────────────────────────
   const handleMarkReviewed = async () => {
     if (!isForwardTransition(status, 'REVIEWED')) {
       toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
@@ -1270,7 +1262,7 @@ function EditableDetailModal({
   const handleRescheduleSuccess = () => {
     setCurrentStatus('RESCHEDULED');
     setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
-    setRefreshKey(prev => prev + 1); // full refresh to get updated schedule
+    setRefreshKey(prev => prev + 1);
     onUpdate();
   };
 
@@ -1460,7 +1452,6 @@ function EditableDetailModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
-          {/* Archived banner */}
           {isArchived && (
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
               <Archive className="h-4 w-4 text-gray-500" />
@@ -1469,7 +1460,6 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* No-Show alert banner */}
           {isNoShow && !isArchived && !isReleased && (
             <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1491,7 +1481,6 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* Header */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
@@ -1523,7 +1512,6 @@ function EditableDetailModal({
             </div>
           </div>
 
-          {/* Body */}
           <div className={`p-6 ${isNonEditable ? 'opacity-80 pointer-events-none select-none' : ''}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -1577,16 +1565,28 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
+                
+                {/* Created By - Shows NAME instead of ID with lazy loading */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+                  <div className="mt-1">
+                    {loadingCreatedBy ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {createdByName || (formData.created_by ? `ID: ${formData.created_by}` : '—')}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
 
-                {/* Schedule display: walk-in vs online */}
                 {formData.requester_type?.toLowerCase() === 'walk-in' ? (
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
@@ -1603,7 +1603,6 @@ function EditableDetailModal({
                       <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
                     </div>
 
-                    {/* No-Show panel inside detail */}
                     {isNoShow && !TERMINAL_STATUSES.has(status) && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
                         <div className="flex items-center justify-between gap-2">
@@ -1636,7 +1635,6 @@ function EditableDetailModal({
                       </div>
                     )}
 
-                    {/* Missed history log */}
                     <MissedScheduleHistory history={missedHistory} />
                   </>
                 ) : (
@@ -1652,7 +1650,6 @@ function EditableDetailModal({
             </div>
           </div>
 
-          {/* Disposition panel */}
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1694,7 +1691,6 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* Archive confirmation panel */}
           {showArchiveConfirm && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
@@ -1719,7 +1715,6 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* Footer action bar */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1754,7 +1749,6 @@ function EditableDetailModal({
                   </p>
                 ) : (
                   <>
-                    {/* Reschedule button in footer when no-show */}
                     {canReschedule && (
                       <>
                         <button
@@ -1827,7 +1821,6 @@ function EditableDetailModal({
 
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
 
-      {/* Reschedule Modal */}
       {showRescheduleModal && currentSchedule && (
         <RescheduleModal
           record={record}
@@ -1840,11 +1833,6 @@ function EditableDetailModal({
     </>
   );
 }
-
-// ─── Filter Bar ────────────────────────────────────────────────────────────────
-const DATE_PERIOD_LABELS: Record<string, string> = {
-  this_week: 'This week', this_month: 'This month', this_year: 'This year',
-};
 
 function FilterBar({
   filters, onChange, onReset, activeCount, streets,
@@ -2033,7 +2021,10 @@ function FilterBar({
   );
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+const DATE_PERIOD_LABELS: Record<string, string> = {
+  this_week: 'This week', this_month: 'This month', this_year: 'This year',
+};
+
 const BarangayClearance = () => {
   const { toast }       = useToast();
   const navigate        = useNavigate();
@@ -2084,24 +2075,29 @@ const BarangayClearance = () => {
     setIsLoading(true);
     try {
       const params: FetchClearanceParams & Record<string, any> = {
-        page: currentPage, pageSize: 15,
+        page: currentPage,
+        pageSize: 15,
         search: searchValue || undefined,
-        sortField, sortDirection,
-        ...(filters.status                                           ? { status:         filters.status }          : {}),
-        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date:     filters.filter_date }     : {}),
-        ...(filters.filter_date === 'custom' && filters.from        ? { from:            filters.from }            : {}),
-        ...(filters.filter_date === 'custom' && filters.to          ? { to:              filters.to }              : {}),
-        ...(filters.zone                                            ? { zone:            filters.zone }            : {}),
-        ...(filters.street                                          ? { street:          filters.street }          : {}),
-        ...(filters.purpose                                         ? { purpose:         filters.purpose }         : {}),
-        ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
+        sortField,
+        sortDirection,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.filter_date && filters.filter_date !== 'custom' ? { filter_date: filters.filter_date } : {}),
+        ...(filters.filter_date === 'custom' && filters.from ? { from: filters.from } : {}),
+        ...(filters.filter_date === 'custom' && filters.to ? { to: filters.to } : {}),
+        ...(filters.zone ? { zone: filters.zone } : {}),
+        ...(filters.street ? { street: filters.street } : {}),
+        ...(filters.purpose ? { purpose: filters.purpose } : {}),
+        ...(filters.schedule_filter ? { schedule_filter: filters.schedule_filter } : {}),
       };
+      
       const response = await fetchBarangayClearances(params);
-      setData(response.data as any[]);
+      setData(response.data);
       setTotal(response.total);
       setTotalPages(response.totalPages);
-    } catch {
+      
+    } catch (error) {
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -2228,7 +2224,6 @@ const BarangayClearance = () => {
                       const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
                       const isItemArchived = itemStatus === 'ARCHIVED' || itemStatus === 'DISABLED';
                       const isItemReleased = itemStatus === 'RELEASED';
-                      // Determine no-show for table row
                       const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
                       const itemRequesterType: string = (item as any).requester_type ?? '';
                       const isItemNoShow =
@@ -2273,7 +2268,10 @@ const BarangayClearance = () => {
                               requesterType={itemRequesterType}
                             />
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by}</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">
+                            {/* Show only the ID in the table - no API call here */}
+                            {item.created_by ? `ID: ${item.created_by}` : '—'}
+                          </td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -2313,7 +2311,6 @@ const BarangayClearance = () => {
                                   >
                                     Print
                                   </button>
-                                  {/* Released rows: Archive shortcut */}
                                   {isItemReleased && (
                                     <button
                                       onClick={() => setSelectedDetailRecord(item)}
@@ -2323,7 +2320,6 @@ const BarangayClearance = () => {
                                       <Archive className="h-3 w-3" /> Archive
                                     </button>
                                   )}
-                                  {/* No-show rows: Reschedule shortcut */}
                                   {isItemNoShow && (
                                     <button
                                       onClick={() => setSelectedDetailRecord(item)}

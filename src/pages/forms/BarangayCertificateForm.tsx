@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toUpperCase } from "./formUtils";
 import Header from "@/components/forms/Header";
-
+import { certificatePurposes} from "@/components/purpose/purpose";
 interface BarangayCertificateFormProps { onBack?: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -1149,7 +1149,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
                     <SelectValue placeholder="Select purpose" />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Residency", "Employment", "School", "Travel", "Legal", "Bank", "Other"].map((p) => (
+                    {certificatePurposes.map((p) => (
                       <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
                   </SelectContent>

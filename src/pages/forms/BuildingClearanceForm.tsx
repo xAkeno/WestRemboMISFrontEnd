@@ -17,7 +17,7 @@ import { PrefixCombobox } from "./PrefixCombobox";
 import { toUpperCase, PREFIX_OPTIONS } from "./formUtils";
 import Header from "@/components/forms/Header";
 import { add } from "date-fns";
-
+import { constructionPurposes } from "@/components/purpose/purpose";
 interface BuildingClearanceFormProps { onBack: () => void; }
 interface StreetOption { id: number; name: string; sitio: string; formerly?: string; }
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
@@ -652,7 +652,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps) => {
                       <SelectValue placeholder="Select purpose" />
                     </SelectTrigger>
                     <SelectContent>
-                      {["New Construction", "Renovation", "Addition", "Demolition", "Fence", "Other"].map((p) => (
+                      {constructionPurposes.map((p) => (
                         <SelectItem key={p} value={p} className="uppercase">
                           {p}
                         </SelectItem>
