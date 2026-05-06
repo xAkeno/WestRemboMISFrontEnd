@@ -65,6 +65,8 @@ const statusStyle: Record<string, { bg: string; text: string; border: string; do
   rescheduled: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", dot: "#1d4ed8" },
   to_pay:      { bg: "#fefce8", text: "#ca8a04", border: "#fde68a", dot: "#ca8a04" },
   inspecting:  { bg: "#faf5ff", text: "#7c3aed", border: "#ddd6fe", dot: "#7c3aed" },
+  // ✅ NEW: no_show status style
+  no_show:     { bg: "#fff7ed", text: "#ea580c", border: "#fed7aa", dot: "#ea580c" },
 };
 
 const PROCESS_STEPS = [
@@ -80,6 +82,7 @@ const STATUS_TO_STEP: Record<string, number> = {
   approved: 0, inspecting: 0,
   scheduled:   1,
   rescheduled: 1,
+  no_show:     1, // ✅ no_show stays at scheduled step
   to_pay:  3,
   released: 4,
 };
@@ -92,6 +95,8 @@ const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null
   approved:    { message: "Your request has been approved!", nextStep: "To Pay" },
   scheduled:   { message: "Your pickup date is confirmed. Visit the barangay at your scheduled time.", nextStep: "Visit Barangay" },
   rescheduled: { message: "Your pickup date has been rescheduled. Visit the barangay at your new scheduled time.", nextStep: "Visit Barangay" },
+  // ✅ NEW
+  no_show:     { message: "You missed your scheduled pickup. Please reschedule to continue.", nextStep: "Reschedule" },
   to_pay:      { message: "Please proceed to the barangay hall to settle the payment.", nextStep: "Released" },
   released:    { message: "Your document has been sent to your registered email address.", nextStep: null },
   rejected:    { message: "Your request was not approved. See details for more information.", nextStep: null },
@@ -106,12 +111,15 @@ const WHAT_NEXT: Record<string, string> = {
   approved:    "Your request has been approved. Proceed to the barangay hall to settle the payment.",
   scheduled:   "Go to the barangay hall at your scheduled time. Bring the required documents listed above and present your reference number to the officer.",
   rescheduled: "Go to the barangay hall at your new scheduled time. Bring the required documents listed above and present your reference number to the officer.",
+  // ✅ NEW
+  no_show:     "You did not appear on your scheduled pickup date. Please reschedule your pickup as soon as possible to avoid further delays.",
   to_pay:      "Proceed to the barangay hall cashier and present your reference number to pay the fee.",
   released:    "Your document has been officially released and sent to your registered email.",
   rejected:    "Your request was not approved. Please contact the barangay office for more information.",
   inspecting:  "A barangay officer is currently reviewing and inspecting your submitted documents. You will be notified once the inspection is complete.",
 };
 
+// ✅ UPDATED: no_show is now a blocked-style status (shows its own card, no progress bar)
 const BLOCKED_STATUSES = new Set(["rejected", "incomplete", "inspecting"]);
 
 const hasValue = (v: any): boolean =>
@@ -210,8 +218,9 @@ function OfficeHoursModal({ open, onClose }: { open: boolean; onClose: () => voi
 function StatusBadge({ status }: { status: string }) {
   const badge = statusStyle[status] ?? { bg: "#f3f4f6", text: "#374151", border: "#d1d5db", dot: "#374151" };
   const label =
-    status === "to_pay" ? "To Pay" :
+    status === "to_pay"      ? "To Pay" :
     status === "rescheduled" ? "Rescheduled" :
+    status === "no_show"     ? "No Show" :
     status.charAt(0).toUpperCase() + status.slice(1);
   return (
     <span
@@ -388,7 +397,7 @@ function QRPresentCard({ refNumber, docLabel }: { refNumber: string; docLabel: s
         <div>
           <p className="text-sm font-bold text-white">Present this at the counter</p>
           <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
+            Present this QR code at the counter to be scanned by barangay staff and included in the processing queue.
           </p>
         </div>
       </div>
@@ -800,7 +809,7 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
                   className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
                   style={{ backgroundColor: "rgba(194,70,125,0.2)", color: "#f9a8d4", border: "1px solid rgba(194,70,125,0.3)" }}
                 >
-                  Missed Schedule
+                  No Show – Reschedule
                 </span>
               </div>
               <h2 className="text-lg font-black text-white mt-2">Reschedule Pickup</h2>
@@ -818,9 +827,9 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
             <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
             <div>
-              <p className="text-xs font-bold" style={{ color: "#9a3412" }}>Schedule Missed</p>
+              <p className="text-xs font-bold" style={{ color: "#9a3412" }}>No Show Recorded</p>
               <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "#c2410c" }}>
-                Your previous pickup date has passed. Please select a new date to reschedule your document pickup.
+                You were marked as no show for your previous pickup date. Please select a new date to reschedule your document pickup.
               </p>
             </div>
           </div>
@@ -911,6 +920,88 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
   );
 }
 
+// ─── ✅ NEW: No Show Card ──────────────────────────────────────────────────────
+function NoShowCard({
+  schedule,
+  onReschedule,
+  onViewDetails,
+}: {
+  schedule: ScheduleData;
+  onReschedule: () => void;
+  onViewDetails: () => void;
+}) {
+  const dateObj      = new Date(schedule.schedule_date + "T12:00:00");
+  const fullDateLabel = dateObj.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{ background: "#fff", border: "1px solid #fed7aa", boxShadow: "0 1px 8px rgba(234,88,12,0.10)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-5 py-4"
+        style={{ background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)", borderBottom: "1px solid #fed7aa" }}
+      >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#ffedd5" }}>
+          <AlertTriangle className="h-5 w-5" style={{ color: "#ea580c" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-black" style={{ color: "#9a3412" }}>No Show Recorded</p>
+          <p className="text-[11px]" style={{ color: "#c2410c" }}>
+            You did not appear on your scheduled pickup date
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+          style={{ background: "#ffedd5", color: "#ea580c", border: "1px solid #fed7aa" }}
+        >
+          No Show
+        </span>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-4">
+        {/* Missed date info */}
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
+          <p className="text-xs font-semibold leading-relaxed" style={{ color: "#9a3412" }}>
+            You missed your scheduled pickup on <strong>{fullDateLabel}</strong>.
+            Your status has been updated to <strong>No Show</strong>. Please reschedule to continue processing your document.
+          </p>
+        </div>
+
+        {/* What to do */}
+        <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What you need to do</p>
+          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>
+            Reschedule your pickup as soon as possible. Repeated no-shows may affect your future requests at the barangay office.
+          </p>
+        </div>
+
+        {/* Reschedule CTA */}
+        <button
+          onClick={onReschedule}
+          className="w-full py-3 text-sm font-bold rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          style={{ backgroundColor: NAVY }}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Reschedule Pickup
+        </button>
+
+        {/* View Details link */}
+        <button
+          onClick={onViewDetails}
+          className="text-xs font-semibold text-center transition-colors"
+          style={{ color: "#9ca3af" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+        >
+          View Details
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Scheduled Visit Card ──────────────────────────────────────────────────────
 function ScheduledVisitCard({
   schedule,
@@ -918,7 +1009,6 @@ function ScheduledVisitCard({
   dynamicRequirements,
   onViewDetails,
   onReschedule,
-  isMissed,
   normalizedStatus,
 }: {
   schedule: ScheduleData;
@@ -926,7 +1016,6 @@ function ScheduledVisitCard({
   dynamicRequirements: string[];
   onViewDetails: () => void;
   onReschedule: () => void;
-  isMissed: boolean;
   normalizedStatus: string;
 }) {
   const dateObj       = new Date(schedule.schedule_date + "T12:00:00");
@@ -942,60 +1031,35 @@ function ScheduledVisitCard({
     } catch { return schedule.schedule_time; }
   })();
 
-  // Never show as missed if status is "rescheduled" — user already took action
-  const effectivelyMissed = isMissed && normalizedStatus !== "rescheduled";
-
   return (
     <div
       className="rounded-2xl overflow-hidden mb-4"
       style={{
         background: "#fff",
-        border:     effectivelyMissed ? "1px solid #fed7aa" : "1px solid #e5e7eb",
-        boxShadow:  effectivelyMissed ? "0 1px 8px rgba(234,88,12,0.1)" : "0 1px 8px rgba(0,0,0,0.06)",
+        border:     "1px solid #e5e7eb",
+        boxShadow:  "0 1px 8px rgba(0,0,0,0.06)",
       }}
     >
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: "1px solid #f3f4f6" }}>
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: effectivelyMissed ? "#fff7ed" : "#eff6ff" }}
-        >
-          {effectivelyMissed
-            ? <AlertTriangle className="h-4 w-4" style={{ color: "#ea580c" }} />
-            : <Home        className="h-4 w-4" style={{ color: "#2563eb" }} />
-          }
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#eff6ff" }}>
+          <Home className="h-4 w-4" style={{ color: "#2563eb" }} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-bold" style={{ color: "#111827" }}>
-            {effectivelyMissed
-              ? "Missed pickup"
-              : "Next step: Proceed on your assigned date and time at the barangay office and fall in line for processing"}
+            Next step: Proceed on your assigned date and time at the barangay office
           </p>
-          <p className="text-[11px]" style={{ color: "#9ca3af" }}>
-            {effectivelyMissed ? "Your scheduled date has passed" : "Your pickup date is confirmed"}
-          </p>
+          <p className="text-[11px]" style={{ color: "#9ca3af" }}>Your pickup date is confirmed</p>
         </div>
         <span
           className="text-[11px] font-semibold px-3 py-1 rounded-full flex-shrink-0"
-          style={effectivelyMissed
-            ? { background: "#fff7ed", color: "#ea580c", border: "1px solid #fed7aa" }
-            : { background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }
-          }
+          style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
         >
-          {effectivelyMissed ? "Missed" : normalizedStatus === "rescheduled" ? "Rescheduled" : "Scheduled"}
+          {normalizedStatus === "rescheduled" ? "Rescheduled" : "Scheduled"}
         </span>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-4">
-
-        {/* Missed banner */}
-        {effectivelyMissed && (
-          <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
-            <p className="text-xs font-semibold leading-relaxed" style={{ color: "#9a3412" }}>
-              You missed your scheduled pickup on <strong>{fullDateLabel}</strong>. Please reschedule to continue processing your document.
-            </p>
-          </div>
-        )}
 
         {/* Rescheduled success banner */}
         {normalizedStatus === "rescheduled" && (
@@ -1014,26 +1078,21 @@ function ScheduledVisitCard({
 
         {/* Schedule Block */}
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>
-            {effectivelyMissed ? "Missed schedule" : "Pickup schedule"}
-          </p>
-          <div
-            className="flex items-center gap-4 rounded-xl px-4 py-4"
-            style={{ background: effectivelyMissed ? "#fff7ed" : "#eff6ff", opacity: effectivelyMissed ? 0.7 : 1 }}
-          >
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>Pickup schedule</p>
+          <div className="flex items-center gap-4 rounded-xl px-4 py-4" style={{ background: "#eff6ff" }}>
             <div
               className="flex flex-col items-center justify-center rounded-xl flex-shrink-0"
-              style={{ backgroundColor: effectivelyMissed ? "#ea580c" : "#1d4ed8", padding: "10px 12px", minWidth: 52, textAlign: "center" }}
+              style={{ backgroundColor: "#1d4ed8", padding: "10px 12px", minWidth: 52, textAlign: "center" }}
             >
-              <span className="text-[10px] font-bold text-white" style={{ opacity: 0.75, letterSpacing: "0.04em" }}>{monthLabel}</span>
+              <span className="text-[10px] font-bold text-white" style={{ opacity: 0.75 }}>{monthLabel}</span>
               <span className="text-2xl font-black text-white leading-none">{dayLabel}</span>
               <span className="text-[10px] text-white" style={{ opacity: 0.65 }}>{yearLabel}</span>
             </div>
             <div>
-              <p className="text-sm font-bold" style={{ color: effectivelyMissed ? "#9a3412" : "#1e3a8a" }}>{fullDateLabel}</p>
+              <p className="text-sm font-bold" style={{ color: "#1e3a8a" }}>{fullDateLabel}</p>
               <div className="flex items-center gap-1.5 mt-1">
-                <Clock className="h-3 w-3" style={{ color: effectivelyMissed ? "#ea580c" : "#3b82f6" }} />
-                <p className="text-xs font-semibold" style={{ color: effectivelyMissed ? "#c2410c" : "#2563eb" }}>{timeLabel}</p>
+                <Clock className="h-3 w-3" style={{ color: "#3b82f6" }} />
+                <p className="text-xs font-semibold" style={{ color: "#2563eb" }}>{timeLabel}</p>
               </div>
             </div>
           </div>
@@ -1048,7 +1107,7 @@ function ScheduledVisitCard({
         </div>
 
         {/* Documents Checklist */}
-        {!effectivelyMissed && dynamicRequirements.length > 0 && (
+        {dynamicRequirements.length > 0 && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9ca3af" }}>Bring these documents</p>
             <div className="flex flex-col gap-1.5">
@@ -1067,40 +1126,16 @@ function ScheduledVisitCard({
           </div>
         )}
 
-        {/* Primary CTA */}
-        {effectivelyMissed ? (
-          <button
-            onClick={onReschedule}
-            className="w-full py-3 text-sm font-bold rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
-            style={{ backgroundColor: NAVY }}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reschedule Pickup
-          </button>
-        ) : (
-          <button
-            onClick={onViewDetails}
-            className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
-            style={{ border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; (e.currentTarget as HTMLButtonElement).style.color = "#374151"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff";    (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
-          >
-            View Details
-          </button>
-        )}
-
-        {/* Secondary "View Details" link when missed */}
-        {effectivelyMissed && (
-          <button
-            onClick={onViewDetails}
-            className="text-xs font-semibold text-center transition-colors"
-            style={{ color: "#9ca3af" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
-          >
-            View Details
-          </button>
-        )}
+        {/* View Details */}
+        <button
+          onClick={onViewDetails}
+          className="w-full py-2.5 text-xs font-bold rounded-xl transition-colors"
+          style={{ border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; (e.currentTarget as HTMLButtonElement).style.color = "#374151"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff";    (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
+        >
+          View Details
+        </button>
       </div>
     </div>
   );
@@ -1225,7 +1260,7 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
               <div key={i} className="w-2 h-2 rounded-full" style={{ backgroundColor: "#7c3aed", animation: `inspectPulse 1.4s ease-in-out ${i * 0.2}s infinite` }} />
             ))}
           </div>
-          <p className="text-xs font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>The inspection of your business or establishment may take a few days to complete.</p>
+          <p className="text-xs font-semibold leading-relaxed" style={{ color: "#4c1d95" }}>The inspection may take a few days to complete.</p>
         </div>
         {hasValue(reason) && (
           <div>
@@ -1240,7 +1275,7 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
         )}
         <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb" }}>
           <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#9ca3af" }}>What to expect</p>
-          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>You will be notified once the inspection is complete. No action is needed from you at this time. Please keep your contact details up to date.</p>
+          <p className="text-xs leading-relaxed" style={{ color: "#6b7280" }}>You will be notified once the inspection is complete. No action is needed at this time.</p>
         </div>
         <button
           onClick={onViewDetails}
@@ -1293,22 +1328,6 @@ function ReviewRequiredCard({ onViewDetails }: { onViewDetails: () => void }) {
             <p className="text-xs mt-1.5 font-semibold leading-relaxed" style={{ color: "#b45309" }}>⚠️ You must complete this step to continue your request.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#f59e0b", color: "#fff" }}>1</div>
-            <span className="text-xs font-bold" style={{ color: "#b45309" }}>Review</span>
-          </div>
-          <div className="flex-1 h-0.5 rounded-full" style={{ backgroundColor: "#e5e7eb" }} />
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#e5e7eb", color: "#9ca3af" }}>2</div>
-            <span className="text-xs font-semibold" style={{ color: "#9ca3af" }}>Processing</span>
-          </div>
-          <div className="flex-1 h-0.5 rounded-full" style={{ backgroundColor: "#e5e7eb" }} />
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0" style={{ backgroundColor: "#e5e7eb", color: "#9ca3af" }}>3</div>
-            <span className="text-xs font-semibold" style={{ color: "#9ca3af" }}>Release</span>
-          </div>
-        </div>
         <button
           onClick={onViewDetails}
           className="w-full py-3.5 text-sm font-black rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
@@ -1334,8 +1353,8 @@ export default function RequestDetail() {
   const queryClient  = useQueryClient();
   const { id, type } = useParams<{ id: string; type: string }>();
 
-  const [showDetails,    setShowDetails]    = useState(false);
-  const [showReschedule, setShowReschedule] = useState(false);
+  const [showDetails,     setShowDetails]     = useState(false);
+  const [showReschedule,  setShowReschedule]  = useState(false);
   const [showOfficeHours, setShowOfficeHours] = useState(false);
 
   const { data: request, isLoading } = useQuery({
@@ -1370,6 +1389,32 @@ export default function RequestDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ✅ Detect missed schedule and automatically call markNoShow API
+  useEffect(() => {
+    if (!schedule || !request) return;
+
+    const normalizedStatus = (request.raw?.status ?? "").toLowerCase();
+
+    if (normalizedStatus !== "scheduled") return;
+    if (!isMissedSchedule(schedule.schedule_date)) return;
+
+    // Use both document_type + id to avoid ID collisions across document types
+    fetch(
+      `https://westrembomis.onrender.com/api/schedules/${schedule.document_type}/${schedule.id}/no-show`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }
+    )
+      .then((res) => {
+        if (res.ok) {
+          queryClient.invalidateQueries({ queryKey: ["request", type, id] });
+        }
+      })
+      .catch(() => {});
+  }, [schedule, request, queryClient, type, id]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1400,6 +1445,7 @@ export default function RequestDetail() {
   const isReleased      = normalizedStatus === "released";
   const isScheduled     = normalizedStatus === "scheduled";
   const isRescheduled   = normalizedStatus === "rescheduled";
+  const isNoShow        = normalizedStatus === "no_show"; // ✅ NEW
   const isApproved      = normalizedStatus === "approved";
   const isToPay         = normalizedStatus === "to_pay";
   const isRejected      = normalizedStatus === "rejected";
@@ -1434,12 +1480,10 @@ export default function RequestDetail() {
   const statusLabel =
     normalizedStatus === "to_pay"      ? "To Pay" :
     normalizedStatus === "rescheduled" ? "Rescheduled" :
+    normalizedStatus === "no_show"     ? "No Show" :
     normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 
-  // Only mark missed if status is "scheduled" — "rescheduled" means user already acted
-  const missed = isScheduled && schedule ? isMissedSchedule(schedule.schedule_date) : false;
-
-  const showQRCard      = isScheduled || isRescheduled || isApproved || isToPay;
+  const showQRCard = isScheduled || isRescheduled || isApproved || isToPay;
   const rejectionReason = req.rejection_reason ?? null;
 
   const handleRescheduleSuccess = () => {
@@ -1519,7 +1563,8 @@ export default function RequestDetail() {
               <StatusBadge status={normalizedStatus} />
             </div>
 
-            {!isBlockedStatus ? (
+            {/* Progress bar: show for normal statuses, no_show shows a flat blocked line */}
+            {!isBlockedStatus && !isNoShow ? (
               <ProgressBar status={normalizedStatus} isFreeService={isFreeService} onLearnMore={() => setShowOfficeHours(true)} />
             ) : (
               <div className="flex items-center gap-3">
@@ -1527,12 +1572,12 @@ export default function RequestDetail() {
                 <span
                   className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
                   style={{
-                    backgroundColor: isRejected ? "#fff1f2" : isIncomplete ? "#fff7ed" : "#faf5ff",
-                    color:           isRejected ? "#e11d48" : isIncomplete ? "#ea580c" : "#7c3aed",
-                    border:          `1px solid ${isRejected ? "#fecdd3" : isIncomplete ? "#fed7aa" : "#ddd6fe"}`,
+                    backgroundColor: isRejected ? "#fff1f2" : isIncomplete ? "#fff7ed" : isNoShow ? "#fff7ed" : "#faf5ff",
+                    color:           isRejected ? "#e11d48" : isIncomplete ? "#ea580c" : isNoShow ? "#ea580c" : "#7c3aed",
+                    border:          `1px solid ${isRejected ? "#fecdd3" : isIncomplete ? "#fed7aa" : isNoShow ? "#fed7aa" : "#ddd6fe"}`,
                   }}
                 >
-                  {isRejected ? "Rejected" : isIncomplete ? "Incomplete" : "Inspecting"}
+                  {isRejected ? "Rejected" : isIncomplete ? "Incomplete" : isNoShow ? "No Show" : "Inspecting"}
                 </span>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
               </div>
@@ -1587,13 +1632,13 @@ export default function RequestDetail() {
         {/* Review Required Card */}
         {isReviewStatus && <ReviewRequiredCard onViewDetails={() => setShowDetails(true)} />}
 
-        {/* Generic Schedule Card (shown for non-scheduled/rescheduled statuses) */}
-        {schedule && !isReleased && !isScheduled && !isRescheduled && !isBlockedStatus && (
+        {/* Generic Schedule Card (non-scheduled/rescheduled/no_show statuses) */}
+        {schedule && !isReleased && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && (
           <div className="mb-4"><ScheduleCard schedule={schedule} /></div>
         )}
 
-        {/* Required Documents */}
-        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isBlockedStatus && (
+        {/* Required Documents (not shown for scheduled/rescheduled/blocked/no_show — checklist is inside ScheduledVisitCard) */}
+        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && (
           <div
             className="mb-6 rounded-2xl overflow-hidden"
             style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a3a7a 100%)", border: "2px solid #c2467d", boxShadow: "0 8px 24px rgba(15,42,94,0.2), 0 0 40px rgba(194,70,125,0.15)" }}
@@ -1638,6 +1683,15 @@ export default function RequestDetail() {
           </div>
         )}
 
+        {/* ✅ No Show Card */}
+        {isNoShow && schedule && (
+          <NoShowCard
+            schedule={schedule}
+            onReschedule={() => setShowReschedule(true)}
+            onViewDetails={() => setShowDetails(true)}
+          />
+        )}
+
         {/* Scheduled / Rescheduled Visit Card */}
         {(isScheduled || isRescheduled) && schedule && (
           <ScheduledVisitCard
@@ -1646,7 +1700,6 @@ export default function RequestDetail() {
             dynamicRequirements={dynamicRequirements}
             onViewDetails={() => setShowDetails(true)}
             onReschedule={() => setShowReschedule(true)}
-            isMissed={missed}
             normalizedStatus={normalizedStatus}
           />
         )}
@@ -1664,7 +1717,7 @@ export default function RequestDetail() {
         )}
 
         {/* What's Next */}
-        {whatNext && !isReleased && !isScheduled && !isRescheduled && !isBlockedStatus && (
+        {whatNext && !isReleased && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && (
           <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: NAVY }}>
             <div className="px-5 py-5 relative overflow-hidden">
               <div className="absolute right-4 bottom-4 w-20 h-20 rounded-full opacity-10" style={{ backgroundColor: "white" }} />
