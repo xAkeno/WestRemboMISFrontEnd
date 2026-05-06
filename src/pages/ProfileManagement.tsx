@@ -15,7 +15,6 @@ import {
   Camera,
   Save,
   User,
-  FileText,
   Phone,
   MapPin,
   Home,
@@ -50,8 +49,7 @@ interface ProfileData {
   prefix: string; surname: string; first_name: string; middle_name: string;
   extension_name: string; nickname: string; sex: string; marital_status: string;
   name_of_spouse: string; date_of_birth: string; place_of_birth: string;
-  religion: string; height_cm: string; weight_kg: string; blood_type: string;
-  complexion: string; profile_image: string; email: string; contact_number: string;
+  religion: string; profile_image: string; email: string; contact_number: string;
   house_block_lot_no: string; street: string; zone_purok: string; house_owner: string;
   relationship_to_owner: string; resident_status: string; period_of_residency: string;
   voter_status: string; precinct_no: string; employment_status: string;
@@ -63,7 +61,6 @@ const tabs = [
   { id: "contact",   label: "Contact Info",   icon: Phone },
   { id: "address",   label: "Address",        icon: MapPin },
   { id: "residency", label: "Residency",      icon: Home },
-  { id: "physical",  label: "Physical Info",  icon: FileText },
 ];
 
 // ─── Address parser helper ────────────────────────────────────────────────────
@@ -86,11 +83,13 @@ const readFileAsDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
+// ─── Read-only field style ────────────────────────────────────────────────────
+const readOnlyInputCls = "border-0 border-b rounded-none focus-visible:ring-0 text-sm px-0 py-2 bg-transparent text-muted-foreground cursor-not-allowed select-none";
+const editableInputCls = "border-0 border-b rounded-none focus-visible:ring-0 text-sm px-0 py-2 bg-transparent";
+
 const ProfileManagement = () => {
   const [activeTab, setActiveTab]         = useState("personal");
-  // profileImage holds whatever is shown — local data: URL while uploading, S3 URL once confirmed
   const [profileImage, setProfileImage]   = useState<string>("");
-  // isUploading shows spinner overlay while S3 upload is in flight
   const [isUploading, setIsUploading]     = useState(false);
   const [isLoading, setIsLoading]         = useState(false);
   const [isSaving, setIsSaving]           = useState(false);
@@ -114,8 +113,7 @@ const ProfileManagement = () => {
   const [formData, setFormData] = useState<ProfileData>({
     prefix: "", surname: "", first_name: "", middle_name: "", extension_name: "",
     nickname: "", sex: "", marital_status: "", name_of_spouse: "", date_of_birth: "",
-    place_of_birth: "", religion: "", height_cm: "", weight_kg: "", blood_type: "",
-    complexion: "", profile_image: "", email: "", contact_number: "",
+    place_of_birth: "", religion: "", profile_image: "", email: "", contact_number: "",
     house_block_lot_no: "", street: "", zone_purok: "", house_owner: "",
     relationship_to_owner: "", resident_status: "", period_of_residency: "",
     voter_status: "", precinct_no: "", employment_status: "", occupation: "",
@@ -169,10 +167,6 @@ const ProfileManagement = () => {
           date_of_birth:         user.date_of_birth || "",
           place_of_birth:        user.place_of_birth || "",
           religion:              user.religion || "",
-          height_cm:             user.height_cm ? String(user.height_cm) : "",
-          weight_kg:             user.weight_kg ? String(user.weight_kg) : "",
-          blood_type:            user.blood_type || "",
-          complexion:            user.complexion || "",
           profile_image:         user.url_photo || "",
           email:                 user.email || "",
           contact_number:        user.contact_number || "",
@@ -214,15 +208,10 @@ const ProfileManagement = () => {
   };
 
   // ─── Image upload ─────────────────────────────────────────────────────────────
-  // ① Decode file locally → show new photo INSTANTLY (no network wait)
-  // ② Upload to S3 in the background with a spinner overlay
-  // ③ Swap preview to confirmed S3 URL once upload succeeds (visually identical, no flicker)
-  // ④ On failure, revert to previous image
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ① Show local preview immediately — zero wait for the user
     const localPreview = await readFileAsDataUrl(file);
     setProfileImage(localPreview);
     setIsUploading(true);
@@ -237,18 +226,15 @@ const ProfileManagement = () => {
         { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
       );
 
-      // ② Swap to the real persistent S3 URL (looks the same to the user, no visible change)
       const newPath: string = response.data.url_photo;
       setProfileImage(buildImageUrl(newPath));
       setFormData((prev) => ({ ...prev, profile_image: newPath }));
       toast.success("Profile image updated!");
     } catch (error: any) {
-      // ③ Revert to previous image on failure
       setProfileImage(buildImageUrl(formData.profile_image));
       toast.error(error.response?.data?.message || "Failed to upload profile image");
     } finally {
       setIsUploading(false);
-      // Reset so the same file can be re-selected if needed
       e.target.value = "";
     }
   };
@@ -256,29 +242,24 @@ const ProfileManagement = () => {
   // ─── Submit ──────────────────────────────────────────────────────────────────
   const getTabFields = (tab: string): (keyof ProfileData)[] => {
     switch (tab) {
-      case "personal":  return ["prefix","surname","first_name","middle_name","extension_name","nickname","sex","marital_status","name_of_spouse","date_of_birth","place_of_birth","religion"];
-      case "contact":   return ["email","contact_number"];
-      case "address":   return ["house_block_lot_no","street","zone_purok","house_owner","relationship_to_owner"];
-      case "residency": return ["resident_status","period_of_residency","voter_status","precinct_no","employment_status","occupation","position","pwd_status"];
-      case "physical":  return ["height_cm","weight_kg","blood_type","complexion"];
+      case "personal":  return ["prefix", "extension_name", "nickname", "place_of_birth", "marital_status", "name_of_spouse", "religion"];
+      case "contact":   return ["email", "contact_number"];
+      case "address":   return ["house_block_lot_no", "street", "zone_purok", "house_owner", "relationship_to_owner"];
+      case "residency": return ["resident_status", "period_of_residency", "voter_status", "precinct_no", "employment_status", "occupation", "position", "pwd_status"];
       default:          return [];
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeTab === "personal") {
-      if (!formData.surname || !formData.first_name || !formData.sex || !formData.date_of_birth) {
-        toast.error("Please fill in all required fields");
-        return;
-      }
-    }
     const fields  = getTabFields(activeTab);
     const payload = fields.reduce((acc, key) => { acc[key] = formData[key] as any; return acc; }, {} as Record<string, any>);
     try {
       setIsSaving(true);
       await axios.put("https://westrembomis.onrender.com/api/updateProfile", payload, { withCredentials: true });
       toast.success("Profile updated successfully!");
+      // Refresh profile data after successful update
+      fetchProfile();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
@@ -311,7 +292,60 @@ const ProfileManagement = () => {
     </div>
   );
 
-  const inputCls         = "border-0 border-b rounded-none focus-visible:ring-0 text-sm px-0 py-2";
+  // ─── Read-only field component ────────────────────────────────────────────────
+  const ReadOnlyField = ({ label, value }: { label: string; value: string }) => (
+    <div className="space-y-1.5">
+      <Label className="text-[10px] font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: PINK }}>
+        {label}
+        <span
+          className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+          style={{ backgroundColor: "#f0f4ff", color: NAVY, borderRadius: 2 }}
+        >
+          locked
+        </span>
+      </Label>
+      <Input
+        className={readOnlyInputCls}
+        value={value}
+        readOnly
+        tabIndex={-1}
+      />
+    </div>
+  );
+
+  // ─── Editable field component ────────────────────────────────────────────────
+  const EditableField = ({ 
+    label, 
+    value, 
+    onChange, 
+    placeholder, 
+    type = "text",
+    required = false 
+  }: { 
+    label: string; 
+    value: string; 
+    onChange: (val: string) => void; 
+    placeholder?: string;
+    type?: string;
+    required?: boolean;
+  }) => (
+    <div className="space-y-1.5">
+      <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>
+        {label}
+        {required && <span style={{ color: "#ef4444", marginLeft: 4 }}>*</span>}
+      </Label>
+      <Input
+        className={editableInputCls}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        required={required}
+      />
+    </div>
+  );
+
+  const inputCls         = "border-0 border-b rounded-none focus-visible:ring-0 text-sm px-0 py-2 bg-transparent";
   const SelectTriggerCls = "border-0 border-b rounded-none focus:ring-0 focus:ring-offset-0 text-sm px-0 h-9 bg-transparent shadow-none";
 
   if (isLoading && !isProfileLoaded) {
@@ -355,7 +389,6 @@ const ProfileManagement = () => {
                 <User className="w-14 h-14 text-muted-foreground" />
               )}
 
-              {/* Spinner overlay — only visible while S3 upload is in flight */}
               {isUploading && (
                 <div
                   className="absolute inset-0 flex items-center justify-center rounded-full"
@@ -366,7 +399,6 @@ const ProfileManagement = () => {
               )}
             </div>
 
-            {/* Camera button — disabled while uploading */}
             <label
               htmlFor="profileImage"
               className={`absolute bottom-1 right-1 w-8 h-8 flex items-center justify-center transition-all duration-200 ${
@@ -434,39 +466,61 @@ const ProfileManagement = () => {
                 {activeTab === "personal" && (
                   <div className="space-y-5">
                     <SectionTitle>Personal Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Prefix</Label>
-                        <Select value={formData.prefix} onValueChange={(v) => handleInputChange("prefix", v)}>
-                          <SelectTrigger className={SelectTriggerCls}><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {["Mr.","Mrs.","Ms.","Dr.","Engr.","Atty."].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {[
-                        { field: "surname",        label: "Surname *",            required: true },
-                        { field: "first_name",     label: "First Name *",         required: true },
-                        { field: "middle_name",    label: "Middle Name" },
-                        { field: "extension_name", label: "Extension (Jr., Sr.)", placeholder: "e.g., Jr., Sr., III" },
-                        { field: "nickname",       label: "Nickname" },
-                      ].map(({ field, label, required, placeholder }: any) => (
-                        <div key={field} className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
-                          <Input className={inputCls} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} required={required} placeholder={placeholder} />
-                        </div>
-                      ))}
+
+                    {/* Notice banner */}
+                    <div
+                      className="flex items-start gap-3 px-4 py-3 text-xs"
+                      style={{ backgroundColor: "#f0f4ff", borderLeft: `3px solid ${NAVY}`, borderRadius: 2 }}
+                    >
+                      <span style={{ color: NAVY, fontWeight: 700 }}>ℹ</span>
+                      <p style={{ color: NAVY }}>
+                        Some fields are <strong>locked</strong> and can only be updated by your Barangay administrator. Contact the office if corrections are needed.
+                      </p>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                      {/* EDITABLE fields - Prefix, Nickname, Extension */}
+                      <EditableField 
+                        label="Prefix" 
+                        value={formData.prefix} 
+                        onChange={(v) => handleInputChange("prefix", v)} 
+                        placeholder="e.g., Mr., Ms., Dr." 
+                      />
+                      
+                      {/* READ-ONLY fields */}
+                      <ReadOnlyField label="Surname" value={formData.surname} />
+                      <ReadOnlyField label="First Name" value={formData.first_name} />
+                      <ReadOnlyField label="Middle Name" value={formData.middle_name} />
+                      
+                      <EditableField 
+                        label="Extension (Jr., Sr., III)" 
+                        value={formData.extension_name} 
+                        onChange={(v) => handleInputChange("extension_name", v)} 
+                        placeholder="e.g., Jr., Sr., III" 
+                      />
+                      
+                      <EditableField 
+                        label="Nickname" 
+                        value={formData.nickname} 
+                        onChange={(v) => handleInputChange("nickname", v)} 
+                        placeholder="e.g., Jun, Boy, Baby" 
+                      />
+                    </div>
+
+                    {/* Sex — read-only */}
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Sex *</Label>
-                      <RadioGroup value={formData.sex} onValueChange={(v) => handleInputChange("sex", v)} className="flex gap-6">
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Male" id="male" /><Label htmlFor="male" className="cursor-pointer text-sm">Male</Label></div>
-                        <div className="flex items-center space-x-2"><RadioGroupItem value="Female" id="female" /><Label htmlFor="female" className="cursor-pointer text-sm">Female</Label></div>
+                      <Label className="text-[10px] font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: PINK }}>
+                        Sex
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5" style={{ backgroundColor: "#f0f4ff", color: NAVY, borderRadius: 2 }}>locked</span>
+                      </Label>
+                      <RadioGroup value={formData.sex} className="flex gap-6 pointer-events-none opacity-60">
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Male" id="male" /><Label htmlFor="male" className="text-sm">Male</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="Female" id="female" /><Label htmlFor="female" className="text-sm">Female</Label></div>
                       </RadioGroup>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                      {/* EDITABLE fields */}
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Marital Status</Label>
                         <Select value={formData.marital_status} onValueChange={(v) => handleInputChange("marital_status", v)}>
@@ -476,17 +530,28 @@ const ProfileManagement = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      {[
-                        { field: "name_of_spouse", label: "Name of Spouse" },
-                        { field: "date_of_birth",  label: "Date of Birth *", type: "date", required: true },
-                        { field: "place_of_birth", label: "Place of Birth" },
-                        { field: "religion",       label: "Religion" },
-                      ].map(({ field, label, type, required }: any) => (
-                        <div key={field} className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
-                          <Input className={inputCls} type={type || "text"} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} required={required} />
-                        </div>
-                      ))}
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Name of Spouse</Label>
+                        <Input className={inputCls} value={formData.name_of_spouse} onChange={(e) => handleInputChange("name_of_spouse", e.target.value)} />
+                      </div>
+
+                      {/* Date of Birth — read-only */}
+                      <ReadOnlyField label="Date of Birth" value={formData.date_of_birth} />
+                      
+                      {/* Place of Birth — NOW EDITABLE */}
+                      <EditableField 
+                        label="Place of Birth" 
+                        value={formData.place_of_birth} 
+                        onChange={(v) => handleInputChange("place_of_birth", v)} 
+                        placeholder="e.g., Manila, Philippines" 
+                      />
+
+                      {/* EDITABLE */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Religion</Label>
+                        <Input className={inputCls} value={formData.religion} onChange={(e) => handleInputChange("religion", e.target.value)} />
+                      </div>
                     </div>
                     <SaveButton />
                   </div>
@@ -611,33 +676,6 @@ const ProfileManagement = () => {
                         <Select value={formData.pwd_status ? "true" : "false"} onValueChange={(v) => handleInputChange("pwd_status", v === "true")}>
                           <SelectTrigger className={SelectTriggerCls}><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <SaveButton />
-                  </div>
-                )}
-
-                {/* ── Physical ─────────────────────────────────────────────── */}
-                {activeTab === "physical" && (
-                  <div className="space-y-5">
-                    <SectionTitle>Physical Information</SectionTitle>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-                      {[
-                        { field: "height_cm",  label: "Height (cm)", type: "number", ph: "e.g., 170" },
-                        { field: "weight_kg",  label: "Weight (kg)", type: "number", ph: "e.g., 65" },
-                        { field: "complexion", label: "Complexion",                  ph: "e.g., Fair, Medium, Dark" },
-                      ].map(({ field, label, type, ph }) => (
-                        <div key={field} className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>{label}</Label>
-                          <Input className={inputCls} type={type || "text"} value={(formData as any)[field]} onChange={(e) => handleInputChange(field as any, e.target.value)} placeholder={ph} />
-                        </div>
-                      ))}
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: PINK }}>Blood Type</Label>
-                        <Select value={formData.blood_type} onValueChange={(v) => handleInputChange("blood_type", v)}>
-                          <SelectTrigger className={SelectTriggerCls}><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
