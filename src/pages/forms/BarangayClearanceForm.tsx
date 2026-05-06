@@ -570,7 +570,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
 
   const upd = (f: string, v: string) => {
     // Fields that should NOT be uppercased (dates, email, and select-driven fields whose values must match exactly)
-    const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "issued_on", "prefix"];
+    const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "issued_on", "prefix", "registered_voter"];
     const value = noUppercaseFields.includes(f) ? v : toUpperCase(v);
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {

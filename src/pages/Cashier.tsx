@@ -3,12 +3,14 @@ import { Layout } from "@/components/Layout";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 
+
 const TYPE_MAP: { [key: string]: string } = {
     "Barangay Clearance":   "barangay_clearance",
     "Business Clearance":   "business_clearance",
     "Building Clearance":   "building_clearance",
     "Barangay Certificate": "certificate",
 };
+
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
     ENCODED:    { bg: "bg-blue-100",   text: "text-blue-800",   label: "Encoded"    },
@@ -24,16 +26,19 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> 
     INSPECTING: { bg: "bg-cyan-100",   text: "text-cyan-800",   label: "Inspecting" },
 };
 
+
 function normaliseStatus(raw: string | null | undefined): string {
     if (!raw) return "";
     if (raw.toUpperCase() === "TO_PAY") return "REVIEWED";
     return raw.toUpperCase();
 }
 
+
 function getStatusBadge(status: string) {
     const key = normaliseStatus(status);
     return STATUS_BADGE[key] ?? { bg: "bg-gray-100", text: "text-gray-700", label: key || "—" };
 }
+
 
 interface CmsService {
     id: number;
@@ -43,6 +48,7 @@ interface CmsService {
     processing_time?: string;
 }
 
+
 function isCmsFree(fee: string | undefined): boolean {
     if (!fee) return true;
     const trimmed = fee.trim().toLowerCase();
@@ -50,6 +56,7 @@ function isCmsFree(fee: string | undefined): boolean {
     const num = parseFloat(trimmed);
     return isNaN(num) || num === 0;
 }
+
 
 function formatTin(raw: string): string {
     const digits = raw.replace(/\D/g, "").slice(0, 13);
@@ -64,6 +71,7 @@ function formatTin(raw: string): string {
     return parts.join("-");
 }
 
+
 const Spinner = ({ className = "w-3 h-3" }: { className?: string }) => (
     <svg className={`${className} animate-spin`} fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -71,11 +79,13 @@ const Spinner = ({ className = "w-3 h-3" }: { className?: string }) => (
     </svg>
 );
 
+
 const CheckIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24">
         <path stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L19 7" />
     </svg>
 );
+
 
 const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24">
@@ -84,12 +94,174 @@ const TrashIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
     </svg>
 );
 
+
 const ReleaseIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24">
         <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
+
+
+const WarningIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+    </svg>
+);
+
+
+const MoneyIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
+
+const CloseIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24">
+        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
+
+
+// ── Payment Confirmation Modal ────────────────────────────────────────────────
+interface PaymentConfirmModalProps {
+    open: boolean;
+    serviceName: string;
+    customerLabel: string;
+    feeLabel: string;
+    busy: boolean;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+
+const PaymentConfirmModal = ({
+    open, serviceName, customerLabel, feeLabel, busy, onCancel, onConfirm,
+}: PaymentConfirmModalProps) => {
+    const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+
+
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && !busy) onCancel();
+            if (e.key === "Enter"  && !busy) onConfirm();
+        };
+        window.addEventListener("keydown", onKey);
+        // Lock body scroll while open
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        // Focus the primary action
+        const t = setTimeout(() => confirmBtnRef.current?.focus(), 50);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            document.body.style.overflow = prevOverflow;
+            clearTimeout(t);
+        };
+    }, [open, busy, onCancel, onConfirm]);
+
+
+    if (!open) return null;
+
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-confirm-title"
+        >
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => !busy && onCancel()}
+            />
+
+
+            {/* Card */}
+            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden transform transition-all">
+                {/* Header */}
+                <div className="flex items-start gap-3 px-5 pt-5 pb-3 border-b border-gray-100">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600">
+                        <MoneyIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 id="payment-confirm-title" className="text-base font-bold text-gray-900 leading-tight">
+                            Confirm Payment
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Review the details before marking this record as paid.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => !busy && onCancel()}
+                        disabled={busy}
+                        className="flex-shrink-0 -mt-1 -mr-1 w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                        aria-label="Close"
+                    >
+                        <CloseIcon className="w-4 h-4" />
+                    </button>
+                </div>
+
+
+                {/* Body — key/value list */}
+                <div className="px-5 py-4 space-y-2.5 bg-gray-50/50">
+                    <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Service</span>
+                        <span className="text-sm font-semibold text-gray-900 text-right truncate">{serviceName}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Customer</span>
+                        <span className="text-sm font-medium text-gray-700 text-right truncate" title={customerLabel}>
+                            {customerLabel}
+                        </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 pt-2 mt-2 border-t border-gray-200">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Fee</span>
+                        <span className="text-lg font-extrabold text-teal-700">{feeLabel}</span>
+                    </div>
+                </div>
+
+
+                {/* Notice */}
+                <div className="px-5 py-3 bg-amber-50/60 border-t border-amber-100">
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                        <span className="font-bold">Heads up: </span>
+                        This will mark the record as <span className="font-bold">PAID</span>. Make sure the cash/payment has actually been received.
+                    </p>
+                </div>
+
+
+                {/* Footer */}
+                <div className="px-5 py-3 flex items-center justify-end gap-2 bg-white border-t border-gray-100">
+                    <button
+                        onClick={onCancel}
+                        disabled={busy}
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-xs font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        ref={confirmBtnRef}
+                        onClick={onConfirm}
+                        disabled={busy}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 transition-colors shadow-sm"
+                    >
+                        {busy ? (
+                            <><Spinner className="w-3 h-3" /> Confirming…</>
+                        ) : (
+                            <><CheckIcon className="w-3 h-3" /> Confirm Payment</>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // ── OR + TIN panel ────────────────────────────────────────────────────────────
 interface OrTinPanelProps {
@@ -111,6 +283,7 @@ interface OrTinPanelProps {
     isFreeService: boolean;
 }
 
+
 const OrTinPanel = ({
     row, rowIndex, orInputs, tinInputs, tinByOr,
     savingRow, isPaid, isReleased, releasingRow,
@@ -120,12 +293,29 @@ const OrTinPanel = ({
         ? tinInputs[rowIndex]
         : (row.or_no && tinByOr[row.or_no] !== undefined ? tinByOr[row.or_no] : "");
 
+
     const displayOr = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
     const fieldsDisabled = isPaid || isReleased;
+
 
     // Show release button when: paid AND (free service OR OR number is present)
     const orValue = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
     const canShowRelease = isPaid && !isReleased && (isFreeService || orValue.trim().length > 0);
+
+
+    // Inline error: paid but OR is missing for a paid (non-free) service
+    const needsOrForRelease = isPaid && !isReleased && !isFreeService && orValue.trim().length === 0;
+
+
+    // Dirty OR — typed by the cashier but not yet saved (only relevant while editable)
+    const savedOr = (row.or_no ?? "").trim();
+    const typedOr = (orInputs[rowIndex] ?? "").trim();
+    const isOrDirty =
+        !fieldsDisabled &&
+        orInputs[rowIndex] !== undefined &&
+        typedOr !== savedOr &&
+        typedOr.length > 0;
+
 
     return (
         <div className="flex flex-col gap-2">
@@ -151,6 +341,7 @@ const OrTinPanel = ({
                     />
                 </div>
 
+
                 {/* OR */}
                 <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">OR Number</span>
@@ -161,7 +352,11 @@ const OrTinPanel = ({
                         className={`w-full px-2 py-1 border rounded text-xs placeholder:text-gray-300 font-mono focus:outline-none focus:border-blue-400 ${
                             fieldsDisabled
                                 ? "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
-                                : "border-gray-200 bg-white"
+                                : isOrDirty
+                                    ? "border-amber-400 bg-amber-50/40"
+                                    : needsOrForRelease
+                                        ? "border-red-300 bg-red-50/40"
+                                        : "border-gray-200 bg-white"
                         }`}
                         value={displayOr}
                         onChange={(e) => {
@@ -173,18 +368,42 @@ const OrTinPanel = ({
                     />
                 </div>
 
+
                 {/* Save */}
                 {!fieldsDisabled && (
                     <button
                         onClick={onSave}
                         disabled={savingRow.has(rowIndex)}
-                        title="Save OR & TIN"
-                        className="flex-shrink-0 inline-flex items-center justify-center px-2.5 py-[7px] rounded transition-colors text-white bg-green-500 hover:bg-green-600 disabled:bg-green-200"
+                        title={isOrDirty ? "Click to save OR & TIN" : "Save OR & TIN"}
+                        className={`flex-shrink-0 inline-flex items-center justify-center px-2.5 py-[7px] rounded transition-colors text-white disabled:bg-green-200 ${
+                            isOrDirty
+                                ? "bg-amber-500 hover:bg-amber-600 ring-2 ring-amber-200 animate-pulse"
+                                : "bg-green-500 hover:bg-green-600"
+                        }`}
                     >
                         {savingRow.has(rowIndex) ? <Spinner className="w-2.5 h-2.5" /> : <CheckIcon className="w-2.5 h-2.5" />}
                     </button>
                 )}
             </div>
+
+
+            {/* Dirty OR — typed but not saved yet */}
+            {isOrDirty && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">
+                    <WarningIcon className="w-3 h-3" />
+                    Click the green ✓ to save this OR number.
+                </div>
+            )}
+
+
+            {/* Inline error: needs OR before release */}
+            {needsOrForRelease && !isOrDirty && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-red-700 bg-red-50 border border-red-200">
+                    <WarningIcon className="w-3 h-3" />
+                    OR Number is required. Enter OR and click ✓ before releasing.
+                </div>
+            )}
+
 
             {/* Release button — appears when paid + OR filled (or free service) */}
             {canShowRelease && (
@@ -201,6 +420,7 @@ const OrTinPanel = ({
                 </button>
             )}
 
+
             {/* Released badge */}
             {isReleased && (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-green-700 bg-green-50 border border-green-200">
@@ -211,6 +431,7 @@ const OrTinPanel = ({
     );
 };
 
+
 // ── Fee Table Component ───────────────────────────────────────────────────────
 interface FeeTableProps {
     serviceName: string;
@@ -219,6 +440,7 @@ interface FeeTableProps {
     formatFee: (fee: number) => string;
     cmsLoaded: boolean;
 }
+
 
 const FeeTable = ({ serviceName, fee, isFree, formatFee, cmsLoaded }: FeeTableProps) => {
     return (
@@ -274,6 +496,7 @@ const FeeTable = ({ serviceName, fee, isFree, formatFee, cmsLoaded }: FeeTablePr
     );
 };
 
+
 const Cashier = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [choose, setChoose] = useState("Barangay Clearance");
@@ -282,9 +505,11 @@ const Cashier = () => {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("REVIEWED");
 
+
     const [cmsServices, setCmsServices] = useState<CmsService[]>([]);
     const [cmsLoaded, setCmsLoaded] = useState(false);
     const [servicePrices, setServicePrices] = useState<{ [type: string]: number }>({});
+
 
     const [orInputs, setOrInputs] = useState<{ [key: number]: string }>({});
     const [tinByOr, setTinByOr] = useState<{ [or_number: string]: string }>({});
@@ -296,7 +521,14 @@ const Cashier = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [reviewedCount, setReviewedCount] = useState(0);
 
+
+    // Payment confirmation modal state
+    const [confirmPayment, setConfirmPayment] = useState<{ row: any; rowIndex: number } | null>(null);
+    const [confirmBusy, setConfirmBusy] = useState(false);
+
+
     const fetchDataRef = useRef<() => Promise<void>>();
+
 
     const CMS_NAME_MAP: Record<string, string> = {
         "Barangay Clearance":   "barangay clearance",
@@ -304,6 +536,7 @@ const Cashier = () => {
         "Building Clearance":   "building clearance",
         "Barangay Certificate": "barangay certificate",
     };
+
 
     const getFeeByCmsName = useCallback((displayName: string): { fee: number; free: boolean; found: boolean } => {
         if (!cmsLoaded || cmsServices.length === 0) {
@@ -326,9 +559,11 @@ const Cashier = () => {
         return { fee, free, found: true };
     }, [cmsLoaded, cmsServices, servicePrices]);
 
+
     const getCurrentServiceFee = useCallback((): number => getFeeByCmsName(choose).fee, [choose, getFeeByCmsName]);
     const isFreeService = useCallback((): boolean => getFeeByCmsName(choose).free, [choose, getFeeByCmsName]);
     const formatFee = useCallback((fee: number): string => fee === 0 ? "₱0.00" : `₱${fee.toFixed(2)}`, []);
+
 
     useEffect(() => {
         const fetchCmsServices = async () => {
@@ -346,6 +581,7 @@ const Cashier = () => {
         fetchCmsServices();
     }, []);
 
+
     useEffect(() => {
         const fetchPrices = async () => {
             try {
@@ -361,6 +597,7 @@ const Cashier = () => {
         fetchPrices();
     }, []);
 
+
     const fetchTinByOrNumber = useCallback(async (orNumber: string, rowIndex: number) => {
         if (!orNumber || tinByOr[orNumber] !== undefined) return;
         try {
@@ -374,11 +611,13 @@ const Cashier = () => {
         }
     }, [tinByOr]);
 
+
     useEffect(() => {
         tableData.forEach((row, rowIndex) => {
             if (row.or_no) fetchTinByOrNumber(row.or_no, rowIndex);
         });
     }, [tableData]);
+
 
     const getEndpoint = useCallback(() => {
         if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
@@ -387,6 +626,7 @@ const Cashier = () => {
         if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
     }, [choose]);
+
 
     const getRowEndpoint = (row: any): string => {
         switch (choose) {
@@ -398,6 +638,7 @@ const Cashier = () => {
         }
     };
 
+
     const getStatusEndpoint = (row: any): string => {
         switch (choose) {
             case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/status/${row.id}`;
@@ -408,6 +649,7 @@ const Cashier = () => {
         }
     };
 
+
     const getReleaseEndpoint = (row: any): string => {
         switch (choose) {
             case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${row.id}`;
@@ -417,6 +659,7 @@ const Cashier = () => {
             default: return "";
         }
     };
+
 
     const getDataKey = (displayName: string): string => {
         const keyMap: { [key: string]: string } = {
@@ -434,6 +677,7 @@ const Cashier = () => {
         };
         return keyMap[displayName] || displayName.toLowerCase().replace(/ /g, '_');
     };
+
 
     const mapData = useCallback((entity: string, data: any[]) => {
         return data.map((row: any) => {
@@ -460,19 +704,39 @@ const Cashier = () => {
         });
     }, []);
 
+
     const fetchData = useCallback(async (silent = false) => {
         const endpoint = getEndpoint();
         if (!endpoint) { setTableData([]); return; }
         if (!silent) setIsRefreshing(true);
         try {
-            const params: Record<string, any> = { search };
-            if (statusFilter === "REVIEWED") params.status = "TO_PAY";
-            else if (statusFilter)           params.status = statusFilter;
+            let mapped: any[] = [];
 
-            const res = await axios.get(endpoint, { params, withCredentials: true });
-            const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
-            const mapped = mapData(choose, rows);
+            if (statusFilter === "REVIEWED") {
+                const res = await axios.get(endpoint, {
+                    params: { search, status: "TO_PAY" },
+                    withCredentials: true,
+                });
+                const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
+                mapped = mapData(choose, rows);
+            } else if (statusFilter === "PAID") {
+                // Paid tab now includes both PAID and RELEASED records.
+                const [paidRes, releasedRes] = await Promise.all([
+                    axios.get(endpoint, { params: { search, status: "PAID" },     withCredentials: true }),
+                    axios.get(endpoint, { params: { search, status: "RELEASED" }, withCredentials: true }),
+                ]);
+                const paidRows     = paidRes?.data?.data?.data     && Array.isArray(paidRes.data.data.data)     ? paidRes.data.data.data     : [];
+                const releasedRows = releasedRes?.data?.data?.data && Array.isArray(releasedRes.data.data.data) ? releasedRes.data.data.data : [];
+                mapped = [...mapData(choose, paidRows), ...mapData(choose, releasedRows)];
+            } else {
+                // "All"
+                const res = await axios.get(endpoint, { params: { search }, withCredentials: true });
+                const rows = res?.data?.data?.data && Array.isArray(res.data.data.data) ? res.data.data.data : [];
+                mapped = mapData(choose, rows);
+            }
+
             setTableData(mapped);
+
 
             if (statusFilter !== "REVIEWED") {
                 try {
@@ -482,6 +746,7 @@ const Cashier = () => {
             } else {
                 setReviewedCount(mapped.length);
             }
+
 
             setOrInputs({});
             setTinInputs({});
@@ -493,7 +758,9 @@ const Cashier = () => {
         }
     }, [choose, search, statusFilter, mapData, getEndpoint]);
 
+
     useEffect(() => { fetchDataRef.current = () => fetchData(true); }, [fetchData]);
+
 
     useEffect(() => {
         if (choose === "Barangay Clearance")        setLoadedColumn(["ID", "First Name", "Last Name", "Purpose", "Fee", "Status", "Action"]);
@@ -503,8 +770,25 @@ const Cashier = () => {
         fetchData();
     }, [choose, search, statusFilter]);
 
-    const handleMarkPaid = async (row: any, rowIndex: number) => {
-        if (row.status === "PAID") return;
+
+    // Open the styled confirm modal — does NOT hit the API yet
+    const requestMarkPaid = (row: any, rowIndex: number) => {
+        if (row.status === "PAID" || row.status === "RELEASED") return;
+        setConfirmPayment({ row, rowIndex });
+    };
+
+
+    // Commit the payment after the user confirms in the modal
+    const confirmMarkPaid = async () => {
+        if (!confirmPayment) return;
+        const { row, rowIndex } = confirmPayment;
+        if (row.status === "PAID") {
+            setConfirmPayment(null);
+            return;
+        }
+
+
+        setConfirmBusy(true);
         setMarkingPaid((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.put(getStatusEndpoint(row), { status: "PAID" }, { withCredentials: true });
@@ -515,13 +799,27 @@ const Cashier = () => {
                     setReviewedCount(c => Math.max(0, c - 1));
                 }
                 toast.success("Payment confirmed.");
+                setConfirmPayment(null);
             }
         } catch {
             toast.error("Failed to confirm payment.");
         } finally {
             setMarkingPaid((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
+            setConfirmBusy(false);
         }
     };
+
+
+    // Helper to get the customer label for the modal
+    const getCustomerLabel = (row: any): string => {
+        return (
+            row?.full_name?.trim()
+            || [row?.first_name, row?.last_name].filter(Boolean).join(" ").trim()
+            || row?.business_name
+            || (row?.id ? `ID #${row.id}` : "—")
+        );
+    };
+
 
     // ── Duplicate OR check ────────────────────────────────────────────────────
     const checkOrDuplicate = async (orNumber: string, excludeRowId?: number): Promise<boolean> => {
@@ -541,11 +839,52 @@ const Cashier = () => {
         }
     };
 
+
+    // ── Save / upsert TIN against an OR number ───────────────────────────────
+    // Tries PATCH first; if the receipt row doesn't exist yet, falls back to POST
+    // so that entering BOTH an OR and a TIN at the same time always succeeds.
+    const upsertTinForOr = async (orNumber: string, rawTin: string) => {
+        try {
+            await axios.patch(
+                "https://westrembomis.onrender.com/api/official-receipts/by-or",
+                { or_number: orNumber, tin_no: rawTin },
+                { withCredentials: true }
+            );
+            return;
+        } catch (patchErr: any) {
+            // PATCH failed (most likely because the receipt row doesn't exist yet).
+            // Try common create endpoint shapes.
+            try {
+                await axios.post(
+                    "https://westrembomis.onrender.com/api/official-receipts",
+                    { or_number: orNumber, tin_no: rawTin },
+                    { withCredentials: true }
+                );
+                return;
+            } catch {
+                try {
+                    await axios.post(
+                        "https://westrembomis.onrender.com/api/official-receipts/by-or",
+                        { or_number: orNumber, tin_no: rawTin },
+                        { withCredentials: true }
+                    );
+                    return;
+                } catch (finalErr: any) {
+                    // Nothing worked — surface a soft warning but don't block the OR save.
+                    console.warn("TIN upsert failed:", finalErr?.response?.data ?? finalErr);
+                    toast.warning?.("OR saved, but TIN could not be attached. Please retry the TIN entry.");
+                }
+            }
+        }
+    };
+
+
     const handleSaveOrAndTin = async (row: any, rowIndex: number) => {
         const orValue  = orInputs[rowIndex] !== undefined ? orInputs[rowIndex] : (row.or_no ?? "");
         const tinValue = tinInputs[rowIndex] !== undefined ? tinInputs[rowIndex] : (row.or_no ? (tinByOr[row.or_no] ?? "") : "");
         const endpoint = getRowEndpoint(row);
         if (!endpoint) return;
+
 
         // ── Duplicate OR check ─────────────────────────────────────────────
         if (orValue.trim()) {
@@ -556,22 +895,28 @@ const Cashier = () => {
             }
         }
 
+
         setSavingRow((prev) => new Set(prev).add(rowIndex));
         try {
             const res = await axios.put(endpoint, { or_no: orValue.trim() || null }, { withCredentials: true });
             if (res.status === 200) {
                 const newOrNo = orValue.trim() || null;
                 setTableData((prev) => { const u = [...prev]; u[rowIndex] = { ...u[rowIndex], or_no: newOrNo }; return u; });
+
                 if (newOrNo && tinValue.trim()) {
                     const rawTin = tinValue.replace(/-/g, "");
-                    await axios.patch("https://westrembomis.onrender.com/api/official-receipts/by-or",
-                        { or_number: newOrNo, tin_no: rawTin }, { withCredentials: true });
+                    // Upsert: PATCH first, fall back to POST if the receipt row doesn't exist yet.
+                    await upsertTinForOr(newOrNo, rawTin);
                     setTinByOr((prev) => ({ ...prev, [newOrNo]: tinValue }));
                     setTinInputs((prev) => { const n = { ...prev }; delete n[rowIndex]; return n; });
                 } else if (newOrNo) {
                     fetchTinByOrNumber(newOrNo, rowIndex);
                 }
-                toast.success("OR and TIN saved.");
+
+                // Clear the dirty OR input so the reminder banner disappears
+                setOrInputs((prev) => { const n = { ...prev }; delete n[rowIndex]; return n; });
+
+                toast.success(tinValue.trim() ? "OR and TIN saved." : "OR saved.");
             }
         } catch (err: any) {
             toast.error(err?.response?.data?.message ?? "Failed to save.");
@@ -579,6 +924,7 @@ const Cashier = () => {
             setSavingRow((prev) => { const n = new Set(prev); n.delete(rowIndex); return n; });
         }
     };
+
 
     // ── Release document ──────────────────────────────────────────────────────
     const handleRelease = async (row: any, rowIndex: number) => {
@@ -588,6 +934,7 @@ const Cashier = () => {
         try {
             // Trigger release — this sets status to RELEASED on the backend
             await axios.post(releaseEndpoint, {}, { withCredentials: true });
+
 
             // Update local state to RELEASED
             setTableData((prev) => {
@@ -618,6 +965,7 @@ const Cashier = () => {
         }
     };
 
+
     const handleDelete = async (row: any, rowIndex: number) => {
         if (row.status !== "PAID") return;
         const endpoint = getRowEndpoint(row);
@@ -634,21 +982,26 @@ const Cashier = () => {
         }
     };
 
+
     const STATUS_TABS = [
-        { value: "REVIEWED", label: "To Pay",  activeClass: "bg-purple-600 text-white border-transparent shadow-sm", inactiveClass: "bg-white border-gray-200 hover:bg-purple-50 text-purple-700" },
-        { value: "PAID",     label: "Paid",    activeClass: "bg-teal-600 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-teal-50 text-teal-700"   },
-        { value: "",         label: "All",     activeClass: "bg-gray-700 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"   },
+        { value: "REVIEWED", label: "To Pay",          activeClass: "bg-purple-600 text-white border-transparent shadow-sm", inactiveClass: "bg-white border-gray-200 hover:bg-purple-50 text-purple-700" },
+        { value: "PAID",     label: "Paid & Released", activeClass: "bg-teal-600 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-teal-50 text-teal-700"   },
+        { value: "",         label: "All",             activeClass: "bg-gray-700 text-white border-transparent shadow-sm",   inactiveClass: "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"   },
     ];
+
 
     const fee      = getCurrentServiceFee();
     const free     = isFreeService();
     const feeLabel = free ? "₱0.00 (Free)" : formatFee(fee);
 
+
     return (
         <Layout>
             <div className="relative w-full max-w-full bg-neutral-primary-soft h-full shadow-xs rounded-base border border-default flex flex-col">
 
+
                 <FeeTable serviceName={choose} fee={fee} isFree={free} formatFee={formatFee} cmsLoaded={cmsLoaded} />
+
 
                 {/* Toolbar */}
                 <div className="p-4 flex items-center justify-between gap-4 flex-wrap border-b border-default-medium">
@@ -664,6 +1017,7 @@ const Cashier = () => {
                             value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
 
+
                     <div className="flex items-center gap-2 flex-wrap">
                         <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
                             free ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"
@@ -675,6 +1029,7 @@ const Cashier = () => {
                             {!cmsLoaded ? "Loading fee…" : feeLabel}
                         </div>
 
+
                         <button onClick={() => fetchData()} disabled={isRefreshing}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
                             <svg className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24">
@@ -682,6 +1037,7 @@ const Cashier = () => {
                             </svg>
                             {isRefreshing ? "Refreshing..." : "Refresh"}
                         </button>
+
 
                         <div className="relative">
                             <button onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -712,6 +1068,7 @@ const Cashier = () => {
                     </div>
                 </div>
 
+
                 {/* Status tabs */}
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-default-medium bg-gray-50/50">
                     <span className="text-xs font-semibold text-gray-400 mr-1">Show:</span>
@@ -729,6 +1086,19 @@ const Cashier = () => {
                         </button>
                     ))}
                 </div>
+
+
+                {/* Payment confirmation modal */}
+                <PaymentConfirmModal
+                    open={confirmPayment !== null}
+                    serviceName={choose}
+                    customerLabel={confirmPayment ? getCustomerLabel(confirmPayment.row) : ""}
+                    feeLabel={!cmsLoaded ? "…" : (free ? "₱0.00 (Free)" : formatFee(fee))}
+                    busy={confirmBusy}
+                    onCancel={() => { if (!confirmBusy) setConfirmPayment(null); }}
+                    onConfirm={confirmMarkPaid}
+                />
+
 
                 {/* Table */}
                 <div className="w-full overflow-x-auto flex-1">
@@ -758,6 +1128,7 @@ const Cashier = () => {
                                 const isPaid     = row.status === "PAID";
                                 const isReleased = row.status === "RELEASED";
 
+
                                 return (
                                     <tr key={rowIndex} className={`border-b border-default-medium transition-colors align-middle ${
                                         isReleased ? "bg-green-50/20 hover:bg-green-50/40" :
@@ -765,6 +1136,7 @@ const Cashier = () => {
                                                    : "hover:bg-gray-50/60"
                                     }`}>
                                         {loadedColumn.map((col, colIndex) => {
+
 
                                             // ── Fee column ──────────────────
                                             if (col === "Fee") return (
@@ -779,6 +1151,7 @@ const Cashier = () => {
                                                 </td>
                                             );
 
+
                                             // ── Status column ───────────────
                                             if (col === "Status") return (
                                                 <td key={colIndex} className="px-6 py-3 align-middle">
@@ -788,18 +1161,20 @@ const Cashier = () => {
                                                 </td>
                                             );
 
+
                                             // ── Action column ───────────────
                                             if (col === "Action") return (
                                                 <td key={colIndex} className="px-4 py-3 align-middle min-w-[320px] max-w-[400px]">
                                                     <div className="flex flex-col gap-2">
 
+
                                                         {/* Payment row */}
                                                         <div className="flex items-center gap-2">
                                                             {/* Green checkbox */}
                                                             <button
-                                                                onClick={() => !isPaid && !isReleased && handleMarkPaid(row, rowIndex)}
+                                                                onClick={() => !isPaid && !isReleased && requestMarkPaid(row, rowIndex)}
                                                                 disabled={isPaid || isReleased || markingPaid.has(rowIndex) || !cmsLoaded}
-                                                                title={isPaid || isReleased ? "Already paid" : "Mark as Paid"}
+                                                                title={isPaid || isReleased ? "Already paid" : "Mark as Paid (will ask for confirmation)"}
                                                                 className={`flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border-2 transition-colors ${
                                                                     isPaid || isReleased
                                                                         ? "bg-green-500 border-green-500 cursor-not-allowed"
@@ -817,11 +1192,13 @@ const Cashier = () => {
                                                                 )}
                                                             </button>
 
+
                                                             <span className={`text-xs font-semibold ${isPaid || isReleased ? "text-green-700" : "text-gray-400"}`}>
                                                                 {isPaid || isReleased
                                                                     ? `Paid — ${!cmsLoaded ? "…" : (free ? "₱0.00" : formatFee(fee))}`
                                                                     : "Click to confirm payment"}
                                                             </span>
+
 
                                                             {/* Delete — only for paid (not released) */}
                                                             {isPaid && !isReleased && (
@@ -840,6 +1217,7 @@ const Cashier = () => {
                                                             )}
                                                         </div>
 
+
                                                         {/* TIN + OR + Release panel */}
                                                         <OrTinPanel
                                                             row={row} rowIndex={rowIndex} fee={fee}
@@ -856,9 +1234,11 @@ const Cashier = () => {
                                                             isFreeService={free}
                                                         />
 
+
                                                     </div>
                                                 </td>
                                             );
+
 
                                             return (
                                                 <td key={colIndex} className="px-6 py-3 align-middle text-gray-700">
@@ -876,5 +1256,6 @@ const Cashier = () => {
         </Layout>
     );
 };
+
 
 export default Cashier;

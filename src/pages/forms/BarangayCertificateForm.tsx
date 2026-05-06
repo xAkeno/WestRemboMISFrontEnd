@@ -477,7 +477,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
 
   const upd = (f: string, v: string) => {
     // Fields that should NOT be uppercased (dates, email, select-driven fields)
-    const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "prefix"];
+    const noUppercaseFields = ["email", "dob", "schedule_date", "issued_date", "prefix", "registered_voter"];
     const value = noUppercaseFields.includes(f) ? v : toUpperCase(v);
     setFormData((p) => ({ ...p, [f]: value }));
     if (errors[f as keyof typeof errors]) {
