@@ -1243,7 +1243,7 @@ const Register = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true })
+    axios.get(`${import.meta.env.VITE_WEB_URL_WITH_API}/streets`, { withCredentials: true })
       .then(res => setStreets(res.data?.data ?? res.data ?? []))
       .catch(e => console.error("Failed to fetch streets:", e));
   }, []);

@@ -232,7 +232,7 @@ export async function generatePDF(
     const targetPage = pages[qrField.page];
     if (targetPage) {
       const { height } = targetPage.getSize();
-      const baseUrl    = 'http://localhost:8000';
+      const baseUrl    = import.meta.env.VITE_WEB_URL || 'https://barangaywestrembo.onrender.com';
 
       const sig     = await signRef(bcertNumber);
       const qrValue = `${baseUrl}/verify/${bcertNumber}?key=${sig}`;
