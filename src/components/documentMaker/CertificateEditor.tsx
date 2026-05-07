@@ -729,19 +729,75 @@ export function CertificateEditor() {
   };
 
   const handleDownload = useCallback(async () => {
-    if (!templateBytesRef.current) return;
+    if (!templateBytesRef.current) {
+      toast.error("Template not loaded");
+      return;
+    }
+ 
+    // Step 1 — Generate PDF bytes (Uint8Array, as returned by pdf-lib's pdfDoc.save())
+    let bytes: Uint8Array;
     try {
-      const bytes = await generatePDF(
-        templateBytesRef.current, buildPDFFields(fields), qrField, resolvedBcert
+      bytes = await generatePDF(
+        templateBytesRef.current,
+        buildPDFFields(fields),
+        qrField,
+        resolvedBcert
       );
-      const url = URL.createObjectURL(
-        new Blob([new Uint8Array(bytes).buffer], { type: "application/pdf" })
-      );
-      Object.assign(document.createElement("a"), { href: url, download: "certificate.pdf" }).click();
-      URL.revokeObjectURL(url);
-      toast.success("PDF downloaded");
-    } catch { toast.error("Failed to generate PDF"); }
-  }, [fields, qrField, resolvedBcert]);
+    } catch {
+      toast.error("Failed to generate PDF");
+      return;
+    }
+ 
+    // Step 2 — If we have a record ID, register the download on the backend
+    //          (uploads to Pinata + S3, saves hash/CID, returns signed S3 URL)
+    const recordId = existingRecord?.id;
+    const apiPath  = id ? (DOCUMENT_API_PATHS[String(id)] ?? null) : null;
+ 
+    if (recordId && apiPath) {
+      try {
+        const blob     = new Blob([bytes], { type: "application/pdf" });
+        const formData = new FormData();
+        formData.append("file", blob, "certificate.pdf");
+ 
+        const res = await axios.post(
+          `https://westrembomis.onrender.com/api/documents/release/${apiPath}/${recordId}/download-register`,
+          formData,
+          {
+            withCredentials: true,
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
+ 
+        if (res.data?.status === "success" && res.data?.data?.url) {
+          // Step 3 — Trigger browser download via the signed S3 URL
+          const anchor    = document.createElement("a");
+          anchor.href     = res.data.data.url;
+          anchor.download = res.data.data.filename ?? "certificate.pdf";
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+ 
+          toast.success("PDF downloaded and registered on IPFS");
+          return;
+        }
+      } catch (err) {
+        // Non-fatal: fall through to local download so the user is never blocked
+        console.error("Download register failed, falling back to local download:", err);
+        toast.warning("Could not register on IPFS — downloading locally instead");
+      }
+    }
+ 
+    // Step 4 — Fallback: plain local download (no record ID, or API call failed)
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const anchor    = document.createElement("a");
+    anchor.href     = url;
+    anchor.download = "certificate.pdf";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    toast.success("PDF downloaded");
+  }, [fields, qrField, resolvedBcert, existingRecord, id]);
 
   const handleSaveLayout = useCallback(() => {
     const layoutToSave: SavedLayout = {

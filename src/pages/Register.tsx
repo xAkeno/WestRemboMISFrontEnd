@@ -750,11 +750,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button type="button" onClick={onSkip}
+          {/* <button type="button" onClick={onSkip}
             className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all"
             style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
             Skip — Fill Manually
-          </button>
+          </button> */}
           <button type="button" disabled={!selectedType} onClick={() => setPhase("requirements")}
             className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
@@ -793,15 +793,12 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
 
         <ul className="space-y-3 mb-8">
           {[
-            "You must be visibly holding the government ID in the photo",
             "All ID details must be clearly readable — no blur, glare, or cropping",
-            "Your face must be fully visible and well-lit",
             selectedType?.hasBack
               ? "Submit both the front and back of your ID"
               : "Only the front is required for this ID type",
-            `Max file size: ${MAX_FILE_SIZE_MB}MB per image (JPG, PNG, WEBP, HEIC)`,
+            `Max file size: ${MAX_FILE_SIZE_MB}MB per image (JPG, PNG)`,
             "The ID type you selected must match the ID you upload — mismatches will be rejected",
-            "OCR scans the front only — the back is still required for submission",
           ].map((text) => (
             <li key={text} className="flex items-start gap-2.5">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: "#c2467d" }} />
@@ -811,11 +808,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         </ul>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button type="button" onClick={onSkip}
+          {/* <button type="button" onClick={onSkip}
             className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider"
             style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
             Skip — Fill Manually
-          </button>
+          </button> */}
           <button type="button" onClick={() => setPhase("upload")}
             className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
             style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
@@ -909,11 +906,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <button type="button" onClick={onSkip}
+        {/* <button type="button" onClick={onSkip}
           className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider"
           style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
           Skip — Fill Manually
-        </button>
+        </button> */}
         <button type="button" disabled={!canScan || ocrState === "scanning"} onClick={handleScan}
           className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
           style={{ borderRadius: 2, backgroundColor: ocrState === "error" ? "#c2467d" : "#0f2a5e" }}>

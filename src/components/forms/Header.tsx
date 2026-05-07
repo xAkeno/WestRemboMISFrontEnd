@@ -13,7 +13,7 @@ const navLinks = [
   { label: "Home",             href: "/home",      protected: false },
   { label: "About",            href: "/aboutus",   protected: false },
   { label: "Services",         href: "/services",  protected: false },
-  { label: "QR Verification",  href: "/verify",    protected: false },
+  { label: "Document Verification",  href: "/verify",    protected: false },
   { label: "Calendar",         href: "/calendar",  protected: false },
   { label: "Contact",          href: "/contact",   protected: false },
 ];
@@ -423,7 +423,7 @@ const MobileProfilePanel = ({
       {[
         { href: "/profile",     label: "Profile",      icon: <path stroke="currentColor" strokeWidth="2" d="M7 17v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3Zm8-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /> },
         { href: "/myrequest",   label: "My Requests",  icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
-        { href: "/mydocuments", label: "My Documents", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
+        // { href: "/mydocuments", label: "My Documents", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
       ].map(({ href, label, icon }) => (
         <a
           key={href}
