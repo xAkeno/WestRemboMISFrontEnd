@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
-import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Mail, Phone, MapPin, Calendar, Shield,
   ShieldCheck, ShieldX, IdCard, ZoomIn, X,
   CheckCircle2, XCircle, Clock, Loader2, AlertTriangle,
   Users, Home, Briefcase, BookOpen, Heart, Crown,
-  User, Lock, ToggleLeft, ToggleRight, Trash2,
+  User, Lock, ToggleLeft, ToggleRight, Trash2, ChevronDown,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
@@ -24,6 +23,12 @@ const ALL_PERMISSIONS = [
   { key: "cashier",     label: "Cashier / Payments",   desc: "Access payment records" },
   { key: "reports",     label: "Reports",              desc: "View and export reports" },
   { key: "settings",   label: "Settings",             desc: "Modify system settings" },
+];
+
+const ROLES = [
+  { value: "ADMIN",    label: "Admin",    color: PINK,      bg: "#fce7f3", border: "#f9a8d4", icon: Crown },
+  { value: "STAFF",    label: "Staff",    color: NAVY,      bg: "#eef2ff", border: "#c8d4ed", icon: User },
+  { value: "KAGAWAD",  label: "Kagawad",  color: "#065f46", bg: "#d1fae5", border: "#6ee7b7", icon: Users },
 ];
 
 interface FullAccount {
@@ -111,25 +116,14 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
   );
 }
 
-function ApprovalBadge({ is_approved, status }: { is_approved?: boolean | number; status?: string }) {
-  const approved = is_approved === true || is_approved === 1;
-  const inactive = status === "inactive";
-  if (inactive) return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-sm"
-      style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db" }}>
-      <XCircle className="h-3.5 w-3.5" /> Inactive
-    </span>
-  );
-  if (approved) return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-sm"
-      style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #86efac" }}>
-      <CheckCircle2 className="h-3.5 w-3.5" /> Approved
-    </span>
-  );
+function RoleBadge({ role }: { role?: string }) {
+  const r = ROLES.find(x => x.value === role) ?? ROLES[1];
+  const Icon = r.icon;
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-sm"
-      style={{ background: "#fef9c3", color: "#92400e", border: "1px solid #fde68a" }}>
-      <Clock className="h-3.5 w-3.5" /> Pending Approval
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm"
+      style={{ background: r.bg, color: r.color, border: `1px solid ${r.border}` }}>
+      <Icon className="h-2.5 w-2.5" />
+      {r.label}
     </span>
   );
 }
@@ -142,10 +136,13 @@ export default function AccountDetail() {
   const [account, setAccount]         = useState<FullAccount | null>(null);
   const [loading, setLoading]         = useState(true);
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [approving, setApproving]     = useState(false);
   const [lightbox, setLightbox]       = useState(false);
   const [permConfirm, setPermConfirm] = useState<{ key: string; label: string; enabling: boolean } | null>(null);
   const [permSaving, setPermSaving]   = useState(false);
+
+  // ── Role change state ─────────────────────────────────────────────────────
+  const [roleConfirm, setRoleConfirm] = useState<{ value: string; label: string } | null>(null);
+  const [roleSaving, setRoleSaving]   = useState(false);
 
   // ── Delete state ──────────────────────────────────────────────────────────
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -156,7 +153,6 @@ export default function AccountDetail() {
     setLoading(true);
     try {
       const res = await axios.get(`https://westrembomis.onrender.com/api/users/${id}`, { withCredentials: true });
-      console.log("Account details response:", res); // Debug log
       const user: FullAccount = res.data.data;
       let perms: string[] = [];
       if (Array.isArray(user.permissions)) perms = user.permissions;
@@ -198,30 +194,27 @@ export default function AccountDetail() {
     }
   };
 
-  const handleApprove = async () => {
-    if (!account) return;
-    setApproving(true);
-    try {
-      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/approve`,
-        { is_approved: true, status: "active" }, { withCredentials: true });
-      setAccount(prev => prev ? { ...prev, is_approved: true, status: "active" } : prev);
-      shadToast({ title: "Account Approved", description: "The user can now log in." });
-    } catch (err: any) {
-      shadToast({ title: "Error", description: err?.response?.data?.message ?? "Failed.", variant: "destructive" });
-    } finally { setApproving(false); }
+  // ── Role change handler ───────────────────────────────────────────────────
+  const handleRoleChange = (roleValue: string) => {
+    if (!account || roleValue === account.role) return;
+    const r = ROLES.find(x => x.value === roleValue);
+    if (r) setRoleConfirm({ value: r.value, label: r.label });
   };
 
-  const handleReject = async () => {
-    if (!account) return;
-    setApproving(true);
+  const confirmRoleChange = async () => {
+    if (!account || !roleConfirm) return;
+    setRoleSaving(true);
     try {
-      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/approve`,
-        { is_approved: false, status: "inactive" }, { withCredentials: true });
-      setAccount(prev => prev ? { ...prev, is_approved: false, status: "inactive" } : prev);
-      shadToast({ title: "Account Rejected", description: "User set to inactive." });
+      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/role`,
+        { role: roleConfirm.value }, { withCredentials: true });
+      setAccount(prev => prev ? { ...prev, role: roleConfirm.value } : prev);
+      shadToast({ title: "Role Updated", description: `Role changed to ${roleConfirm.label}.` });
     } catch (err: any) {
-      shadToast({ title: "Error", description: err?.response?.data?.message ?? "Failed.", variant: "destructive" });
-    } finally { setApproving(false); }
+      shadToast({ title: "Error", description: err?.response?.data?.message ?? "Failed to update role.", variant: "destructive" });
+    } finally {
+      setRoleSaving(false);
+      setRoleConfirm(null);
+    }
   };
 
   // ── Delete handler ────────────────────────────────────────────────────────
@@ -229,7 +222,7 @@ export default function AccountDetail() {
     if (!account) return;
     setDeleting(true);
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/users/${account.id}`, { withCredentials: true });
+      await axios.delete(`https://westrembomis.onrender.com/api/users/${account.id}`, { withCredentials: true });
       shadToast({ title: "Account Deleted", description: `${fullName(account)} has been permanently removed.` });
       navigate("/AccountManage");
     } catch (err: any) {
@@ -268,10 +261,8 @@ export default function AccountDetail() {
     </Layout>
   );
 
-  const idUrl = buildIdUrl(account.id_url);
-  const isApproved = account.is_approved === true || account.is_approved === 1;
-  const isPending  = !isApproved && account.status !== "inactive";
-  const address    = [account.house_block_lot_no, account.street, account.zone_purok].filter(Boolean).join(", ");
+  const idUrl   = buildIdUrl(account.id_url);
+  const address = [account.house_block_lot_no, account.street, account.zone_purok].filter(Boolean).join(", ");
 
   return (
     <Layout>
@@ -328,6 +319,52 @@ export default function AccountDetail() {
         </div>
       )}
 
+      {/* ── Role Change Confirmation Modal ────────────────────────────────── */}
+      {roleConfirm && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={() => !roleSaving && setRoleConfirm(null)}>
+          <div
+            className="bg-white rounded-sm shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            style={{ border: `1px solid #dde3ed`, borderTopWidth: 3, borderTopColor: NAVY }}
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded-sm"
+                  style={{ background: "#eff6ff" }}>
+                  <Users className="h-4 w-4" style={{ color: NAVY }} />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: NAVY }}>
+                  Change Role
+                </p>
+              </div>
+              <h3 className="font-bold text-base mb-1" style={{ color: NAVY, fontFamily: "'Georgia', serif" }}>
+                Are you sure?
+              </h3>
+              <p className="text-sm text-gray-500 leading-snug">
+                You are about to change this account's role to{" "}
+                <strong className="text-gray-700">{roleConfirm.label}</strong>. This will affect their access level.
+              </p>
+            </div>
+            <div className="h-px" style={{ background: "#e5e7eb" }} />
+            <div className="px-5 py-4 flex gap-2 justify-end">
+              <button onClick={() => setRoleConfirm(null)} disabled={roleSaving}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider border transition-all disabled:opacity-40"
+                style={{ borderColor: "#d1d5db", color: "#374151", borderRadius: 2 }}>
+                Cancel
+              </button>
+              <button onClick={confirmRoleChange} disabled={roleSaving}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5 transition-all disabled:opacity-40"
+                style={{ background: NAVY, borderRadius: 2 }}>
+                {roleSaving
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+                  : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm Change</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center"
@@ -337,8 +374,6 @@ export default function AccountDetail() {
             className="bg-white rounded-sm shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
             style={{ border: "1px solid #fecdd3", borderTopWidth: 3, borderTopColor: "#dc2626" }}
             onClick={e => e.stopPropagation()}>
-
-            {/* Header */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded-sm"
@@ -354,10 +389,8 @@ export default function AccountDetail() {
               </h3>
               <p className="text-sm text-gray-500 leading-snug mb-4">
                 This will permanently delete <strong className="text-gray-700">{fullName(account)}</strong>'s account
-                and remove them from Supabase. All data will be lost.
+                and remove all associated data.
               </p>
-
-              {/* Confirmation input */}
               <div className="rounded-sm p-3 mb-1"
                 style={{ background: "#fff7f7", border: "1px solid #fecdd3" }}>
                 <p className="text-xs text-gray-500 mb-2">
@@ -379,10 +412,7 @@ export default function AccountDetail() {
                 />
               </div>
             </div>
-
             <div className="h-px" style={{ background: "#fee2e2" }} />
-
-            {/* Actions */}
             <div className="px-5 py-4 flex gap-2 justify-end">
               <button
                 onClick={() => { setDeleteConfirm(false); setDeleteInput(""); }}
@@ -408,6 +438,8 @@ export default function AccountDetail() {
       <style>{`
         .perm-card { transition: all 0.15s; cursor: pointer; }
         .perm-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,42,94,0.08); }
+        .role-card { transition: all 0.15s; cursor: pointer; }
+        .role-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,42,94,0.10); }
       `}</style>
 
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -431,21 +463,12 @@ export default function AccountDetail() {
                 {fullName(account) || "Unknown User"}
               </h1>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <ApprovalBadge is_approved={account.is_approved} status={account.status} />
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm"
-                  style={{
-                    background: account.role === "ADMIN" ? "#fce7f3" : "#eef2ff",
-                    color: account.role === "ADMIN" ? PINK : NAVY,
-                    border: `1px solid ${account.role === "ADMIN" ? "#f9a8d4" : "#c8d4ed"}`,
-                  }}>
-                  {account.role === "ADMIN" && <Crown className="inline h-2.5 w-2.5 mr-1" />}
-                  {account.role ?? "STAFF"}
-                </span>
+                <RoleBadge role={account.role} />
               </div>
             </div>
           </div>
 
-          {/* ── Delete button (top-right) ── */}
+          {/* Delete button (top-right) */}
           <button
             onClick={() => { setDeleteInput(""); setDeleteConfirm(true); }}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-all mt-1 flex-shrink-0"
@@ -460,17 +483,6 @@ export default function AccountDetail() {
           </button>
         </div>
 
-        {/* Pending warning banner */}
-        {isPending && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-sm"
-            style={{ background: "#fef9c3", border: "1px solid #fde68a", borderLeftWidth: 3, borderLeftColor: "#f59e0b" }}>
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: "#b45309" }} />
-            <p className="text-sm font-medium" style={{ color: "#92400e" }}>
-              This account is <strong>pending approval</strong>. Review the submitted ID below before approving.
-            </p>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
           {/* ── LEFT COLUMN ── */}
@@ -482,7 +494,7 @@ export default function AccountDetail() {
               <div className="px-5 pb-5">
                 <div className="flex items-end justify-between -mt-10 mb-3">
                   <div className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center text-xl font-black text-white flex-shrink-0"
-                    style={{ background: isPending ? "#b45309" : NAVY }}>
+                    style={{ background: NAVY }}>
                     {getInitials(account)}
                   </div>
                 </div>
@@ -504,7 +516,7 @@ export default function AccountDetail() {
               </div>
             </div>
 
-            {/* ID Photo card */}
+            {/* ID Photo card — view only, no approve/reject */}
             <div className="rounded-sm border overflow-hidden" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <div className="flex items-center gap-2 px-4 py-3"
                 style={{ background: "#f0f4ff", borderBottom: "1px solid #dde3ed" }}>
@@ -535,35 +547,13 @@ export default function AccountDetail() {
                   </div>
                 )}
               </div>
-              <div className="px-3 pb-3 flex flex-col gap-2">
-                {!isApproved ? (
-                  <>
-                    <button onClick={handleApprove} disabled={approving}
-                      className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider text-white transition-all disabled:opacity-40"
-                      style={{ background: "#16a34a", borderRadius: 2 }}>
-                      {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                      {approving ? "Approving…" : "Approve Account"}
-                    </button>
-                    <button onClick={handleReject} disabled={approving}
-                      className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40"
-                      style={{ background: "#fff1f2", color: "#e11d48", border: "1px solid #fecdd3", borderRadius: 2 }}>
-                      <XCircle className="h-3.5 w-3.5" />
-                      Reject
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center gap-2 py-2 text-xs font-semibold"
-                    style={{ color: "#15803d", background: "#f0fdf4", borderRadius: 2 }}>
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Account approved — can log in
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
-          {/* ── RIGHT COLUMN ── (unchanged sections) */}
+          {/* ── RIGHT COLUMN ── */}
           <div className="lg:col-span-2 space-y-5">
+
+            {/* Personal Information */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={User} title="Personal Information" />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
@@ -579,6 +569,8 @@ export default function AccountDetail() {
                 <InfoField label="Complexion"      value={account.complexion} />
               </div>
             </div>
+
+            {/* Contact & Address */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={Home} title="Contact & Address" />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
@@ -590,15 +582,19 @@ export default function AccountDetail() {
                 <InfoField label="Relationship"       value={account.relationship_to_owner} />
               </div>
             </div>
+
+            {/* Residency & Voter Info */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={BookOpen} title="Residency & Voter Info" />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-                <InfoField label="Resident Status"    value={account.resident_status} />
+                <InfoField label="Resident Status"     value={account.resident_status} />
                 <InfoField label="Period of Residency" value={account.period_of_residency} />
-                <InfoField label="Voter Status"       value={account.voter_status} />
-                <InfoField label="Precinct No."       value={account.precinct_no} />
+                <InfoField label="Voter Status"        value={account.voter_status} />
+                <InfoField label="Precinct No."        value={account.precinct_no} />
               </div>
             </div>
+
+            {/* Employment */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={Briefcase} title="Employment" />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
@@ -607,6 +603,49 @@ export default function AccountDetail() {
                 <InfoField label="Position"           value={account.position} />
               </div>
             </div>
+
+            {/* ── Role Management ───────────────────────────────────────────── */}
+            <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
+              <SectionHeader icon={Crown} title="Role Management" />
+              <p className="text-xs text-gray-400 mb-3">
+                Select a role to assign to this account. Changes require confirmation.
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {ROLES.map(({ value, label, color, bg, border, icon: Icon }) => {
+                  const isActive = account.role === value;
+                  return (
+                    <div
+                      key={value}
+                      onClick={() => handleRoleChange(value)}
+                      className="role-card rounded-sm border p-3 flex flex-col items-center gap-2 text-center"
+                      style={{
+                        borderColor: isActive ? border : "#e5e7eb",
+                        background: isActive ? bg : "#f8faff",
+                        borderWidth: isActive ? 2 : 1,
+                        cursor: isActive ? "default" : "pointer",
+                        opacity: isActive ? 1 : 0.75,
+                      }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                        style={{ background: isActive ? bg : "#f0f4ff", border: `1px solid ${isActive ? border : "#dde3ed"}` }}>
+                        <Icon className="h-4 w-4" style={{ color: isActive ? color : "#9ca3af" }} />
+                      </div>
+                      <p className="text-xs font-bold" style={{ color: isActive ? color : NAVY }}>{label}</p>
+                      {isActive && (
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm"
+                          style={{ background: bg, color, border: `1px solid ${border}` }}>
+                          Current
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-3">
+                Click a role card to change. A confirmation dialog will appear before saving.
+              </p>
+            </div>
+
+            {/* Permissions & Access */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={Shield} title="Permissions & Access" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -636,7 +675,7 @@ export default function AccountDetail() {
               </p>
             </div>
 
-            {/* ── Danger Zone ─────────────────────────────────────────────── */}
+            {/* Danger Zone */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#fecdd3", background: "#fff" }}>
               <SectionHeader icon={Trash2} title="Danger Zone" />
               <div className="flex items-center justify-between gap-4 p-4 rounded-sm"
@@ -644,7 +683,7 @@ export default function AccountDetail() {
                 <div>
                   <p className="text-sm font-bold" style={{ color: "#9f1239" }}>Remove this account</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Permanently deletes the user from the database and Supabase. This cannot be reversed.
+                    Permanently deletes the user from the database. This cannot be reversed.
                   </p>
                 </div>
                 <button
@@ -657,6 +696,7 @@ export default function AccountDetail() {
               </div>
             </div>
 
+            {/* System Account */}
             <div className="rounded-sm border p-5" style={{ borderColor: "#dde3ed", background: "#fff" }}>
               <SectionHeader icon={Lock} title="System Account" />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
@@ -667,6 +707,7 @@ export default function AccountDetail() {
                 <InfoField label="Registered"     value={formatDate(account.created_at)} />
               </div>
             </div>
+
           </div>
         </div>
       </div>
