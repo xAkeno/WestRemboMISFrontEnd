@@ -108,7 +108,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'https://westrembomis.onrender.com',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -186,10 +186,8 @@ function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
 
 /** Terminal statuses — a record in these states is considered "completed" */
 const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','INCOMPLETE','ARCHIVED','DISABLED','EXPIRED']);
-
 /** Frozen statuses — record is read-only and completely non-interactive (archived) */
 const FROZEN_STATUSES = new Set(['ARCHIVED','DISABLED','EXPIRED']);
-
 /** Blocked statuses — record cannot progress further (rejected / incomplete) */
 const BLOCKED_STATUSES = new Set(['REJECTED','INCOMPLETE']);
 
@@ -202,15 +200,15 @@ function countActiveFilters(f: FilterState): number {
 }
 
 // ─── Status ordering ───────────────────────────────────────────────────────────
-// PROCESSING is inserted between REVIEWED and PAID in the workflow.
+// PROCESS is inserted between REVIEW and PAID in the workflow.
 const STATUS_ORDER: Record<string, number> = {
   'PENDING':      0,
   'RESCHEDULED':  0,
   'SCHEDULED':    1,
   'ENCODED':      2,
   'INSPECTING':   3,
-  'REVIEWED':     4,
-  'PROCESSING':   5,   // ← NEW step between REVIEWED and PAID
+  'REVIEW':       4,   // backend value
+  'PROCESS':      5,   // backend value (between REVIEW and PAID)
   'PAID':         6,
   'RELEASED':     7,
   'INCOMPLETE':  -1,
@@ -236,8 +234,8 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
   encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
   to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
-  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
-  processing:   'bg-indigo-100 text-indigo-800 border-indigo-200',  // ← NEW
+  review:       'bg-purple-100 text-purple-800 border-purple-200',
+  process:      'bg-indigo-100 text-indigo-800 border-indigo-200',
   paid:         'bg-teal-100 text-teal-800 border-teal-200',
   inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
   archived:     'bg-gray-200 text-gray-600 border-gray-300',
@@ -246,7 +244,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
-  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';   // map TO_PAY → REVIEW
   if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
   if (
     requesterType?.toLowerCase() === 'walk-in' &&
@@ -275,7 +273,6 @@ function StatusBadge({ status, requesterType }: {
 // ─── Smart priority sort ───────────────────────────────────────────────────────
 function prioritySortData(items: BarangayClearanceType[]): BarangayClearanceType[] {
   const todayStr = new Date().toISOString().split('T')[0];
-
   function getRowPriority(item: any): number {
     const status = normaliseStatus(item.status ?? '', item.requester_type ?? '');
     if (FROZEN_STATUSES.has(status)) return 3;
@@ -283,7 +280,6 @@ function prioritySortData(items: BarangayClearanceType[]): BarangayClearanceType
     if (schedule && schedule.schedule_date === todayStr) return 0;
     return 1;
   }
-
   return [...items].sort((a, b) => {
     const pa = getRowPriority(a);
     const pb = getRowPriority(b);
@@ -364,10 +360,6 @@ function ScheduleCell({
 }
 
 // ─── Requester Type Label helper ───────────────────────────────────────────────
-/**
- * Returns a formal, staff-friendly label for who submitted the request.
- * Used in both the table "Created By" column and the modal.
- */
 function getRequesterLabel(requesterType: string | null | undefined): {
   label: string;
   badgeClass: string;
@@ -442,7 +434,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack,  setIdBack]  = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     const run = async () => {
@@ -454,7 +446,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `${import.meta.env.VITE_API_BASE_URL}/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -640,12 +632,12 @@ function RescheduleModal({
       const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
       const updatedHistory = [...existingHistory, missedEntry];
       await axios.put(
-        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/schedules/${missedSchedule.id}`,
         { note: note.trim() || null, missed_history: updatedHistory },
         { withCredentials: true }
       );
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
         { status: 'RESCHEDULED' },
         { withCredentials: true }
       );
@@ -687,19 +679,17 @@ function RescheduleModal({
             <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
-
         <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
             <p className="text-[11px] text-red-500 mt-0.5">
               {formatDateShort(missedSchedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
-              {' '}({formatTimeRange(missedSchedule.schedule_time)})
+              ({formatTimeRange(missedSchedule.schedule_time)})
             </p>
             <p className="text-[10px] text-red-400 mt-1">This missed appointment will be logged in the record's history.</p>
           </div>
         </div>
-
         <div className="mx-5 mt-3 rounded-lg bg-sky-50 border border-sky-200 px-4 py-3">
           <p className="text-xs font-semibold text-sky-700 mb-1">How rescheduling works</p>
           <ul className="text-[11px] text-sky-700 leading-relaxed list-disc pl-4 space-y-0.5">
@@ -708,7 +698,6 @@ function RescheduleModal({
             <li>Admins do not select the new slot. This request will appear here as <strong>RESCHEDULED</strong> until the applicant rebooks.</li>
           </ul>
         </div>
-
         <div className="px-5 py-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
@@ -724,7 +713,6 @@ function RescheduleModal({
             <p className="text-[10px] text-gray-400 mt-1">This note will be shown to the applicant when they book a new slot.</p>
           </div>
         </div>
-
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
           <button
             onClick={onClose}
@@ -790,7 +778,7 @@ const FormField = memo(({
 }: any) => {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
   const inputId = `field-${name}`;
-
+  
   useEffect(() => {
     if (isEditing && inputRef.current) {
       const timer = setTimeout(() => { inputRef.current?.focus(); }, 50);
@@ -814,7 +802,6 @@ const FormField = memo(({
       </div>
     );
   }
-
   if (isTextArea) {
     return (
       <div>
@@ -828,7 +815,6 @@ const FormField = memo(({
       </div>
     );
   }
-
   if (type === 'date') {
     return (
       <div>
@@ -842,7 +828,6 @@ const FormField = memo(({
       </div>
     );
   }
-
   if (type === 'number') {
     return (
       <div>
@@ -856,7 +841,6 @@ const FormField = memo(({
       </div>
     );
   }
-
   return (
     <div>
       <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
@@ -869,7 +853,6 @@ const FormField = memo(({
     </div>
   );
 });
-
 FormField.displayName = 'FormField';
 
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
@@ -896,16 +879,17 @@ function EditableDetailModal({
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [isArchiving, setIsArchiving]               = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-
   const [createdByName, setCreatedByName]     = useState<string>('');
   const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
+  const [previousStatus, setPreviousStatus] = useState<string>('');
 
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/streets`, { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -923,7 +907,7 @@ function EditableDetailModal({
     issued_on: '', issued_at: '', issued_date: '',
     ctc_vrr_no: '', or_no: '',
     punong_barangay: '', for_the_punong_barangay: '', barangay_position: '',
-    rejection_reason: '', created_at: '',
+    rejection_reason: '', created_at: '', previous_status: '',
   });
 
   // Lazy-load the creator's full name
@@ -951,7 +935,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -959,18 +943,18 @@ function EditableDetailModal({
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
       setCurrentSchedule(full.schedule ?? null);
-
+      setPreviousStatus(full.previous_status || normalisedStatus);
+      
       if (
         full.requester_type?.toLowerCase() === 'walk-in' &&
         (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
       ) {
         axios.put(
-          `https://westrembomis.onrender.com/api/barangay-clearances/${full.id}`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${full.id}`,
           { status: 'PENDING' },
           { withCredentials: true }
         ).catch(() => {});
       }
-
       setFormData({
         first_name:               full.first_name               || '',
         middle_name:              full.middle_name              || '',
@@ -1005,6 +989,7 @@ function EditableDetailModal({
         barangay_position:        full.barangay_position        || '',
         rejection_reason:         full.rejection_reason         || '',
         created_at:               full.created_at               || '',
+        previous_status:          full.previous_status          || normalisedStatus,
       });
     } catch (error) {
       console.error('Error fetching full record:', error);
@@ -1023,7 +1008,7 @@ function EditableDetailModal({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [releasedPath,  setReleasedPath]  = useState<string | null>(null);
-
+  
   useEffect(() => {
     if (initialReleasedPath) setReleasedPath(initialReleasedPath);
   }, [initialReleasedPath]);
@@ -1040,20 +1025,13 @@ function EditableDetailModal({
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
   // ── Workflow capability flags ──
-  // "Mark as Reviewed" is removed — reviewing now happens via the table-level "Review" button.
-  // Inside the modal we only show "Mark as Process" (SCHEDULED → REVIEWED → PROCESSING flow).
-  const canMarkProcess = !isWorkflowFrozen &&
-    isForwardTransition(status, 'PROCESSING') &&
-    status === 'REVIEWED';
-
+  const canMarkProcess = !isWorkflowFrozen && isForwardTransition(status, 'PROCESS') && status === 'REVIEW';
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
-
-  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
+  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status) && status !== 'PROCESS';
   const canArchive = isReleased && !isArchived;
   const canEdit = !isArchived;
-
   const isAwaitingReschedule = status === 'RESCHEDULED';
   const isNoShow =
     currentSchedule !== null &&
@@ -1061,26 +1039,56 @@ function EditableDetailModal({
     !TERMINAL_STATUSES.has(status) &&
     !isAwaitingReschedule &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
-
   const canReschedule = isNoShow && !isWorkflowFrozen;
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
 
-  // ── Action: Mark as Process (REVIEWED → PROCESSING) ──
+  // ── Restore/Unarchive Function ──
+  const handleRestore = async () => {
+    if (!isArchived) {
+      toast({ title: 'Not allowed', description: 'Only archived records can be restored.', variant: 'destructive' });
+      return;
+    }
+    
+    setIsArchiving(true);
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        { status: 'RELEASED' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('RELEASED');
+      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
+      toast({ title: 'Restored', description: 'Record restored to Released status successfully.' });
+      setShowRestoreConfirm(false);
+      onUpdate();
+      setTimeout(() => onClose(), 500);
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to restore record.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  // ── Action: Mark as Process (REVIEW → PROCESS) ──
   const handleMarkProcess = async () => {
-    if (!isForwardTransition(status, 'PROCESSING')) {
+    if (!isForwardTransition(status, 'PROCESS')) {
       toast({ title: 'Not allowed', description: 'Cannot skip or revert workflow steps.', variant: 'destructive' });
       return;
     }
     setActionLoading('processing');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
-        { status: 'PROCESSING' },
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        { status: 'PROCESS' },
         { withCredentials: true }
       );
-      setCurrentStatus('PROCESSING');
-      setFormData((p: any) => ({ ...p, status: 'PROCESSING' }));
-      toast({ title: 'Success', description: 'Status updated to Processing.' });
+      setCurrentStatus('PROCESS');
+      setFormData((p: any) => ({ ...p, status: 'PROCESS' }));
+      toast({ title: 'Success', description: 'Status updated to Process.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -1095,7 +1103,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1121,7 +1129,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1160,12 +1168,15 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
-        { status: 'ARCHIVED' },
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        { 
+          status: 'ARCHIVED',
+          previous_status: status
+        },
         { withCredentials: true }
       );
       setCurrentStatus('ARCHIVED');
-      setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
+      setFormData((p: any) => ({ ...p, status: 'ARCHIVED', previous_status: status }));
       toast({ title: 'Archived', description: 'Record archived successfully.' });
       setShowArchiveConfirm(false);
       onUpdate();
@@ -1193,7 +1204,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1218,7 +1229,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1226,7 +1237,7 @@ function EditableDetailModal({
       } catch (error) { console.error('Check existing failed:', error); }
       if (existingId) {
         await axios.put(
-          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${existingId}`,
           { ...formData },
           { withCredentials: true }
         );
@@ -1282,7 +1293,6 @@ function EditableDetailModal({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-
           {isArchived && (
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
               <Lock className="h-4 w-4 text-gray-500" />
@@ -1290,7 +1300,6 @@ function EditableDetailModal({
               <span className="text-xs text-gray-500 ml-1">— This record is locked. All actions, edits, and status updates are disabled.</span>
             </div>
           )}
-
           {isBlocked && !isArchived && (
             <div className={`border-b px-6 py-3 flex items-center gap-2 ${
               status === 'REJECTED' ? 'bg-rose-50 border-rose-200' : 'bg-orange-50 border-orange-200'
@@ -1306,7 +1315,6 @@ function EditableDetailModal({
               </span>
             </div>
           )}
-
           {isAwaitingReschedule && !isArchived && !isReleased && !isBlocked && (
             <div className="bg-sky-50 border-b border-sky-200 px-6 py-3 flex items-center gap-3">
               <CalendarClock className="h-4 w-4 text-sky-600 flex-shrink-0" />
@@ -1318,7 +1326,6 @@ function EditableDetailModal({
               </div>
             </div>
           )}
-
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
@@ -1344,7 +1351,7 @@ function EditableDetailModal({
                   </>
                 )
               )}
-              {isNonEditable && (
+              {isNonEditable && !isArchived && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-gray-100 text-gray-600 border-gray-300">
                   <Lock className="h-3 w-3" /> Read-only
                 </span>
@@ -1354,14 +1361,11 @@ function EditableDetailModal({
               </button>
             </div>
           </div>
-
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-              {formData.requester_type === 'Online' && (
+              {/* {formData.requester_type === 'Online' && (
                 <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
-              )}
-
+              )} */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="First Name" />
@@ -1374,7 +1378,6 @@ function EditableDetailModal({
                 <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing && canEdit} label="Contact Number" />
                 <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && canEdit} label="Email" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
                 <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && canEdit} label="Zone" />
@@ -1385,7 +1388,6 @@ function EditableDetailModal({
                 <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Relationship to Owner" />
                 <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes','No']} isEditing={isEditing && canEdit} label="Registered Voter" />
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
                 <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing && canEdit} label="Purpose" />
@@ -1403,7 +1405,6 @@ function EditableDetailModal({
                 {formData.rejection_reason && (
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
-                {/* ── Requester Type — formal label ── */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
                   <div className="mt-1.5">
@@ -1416,7 +1417,6 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
-                {/* Created By — lazy-loaded full name */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Processed By</label>
                   <div className="mt-1">
@@ -1433,10 +1433,8 @@ function EditableDetailModal({
                   </div>
                 </div>
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
-
                 {formData.requester_type?.toLowerCase() === 'walk-in' ? (
                   <div>
                     <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
@@ -1458,7 +1456,7 @@ function EditableDetailModal({
                         <label className="text-xs text-gray-500 uppercase tracking-wider">Last (missed) appointment</label>
                         <p className="text-sm text-gray-500 mt-1 line-through">
                           {formatDateShort(currentSchedule.schedule_date)} · {getScheduleSession(currentSchedule) === 'AM' ? 'Morning' : 'Afternoon'} session
-                          {' '}({formatTimeRange(currentSchedule.schedule_time)})
+                          ({formatTimeRange(currentSchedule.schedule_time)})
                         </p>
                       </div>
                     )}
@@ -1480,7 +1478,6 @@ function EditableDetailModal({
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
                       <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
                     </div>
-
                     {isNoShow && !TERMINAL_STATUSES.has(status) && !isBlocked && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
                         <div className="flex items-center gap-1.5">
@@ -1494,7 +1491,6 @@ function EditableDetailModal({
                         </p>
                       </div>
                     )}
-
                     {currentSchedule.note && (
                       <div>
                         <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
@@ -1509,13 +1505,10 @@ function EditableDetailModal({
                     <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
                   </div>
                 )}
-
                 <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Remarks" />
               </div>
-
             </div>
           </div>
-
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1560,7 +1553,6 @@ function EditableDetailModal({
               </div>
             </div>
           )}
-
           {showArchiveConfirm && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
@@ -1583,17 +1575,53 @@ function EditableDetailModal({
               </div>
             </div>
           )}
-
+          {showRestoreConfirm && (
+            <div className="mx-6 mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Restore</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                This will restore the archived record back to its previous active status ({previousStatus || 'RELEASED'}).
+                The record will become editable and visible in the active records list again.
+                Are you sure you want to continue?
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button 
+                  onClick={() => setShowRestoreConfirm(false)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleRestore} 
+                  disabled={isArchiving}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {isArchiving ? 'Restoring…' : 'Yes, Restore Record'}
+                </button>
+              </div>
+            </div>
+          )}
           {/* ── Bottom Action Bar ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-
                 {isArchived ? (
-                  <p className="text-xs text-gray-500 italic flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5" />
-                    This record is archived. All actions are disabled.
-                  </p>
+                  <>
+                    <button 
+                      onClick={() => setShowRestoreConfirm(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Restore / Unarchive
+                    </button>
+                    <p className="text-xs text-gray-500 italic flex items-center gap-1.5 ml-2">
+                      <Lock className="h-3.5 w-3.5" />
+                      This record is archived. Click restore to reactivate.
+                    </p>
+                  </>
                 ) : isBlocked ? (
                   <p className={`text-xs italic flex items-center gap-1.5 ${
                     status === 'REJECTED' ? 'text-rose-600' : 'text-orange-600'
@@ -1626,7 +1654,6 @@ function EditableDetailModal({
                   </>
                 ) : (
                   <>
-                    {/* ── Mark as Process (REVIEWED → PROCESSING) — replaces old "Mark as Reviewed" ── */}
                     {canMarkProcess && (
                       <>
                         <button
@@ -1640,7 +1667,6 @@ function EditableDetailModal({
                         <div className="w-px h-6 bg-gray-200 mx-1" />
                       </>
                     )}
-
                     {canDispose && (
                       <>
                         <button onClick={() => openDisposition('INCOMPLETE')}
@@ -1656,7 +1682,6 @@ function EditableDetailModal({
                         <div className="w-px h-6 bg-gray-200 mx-1" />
                       </>
                     )}
-
                     {canMarkToInspection && (
                       <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
                         className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
@@ -1664,14 +1689,12 @@ function EditableDetailModal({
                         {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                       </button>
                     )}
-
-                    {status === 'PROCESSING' && (
+                    {status === 'PROCESS' && (
                       <p className="text-xs text-indigo-600 italic flex items-center gap-1.5">
                         <PlayCircle className="h-3.5 w-3.5" />
                         Request is now being processed. Awaiting further action from cashier.
                       </p>
                     )}
-
                     {status === 'PAID' && (
                       <p className="text-xs text-teal-600 italic flex items-center gap-1.5">
                         <CreditCard className="h-3.5 w-3.5" />
@@ -1680,17 +1703,13 @@ function EditableDetailModal({
                     )}
                   </>
                 )}
-
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
           </div>
-
         </div>
       </div>
-
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
-
       {showRescheduleModal && currentSchedule && (
         <RescheduleModal
           record={record}
@@ -1740,7 +1759,6 @@ function FilterBar({
           )}
           <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
-
         {filters.status && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Status: <strong>{filters.status}</strong>
@@ -1789,26 +1807,24 @@ function FilterBar({
           </button>
         )}
       </div>
-
       {open && (
         <div className="absolute top-full right-0 mt-2 min-w-[600px] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="grid grid-cols-2">
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PROCESSING', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
+                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEW', 'PROCESS', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
                   <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ status: v })}
                   >
-                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
+                    {v === '' ? 'All' : v === 'ARCHIVED' ? 'Archived' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
             </div>
-
             <div className="p-4 border-l border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Schedule</label>
               <div className="flex flex-wrap gap-1.5">
@@ -1827,7 +1843,6 @@ function FilterBar({
                 ))}
               </div>
             </div>
-
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Created At</label>
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -1855,14 +1870,12 @@ function FilterBar({
                 </div>
               )}
             </div>
-
             <div className="p-4 border-l border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
               <input type="text" placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
                 value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
             </div>
-
             <div className="p-4 border-r border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Street</label>
               <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
@@ -1871,7 +1884,6 @@ function FilterBar({
                 {streets.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             </div>
-
             <div className="p-4 border-l border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Purpose</label>
               <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
@@ -1881,7 +1893,6 @@ function FilterBar({
               </select>
             </div>
           </div>
-
           <div className="flex items-center justify-end gap-2 p-3 bg-gray-50 border-t border-gray-200">
             <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100" onClick={onReset}>
               <RotateCcw className="h-3.5 w-3.5" /> Reset filters
@@ -1901,11 +1912,9 @@ const BarangayClearance = () => {
   const { toast }       = useToast();
   const navigate        = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-
   const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
   const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
   const [filters, setFiltersRaw]         = useState<FilterState>(() => filtersFromParams(searchParams));
-
   const [data, setData]             = useState<BarangayClearanceType[]>([]);
   const [isLoading, setIsLoading]   = useState(true);
   const [total, setTotal]           = useState(0);
@@ -1915,8 +1924,6 @@ const BarangayClearance = () => {
   const [streets, setStreets]       = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BarangayClearanceType | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
-
-  // Track which records are currently being "reviewed" at the table level
   const [reviewingIds, setReviewingIds] = useState<Set<number>>(new Set());
 
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
@@ -1991,24 +1998,21 @@ const BarangayClearance = () => {
     toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
   }, []);
 
-  // ── Table-level "Review" action: SCHEDULED → REVIEWED ──────────────────────
   const handleTableReview = useCallback(async (item: BarangayClearanceType) => {
-    const itemId = item.id as number;
+    const itemId = Number(item.id);
     setReviewingIds(prev => new Set(prev).add(itemId));
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${itemId}`,
-        { status: 'REVIEWED' },
+        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${itemId}`,
+        { status: 'REVIEW' },
         { withCredentials: true }
       );
-      // Optimistically update the row's status in local state so the button
-      // switches to "View/Edit" immediately without waiting for a full reload.
       setData(prev =>
         prev.map(r =>
-          r.id === itemId ? { ...r, status: 'REVIEWED' } : r
+          Number(r.id) === itemId ? { ...r, status: 'REVIEW' } : r
         )
       );
-      toast({ title: 'Reviewed', description: 'Request status updated to Reviewed.' });
+      toast({ title: 'Reviewed', description: 'Request status updated to Review.' });
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -2025,7 +2029,7 @@ const BarangayClearance = () => {
   }, [toast]);
 
   const activeFilterCount = countActiveFilters(filters);
-
+  
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th
       className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
@@ -2042,14 +2046,12 @@ const BarangayClearance = () => {
     <Layout>
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto">
-
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Barangay Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage barangay clearance records</p>
             </div>
           </div>
-
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
@@ -2070,7 +2072,6 @@ const BarangayClearance = () => {
               streets={streets}
             />
           </div>
-
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
             <p className="text-xs text-gray-500 mb-3 mt-1">
               Showing <strong className="text-gray-900">{total}</strong> result{total !== 1 ? 's' : ''}
@@ -2080,7 +2081,6 @@ const BarangayClearance = () => {
               {searchValue && <> for <strong className="text-gray-900">"{searchValue}"</strong></>}
             </p>
           )}
-
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
@@ -2113,9 +2113,8 @@ const BarangayClearance = () => {
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div>
                       </th>
-                      {/* ── "Submitted By" column — replaces ambiguous "Created By" ── */}
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Submitted By
+                        Request Type
                       </th>
                       <SortHeader field="purpose">Purpose</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
@@ -2137,23 +2136,16 @@ const BarangayClearance = () => {
                         !TERMINAL_STATUSES.has(itemStatus) &&
                         !isItemAwaitingReschedule &&
                         itemRequesterType.toLowerCase() !== 'walk-in';
-
-                      // ── "Review" button logic ──
-                      // Show "Review" only when status is SCHEDULED.
-                      // Once reviewed (status becomes REVIEWED), switch to "View/Edit".
                       const isItemScheduled = itemStatus === 'SCHEDULED';
-                      const isReviewingThis = reviewingIds.has(item.id as number);
-
+                      const isReviewingThis = reviewingIds.has(Number(item.id));
                       const { label: submittedByLabel, badgeClass: submittedByBadgeClass } =
                         getRequesterLabel(itemRequesterType);
-
                       const rowClass = [
                         isNew ? 'bg-blue-50/30' : '',
-                        isItemArchived ? 'opacity-50 bg-gray-50' : '',
+                        isItemArchived ? 'opacity-60 bg-gray-50' : '',
                         isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
                         'hover:bg-gray-50 transition-colors',
                       ].filter(Boolean).join(' ');
-
                       return (
                         <tr key={item.id} className={rowClass}>
                           <td className="pl-3 pr-0 py-3">
@@ -2188,24 +2180,28 @@ const BarangayClearance = () => {
                               status={itemStatus}
                             />
                           </td>
-
-                          {/* ── Submitted By — formal applicant channel label ── */}
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>
                               {submittedByLabel}
                             </span>
                           </td>
-
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {isItemArchived ? (
-                                <span
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none whitespace-nowrap"
-                                  title="This record is archived and locked"
-                                >
-                                  <Lock className="h-3 w-3" /> Archived · Locked
-                                </span>
+                                <>
+                                  <button
+                                    onClick={() => setSelectedDetailRecord(item)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                                  >
+                                    <RotateCcw className="h-3 w-3" /> Restore
+                                  </button>
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-gray-100 text-gray-500 border-gray-200 whitespace-nowrap"
+                                  >
+                                    <Lock className="h-3 w-3" /> Archived
+                                  </span>
+                                </>
                               ) : isItemBlocked ? (
                                 <>
                                   <button
@@ -2225,7 +2221,6 @@ const BarangayClearance = () => {
                                   </span>
                                 </>
                               ) : isItemScheduled ? (
-                                // ── SCHEDULED status: show "Review" button, no "View/Edit" ──
                                 <>
                                   <button
                                     onClick={() => handleTableReview(item)}
@@ -2243,7 +2238,6 @@ const BarangayClearance = () => {
                                   </button>
                                 </>
                               ) : (
-                                // ── All other active statuses: show "View/Edit" ──
                                 <>
                                   <button
                                     onClick={() => setSelectedDetailRecord(item)}
@@ -2277,17 +2271,14 @@ const BarangayClearance = () => {
               </div>
             )}
           </div>
-
           <ClearancePagination
             currentPage={currentPage}
             totalPages={totalPages}
             total={total}
             onPageChange={setCurrentPage}
           />
-
         </div>
       </div>
-
       {selectedDetailRecord && (
         <EditableDetailModal
           record={selectedDetailRecord}
@@ -2296,7 +2287,6 @@ const BarangayClearance = () => {
           toast={toast}
         />
       )}
-
       {showQRScanner && (
         <QRScannerModal
           onClose={() => setShowQRScanner(false)}
