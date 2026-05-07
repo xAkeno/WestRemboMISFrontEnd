@@ -1641,37 +1641,37 @@ export default function RequestDetail() {
         )}
 
         {/* Required Documents (not shown for scheduled/rescheduled/blocked/no_show — checklist is inside ScheduledVisitCard) */}
-        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && (
-          <div
-            className="mb-6 rounded-2xl overflow-hidden"
-            style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a3a7a 100%)", border: "2px solid #c2467d", boxShadow: "0 8px 24px rgba(15,42,94,0.2), 0 0 40px rgba(194,70,125,0.15)" }}
-          >
-            <div className="px-6 py-5">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "rgba(194,70,125,0.2)" }}>
-                  <ClipboardList className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-lg font-black text-white">Bring These Documents</h2>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>Required documents for your barangay visit</p>
-                </div>
+        {dynamicRequirements.length > 0 && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && !isReleased && (
+        <div
+          className="mb-6 rounded-2xl overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a3a7a 100%)", border: "2px solid #c2467d", boxShadow: "0 8px 24px rgba(15,42,94,0.2), 0 0 40px rgba(194,70,125,0.15)" }}
+        >
+          <div className="px-6 py-5">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "rgba(194,70,125,0.2)" }}>
+                <ClipboardList className="h-5 w-5 text-white" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
-                {dynamicRequirements.map((doc, idx) => (
-                  <div key={idx} className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(194,70,125,0.3)", backdropFilter: "blur(10px)" }}>
-                    <div className="flex-shrink-0 mt-0.5">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black" style={{ backgroundColor: "#c2467d", color: "white" }}>{idx + 1}</div>
-                    </div>
-                    <p className="text-sm font-bold leading-snug text-white">{doc}</p>
-                  </div>
-                ))}
+              <div className="flex-1">
+                <h2 className="text-lg font-black text-white">Bring These Documents</h2>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>Required documents for your barangay visit</p>
               </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+              {dynamicRequirements.map((doc, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(194,70,125,0.3)", backdropFilter: "blur(10px)" }}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black" style={{ backgroundColor: "#c2467d", color: "white" }}>{idx + 1}</div>
+                  </div>
+                  <p className="text-sm font-bold leading-snug text-white">{doc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Released Banner */}
-        {isReleased && (
+        {/* {isReleased && (
           <div className="flex items-start gap-3 px-5 py-4 rounded-2xl mb-4" style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac" }}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#dcfce7" }}>
               <FileCheck className="h-5 w-5" style={{ color: "#16a34a" }} />
@@ -1684,7 +1684,7 @@ export default function RequestDetail() {
               </p>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* ✅ No Show Card */}
         {isNoShow && schedule && (

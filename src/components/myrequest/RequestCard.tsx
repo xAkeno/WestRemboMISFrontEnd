@@ -79,7 +79,7 @@ export default function RequestCard({ request }: Props) {
           </div>
 
           {/* Released download banner */}
-          {isReleased && (
+          {/* {isReleased && (
             <div
               className="mt-3 flex items-center justify-between gap-3 p-3"
               style={{
@@ -100,10 +100,10 @@ export default function RequestCard({ request }: Props) {
                     Your document has been officially released.
                   </p>
                 </div>
-              </div>
+              </div> */}
 
               {/* Download button — stops Link propagation */}
-              <button
+              {/* <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -123,7 +123,7 @@ export default function RequestCard({ request }: Props) {
                 {downloading ? "Loading..." : "Download"}
               </button>
             </div>
-          )}
+          )} */}
 
           {/* Missing items alert */}
           {request.missing_items && request.missing_items.length > 0 && (
