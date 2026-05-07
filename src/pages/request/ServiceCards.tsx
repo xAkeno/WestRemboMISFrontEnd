@@ -15,8 +15,6 @@ import { MaintenanceModal } from '@/components/MaintenanceModal';
 import { VacationModal } from '@/components/VacationModal';
 import { useMaintenance } from '@/hooks/useMaintenance';
 
-// --- Data Models ---
-
 const CATEGORIES = [
   { id: 'all', label: 'All Services' },
   { id: 'personal', label: 'Personal' },
@@ -25,16 +23,6 @@ const CATEGORIES = [
 ];
 
 const SERVICES = [
-  // {
-  //   id: 1,
-  //   type: 'resident-registration',
-  //   title: 'Resident Registration',
-  //   description: 'Register as a new resident of Barangay West Rembo.',
-  //   icon: Users,
-  //   category: 'personal',
-  //   popular: true,
-  //   route: '/services/barangay-resident-registration/apply',
-  // },
   {
     id: 2,
     type: 'barangay-certificate',
@@ -73,8 +61,6 @@ const SERVICES = [
     route: '/services/barangay-building-clearance/apply',
   },
 ];
-
-// --- ServiceCard ---
 
 const ServiceCard = ({ service, onClick }) => {
   const Icon = service.icon;
@@ -133,47 +119,46 @@ const ServiceCard = ({ service, onClick }) => {
   );
 };
 
-// --- Main ServiceCards ---
-
 export default function ServiceCards() {
   const navigate = useNavigate();
   const [self, setSelf] = useState<any>(null);
 
-  // Add this — grab the user from localStorage same as App.jsx
   const user = JSON.parse(localStorage.getItem("user") || "null");
-  const { showMaintenance, message, showVacation, vacationStart, vacationEnd } = useMaintenance(user);
+
+  // ✅ vacationName is now destructured
+  const {
+    showMaintenance,
+    message,
+    showVacation,
+    vacationStart,
+    vacationEnd,
+    vacationName,
+  } = useMaintenance(user);
+
   const [activeCategory, setActiveCategory] = useState('all');
-
-  // Auth modal state
   const [authModal, setAuthModal] = useState(false);
-  const [pendingService, setPendingService] = useState<any>(null); // service the user tried to open
+  const [pendingService, setPendingService] = useState<any>(null);
 
-  // Fetch current user once
   useEffect(() => {
     axios
       .get('https://westrembomis.onrender.com/api/details', { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
-      .catch(() => {/* not logged in */});
+      .catch(() => {});
   }, []);
 
-  const filteredServices = SERVICES.filter((s) => {
-    return activeCategory === 'all' || s.category === activeCategory;
-  });
+  const filteredServices = SERVICES.filter((s) =>
+    activeCategory === 'all' || s.category === activeCategory
+  );
 
-  // Called when a card is clicked
   const handleCardClick = (service: any) => {
     if (!self) {
-      // Not logged in → show auth modal, remember which card was clicked
       setPendingService(service);
       setAuthModal(true);
       return;
     }
-    // Logged in → navigate to the service route
     navigate(service.route);
   };
 
-  // After user signs in via the modal button, we navigate to /login
-  // (AuthRequiredModal handles that). If they close the modal we just clear state.
   const handleAuthModalClose = () => {
     setAuthModal(false);
     setPendingService(null);
@@ -183,7 +168,6 @@ export default function ServiceCards() {
     <div className="min-h-screen bg-background text-foreground">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:max-w-7xl">
 
-        {/* Page header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-4">
             <div style={{ width: 32, height: 1, backgroundColor: '#c2467d' }} />
@@ -201,7 +185,6 @@ export default function ServiceCards() {
           <div style={{ width: 48, height: 2, backgroundColor: '#c2467d', margin: '12px auto 0' }} />
         </div>
 
-        {/* Category Filters */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
           {CATEGORIES.map((cat) => (
             <button
@@ -230,7 +213,6 @@ export default function ServiceCards() {
             </button>
           ))}
 
-          {/* Show View My Requests only if user is logged in */}
           {self && (
             <button
               onClick={() => navigate('/myrequest')}
@@ -250,7 +232,6 @@ export default function ServiceCards() {
           )}
         </div>
 
-        {/* Cards Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredServices.map((service) => (
             <ServiceCard
@@ -261,16 +242,22 @@ export default function ServiceCards() {
           ))}
         </div>
 
-        {/* Auth Required Modal — shown when not logged in and a card is clicked */}
         <AuthRequiredModal
           open={authModal}
           onClose={handleAuthModalClose}
           featureLabel={pendingService ? `apply for ${pendingService.title}` : 'access this service'}
         />
       </main>
+
       {showMaintenance && <MaintenanceModal message={message} />}
+
+      {/* ✅ vacationName is now passed down */}
       {showVacation && !showMaintenance && (
-        <VacationModal vacationStart={vacationStart} vacationEnd={vacationEnd} />
+        <VacationModal
+          vacationStart={vacationStart}
+          vacationEnd={vacationEnd}
+          vacationName={vacationName}
+        />
       )}
     </div>
   );

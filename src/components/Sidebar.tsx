@@ -18,7 +18,6 @@ import {
   UserRoundPen,
   Bell,
   Settings,
-  Road,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect, useCallback } from "react";
@@ -27,6 +26,8 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const BASE = "https://westrembomis.onrender.com/api";
+
+const SIDEBAR_KEY = "sidebar_collapsed";
 
 // ─── Strictly classified menu sections ───────────────────────────────────────
 
@@ -111,9 +112,28 @@ function SectionLabel({ title, collapsed }: { title: string; collapsed: boolean 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Read persisted value from localStorage on first render
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
   const [permissions, setPermissions] = useState<string[]>([]);
   const navigate = useNavigate();
+
+  // Persist to localStorage whenever collapsed changes
+  const handleToggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     axios
@@ -176,7 +196,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={handleToggle}
           className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0"
         >
           <ChevronLeft className={cn("w-5 h-5 transition-transform", collapsed && "rotate-180")} />
@@ -186,14 +206,12 @@ export function Sidebar() {
       {/* ── Nav ── */}
       <nav className="flex-1 overflow-y-auto p-2">
         <div className="space-y-1">
-          {filteredSections.map((section, index) => (
+          {filteredSections.map((section) => (
             <div key={section.title}>
-              {/* Only show section label for non-Dashboard sections */}
               {section.title !== "Dashboard" && (
                 <SectionLabel title={section.title} collapsed={collapsed} />
               )}
-              
-              {/* Add divider after Dashboard section */}
+
               {section.title === "Dashboard" && filteredSections.length > 1 && (
                 <div className="px-4 pb-2">
                   <div className="border-t border-sidebar-border/30" />
