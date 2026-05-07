@@ -18,7 +18,7 @@
  * (drag, save, PDF embed) in sync regardless of zoom level.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { QrCode, X, Move } from 'lucide-react';
 
@@ -29,8 +29,12 @@ export interface QRCodeFieldData {
   x: number;
   /** Distance from the TOP edge of the page, in PDF points. */
   y: number;
-  /** Side length of the square QR code, in PDF points. */
+  /** Side length of the QR code square, in PDF points. */
   size: number;
+  /** Total width including instruction panel (pts). Defaults to size * 2. */
+  width?: number;
+  /** Total height (pts). Defaults to size. */
+  height?: number;
   /** Zero-based page index the QR belongs to. */
   page: number;
   /** Whether the QR overlay is visible / active. */
@@ -67,20 +71,16 @@ function QRCanvas({ value, size }: { value: string; size: number }) {
 
   useEffect(() => {
     if (!canvasRef.current || !value) return;
-    
-    // Generate full verification URL for QR code
-    const baseUrl = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
+
+    const baseUrl   = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
     const verifyUrl = `${baseUrl}/verify/${value}`;
-    
-    // Create QR code with custom authentication message
-    // When scanned, it shows: "This QR/Document is Authenticated" + the link
     const qrMessage = `This QR/Document is Authenticated\n\nFor further details, follow this link:\n${verifyUrl}`;
-    
+
     QRCode.toCanvas(canvasRef.current, qrMessage, {
       width: size,
       margin: 1,
       color: { dark: '#000000', light: '#ffffff' },
-      errorCorrectionLevel: 'H', // Use 'H' (high) error correction for text readability
+      errorCorrectionLevel: 'H',
     }).catch(console.error);
   }, [value, size]);
 
@@ -108,25 +108,16 @@ export function QRCodeField({
   pageWidth,
   pageHeight,
 }: QRCodeFieldProps) {
-  const fieldRef    = useRef<HTMLDivElement>(null);
-  const isDragging  = useRef(false);
-  const isResizing  = useRef(false);
-  const dragStart   = useRef({ mouseX: 0, mouseY: 0, fieldX: 0, fieldY: 0 });
-  const resizeStart = useRef({ mouseX: 0, mouseY: 0, size: 0 });
+  const fieldRef   = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStart  = useRef({ mouseX: 0, mouseY: 0, fieldX: 0, fieldY: 0 });
 
-  // ── Scale helpers ────────────────────────────────────────────────────────────
+  // ── Derived dimensions ────────────────────────────────────────────────────
+  const totalWPts = field.width  ?? field.size * 2;
+  const totalHPts = field.height ?? field.size;
 
-  /**
-   * Returns the current DOM rect of the PDF page surface.
-   *
-   * pageRef targets the wrapper div that is sized to the PDF page dimensions,
-   * so its bounding rect gives us the true rendered width/height of the page —
-   * not the outer scroll container with padding around it.  This is the rect
-   * we divide by pageWidth/pageHeight to get the correct scale factor.
-   *
-   * Falls back to containerRef if pageRef is not yet attached (e.g. during
-   * the very first render before the ref callback fires).
-   */
+  // ── Scale helpers ─────────────────────────────────────────────────────────
+
   const getPageRect = useCallback(() => {
     return (
       pageRef.current?.getBoundingClientRect() ??
@@ -134,13 +125,6 @@ export function QRCodeField({
     );
   }, [pageRef, containerRef]);
 
-  /**
-   * Scale factor: DOM pixels per PDF point.
-   *   sx = renderedPageWidth  / pageWidthPts
-   *   sy = renderedPageHeight / pageHeightPts
-   *
-   * We prefer sx for the square QR so it is consistent with the X axis.
-   */
   const getScale = useCallback(() => {
     const r = getPageRect();
     if (!r || !pageWidth || !pageHeight) return { sx: 1, sy: 1 };
@@ -150,17 +134,19 @@ export function QRCodeField({
     };
   }, [getPageRect, pageWidth, pageHeight]);
 
-  // ── Convert pts → DOM px for display ────────────────────────────────────────
+  // ── Convert pts → DOM px for display ─────────────────────────────────────
   const toDisplay = useCallback(() => {
     const { sx, sy } = getScale();
     return {
-      left: field.x    * sx,
-      top:  field.y    * sy,
-      size: field.size * sx,   // use X scale for square
+      left:        field.x    * sx,
+      top:         field.y    * sy,
+      displayW:    totalWPts  * sx,
+      displayH:    totalHPts  * sy,
+      displayQrSz: field.size * sx,
     };
-  }, [field.x, field.y, field.size, getScale]);
+  }, [field.x, field.y, field.size, totalWPts, totalHPts, getScale]);
 
-  // ── Drag ─────────────────────────────────────────────────────────────────────
+  // ── Drag ──────────────────────────────────────────────────────────────────
   const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -177,15 +163,10 @@ export function QRCodeField({
     const onMove = (ev: MouseEvent) => {
       if (!isDragging.current) return;
       const { sx, sy } = getScale();
-
-      // Mouse delta in DOM pixels → convert to PDF points
       const dxPts = (ev.clientX - dragStart.current.mouseX) / sx;
       const dyPts = (ev.clientY - dragStart.current.mouseY) / sy;
-
-      // Clamp within page bounds (in pts)
-      const newX = Math.max(0, Math.min(dragStart.current.fieldX + dxPts, pageWidth  - field.size));
-      const newY = Math.max(0, Math.min(dragStart.current.fieldY + dyPts, pageHeight - field.size));
-
+      const newX  = Math.max(0, Math.min(dragStart.current.fieldX + dxPts, pageWidth  - totalWPts));
+      const newY  = Math.max(0, Math.min(dragStart.current.fieldY + dyPts, pageHeight - totalHPts));
       onChange({ x: newX, y: newY });
     };
 
@@ -197,32 +178,24 @@ export function QRCodeField({
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup',   onUp);
-  }, [field, onChange, onSelect, getScale, pageWidth, pageHeight]);
+  }, [field.x, field.y, onChange, onSelect, getScale, pageWidth, pageHeight, totalWPts, totalHPts]);
 
-  // ── Resize ───────────────────────────────────────────────────────────────────
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+  // ── Resize: QR size (bottom-left handle) ─────────────────────────────────
+  const handleResizeSizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    isResizing.current  = true;
-    resizeStart.current = { mouseX: e.clientX, mouseY: e.clientY, size: field.size };
+    const startY    = e.clientY;
+    const startSize = field.size;
 
     const onMove = (ev: MouseEvent) => {
-      if (!isResizing.current) return;
-      const { sx } = getScale();
-
-      // Diagonal drag delta in DOM pixels → convert to PDF points
-      const dxPx  = ev.clientX - resizeStart.current.mouseX;
-      const dyPx  = ev.clientY - resizeStart.current.mouseY;
-      const delta = (Math.abs(dxPx) > Math.abs(dyPx) ? dxPx : dyPy) / sx;
-
-      // Min 36 pts (~0.5 inch), max 200 pts (~2.8 inch)
-      const newSizePts = Math.max(36, Math.min(200, resizeStart.current.size + delta));
-      onChange({ size: newSizePts });
+      const { sy } = getScale();
+      const dyPts  = (ev.clientY - startY) / sy;
+      const newSize = Math.max(30, Math.min(200, startSize + dyPts));
+      onChange({ size: newSize });
     };
 
     const onUp = () => {
-      isResizing.current = false;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup',   onUp);
     };
@@ -231,9 +204,56 @@ export function QRCodeField({
     window.addEventListener('mouseup',   onUp);
   }, [field.size, onChange, getScale]);
 
+  // ── Resize: total height (bottom-right handle) ────────────────────────────
+  const handleResizeHeightMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startY = e.clientY;
+    const startH = totalHPts;
+
+    const onMove = (ev: MouseEvent) => {
+      const { sy } = getScale();
+      const dyPts  = (ev.clientY - startY) / sy;
+      onChange({ height: Math.max(30, Math.min(400, startH + dyPts)) });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  }, [totalHPts, onChange, getScale]);
+
+  // ── Resize: total width / instruction panel (right-edge handle) ───────────
+  const handleResizeWidthMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const startW = totalWPts;
+
+    const onMove = (ev: MouseEvent) => {
+      const { sx } = getScale();
+      const dxPts  = (ev.clientX - startX) / sx;
+      // Minimum width = QR size + 20pts for the text panel
+      onChange({ width: Math.max(field.size + 20, Math.min(600, startW + dxPts)) });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  }, [totalWPts, field.size, onChange, getScale]);
+
   if (!field.visible || !bcertNumber) return null;
 
-  const { left, top, size: displaySize } = toDisplay();
+  const { left, top, displayW, displayH, displayQrSz } = toDisplay();
 
   return (
     <div
@@ -243,8 +263,8 @@ export function QRCodeField({
         position:   'absolute',
         left,
         top,
-        width:      displaySize,
-        height:     displaySize,
+        width:      displayW,
+        height:     displayH,
         zIndex:     isSelected ? 50 : 30,
         cursor:     'move',
         userSelect: 'none',
@@ -293,7 +313,7 @@ export function QRCodeField({
         )}
       </div>
 
-      {/* Invisible full-surface drag target when NOT showing the top bar */}
+      {/* Invisible full-surface drag target when NOT selected */}
       {!isSelected && (
         <div
           onMouseDown={handleDragMouseDown}
@@ -306,23 +326,85 @@ export function QRCodeField({
         />
       )}
 
-      {/* QR canvas */}
+      {/* Main content: QR on left, instruction panel on right */}
       <div style={{
         width:        '100%',
         height:       '100%',
         background:   '#fff',
         borderRadius: 4,
         overflow:     'hidden',
+        display:      'flex',
+        flexDirection: 'row',
         boxShadow:    isSelected
           ? '0 4px 20px rgba(0,0,0,0.15)'
           : '0 1px 6px rgba(0,0,0,0.12)',
         transition:   'box-shadow 0.15s',
       }}>
-        {/* Render at 2× display size for crispness, CSS scales it back down */}
-        <QRCanvas value={bcertNumber} size={Math.round(displaySize * 2)} />
+        {/* Left: QR code */}
+        <div style={{
+          width:    displayQrSz,
+          height:   '100%',
+          flexShrink: 0,
+          overflow: 'hidden',
+          display:  'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#fff',
+        }}>
+          <QRCanvas value={bcertNumber} size={Math.round(displayQrSz * 2)} />
+        </div>
+
+        {/* Divider */}
+        <div style={{
+          width:      1,
+          background: '#e5e7eb',
+          flexShrink: 0,
+          margin:     '6px 0',
+        }} />
+
+        {/* Right: instruction text */}
+        <div style={{
+          flex:       1,
+          padding:    '6px 8px',
+          display:    'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap:        3,
+          overflow:   'hidden',
+          minWidth:   0,
+        }}>
+          <div style={{
+            fontSize:    Math.max(7, displayH * 0.09),
+            fontWeight:  800,
+            color:       '#1e3a5f',
+            lineHeight:  1.1,
+            letterSpacing: '0.04em',
+          }}>
+            VERIFY
+          </div>
+          <div style={{
+            fontSize:    Math.max(6, displayH * 0.08),
+            fontWeight:  700,
+            color:       '#1e40af',
+            lineHeight:  1.1,
+            borderBottom: '1px solid #1e40af',
+            paddingBottom: 3,
+            marginBottom: 2,
+          }}>
+            DOCUMENT
+          </div>
+          <div style={{
+            fontSize:   Math.max(5.5, displayH * 0.07),
+            color:      '#374151',
+            lineHeight: 1.35,
+            overflow:   'hidden',
+          }}>
+            This document is authenticated by the Barangay. Scan the QR code to verify its authenticity online.
+          </div>
+        </div>
       </div>
 
-      {/* bcert label under QR when selected */}
+      {/* bcert label under the box when selected */}
       {isSelected && (
         <div style={{
           position:      'absolute',
@@ -367,9 +449,34 @@ export function QRCodeField({
             <X style={{ width: 10, height: 10, color: '#fff' }} />
           </button>
 
-          {/* Resize handle — bottom-right */}
+          {/* ── Resize handle: QR size — bottom-left (blue) ── */}
           <div
-            onMouseDown={handleResizeMouseDown}
+            onMouseDown={handleResizeSizeMouseDown}
+            title="Drag to resize QR size"
+            style={{
+              position:       'absolute',
+              bottom:         -6,
+              left:           -6,
+              width:          16,
+              height:         16,
+              background:     '#3b82f6',
+              borderRadius:   '0 0 0 4px',
+              cursor:         'nesw-resize',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              zIndex:         20,
+            }}
+          >
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="white">
+              <path d="M7 1L1 7M4 1L1 4M1 7L1 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+
+          {/* ── Resize handle: total height — bottom-right (blue) ── */}
+          <div
+            onMouseDown={handleResizeHeightMouseDown}
+            title="Drag to resize height"
             style={{
               position:       'absolute',
               bottom:         -6,
@@ -384,11 +491,48 @@ export function QRCodeField({
               justifyContent: 'center',
               zIndex:         20,
             }}
-            title="Drag to resize"
           >
             <svg width="8" height="8" viewBox="0 0 8 8" fill="white">
-              <path d="M1 7L7 1M4 7L7 4M7 7L7 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M1 7L7 1M4 7L7 4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
+          </div>
+
+          {/* ── Resize handle: total width / instruction panel — right-center (purple) ── */}
+          <div
+            onMouseDown={handleResizeWidthMouseDown}
+            title="Drag to resize instruction panel width"
+            style={{
+              position:        'absolute',
+              top:             '50%',
+              right:           -7,
+              transform:       'translateY(-50%)',
+              width:           14,
+              height:          28,
+              background:      '#6366f1',
+              borderRadius:    4,
+              cursor:          'ew-resize',
+              display:         'flex',
+              alignItems:      'center',
+              justifyContent:  'center',
+              zIndex:          20,
+            }}
+          >
+            <svg width="6" height="10" viewBox="0 0 6 10" fill="white">
+              <path d="M1 2L1 8M5 2L5 8" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+
+          {/* ── Size labels for guidance ── */}
+          <div style={{
+            position:   'absolute',
+            top:        -22,
+            left:       0,
+            fontSize:   8,
+            color:      '#fff',
+            fontWeight: 600,
+            pointerEvents: 'none',
+          }}>
+            {Math.round(totalWPts)}×{Math.round(totalHPts)} pts
           </div>
         </>
       )}
@@ -417,21 +561,21 @@ export function QRToolbarButton({ bcertNumber, qrField, onToggle }: QRToolbarBut
           : 'No BCert number available'
       }
       style={{
-        display:     'inline-flex',
-        alignItems:  'center',
-        gap:         6,
-        height:      32,
-        padding:     '0 12px',
+        display:      'inline-flex',
+        alignItems:   'center',
+        gap:          6,
+        height:       32,
+        padding:      '0 12px',
         borderRadius: 6,
-        border:      hasQR ? '1px solid #3b82f6' : '1px solid hsl(var(--border))',
-        background:  hasQR ? '#eff6ff' : 'hsl(var(--card))',
-        color:       hasQR ? '#1d4ed8' : 'hsl(var(--muted-foreground))',
-        fontSize:    12,
-        fontWeight:  600,
-        cursor:      bcertNumber ? 'pointer' : 'not-allowed',
-        opacity:     bcertNumber ? 1 : 0.4,
-        transition:  'all 0.15s',
-        whiteSpace:  'nowrap',
+        border:       hasQR ? '1px solid #3b82f6' : '1px solid hsl(var(--border))',
+        background:   hasQR ? '#eff6ff' : 'hsl(var(--card))',
+        color:        hasQR ? '#1d4ed8' : 'hsl(var(--muted-foreground))',
+        fontSize:     12,
+        fontWeight:   600,
+        cursor:       bcertNumber ? 'pointer' : 'not-allowed',
+        opacity:      bcertNumber ? 1 : 0.4,
+        transition:   'all 0.15s',
+        whiteSpace:   'nowrap',
       }}
     >
       <QrCode style={{ width: 14, height: 14 }} />

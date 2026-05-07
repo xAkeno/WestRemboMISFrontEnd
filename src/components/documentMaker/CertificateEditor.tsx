@@ -859,6 +859,18 @@ export function CertificateEditor() {
     navigate(-1);
   };
 
+  useEffect(() => {
+  if (!isPreviewMode) return;
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      e.preventDefault();
+      handlePrint();
+    }
+  };
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, [isPreviewMode, fields, qrField, resolvedBcert]);
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   // ── Shared loading state ──────────────────────────────────────────────────────
@@ -933,7 +945,24 @@ export function CertificateEditor() {
             </div>
 
             {/* Right spacer */}
-            <div style={{ width: 80 }} />
+            <button
+              onClick={handleDownload}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 14px',
+                borderRadius: 6,
+                border: '1px solid hsl(var(--border))',
+                background: 'hsl(var(--primary))',
+                color: 'hsl(var(--primary-foreground))',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ↓ Download
+            </button>
           </div>
 
           {/* ── Full-width canvas, no sidebar ── */}

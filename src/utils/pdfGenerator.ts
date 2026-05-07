@@ -58,18 +58,28 @@ async function qrToPngBytes(value: string, sizePts: number): Promise<Uint8Array>
 }
 
 // ─── Add label text below QR image ───────────────────────────────────────────
-async function addTextToQRImage(qrBytes: Uint8Array, sizePts: number): Promise<Uint8Array> {
+async function addTextToQRImage(
+  qrBytes: Uint8Array,
+  sizePts: number,
+  totalWidthPts: number,
+  totalHeightPts: number,
+): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    const canvas     = document.createElement('canvas');
-    const renderSize = Math.round(sizePts * 2);
-    const blob       = new Blob([qrBytes], { type: 'image/png' });
-    const url        = URL.createObjectURL(blob);
-    const img        = new Image();
+    // Render at 2× for sharpness
+    const scale      = 2;
+    const qrPx       = Math.round(sizePts * scale);
+    const totalWPx   = Math.round(totalWidthPts * scale);
+    const totalHPx   = Math.round(totalHeightPts * scale);
+    const textPanelW = totalWPx - qrPx;
+
+    const blob = new Blob([qrBytes], { type: 'image/png' });
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
 
     img.onload = () => {
-      const textHeight = 40;
-      canvas.width     = renderSize;
-      canvas.height    = renderSize + textHeight;
+      const canvas  = document.createElement('canvas');
+      canvas.width  = totalWPx;
+      canvas.height = totalHPx;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject(new Error('Could not get canvas context'));
@@ -78,15 +88,71 @@ async function addTextToQRImage(qrBytes: Uint8Array, sizePts: number): Promise<U
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw QR
-      ctx.drawImage(img, 0, 0, renderSize, renderSize);
+      // ── Left: QR image stretched to fill qrPx × totalHPx ────────────────
+      ctx.drawImage(img, 0, 0, qrPx, totalHPx);
 
-      // Draw label
-      ctx.fillStyle    = '#000000';
-      ctx.font         = 'bold 11px Arial';
-      ctx.textAlign    = 'center';
+      // Divider
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth   = 2;
+      ctx.beginPath();
+      ctx.moveTo(qrPx + 2, 12);
+      ctx.lineTo(qrPx + 2, totalHPx - 12);
+      ctx.stroke();
+
+      // ── Right: instruction text panel ────────────────────────────────────
+      const textX    = qrPx + 14;
+      const maxTextW = textPanelW - 20;
+
+      // Title
+      const titleSize = Math.max(14, Math.round(totalHPx * 0.09));
+      ctx.fillStyle    = '#1e3a5f';
+      ctx.font         = `bold ${titleSize}px Arial`;
+      ctx.textAlign    = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText('This QR/Document is Authenticated', renderSize / 2, renderSize + 5);
+      ctx.fillText('VERIFY', textX, Math.round(totalHPx * 0.07));
+
+      const subtitleSize = Math.max(12, Math.round(totalHPx * 0.08));
+      ctx.fillStyle = '#1e40af';
+      ctx.font      = `bold ${subtitleSize}px Arial`;
+      ctx.fillText('DOCUMENT', textX, Math.round(totalHPx * 0.18));
+
+      // Underline
+      ctx.strokeStyle = '#1e40af';
+      ctx.lineWidth   = 2;
+      const underlineY = Math.round(totalHPx * 0.30);
+      ctx.beginPath();
+      ctx.moveTo(textX, underlineY);
+      ctx.lineTo(textX + Math.min(maxTextW, textPanelW - 16), underlineY);
+      ctx.stroke();
+
+      // Body text — word-wrap manually
+      const bodySize = Math.max(10, Math.round(totalHPx * 0.07));
+      ctx.fillStyle  = '#374151';
+      ctx.font       = `${bodySize}px Arial`;
+
+      const fullText = 'This document is authenticated by the Barangay. Scan the QR code to verify its authenticity online.';
+      const words    = fullText.split(' ');
+      const lines: string[] = [];
+      let current = '';
+
+      for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (ctx.measureText(test).width > maxTextW && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+
+      let lineY = Math.round(totalHPx * 0.36);
+      const lineH = bodySize + 5;
+      for (const line of lines) {
+        if (lineY + lineH > totalHPx - 8) break;
+        ctx.fillText(line, textX, lineY);
+        lineY += lineH;
+      }
 
       canvas.toBlob((canvasBlob) => {
         if (!canvasBlob) return reject(new Error('toBlob failed'));
@@ -166,23 +232,26 @@ export async function generatePDF(
     const targetPage = pages[qrField.page];
     if (targetPage) {
       const { height } = targetPage.getSize();
-      const baseUrl    = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
+      const baseUrl    = 'http://localhost:8000';
 
-      // ✅ Sign the bcert number and embed the signed URL in the QR
       const sig     = await signRef(bcertNumber);
       const qrValue = `${baseUrl}/verify/${bcertNumber}?key=${sig}`;
 
-      let pngBytes = await qrToPngBytes(qrValue, qrField.size);
-      pngBytes     = await addTextToQRImage(pngBytes, qrField.size);
+      // Use explicit width/height if set, otherwise default to square + equal panel
+      const qrSize       = qrField.size;
+      const totalW       = qrField.width  ?? qrSize * 2;
+      const totalH       = qrField.height ?? qrSize;
 
-      const pngImage    = await pdfDoc.embedPng(pngBytes);
-      const textPadding = 40;
+      let pngBytes = await qrToPngBytes(qrValue, qrSize);
+      pngBytes     = await addTextToQRImage(pngBytes, qrSize, totalW, totalH);
+
+      const pngImage = await pdfDoc.embedPng(pngBytes);
 
       targetPage.drawImage(pngImage, {
         x:      qrField.x,
-        y:      height - qrField.y - qrField.size - textPadding,
-        width:  qrField.size,
-        height: qrField.size + textPadding,
+        y:      height - qrField.y - totalH,
+        width:  totalW,
+        height: totalH,
       });
     }
   }

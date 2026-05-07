@@ -410,16 +410,16 @@ export default function DocumentVerifier() {
       let params: Record<string, any> = {};
       const upperRef = referenceNumber.toUpperCase();
 
-      if (upperRef.startsWith("BCLEAR-")) {
+      if (upperRef.startsWith("BC-")) {
         endpoint = "/api/barangay-clearances";
         params   = { bcert_number: referenceNumber, per_page: 100 };
       } else if (upperRef.startsWith("BCERT-")) {
         endpoint = "/api/barangay-certificates";
         params   = { bcert_number: referenceNumber, per_page: 100 };
-      } else if (upperRef.startsWith("BBUILDINGCLE-")) {
+      } else if (upperRef.startsWith("BDC-")) {
         endpoint = "/api/building-clearances";
         params   = { bcert_number: referenceNumber, per_page: 100 };
-      } else if (upperRef.startsWith("BBUSINESS-")) {
+      } else if (upperRef.startsWith("BBC-")) {
         endpoint = "/api/business-clearances";
         params   = { brgy_business_no: referenceNumber, per_page: 100 };
       } else {
