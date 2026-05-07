@@ -202,15 +202,15 @@ function countActiveFilters(f: FilterState): number {
 }
 
 // ─── Status ordering ───────────────────────────────────────────────────────────
-// PROCESSING is inserted between REVIEWED and PAID in the workflow.
+// PROCESS is inserted between REVIEW and PAID in the workflow.
 const STATUS_ORDER: Record<string, number> = {
   'PENDING':      0,
   'RESCHEDULED':  0,
   'SCHEDULED':    1,
   'ENCODED':      2,
   'INSPECTING':   3,
-  'REVIEWED':     4,
-  'PROCESSING':   5,   // ← NEW step between REVIEWED and PAID
+  'REVIEW':       4,   // backend value
+  'PROCESS':      5,   // backend value (between REVIEW and PAID)
   'PAID':         6,
   'RELEASED':     7,
   'INCOMPLETE':  -1,
@@ -236,8 +236,8 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
   encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
   to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
-  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
-  processing:   'bg-indigo-100 text-indigo-800 border-indigo-200',  // ← NEW
+  review:       'bg-purple-100 text-purple-800 border-purple-200',
+  process:      'bg-indigo-100 text-indigo-800 border-indigo-200',
   paid:         'bg-teal-100 text-teal-800 border-teal-200',
   inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
   archived:     'bg-gray-200 text-gray-600 border-gray-300',
@@ -246,7 +246,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
-  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';   // map TO_PAY → REVIEW
   if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
   if (
     requesterType?.toLowerCase() === 'walk-in' &&
@@ -364,10 +364,6 @@ function ScheduleCell({
 }
 
 // ─── Requester Type Label helper ───────────────────────────────────────────────
-/**
- * Returns a formal, staff-friendly label for who submitted the request.
- * Used in both the table "Created By" column and the modal.
- */
 function getRequesterLabel(requesterType: string | null | undefined): {
   label: string;
   badgeClass: string;
@@ -1040,11 +1036,10 @@ function EditableDetailModal({
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
   // ── Workflow capability flags ──
-  // "Mark as Reviewed" is removed — reviewing now happens via the table-level "Review" button.
-  // Inside the modal we only show "Mark as Process" (SCHEDULED → REVIEWED → PROCESSING flow).
+  // canMarkProcess: only when status is REVIEW (backend name for "reviewed")
   const canMarkProcess = !isWorkflowFrozen &&
-    isForwardTransition(status, 'PROCESSING') &&
-    status === 'REVIEWED';
+    isForwardTransition(status, 'PROCESS') &&
+    status === 'REVIEW';
 
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
@@ -1065,9 +1060,9 @@ function EditableDetailModal({
   const canReschedule = isNoShow && !isWorkflowFrozen;
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
 
-  // ── Action: Mark as Process (REVIEWED → PROCESSING) ──
+  // ── Action: Mark as Process (REVIEW → PROCESS) ──
   const handleMarkProcess = async () => {
-    if (!isForwardTransition(status, 'PROCESSING')) {
+    if (!isForwardTransition(status, 'PROCESS')) {
       toast({ title: 'Not allowed', description: 'Cannot skip or revert workflow steps.', variant: 'destructive' });
       return;
     }
@@ -1075,12 +1070,12 @@ function EditableDetailModal({
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
-        { status: 'PROCESSING' },
+        { status: 'PROCESS' },
         { withCredentials: true }
       );
-      setCurrentStatus('PROCESSING');
-      setFormData((p: any) => ({ ...p, status: 'PROCESSING' }));
-      toast({ title: 'Success', description: 'Status updated to Processing.' });
+      setCurrentStatus('PROCESS');
+      setFormData((p: any) => ({ ...p, status: 'PROCESS' }));
+      toast({ title: 'Success', description: 'Status updated to Process.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -1403,7 +1398,6 @@ function EditableDetailModal({
                 {formData.rejection_reason && (
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
-                {/* ── Requester Type — formal label ── */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
                   <div className="mt-1.5">
@@ -1416,7 +1410,6 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
-                {/* Created By — lazy-loaded full name */}
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Processed By</label>
                   <div className="mt-1">
@@ -1626,7 +1619,7 @@ function EditableDetailModal({
                   </>
                 ) : (
                   <>
-                    {/* ── Mark as Process (REVIEWED → PROCESSING) — replaces old "Mark as Reviewed" ── */}
+                    {/* ── Mark as Process (REVIEW → PROCESS) ── */}
                     {canMarkProcess && (
                       <>
                         <button
@@ -1665,7 +1658,8 @@ function EditableDetailModal({
                       </button>
                     )}
 
-                    {status === 'PROCESSING' && (
+                    {/* PROCESS status info message */}
+                    {status === 'PROCESS' && (
                       <p className="text-xs text-indigo-600 italic flex items-center gap-1.5">
                         <PlayCircle className="h-3.5 w-3.5" />
                         Request is now being processed. Awaiting further action from cashier.
@@ -1796,7 +1790,8 @@ function FilterBar({
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PROCESSING', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
+                {/* Updated: REVIEW and PROCESS match backend values */}
+                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEW', 'PROCESS', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
                   <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -1991,24 +1986,22 @@ const BarangayClearance = () => {
     toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
   }, []);
 
-  // ── Table-level "Review" action: SCHEDULED → REVIEWED ──────────────────────
+  // ── Table-level "Review" action: SCHEDULED → REVIEW ──────────────────────
   const handleTableReview = useCallback(async (item: BarangayClearanceType) => {
-    const itemId = item.id as number;
+    const itemId = Number(item.id);
     setReviewingIds(prev => new Set(prev).add(itemId));
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/barangay-clearances/${itemId}`,
-        { status: 'REVIEWED' },
+        { status: 'REVIEW' },   // backend value
         { withCredentials: true }
       );
-      // Optimistically update the row's status in local state so the button
-      // switches to "View/Edit" immediately without waiting for a full reload.
       setData(prev =>
         prev.map(r =>
-          r.id === itemId ? { ...r, status: 'REVIEWED' } : r
+          Number(r.id) === itemId ? { ...r, status: 'REVIEW' } : r
         )
       );
-      toast({ title: 'Reviewed', description: 'Request status updated to Reviewed.' });
+      toast({ title: 'Reviewed', description: 'Request status updated to Review.' });
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -2113,9 +2106,8 @@ const BarangayClearance = () => {
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div>
                       </th>
-                      {/* ── "Submitted By" column — replaces ambiguous "Created By" ── */}
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Submitted By
+                        Request Type
                       </th>
                       <SortHeader field="purpose">Purpose</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
@@ -2138,11 +2130,9 @@ const BarangayClearance = () => {
                         !isItemAwaitingReschedule &&
                         itemRequesterType.toLowerCase() !== 'walk-in';
 
-                      // ── "Review" button logic ──
-                      // Show "Review" only when status is SCHEDULED.
-                      // Once reviewed (status becomes REVIEWED), switch to "View/Edit".
+                      // Show "Review" button only when status is SCHEDULED
                       const isItemScheduled = itemStatus === 'SCHEDULED';
-                      const isReviewingThis = reviewingIds.has(item.id as number);
+                      const isReviewingThis = reviewingIds.has(Number(item.id));
 
                       const { label: submittedByLabel, badgeClass: submittedByBadgeClass } =
                         getRequesterLabel(itemRequesterType);
@@ -2189,7 +2179,6 @@ const BarangayClearance = () => {
                             />
                           </td>
 
-                          {/* ── Submitted By — formal applicant channel label ── */}
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>
                               {submittedByLabel}
@@ -2225,7 +2214,7 @@ const BarangayClearance = () => {
                                   </span>
                                 </>
                               ) : isItemScheduled ? (
-                                // ── SCHEDULED status: show "Review" button, no "View/Edit" ──
+                                // SCHEDULED: show Review button
                                 <>
                                   <button
                                     onClick={() => handleTableReview(item)}
@@ -2243,7 +2232,7 @@ const BarangayClearance = () => {
                                   </button>
                                 </>
                               ) : (
-                                // ── All other active statuses: show "View/Edit" ──
+                                // All other active statuses: show View/Edit
                                 <>
                                   <button
                                     onClick={() => setSelectedDetailRecord(item)}
