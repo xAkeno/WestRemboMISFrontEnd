@@ -84,7 +84,10 @@ const STATUS_TO_STEP: Record<string, number> = {
   rescheduled: 1,
   no_show:     1, // ✅ no_show stays at scheduled step
   to_pay:  3,
-  released: 4,
+  released: 5,
+  review: 2,
+  process: 3,
+  paid: 4,
 };
 
 const STATUS_MESSAGES: Record<string, { message: string; nextStep: string | null }> = {

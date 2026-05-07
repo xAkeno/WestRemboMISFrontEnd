@@ -3,7 +3,7 @@ import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X, RefreshCw,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Download,
   IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban, Archive,
-  CalendarClock, AlertTriangle, History, Lock, Sun, Moon,
+  CalendarClock, AlertTriangle, History, Lock, Sun, Moon, PlayCircle, CheckCircle,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ const ZONE_OPTIONS = [
 interface ScheduleHistoryEntry {
   schedule_date: string;
   schedule_time: string;
-  missed_at: string; // ISO timestamp when it was logged as no-show
+  missed_at: string;
   note?: string | null;
 }
 
@@ -47,7 +47,6 @@ interface ScheduleData {
   note?: string | null;
   status?: string;
   user_id?: number;
-  // history of missed schedules (stored as JSON in the API or derived client-side)
   missed_history?: ScheduleHistoryEntry[];
 }
 
@@ -135,14 +134,9 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
 }
 
 // ─── Session-based No-Show helpers ─────────────────────────────────────────────
-// AM session is considered booked from its slot until 12:00 (noon).
-// PM session is considered booked from its slot until 17:00 (5 PM).
-// A record is only flagged "No Show" AFTER the entire session window has passed —
-// not the moment the exact appointment time elapses.
-const AM_SESSION_END_HOUR = 12; // noon
-const PM_SESSION_END_HOUR = 17; // 5 PM
+const AM_SESSION_END_HOUR = 12;
+const PM_SESSION_END_HOUR = 17;
 
-/** Returns 'AM' if the schedule slot is before noon, 'PM' otherwise. */
 function getScheduleSession(schedule: ScheduleData | null | undefined): 'AM' | 'PM' | null {
   if (!schedule) return null;
   try {
@@ -152,7 +146,6 @@ function getScheduleSession(schedule: ScheduleData | null | undefined): 'AM' | '
   } catch { return null; }
 }
 
-/** Returns a human-readable label for the schedule's session. */
 function getScheduleSessionLabel(schedule: ScheduleData | null | undefined): string {
   const s = getScheduleSession(schedule);
   if (s === 'AM') return 'Morning Session (until 12:00 NN)';
@@ -160,7 +153,6 @@ function getScheduleSessionLabel(schedule: ScheduleData | null | undefined): str
   return '';
 }
 
-/** Returns the Date when this schedule's session window ends (noon or 5 PM of schedule_date). */
 function getScheduleSessionEnd(schedule: ScheduleData | null | undefined): Date | null {
   if (!schedule) return null;
   try {
@@ -172,10 +164,6 @@ function getScheduleSessionEnd(schedule: ScheduleData | null | undefined): Date 
   } catch { return null; }
 }
 
-/**
- * Returns true ONLY when the entire AM/PM session window has fully ended.
- * (e.g. 9:00 AM appointment is NOT flagged at 9:30 AM — only after 12:00 NN.)
- */
 function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
   const sessionEnd = getScheduleSessionEnd(schedule);
   if (!sessionEnd) return false;
@@ -200,28 +188,25 @@ function countActiveFilters(f: FilterState): number {
 // ─── Status ordering ───────────────────────────────────────────────────────────
 const STATUS_ORDER: Record<string, number> = {
   'PENDING':      0,
-  'RESCHEDULED':  0, // same priority level as PENDING — awaiting applicant to rebook
+  'RESCHEDULED':  0,
   'SCHEDULED':    1,
   'ENCODED':      2,
   'INSPECTING':   3,
-  'REVIEWED':     4,
-  'PAID':         5,
-  'RELEASED':     6,
+  'REVIEW':       4,
+  'PROCESS':      5,
+  'PAID':         6,
+  'RELEASED':     7,
   'INCOMPLETE':  -1,
   'REJECTED':    -1,
 };
 
-/**
- * Returns true when a transition from `current` to `next` is a legal forward move.
- * Hardened to refuse ANY transition out of a terminal/blocked/frozen state.
- */
 function isForwardTransition(current: string, next: string): boolean {
   const currentUpper = (current ?? '').toUpperCase();
   const nextUpper    = (next ?? '').toUpperCase();
   if (TERMINAL_STATUSES.has(currentUpper)) return false;
   const cur = STATUS_ORDER[currentUpper] ?? -1;
   const nxt = STATUS_ORDER[nextUpper] ?? -1;
-  if (nxt === -1) return true; // dispositions allowed from active records
+  if (nxt === -1) return true;
   return nxt > cur;
 }
 
@@ -234,7 +219,8 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
   encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
   to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
-  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
+  review:       'bg-purple-100 text-purple-800 border-purple-200',
+  process:      'bg-indigo-100 text-indigo-800 border-indigo-200',
   paid:         'bg-teal-100 text-teal-800 border-teal-200',
   inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
   archived:     'bg-gray-200 text-gray-600 border-gray-300',
@@ -243,7 +229,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
-  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';
   if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
   if (
     requesterType?.toLowerCase() === 'walk-in' &&
@@ -262,37 +248,18 @@ function StatusBadge({ status, requesterType }: {
   const display = normaliseStatus(status, requesterType);
   const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
-  const reqType = requesterType?.toLowerCase();
   return (
-    <div className="flex flex-col gap-1 w-fit">
-      {reqType === 'walk-in' && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-slate-100 text-slate-600 border-slate-300 w-fit">
-          Walk-in
-        </span>
-      )}
-      {reqType === 'online' && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-cyan-50 text-cyan-700 border-cyan-200 w-fit">
-          Online
-        </span>
-      )}
-      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
-        {display}
-      </span>
-    </div>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
+      {display}
+    </span>
   );
 }
 
-// ─── ScheduleCell — handles walk-in, no-show, awaiting-reschedule, and normal states ─────
-function ScheduleCell({
-  schedule, requesterType, status,
-}: {
-  schedule: ScheduleData | null | undefined;
-  requesterType?: string;
-  status?: string;
+function ScheduleCell({ schedule, requesterType, status }: {
+  schedule: ScheduleData | null | undefined; requesterType?: string; status?: string;
 }) {
   const statusUpper = (status ?? '').toUpperCase();
 
-  // Walk-in: no schedule needed
   if (requesterType?.toLowerCase() === 'walk-in') {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-sm italic">
@@ -301,7 +268,6 @@ function ScheduleCell({
     );
   }
 
-  // Status RESCHEDULED — admin already requested a new slot from the applicant
   if (statusUpper === 'RESCHEDULED') {
     return (
       <div className="flex flex-col gap-0.5">
@@ -321,8 +287,7 @@ function ScheduleCell({
   if (!schedule) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-sm">
-        <CalendarX className="h-3 w-3" />
-        Not yet scheduled
+        <CalendarX className="h-3 w-3" />Not yet scheduled
       </span>
     );
   }
@@ -331,7 +296,6 @@ function ScheduleCell({
   const session   = getScheduleSession(schedule);
   const isTerminal = TERMINAL_STATUSES.has(statusUpper);
 
-  // No-Show: ENTIRE session window has passed AND record is not terminal/rescheduled
   if (isPast && !isTerminal) {
     return (
       <div className="flex flex-col gap-0.5">
@@ -349,8 +313,7 @@ function ScheduleCell({
   return (
     <div className="flex flex-col gap-0.5">
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-green-100 text-green-800 border-green-200">
-        <CalendarCheck className="h-3 w-3" />
-        {formatDateShort(schedule.schedule_date)}
+        <CalendarCheck className="h-3 w-3" />{formatDateShort(schedule.schedule_date)}
       </span>
       <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 pl-0.5">
         {session === 'AM' ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
@@ -384,10 +347,7 @@ function IdImageCard({ label, url, onZoom }: { label: string; url: string | null
   return (
     <div className="rounded-lg border border-green-200 bg-green-50 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-gray-100">
-        <div className="flex items-center gap-1.5">
-          <IdCard className="h-3.5 w-3.5 text-blue-600" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span>
-        </div>
+        <div className="flex items-center gap-1.5"><IdCard className="h-3.5 w-3.5 text-blue-600" /><span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{label}</span></div>
         <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm bg-green-100 text-green-700 border border-green-200">✓ On file</span>
       </div>
       <div className="relative group overflow-hidden bg-gray-100" style={{ height: 160, cursor: 'zoom-in' }} onClick={() => onZoom(url)}>
@@ -456,20 +416,19 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = "qr-scanner-container-business";
   const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(true);
   const [scanned, setScanned] = useState<string | null>(null);
   const startScanner = async () => {
     try {
       if (!scannerRef.current) scannerRef.current = new Html5Qrcode(containerId);
       await scannerRef.current.start(
         { facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText) => { setScanned(decodedText); setScanning(false); }, undefined
+        (decodedText) => { setScanned(decodedText); }, undefined
       );
     } catch (err: any) { setError(err?.message ?? "Camera access denied or not available."); }
   };
   const stopScanner = async () => { if (scannerRef.current?.isScanning) await scannerRef.current.stop().catch(() => {}); };
   useEffect(() => { startScanner(); return () => { stopScanner(); }; }, []);
-  const handleScanAgain = async () => { setScanned(null); setScanning(true); setError(null); await stopScanner(); setTimeout(() => startScanner(), 300); };
+  const handleScanAgain = async () => { setScanned(null); setError(null); await stopScanner(); setTimeout(() => startScanner(), 300); };
   const handleConfirm = () => { if (scanned) { stopScanner(); onScan(scanned); onClose(); } };
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.75)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -513,28 +472,18 @@ function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] })
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
       <div className="flex items-center gap-1.5">
         <History className="h-3.5 w-3.5 text-amber-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-amber-700">
-          Missed Appointment History ({history.length})
-        </span>
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Missed Appointment History ({history.length})</span>
       </div>
       <div className="space-y-1.5">
         {history.map((entry, idx) => {
           const session = getScheduleSession({ schedule_date: entry.schedule_date, schedule_time: entry.schedule_time } as any);
           return (
             <div key={idx} className="flex items-start gap-2 text-[11px] text-amber-800">
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">
-                {idx + 1}
-              </span>
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">{idx + 1}</span>
               <div>
-                <span className="font-semibold">
-                  {formatDateShort(entry.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
-                </span>
-                <span className="text-amber-500 ml-1.5">
-                  — No show logged {formatCreatedAt(entry.missed_at)}
-                </span>
-                {entry.note && (
-                  <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>
-                )}
+                <span className="font-semibold">{formatDateShort(entry.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session</span>
+                <span className="text-amber-500 ml-1.5">— No show logged {formatCreatedAt(entry.missed_at)}</span>
+                {entry.note && <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>}
               </div>
             </div>
           );
@@ -633,12 +582,10 @@ function EditableDetailModal({
   const [streets, setStreets] = useState<Street[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
-
-  // Archive confirmation state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [isArchiving, setIsArchiving]               = useState(false);
-  
-  // Created By name state (lazy loaded when modal opens)
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [previousStatus, setPreviousStatus] = useState<string>('');
   const [createdByName, setCreatedByName] = useState<string>('');
   const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
 
@@ -662,34 +609,22 @@ function EditableDetailModal({
     rejection_reason: '', created_at: '', remarks: '',
   });
 
-  // Fetch user name when modal opens (lazy loading)
   useEffect(() => {
     const loadCreatorName = async () => {
       const userId = formData.created_by;
-      if (!userId) {
-        setCreatedByName('—');
-        return;
-      }
-      
+      if (!userId) { setCreatedByName('—'); return; }
       const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-      if (isNaN(userIdNum)) {
-        setCreatedByName('—');
-        return;
-      }
-      
+      if (isNaN(userIdNum)) { setCreatedByName('—'); return; }
       setLoadingCreatedBy(true);
       try {
         const user = await fetchUserById(userIdNum);
-        const fullName = getUserFullName(user);
-        setCreatedByName(fullName);
-      } catch (error) {
-        console.error('Failed to load creator name:', error);
+        setCreatedByName(getUserFullName(user));
+      } catch {
         setCreatedByName('—');
       } finally {
         setLoadingCreatedBy(false);
       }
     };
-    
     loadCreatorName();
   }, [formData.created_by]);
 
@@ -706,8 +641,8 @@ function EditableDetailModal({
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(fullRecord.released_document_path ?? null);
       setCurrentSchedule(fullRecord.schedule ?? null);
+      setPreviousStatus(fullRecord.previous_status || normalisedStatus);
 
-      // Auto-fix: walk-in records should never be RESCHEDULED or SCHEDULED
       if (
         fullRecord.requester_type?.toLowerCase() === 'walk-in' &&
         (fullRecord.status?.toUpperCase() === 'RESCHEDULED' || fullRecord.status?.toUpperCase() === 'SCHEDULED')
@@ -724,8 +659,10 @@ function EditableDetailModal({
         surname: fullRecord.surname || '', ext_name: fullRecord.ext_name || '',
         prefix: fullRecord.prefix || '', business_name: fullRecord.business_name || '',
         business_type: fullRecord.business_type || '', brgy_business_no: fullRecord.brgy_business_no || '',
-        issued_date: fullRecord.issued_date || '', issued_at: fullRecord.issued_at || '',
-        issued_on: fullRecord.issued_on || '', capital: fullRecord.capital || '',
+        issued_date: fullRecord.issued_date ? (fullRecord.issued_date.includes('T') ? fullRecord.issued_date.split('T')[0] : fullRecord.issued_date) : '',
+        issued_at: fullRecord.issued_at || '',
+        issued_on: fullRecord.issued_on ? (fullRecord.issued_on.includes('T') ? fullRecord.issued_on.split('T')[0] : fullRecord.issued_on) : '',
+        capital: fullRecord.capital || '',
         house_block_lot_no: fullRecord.house_block_lot_no || '', street: fullRecord.street || '',
         zone: fullRecord.zone || '', or_no: fullRecord.or_no || '',
         ctc_vrr_no: fullRecord.ctc_vrr_no || '', inspected_by: fullRecord.inspected_by || '',
@@ -759,27 +696,20 @@ function EditableDetailModal({
   if (!record) return null;
   const status = currentStatus.toUpperCase();
 
-  // ─── Derived capability flags ──────────────────────────────────────────────
   const isReleased       = status === 'RELEASED';
   const isArchived       = FROZEN_STATUSES.has(status);
   const isBlocked        = BLOCKED_STATUSES.has(status);
   const isNonEditable    = isArchived || isBlocked;
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
-  // Cashier-exclusive actions — these MUST NOT appear here:
-  //   • "Mark as Paid"     (cashier records the payment)
-  //   • "Release Document" (cashier issues / releases the document after payment)
-  // We expose only the workflow stages that belong to the admin role.
-  const canMarkReviewed = !isWorkflowFrozen &&
-    isForwardTransition(status, 'REVIEWED') &&
-    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING' || status === 'RESCHEDULED');
+  const canMarkProcess = !isWorkflowFrozen && isForwardTransition(status, 'PROCESS') && status === 'REVIEW';
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
-  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
+  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status) && status !== 'PROCESS';
   const canArchive = isReleased && !isArchived;
+  const canEdit = !isArchived;
 
-  // ─── No-Show / Reschedule logic ────────────────────────────────────────────
   const isAwaitingReschedule = status === 'RESCHEDULED';
   const isNoShow =
     currentSchedule !== null &&
@@ -787,33 +717,58 @@ function EditableDetailModal({
     !TERMINAL_STATUSES.has(status) &&
     !isAwaitingReschedule &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
+
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
 
-  const handleMarkReviewed = async () => {
-    if (isWorkflowFrozen || !isForwardTransition(status, 'REVIEWED')) {
-      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
+  // ── Restore/Unarchive Function ──
+  const handleRestore = async () => {
+    if (!isArchived) {
+      toast({ title: 'Not allowed', description: 'Only archived records can be restored.', variant: 'destructive' });
       return;
     }
-    setActionLoading('reviewed');
+    
+    setIsArchiving(true);
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { status: 'TO_PAY' },
+        { 
+          status: previousStatus || 'RELEASED',
+          previous_status: status
+        },
         { withCredentials: true }
       );
-      setCurrentStatus('REVIEWED');
-      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      try {
-        await axios.put(
-          `https://westrembomis.onrender.com/api/business-clearances/status/${record.id}`,
-          { status: 'TO_PAY' },
-          { withCredentials: true }
-        );
-      } catch { /* silent */ }
+      setCurrentStatus(previousStatus || 'RELEASED');
+      setFormData((p: any) => ({ ...p, status: previousStatus || 'RELEASED' }));
+      toast({ title: 'Restored', description: 'Record restored successfully.' });
+      setShowRestoreConfirm(false);
+      onUpdate();
+      setTimeout(() => onClose(), 500);
+    } catch (err: any) {
       toast({
-        title: 'Forwarded to Cashier',
-        description: 'Record marked as Reviewed. Payment AND release are handled by the cashier from this point.',
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to restore record.',
+        variant: 'destructive',
       });
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleMarkProcess = async () => {
+    if (!isForwardTransition(status, 'PROCESS')) {
+      toast({ title: 'Not allowed', description: 'Cannot skip or revert workflow steps.', variant: 'destructive' });
+      return;
+    }
+    setActionLoading('processing');
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
+        { status: 'PROCESS' },
+        { withCredentials: true }
+      );
+      setCurrentStatus('PROCESS');
+      setFormData((p: any) => ({ ...p, status: 'PROCESS' }));
+      toast({ title: 'Success', description: 'Status updated to Process.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -821,8 +776,8 @@ function EditableDetailModal({
   };
 
   const handleMarkToInspection = async () => {
-    if (isWorkflowFrozen || !isForwardTransition(status, 'INSPECTING')) {
-      toast({ title: 'Not allowed', description: 'This record cannot be advanced from its current state.', variant: 'destructive' });
+    if (!isForwardTransition(status, 'INSPECTING')) {
+      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
       return;
     }
     setActionLoading('inspection');
@@ -843,10 +798,12 @@ function EditableDetailModal({
   const handleDisposition = async () => {
     if (!record?.id || !dispositionType) return;
     if (!dispositionReason.trim()) {
-      toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' }); return;
+      toast({ title: 'Reason required', description: 'Please provide a reason before submitting.', variant: 'destructive' });
+      return;
     }
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
+      return;
     }
     setIsDisposing(true);
     try {
@@ -857,17 +814,22 @@ function EditableDetailModal({
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
       setCurrentStatus(dispositionType);
       setFormData((p: any) => ({ ...p, status: dispositionType }));
-      toast({ title: 'Success', description: `Record ${label} successfully. No further actions are available.` });
+      toast({ title: 'Success', description: `Record ${label} successfully.` });
       setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null);
       onUpdate();
     } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update disposition.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to update disposition.',
+        variant: 'destructive',
+      });
     } finally { setIsDisposing(false); }
   };
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' }); return;
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
+      return;
     }
     setDispositionType(type); setDispositionReason(''); setShowDispositionModal(true);
   };
@@ -881,12 +843,15 @@ function EditableDetailModal({
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { status: 'ARCHIVED' },
+        { 
+          status: 'ARCHIVED',
+          previous_status: status
+        },
         { withCredentials: true }
       );
       setCurrentStatus('ARCHIVED');
-      setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
-      toast({ title: 'Archived', description: 'Record archived. It is now read-only and non-interactive.' });
+      setFormData((p: any) => ({ ...p, status: 'ARCHIVED', previous_status: status }));
+      toast({ title: 'Archived', description: 'Record archived successfully.' });
       setShowArchiveConfirm(false);
       onUpdate();
     } catch (err: any) {
@@ -898,8 +863,6 @@ function EditableDetailModal({
     } finally { setIsArchiving(false); }
   };
 
-  // NOTE: Document release is handled by the cashier role.
-  // The admin only downloads an already-released document or archives it.
   const downloadReleased = async () => {
     if (!record?.id) { toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' }); return; }
     setIsDownloading(true);
@@ -917,8 +880,8 @@ function EditableDetailModal({
   };
 
   const handleUpdate = async () => {
-    if (isNonEditable) {
-      toast({ title: 'Not allowed', description: 'This record is read-only and cannot be edited.', variant: 'destructive' });
+    if (isArchived) {
+      toast({ title: 'Not allowed', description: 'Archived records cannot be edited.', variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -932,32 +895,89 @@ function EditableDetailModal({
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
+      
       if (existingId) {
-        // Strip status from the payload — status only flows through dedicated workflow handlers.
-        const { status: _ignoredStatus, ...payload } = formData;
+        const updatePayload = {
+          first_name: formData.first_name,
+          middle_name: formData.middle_name,
+          surname: formData.surname,
+          ext_name: formData.ext_name,
+          prefix: formData.prefix,
+          business_name: formData.business_name,
+          business_type: formData.business_type,
+          house_block_lot_no: formData.house_block_lot_no,
+          street: formData.street,
+          zone: formData.zone,
+          or_no: formData.or_no,
+          ctc_vrr_no: formData.ctc_vrr_no,
+          inspected_by: formData.inspected_by,
+          inspected_remarks: formData.inspected_remarks,
+          date_inspected: formData.date_inspected,
+          inspected_note: formData.inspected_note,
+          remarks: formData.remarks,
+          requester_type: formData.requester_type,
+          email: formData.email,
+          issued_date: formData.issued_date,
+          issued_at: formData.issued_at,
+          issued_on: formData.issued_on,
+          capital: formData.capital,
+          punong_barangay: formData.punong_barangay,
+          for_the_punong_barangay: formData.for_the_punong_barangay,
+          barangay_position: formData.barangay_position,
+        };
+        
+        Object.keys(updatePayload).forEach(key => {
+          if (updatePayload[key] === undefined || updatePayload[key] === null) {
+            delete updatePayload[key];
+          }
+        });
+        
         await axios.put(
           `https://westrembomis.onrender.com/api/business-clearances/${existingId}`,
-          { ...payload, requester_type: formData.requester_type || 'Online' },
+          updatePayload,
           { withCredentials: true }
         );
         toast({ title: 'Success', description: 'Record updated successfully' });
-        setIsEditing(false); onUpdate(); handleRefresh();
-      } else { toast({ title: 'Error', description: 'Record not found', variant: 'destructive' }); }
+        setIsEditing(false);
+        onUpdate();
+        handleRefresh();
+      } else {
+        toast({ title: 'Error', description: 'Record not found', variant: 'destructive' });
+      }
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const s = error.response?.status;
-        if (s === 422) { const errs = error.response?.data?.errors; if (errs) Object.values(errs).forEach((m: any) => m[0] && toast({ title: 'Validation Error', description: m[0], variant: 'destructive' })); }
-        else if (s === 401) toast({ title: 'Error', description: 'You are not authenticated.', variant: 'destructive' });
-        else if (s === 403) toast({ title: 'Error', description: 'You are not allowed to perform this action.', variant: 'destructive' });
-        else toast({ title: 'Error', description: 'Something went wrong.', variant: 'destructive' });
-      } else { toast({ title: 'Error', description: 'Network error.', variant: 'destructive' }); }
+        console.error('Update error response:', error.response?.data);
+        
+        if (s === 422) {
+          const errs = error.response?.data?.errors;
+          if (errs) {
+            Object.values(errs).forEach((m: any) => {
+              if (m && m[0]) {
+                toast({ title: 'Validation Error', description: m[0], variant: 'destructive' });
+              }
+            });
+          } else {
+            toast({ title: 'Validation Error', description: error.response?.data?.message || 'Please check your input and try again.', variant: 'destructive' });
+          }
+        } else if (s === 401) {
+          toast({ title: 'Error', description: 'You are not authenticated.', variant: 'destructive' });
+        } else if (s === 403) {
+          toast({ title: 'Error', description: 'You are not allowed to perform this action.', variant: 'destructive' });
+        } else {
+          toast({ title: 'Error', description: error.response?.data?.message || 'Something went wrong.', variant: 'destructive' });
+        }
+      } else {
+        toast({ title: 'Error', description: 'Network error.', variant: 'destructive' });
+      }
     } finally { setIsSaving(false); }
   };
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    if (isArchived) return;
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
-  }, []);
+  }, [isArchived]);
 
   if (isLoading) {
     return (
@@ -1015,7 +1035,7 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* No-Show alert banner — informational only, applicant rebooks via portal */}
+          {/* No-Show alert banner */}
           {isNoShow && !isArchived && !isReleased && !isBlocked && (
             <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center gap-3">
               <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -1038,7 +1058,7 @@ function EditableDetailModal({
               <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
-              {!isNonEditable && (
+              {canEdit && (
                 !isEditing ? (
                   <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                     <Edit2 className="h-4 w-4" /> Edit
@@ -1046,13 +1066,15 @@ function EditableDetailModal({
                 ) : (
                   <>
                     <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
-                    <button onClick={handleUpdate} disabled={isSaving} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      <Save className="h-4 w-4" />{isSaving ? 'Saving...' : 'Save Changes'}
+                    <button onClick={handleUpdate} disabled={isSaving}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                      <Save className="h-4 w-4" />
+                      {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
                   </>
                 )
               )}
-              {isNonEditable && (
+              {isNonEditable && !isArchived && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-gray-100 text-gray-600 border-gray-300">
                   <Lock className="h-3 w-3" /> Read-only
                 </span>
@@ -1072,41 +1094,41 @@ function EditableDetailModal({
               )}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Owner Information</h3>
-                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="First Name" />
-                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Middle Name" />
-                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Surname" />
-                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Extension Name" />
-                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing && !isNonEditable} label="Prefix" />
-                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && !isNonEditable} label="Email" />
-                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing && !isNonEditable} label="Requester Type" />
+                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="First Name" />
+                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Middle Name" />
+                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Surname" />
+                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Extension Name" />
+                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing && canEdit} label="Prefix" />
+                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && canEdit} label="Email" />
+                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online','Walk-in']} isEditing={isEditing && canEdit} label="Requester Type" />
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Business Information</h3>
                 <FormField name="brgy_business_no" value={formData.brgy_business_no || ''} onChange={handleInputChange} isEditing={false} label="Business No." />
-                <FormField name="business_name" value={formData.business_name || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Business Name" />
-                <FormField name="business_type" value={formData.business_type || ''} onChange={handleInputChange} type="select" options={BUSINESS_TYPE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Business Type" />
-                <FormField name="issued_date" value={formData.issued_date || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Issue Date" />
-                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Issued On" />
-                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Issued At" />
-                <FormField name="capital" value={formData.capital || ''} onChange={handleInputChange} type="number" isEditing={isEditing && !isNonEditable} label="Capital" />
+                <FormField name="business_name" value={formData.business_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Business Name" />
+                <FormField name="business_type" value={formData.business_type || ''} onChange={handleInputChange} type="select" options={BUSINESS_TYPE_OPTIONS} isEditing={isEditing && canEdit} label="Business Type" />
+                <FormField name="capital" value={formData.capital || ''} onChange={handleInputChange} type="number" isEditing={isEditing && canEdit} label="Capital" />
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="House/Block/Lot No." />
-                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && !isNonEditable} label="Street" />
-                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && !isNonEditable} label="Zone" />
+                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="House/Block/Lot No." />
+                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && canEdit} label="Street" />
+                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && canEdit} label="Zone" />
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Inspection Information</h3>
-                <FormField name="inspected_by" value={formData.inspected_by || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="Inspected By" />
-                <FormField name="date_inspected" value={formData.date_inspected || ''} onChange={handleInputChange} type="date" isEditing={isEditing && !isNonEditable} label="Date Inspected" />
-                <FormField name="inspected_remarks" value={formData.inspected_remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Remarks" />
-                <FormField name="inspected_note" value={formData.inspected_note || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Inspected Note" />
+                <FormField name="inspected_by" value={formData.inspected_by || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Inspected By" />
+                <FormField name="date_inspected" value={formData.date_inspected || ''} onChange={handleInputChange} type="date" isEditing={isEditing && canEdit} label="Date Inspected" />
+                <FormField name="inspected_remarks" value={formData.inspected_remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Inspected Remarks" />
+                <FormField name="inspected_note" value={formData.inspected_note || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Inspected Note" />
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="CTC/VRR No." />
-                <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing && !isNonEditable} label="OR No." />
+                <FormField name="issued_date" value={formData.issued_date || ''} onChange={handleInputChange} type="date" isEditing={isEditing && canEdit} label="Issue Date" />
+                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing && canEdit} label="Issued On" />
+                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Issued At" />
+                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="CTC/VRR No." />
+                <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="OR No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
                   <div className="mt-1">
@@ -1117,22 +1139,29 @@ function EditableDetailModal({
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
-                  <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
+                  <div className="mt-1.5">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${
+                      formData.requester_type?.toLowerCase() === 'walk-in' 
+                        ? 'bg-slate-100 text-slate-700 border-slate-300'
+                        : 'bg-cyan-50 text-cyan-700 border-cyan-200'
+                    }`}>
+                      {formData.requester_type === 'Walk-in' ? 'Walk-in Applicant' : 'Online Applicant'}
+                    </span>
+                  </div>
                 </div>
-                
-                {/* Created By - Shows NAME instead of ID (lazy loaded when modal opens) */}
+                <div><label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label><p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p></div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Processed By</label>
                   <div className="mt-1">
                     {loadingCreatedBy ? (
                       <div className="flex items-center gap-2 text-sm text-gray-400">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading...
+                        Loading…
                       </div>
                     ) : (
                       <p className="text-sm text-gray-700">
-                        {createdByName || (formData.created_by ? `ID: ${formData.created_by}` : '—')}
+                        {createdByName || (formData.created_by ? `Staff ID: ${formData.created_by}` : '—')}
                       </p>
                     )}
                   </div>
@@ -1140,12 +1169,8 @@ function EditableDetailModal({
               </div>
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
-                {/* Schedule display */}
                 {formData.requester_type?.toLowerCase() === 'walk-in' ? (
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
-                    <p className="text-sm text-gray-400 italic mt-1">No schedule required (Walk-in)</p>
-                  </div>
+                  <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label><p className="text-sm text-gray-400 italic mt-1">No schedule required (Walk-in)</p></div>
                 ) : isAwaitingReschedule ? (
                   <>
                     <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
@@ -1153,16 +1178,14 @@ function EditableDetailModal({
                         <CalendarClock className="h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Awaiting Applicant Booking</span>
                       </div>
-                      <p className="text-[11px] text-sky-600 leading-relaxed">
-                        The applicant has been notified to choose a new appointment slot through their own portal. Admins do not pick the date or session.
-                      </p>
+                      <p className="text-[11px] text-sky-600 leading-relaxed">The applicant has been notified to choose a new appointment slot through their own portal. Admins do not pick the date or session.</p>
                     </div>
                     {currentSchedule && (
                       <div>
                         <label className="text-xs text-gray-500 uppercase tracking-wider">Last (missed) appointment</label>
                         <p className="text-sm text-gray-500 mt-1 line-through">
                           {formatDateShort(currentSchedule.schedule_date)} · {getScheduleSession(currentSchedule) === 'AM' ? 'Morning' : 'Afternoon'} session
-                          {' '}({formatTimeRange(currentSchedule.schedule_time)})
+                          ({formatTimeRange(currentSchedule.schedule_time)})
                         </p>
                       </div>
                     )}
@@ -1176,19 +1199,11 @@ function EditableDetailModal({
                   </>
                 ) : currentSchedule ? (
                   <>
+                    <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label><p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p></div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                      <p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
+                      <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider">Session</label>
-                      <p className="text-sm text-gray-700 mt-1 inline-flex items-center gap-1.5">
-                        {getScheduleSession(currentSchedule) === 'AM' ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
-                        {getScheduleSessionLabel(currentSchedule)}
-                      </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Booked slot: {formatTimeRange(currentSchedule.schedule_time)}</p>
-                    </div>
-                    {/* No-Show informational panel — no action button */}
                     {isNoShow && !TERMINAL_STATUSES.has(status) && !isBlocked && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
                         <div className="flex items-center gap-1.5">
@@ -1202,27 +1217,19 @@ function EditableDetailModal({
                         </p>
                       </div>
                     )}
-                    {currentSchedule.note && (
-                      <div>
-                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
-                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
-                      </div>
-                    )}
+                    {currentSchedule.note && <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label><p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p></div>}
                     <MissedScheduleHistory history={missedHistory} />
                   </>
                 ) : (
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
-                    <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
-                  </div>
+                  <div><label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label><p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p></div>
                 )}
-                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && !isNonEditable} label="Remarks" />
+                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Remarks" />
               </div>
             </div>
           </div>
 
           {/* Disposition panel */}
-          {showDispositionModal && canDispose && (
+          {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1247,7 +1254,7 @@ function EditableDetailModal({
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => { setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null); }} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
                 <button onClick={handleDisposition} disabled={isDisposing || !dispositionReason.trim()}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white transition-colors disabled:opacity-50 ${dispositionType === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
                   {isDisposing ? 'Submitting…' : dispositionType === 'REJECTED' ? 'Confirm Rejection' : 'Confirm Incomplete'}
                 </button>
               </div>
@@ -1255,25 +1262,36 @@ function EditableDetailModal({
           )}
 
           {/* Archive confirmation panel */}
-          {showArchiveConfirm && canArchive && (
+          {showArchiveConfirm && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
+              <div className="flex items-center gap-2"><Archive className="h-4 w-4 text-gray-600" /><span className="text-sm font-semibold text-gray-800">Confirm Archive</span></div>
+              <p className="text-sm text-gray-600">This will mark the record as <strong>Archived</strong>. Archived records are read-only and cannot be edited or updated. Are you sure you want to continue?</p>
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => setShowArchiveConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onClick={handleArchive} disabled={isArchiving} className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                  <Archive className="h-3.5 w-3.5" />{isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Restore confirmation panel */}
+          {showRestoreConfirm && (
+            <div className="mx-6 mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Archive className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-semibold text-gray-800">Confirm Archive</span>
+                <RotateCcw className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Restore</span>
               </div>
               <p className="text-sm text-gray-600">
-                This will lock the record as <strong>Archived</strong>. Archived records are completely
-                non-interactive — no edits, no actions, no status changes. Continue?
+                This will restore the archived record back to its previous active status ({previousStatus || 'RELEASED'}).
+                The record will become editable and visible in the active records list again.
+                Are you sure you want to continue?
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button onClick={() => setShowArchiveConfirm(false)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
-                  Cancel
-                </button>
-                <button onClick={handleArchive} disabled={isArchiving}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Archive className="h-3.5 w-3.5" />
-                  {isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
+                <button onClick={() => setShowRestoreConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onClick={handleRestore} disabled={isArchiving} className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {isArchiving ? 'Restoring…' : 'Yes, Restore Record'}
                 </button>
               </div>
             </div>
@@ -1284,22 +1302,23 @@ function EditableDetailModal({
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {isArchived ? (
-                  <p className="text-xs text-gray-500 italic flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5" />
-                    This record is archived. All actions are disabled.
-                  </p>
+                  <>
+                    <button onClick={() => setShowRestoreConfirm(true)} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                      <RotateCcw className="h-4 w-4" /> Restore / Unarchive
+                    </button>
+                    <p className="text-xs text-gray-500 italic flex items-center gap-1.5 ml-2">
+                      <Lock className="h-3.5 w-3.5" /> This record is archived. Click restore to reactivate.
+                    </p>
+                  </>
                 ) : isBlocked ? (
-                  <p className={`text-xs italic flex items-center gap-1.5 ${
-                    status === 'REJECTED' ? 'text-rose-600' : 'text-orange-600'
-                  }`}>
-                    <Ban className="h-3.5 w-3.5" />
-                    Workflow halted — this record was marked <strong>{blockedLabel}</strong>. No further status changes allowed.
+                  <p className={`text-xs italic flex items-center gap-1.5 ${status === 'REJECTED' ? 'text-rose-600' : 'text-orange-600'}`}>
+                    <Ban className="h-3.5 w-3.5" /> Workflow halted — this record was marked <strong>{blockedLabel}</strong>. No further status changes allowed.
                   </p>
                 ) : isReleased ? (
                   <>
                     {hasReleasedDocument && (
                       <button onClick={downloadReleased} disabled={isDownloading}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
                         <Download className="h-4 w-4" />
                         {isDownloading ? 'Downloading...' : 'Download Released Document'}
                       </button>
@@ -1307,58 +1326,53 @@ function EditableDetailModal({
                     {canArchive && (
                       <>
                         <div className="w-px h-6 bg-gray-200 mx-1" />
-                        <button onClick={() => setShowArchiveConfirm(true)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
-                          <Archive className="h-4 w-4" />
-                          Archive Record
+                        <button onClick={() => setShowArchiveConfirm(true)} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
+                          <Archive className="h-4 w-4" /> Archive Record
                         </button>
                       </>
                     )}
-                    <p className="text-xs text-gray-400 italic">
-                      Released by cashier. Status cannot be changed.
-                    </p>
+                    <p className="text-xs text-gray-400 italic">Released by cashier. Status cannot be changed.</p>
                   </>
                 ) : (
                   <>
-                    {canMarkReviewed && (
-                      <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <CreditCard className="h-4 w-4" />
-                        {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
-                      </button>
+                    {canMarkProcess && (
+                      <>
+                        <button onClick={handleMarkProcess} disabled={actionLoading === 'processing'}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+                          <PlayCircle className="h-4 w-4" />
+                          {actionLoading === 'processing' ? 'Updating...' : 'Mark as Process'}
+                        </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                      </>
                     )}
                     {canDispose && (
                       <>
-                        <div className="w-px h-6 bg-gray-200 mx-1" />
                         <button onClick={() => openDisposition('INCOMPLETE')}
                           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
-                          <X className="h-4 w-4" />
-                          Mark as Incomplete
+                          <X className="h-4 w-4" /> Mark as Incomplete
                         </button>
                         <button onClick={() => openDisposition('REJECTED')}
                           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                          <X className="h-4 w-4" />
-                          Reject
+                          <X className="h-4 w-4" /> Reject
                         </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
                       </>
                     )}
                     {canMarkToInspection && (
                       <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
                         <Eye className="h-4 w-4" />
                         {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                       </button>
                     )}
-                    {status === 'REVIEWED' && (
-                      <p className="text-xs text-purple-600 italic flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5" />
-                        Forwarded to Cashier. Payment AND release are handled in the cashier portal.
+                    {status === 'PROCESS' && (
+                      <p className="text-xs text-indigo-600 italic flex items-center gap-1.5">
+                        <PlayCircle className="h-3.5 w-3.5" /> Request is now being processed. Awaiting further action from cashier.
                       </p>
                     )}
                     {status === 'PAID' && (
                       <p className="text-xs text-teal-600 italic flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5" />
-                        Payment confirmed by cashier. Awaiting cashier to release the document.
+                        <CreditCard className="h-3.5 w-3.5" /> Payment confirmed by cashier. Awaiting cashier to release the document.
                       </p>
                     )}
                   </>
@@ -1407,9 +1421,9 @@ function FilterBar({ filters, onChange, onReset, activeCount, streets }: {
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
+                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEW', 'PROCESS', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
                   <button key={v} className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`} onClick={() => onChange({ status: v })}>
-                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
+                    {v === '' ? 'All' : v === 'ARCHIVED' ? 'Archived' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
@@ -1485,6 +1499,7 @@ const BusinessClearance = () => {
   const [streets, setStreets] = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BusinessClearanceType | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [reviewingIds, setReviewingIds] = useState<Set<number>>(new Set());
 
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
@@ -1544,6 +1559,36 @@ const BusinessClearance = () => {
     toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
   }, []);
 
+  const handleTableReview = useCallback(async (item: BusinessClearanceType) => {
+    const itemId = Number(item.id);
+    setReviewingIds(prev => new Set(prev).add(itemId));
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/business-clearances/${itemId}`,
+        { status: 'REVIEW' },
+        { withCredentials: true }
+      );
+      setData(prev =>
+        prev.map(r =>
+          Number(r.id) === itemId ? { ...r, status: 'REVIEW' } : r
+        )
+      );
+      toast({ title: 'Reviewed', description: 'Request status updated to Review.' });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to mark as reviewed.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReviewingIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  }, [toast]);
+
   const activeFilterCount = countActiveFilters(filters);
 
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
@@ -1561,7 +1606,6 @@ const BusinessClearance = () => {
               <h1 className="text-2xl font-semibold text-gray-900">Business Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage business clearance records</p>
             </div>
-            {/* <Button className="gap-2" onClick={() => navigate('/document-edit/4')}><Plus className="h-4 w-4" /> New Clearance</Button> */}
           </div>
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
@@ -1598,15 +1642,12 @@ const BusinessClearance = () => {
                       <th className="w-5 py-3 pl-3" />
                       <SortHeader field="surname">Full Name</SortHeader>
                       <SortHeader field="brgy_business_no">Business No.</SortHeader>
-                      <SortHeader field="issued_date">Issue Date</SortHeader>
+                      <SortHeader field="created_at">Created At</SortHeader>
                       <SortHeader field="business_name">Business Name</SortHeader>
                       <SortHeader field="business_type">Type</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div></th>
-                      <SortHeader field="street">Address</SortHeader>
-                      <SortHeader field="capital">Capital</SortHeader>
-                      <SortHeader field="created_by">Created By</SortHeader>
-                      <SortHeader field="or_no">OR No.</SortHeader>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Request Type</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
@@ -1615,103 +1656,72 @@ const BusinessClearance = () => {
                       const isNew = isNewRequest((item as any).created_at);
                       const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
                       const isItemArchived = FROZEN_STATUSES.has(itemStatus);
-                      const isItemBlocked  = BLOCKED_STATUSES.has(itemStatus);
+                      const isItemBlocked = BLOCKED_STATUSES.has(itemStatus);
                       const isItemReleased = itemStatus === 'RELEASED';
                       const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
                       const itemRequesterType: string = (item as any).requester_type ?? '';
                       const isItemAwaitingReschedule = itemStatus === 'RESCHEDULED';
-
+                      const isItemScheduled = itemStatus === 'SCHEDULED';
+                      const isReviewingThis = reviewingIds.has(Number(item.id));
+                      const { label: submittedByLabel, badgeClass: submittedByBadgeClass } = 
+                        itemRequesterType?.toLowerCase() === 'walk-in' 
+                          ? { label: 'Walk-in Applicant', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
+                          : { label: 'Online Applicant', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
                       const rowClass = [
                         isNew ? 'bg-blue-50/30' : '',
-                        isItemArchived ? 'opacity-50 bg-gray-50' : '',
+                        isItemArchived ? 'opacity-60 bg-gray-50' : '',
                         isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
                         'hover:bg-gray-50 transition-colors',
                       ].filter(Boolean).join(' ');
-
+                      
                       return (
                         <tr key={item.id} className={rowClass}>
                           <td className="pl-3 pr-0 py-3">{isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}</td>
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">{`${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim()}</td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.brgy_business_no}</td>
-                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
-                            <div className="flex flex-col gap-0.5">
-                              <span>{formatCreatedAt((item as any).created_at)}</span>
-                              {isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}
-                            </div>
-                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap"><div className="flex flex-col gap-0.5"><span>{formatCreatedAt((item as any).created_at)}</span>{isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}</div></td>
                           <td className="py-3 px-4 text-sm font-medium">{item.business_name ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.business_type ?? '—'}</td>
-                          <td className="py-3 px-4">
-                            <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
-                          </td>
-                          <td className="py-3 px-4">
-                            <ScheduleCell schedule={itemSchedule} requesterType={itemRequesterType} status={itemStatus} />
-                          </td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{[item.house_block_lot_no, item.street, (item as any).zone].filter(Boolean).join(', ') || '—'}</td>
-                          <td className="py-3 px-4 text-sm font-medium">{item.capital != null ? formatCurrency(item.capital) : '—'}</td>
-                          {/* Table shows only the ID - no API call here for performance */}
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by ? `ID: ${item.created_by}` : '—'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.or_no ?? '—'}</td>
+                          <td className="py-3 px-4"><StatusBadge status={item.status} requesterType={(item as any).requester_type} /></td>
+                          <td className="py-3 px-4"><ScheduleCell schedule={itemSchedule} requesterType={itemRequesterType} status={itemStatus} /></td>
+                          <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>{submittedByLabel}</span></td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {isItemArchived ? (
-                                <span
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none whitespace-nowrap"
-                                  title="This record is archived and locked"
-                                  aria-disabled="true"
-                                >
-                                  <Lock className="h-3 w-3" /> Archived · Locked
-                                </span>
+                                <>
+                                  <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors whitespace-nowrap">
+                                    <RotateCcw className="h-3 w-3" /> Restore
+                                  </button>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-gray-100 text-gray-500 border-gray-200 whitespace-nowrap">
+                                    <Lock className="h-3 w-3" /> Archived
+                                  </span>
+                                </>
                               ) : isItemBlocked ? (
                                 <>
-                                  <button
-                                    onClick={() => setSelectedDetailRecord(item)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                                    title={`View ${itemStatus.toLowerCase()} record (read-only workflow)`}
-                                  >
-                                    <Eye className="h-3 w-3" /> View
-                                  </button>
-                                  <button
-                                    onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })}
-                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                                  >
-                                    Print
-                                  </button>
-                                  <span
-                                    className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${
-                                      itemStatus === 'REJECTED'
-                                        ? 'bg-rose-50 text-rose-500 border-rose-200'
-                                        : 'bg-orange-50 text-orange-500 border-orange-200'
-                                    }`}
-                                    title="Workflow halted — no further actions allowed"
-                                    aria-disabled="true"
-                                  >
+                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${
+                                    itemStatus === 'REJECTED' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-orange-50 text-orange-500 border-orange-200'
+                                  }`}>
                                     <Ban className="h-3 w-3" /> No actions
                                   </span>
+                                </>
+                              ) : isItemScheduled ? (
+                                <>
+                                  <button onClick={() => handleTableReview(item)} disabled={isReviewingThis} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <CheckCircle className="h-3 w-3" /> {isReviewingThis ? 'Reviewing…' : 'Review'}
+                                  </button>
+                                  <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
                                 </>
                               ) : (
                                 <>
                                   <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">
                                     <Eye className="h-3 w-3" /> View/Edit
                                   </button>
-                                  {/* <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap">Preview</button> */}
                                   <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
                                   {isItemReleased && (
-                                    <button
-                                      onClick={() => setSelectedDetailRecord(item)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
-                                      title="Archive this released record"
-                                    >
+                                    <button onClick={() => setSelectedDetailRecord(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap">
                                       <Archive className="h-3 w-3" /> Archive
                                     </button>
-                                  )}
-                                  {isItemAwaitingReschedule && (
-                                    <span
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-sky-50 text-sky-600 border-sky-200 cursor-default select-none whitespace-nowrap"
-                                      title="Awaiting applicant to book a new slot via their portal"
-                                    >
-                                      <CalendarClock className="h-3 w-3" /> Awaiting Applicant
-                                    </span>
                                   )}
                                 </>
                               )}

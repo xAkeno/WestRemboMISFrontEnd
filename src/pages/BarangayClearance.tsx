@@ -1029,7 +1029,7 @@ function EditableDetailModal({
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
-  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
+  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status) && status !== 'PROCESS';
   const canArchive = isReleased && !isArchived;
   const canEdit = !isArchived;
   const isAwaitingReschedule = status === 'RESCHEDULED';
@@ -1363,9 +1363,9 @@ function EditableDetailModal({
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {formData.requester_type === 'Online' && (
+              {/* {formData.requester_type === 'Online' && (
                 <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
-              )}
+              )} */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="First Name" />
