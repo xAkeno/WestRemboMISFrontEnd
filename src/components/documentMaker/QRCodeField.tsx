@@ -72,7 +72,7 @@ function QRCanvas({ value, size }: { value: string; size: number }) {
   useEffect(() => {
     if (!canvasRef.current || !value) return;
 
-    const baseUrl   = import.meta.env.VITE_VERIFY_URL || 'http://localhost:8000';
+    const baseUrl   = import.meta.env.VITE_VERIFY_URL || 'https://barangaywestrembo.onrender.com';
     const verifyUrl = `${baseUrl}/verify/${value}`;
     const qrMessage = `This QR/Document is Authenticated\n\nFor further details, follow this link:\n${verifyUrl}`;
 

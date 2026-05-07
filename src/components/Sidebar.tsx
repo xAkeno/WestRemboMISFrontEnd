@@ -44,6 +44,7 @@ const menuSections = [
       { title: "Clearances", path: "/clearancehome", icon: FileCheck, permission: "doc_req" },
       { title: "Certifications", path: "/certificatehome", icon: Award, permission: "certificate" },
       { title: "Document Settings", path: "/document-setting", icon: FileCheck, permission: "settings" },
+      {title: "Document Verification", path: "/AdminDocumentVerifier", icon: Bell, permission: "settings"},
     ],
   },
   {

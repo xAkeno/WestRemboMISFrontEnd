@@ -4,7 +4,6 @@ import {
   XCircle,
   Loader2,
   ShieldCheck,
-  FileUp,
   QrCode,
   Camera,
   X,
@@ -53,13 +52,27 @@ type ActivityLog = {
   created_at:  string;
 };
 
-// ─── Extract ref + key from scanned URL ──────────────────────────────────────
 function extractFromUrl(raw: string): { ref: string; key: string | null } {
   try {
-    const url   = new URL(raw);
-    const match = url.pathname.match(/\/verify\/(.+)$/);
-    const ref   = match?.[1] ?? raw;
-    const key   = url.searchParams.get("key");
+    // Handle both full URLs and plain reference numbers
+    const trimmed = raw.trim();
+    
+    // Try to parse as URL
+    let url: URL;
+    try {
+      url = new URL(trimmed);
+    } catch {
+      // If it fails, it might be a plain reference number
+      return { ref: trimmed, key: null };
+    }
+    
+    // Extract reference number from path
+    const match = url.pathname.match(/\/verify\/([^/]+)$/);
+    const ref = match?.[1] ?? trimmed;
+    
+    // Extract key from query parameters
+    const key = url.searchParams.get("key");
+    
     return { ref, key };
   } catch {
     return { ref: raw, key: null };
@@ -104,14 +117,13 @@ function QRScannerModal({
     return () => { stopScanner(); };
   }, []);
 
-  // Auto-fire as soon as a QR is detected
   useEffect(() => {
     if (!scanned) return;
     stopScanner();
     const { ref, key } = extractFromUrl(scanned);
     onScanSuccess(ref, key);
     onClose();
-  }, [scanned]);
+  }, [scanned, onScanSuccess, onClose]);
 
   return (
     <div
@@ -281,7 +293,7 @@ function ActivityLogTimeline({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Public Component ────────────────────────────────────────────────────
 export default function DocumentVerifier() {
   const [scanState,     setScanState]     = useState<ScanState>("idle");
   const [result,        setResult]        = useState<VerifyResult | null>(null);
@@ -291,7 +303,6 @@ export default function DocumentVerifier() {
   const [activityLogs,  setActivityLogs]  = useState<ActivityLog[]>([]);
   const [loadingLogs,   setLoadingLogs]   = useState(false);
   const [showAudit,     setShowAudit]     = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Auto-verify from URL on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -306,9 +317,7 @@ export default function DocumentVerifier() {
   const formatDate = (d?: string) => {
     if (!d) return "N/A";
     return new Date(d).toLocaleDateString("en-PH", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+      year: "numeric", month: "long", day: "numeric",
     });
   };
 
@@ -332,40 +341,7 @@ export default function DocumentVerifier() {
     }
   };
 
-  // ── Upload PDF verify ─────────────────────────────────────────────────────
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setScanState("loading");
-    setErrorMsg("");
-    setResult(null);
-    setActivityLogs([]);
-    setShowAudit(false);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await axios.post(`${API}/api/documents/verify`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        withCredentials: true,
-      });
-      if (res.data.valid) {
-        setScanState("valid");
-        setResult(res.data.data);
-        if (res.data.data?.record_id) await fetchActivityLogs(res.data.data.record_id);
-      } else {
-        setScanState("invalid");
-        setErrorMsg(res.data.message);
-      }
-    } catch (err: any) {
-      setScanState("error");
-      setErrorMsg(err.response?.data?.message || "Verification failed.");
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  // ── QR / URL verify (shared) ──────────────────────────────────────────────
+  // ── QR / URL verify ───────────────────────────────────────────────────────
   const handleQRVerify = async (referenceNumber: string, key: string | null) => {
     setQrVerifying(true);
     setScanState("loading");
@@ -375,14 +351,12 @@ export default function DocumentVerifier() {
     setShowAudit(false);
 
     try {
-      // ── Step 1: Require a key — no key = invalid, stop immediately ──────
       if (!key) {
         setScanState("invalid");
         setErrorMsg("This QR code is missing a security signature and cannot be verified.");
         return;
       }
 
-      // ── Step 2: Validate HMAC signature ──────────────────────────────────
       try {
         const sigCheck = await axios.get(`${API}/api/verify-qr`, {
           params: { ref: referenceNumber, key },
@@ -399,13 +373,11 @@ export default function DocumentVerifier() {
           setErrorMsg("This QR code is invalid or has been tampered with.");
           return;
         }
-        // Any other error (network/server down) — surface it, don't skip
         setScanState("error");
         setErrorMsg("Could not reach the signature verification service. Please try again.");
         return;
       }
 
-      // ── Step 3: Build endpoint + params ──────────────────────────────────
       let endpoint = "";
       let params: Record<string, any> = {};
       const upperRef = referenceNumber.toUpperCase();
@@ -426,7 +398,6 @@ export default function DocumentVerifier() {
         throw new Error(`Unrecognized reference number: "${referenceNumber}".`);
       }
 
-      // ── Step 4: Fetch document list ───────────────────────────────────────
       const response = await axios.get(`${API}${endpoint}`, {
         params,
         withCredentials: true,
@@ -482,7 +453,6 @@ export default function DocumentVerifier() {
     window.history.replaceState(null, "", "/verify");
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
@@ -495,7 +465,7 @@ export default function DocumentVerifier() {
               Document <span style={{ color: PINK }}>Verifier</span>
             </h1>
             <p className="text-xs text-muted-foreground mt-2 uppercase">
-              Scan QR code or upload PDF to verify authenticity
+              Scan QR code to verify document authenticity
             </p>
           </div>
 
@@ -512,14 +482,6 @@ export default function DocumentVerifier() {
             </div>
           )}
 
-          {scanState === "idle" && (
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400">OR</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-          )}
-
           <div className="border rounded-sm overflow-hidden">
             <div
               className="flex items-center gap-3 px-5 py-3"
@@ -531,7 +493,7 @@ export default function DocumentVerifier() {
                   ? "Verifying Document…"
                   : scanState === "valid"
                   ? "Verification Result"
-                  : "Upload PDF Document"}
+                  : "QR Code Verification"}
               </span>
             </div>
 
@@ -539,17 +501,20 @@ export default function DocumentVerifier() {
 
               {/* ── IDLE ── */}
               {scanState === "idle" && (
-                <label className="w-full flex items-center justify-center gap-3 py-4 border cursor-pointer hover:bg-gray-50 transition-colors rounded">
-                  <FileUp className="h-5 w-5" />
-                  <span className="text-sm">Upload PDF Document</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
+                <div className="flex flex-col items-center gap-4 py-8 text-center">
+                  <div
+                    className="w-16 h-16 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: "#EEF2FF" }}
+                  >
+                    <QrCode className="h-8 w-8" style={{ color: NAVY }} />
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Use the button above to scan a QR code from a barangay document.
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Make sure the QR code is clearly visible and well-lit.
+                  </p>
+                </div>
               )}
 
               {/* ── LOADING ── */}
@@ -638,7 +603,7 @@ export default function DocumentVerifier() {
                     </p>
                   </div>
 
-                  <button
+                  {/* <button
                     onClick={() => setShowAudit(!showAudit)}
                     className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-all"
                     style={{ borderColor: "#e5e7eb" }}
@@ -651,7 +616,7 @@ export default function DocumentVerifier() {
                     {showAudit
                       ? <ChevronDown className="h-4 w-4" />
                       : <ChevronRight className="h-4 w-4" />}
-                  </button>
+                  </button> */}
 
                   {showAudit && (
                     <div className="border rounded-lg p-4" style={{ backgroundColor: "#fafbfc" }}>
@@ -706,7 +671,7 @@ export default function DocumentVerifier() {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-gray-400">
-              Supported: BCLEAR-XXX · BCERT-XXX · BBUILDINGCLE-XXX · BBUSINESS-XXX
+              Supported: BC-XXX · BCERT-XXX · BDC-XXX · BBC-XXX
             </p>
           </div>
         </div>
