@@ -1973,7 +1973,7 @@ const FrontDesk = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("api/streets", { withCredentials: true });
+        const res = await api.get("/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
