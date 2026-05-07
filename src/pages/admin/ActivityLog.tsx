@@ -17,7 +17,6 @@ interface ActivityLogEntry {
   user_name: string;
   user_email: string;
   action: string;
-  type: 'login_attempt' | 'account_change' | 'new_document' | 'update_document' | 'delete_document' | 'other';
   description: string;
   ip_address: string;
   created_at: string;
@@ -99,9 +98,9 @@ export default function ActivityLog() {
 
   const stats = {
     total: totalItems,
-    logins: logs.filter(l => l.type === 'login_attempt').length,
-    documents: logs.filter(l => ['new_document', 'update_document', 'delete_document'].includes(l.type)).length,
-    accounts: logs.filter(l => l.type === 'account_change').length,
+    logins: logs.filter(l => l.action.includes('login')).length,
+    documents: logs.filter(l => l.action.includes('document')).length,
+    accounts: logs.filter(l => l.action.includes('account')).length,
   };
 
   return (
@@ -198,7 +197,6 @@ export default function ActivityLog() {
                   <TableRow>
                     <TableHead className="w-[180px]">Timestamp</TableHead>
                     <TableHead>User</TableHead>
-                    <TableHead className="w-[160px]">Type</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead className="w-[130px]">IP Address</TableHead>
@@ -207,22 +205,20 @@ export default function ActivityLog() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                         <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
                         Loading activity logs...
                       </TableCell>
                     </TableRow>
                   ) : logs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                         <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         No activity logs found.
                       </TableCell>
                     </TableRow>
                   ) : (
                     logs.map((log) => {
-                      const typeInfo = getTypeInfo(log.type);
-                      const TypeIcon = typeInfo.icon;
                       return (
                         <TableRow key={log.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
@@ -233,12 +229,6 @@ export default function ActivityLog() {
                               <p className="text-sm font-medium">{log.user_name}</p>
                               <p className="text-xs text-muted-foreground">{log.user_email}</p>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={typeInfo.variant} className="gap-1">
-                              <TypeIcon className="h-3 w-3" />
-                              {typeInfo.label}
-                            </Badge>
                           </TableCell>
                           <TableCell className="text-sm font-medium">{log.action}</TableCell>
                           <TableCell className="text-sm text-muted-foreground max-w-[250px] truncate">

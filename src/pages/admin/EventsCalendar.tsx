@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, EyeOff, Calendar, MapPin, ImageIcon } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Calendar, MapPin, ImageIcon } from 'lucide-react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import {
 import { Layout } from '@/components/Layout';
 
 const API_BASE = 'https://westrembomis.onrender.com/api';
+const IMAGE_BASE_URL = 'https://bold-sunset-533d.clarkkentraguhos.workers.dev/';
 
 interface Event {
   id: number;
@@ -61,6 +62,12 @@ const EventsCalendar = () => {
   const [form, setForm] = useState(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const getImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${IMAGE_BASE_URL}${imagePath}`;
+  };
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -155,15 +162,6 @@ const EventsCalendar = () => {
     }
   };
 
-  const togglePublish = async (event: Event) => {
-    const updated = { ...event, published: !event.published };
-    setEvents(prev => prev.map(e => e.id === event.id ? updated : e));
-    try {
-      await axios.put(`${API_BASE}/events/${event.id}`, { published: updated.published }, { withCredentials: true });
-    } catch {}
-    toast({ title: updated.published ? 'Published' : 'Unpublished', description: `Event ${updated.published ? 'published' : 'unpublished'}` });
-  };
-
   return (
     <Layout>
       <div className="p-6">
@@ -191,7 +189,6 @@ const EventsCalendar = () => {
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Event</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date & Time</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Action</th>
                     </tr>
                   </thead>
@@ -200,9 +197,9 @@ const EventsCalendar = () => {
                       <tr key={event.id} className="hover:bg-muted/30 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden">
+                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                               {event.image
-                                ? <img src={event.image} alt="" className="w-full h-full object-cover" />
+                                ? <img src={getImageUrl(event.image)} alt="" className="w-full h-full object-cover" />
                                 : <Calendar className="h-5 w-5 text-primary" />}
                             </div>
                             <div>
@@ -222,14 +219,6 @@ const EventsCalendar = () => {
                           <div className="text-xs text-muted-foreground">{event.start_time} {event.end_time ? `– ${event.end_time}` : ''}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => togglePublish(event)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${event.published ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}
-                          >
-                            {event.published ? <><Eye className="h-3 w-3" /> Published</> : <><EyeOff className="h-3 w-3" /> Draft</>}
-                          </button>
-                        </td>
-                        <td className="py-3 px-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -245,7 +234,7 @@ const EventsCalendar = () => {
                       </tr>
                     ))}
                     {events.length === 0 && (
-                      <tr><td colSpan={5} className="py-12 text-center text-sm text-muted-foreground">No events found</td></tr>
+                      <tr><td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">No events found</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -265,7 +254,7 @@ const EventsCalendar = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-16 h-16 rounded-lg border border-dashed border-border flex items-center justify-center overflow-hidden bg-muted/30">
                       {(imageFile || form.image) ? (
-                        <img src={imageFile ? URL.createObjectURL(imageFile) : form.image!} alt="" className="w-full h-full object-cover" />
+                        <img src={imageFile ? URL.createObjectURL(imageFile) : getImageUrl(form.image)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <ImageIcon className="h-6 w-6 text-muted-foreground" />
                       )}
@@ -305,10 +294,6 @@ const EventsCalendar = () => {
                     <Switch checked={form.important || false} onCheckedChange={v => setForm(f => ({ ...f, important: v }))} />
                     <Label>Important</Label>
                   </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label>Published</Label>
-                  <Switch checked={form.published} onCheckedChange={v => setForm(f => ({ ...f, published: v }))} />
                 </div>
               </div>
               <DialogFooter>
