@@ -329,7 +329,7 @@ const HeroSection = () => {
           animationDelay: "1.3s",
         }}
       >
-        <div style={{ width: 1, height: 40, backgroundColor: "rgba(194,70,125,0.40)" }} />
+        {/* <div style={{ width: 1, height: 40, backgroundColor: "rgba(194,70,125,0.40)" }} />
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "rgba(232,160,191,0.55)" }}>
             Official Portal
@@ -337,11 +337,11 @@ const HeroSection = () => {
           <p className="text-[10px] text-white/30 uppercase tracking-widest mt-0.5">
             Barangay West Rembo · Taguig City
           </p>
-        </div>
+        </div> */}
       </div>
 
       {/* ── Bottom-right form number ────────────────────────────────── */}
-      <div
+      {/* <div
         className="absolute bottom-12 right-6 hidden lg:block text-right pointer-events-none"
         style={{
           opacity: mounted ? 1 : 0,
@@ -353,7 +353,7 @@ const HeroSection = () => {
           Est. 1901
         </p>
         <p className="text-[10px] text-white/20 font-mono mt-0.5">BWR · 2025</p>
-      </div>
+      </div> */}
     </section>
   );
 };

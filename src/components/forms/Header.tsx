@@ -54,10 +54,31 @@ const Header = () => {
 
   // Fetch logged-in user
   useEffect(() => {
+    const cached = localStorage.getItem("user");
+    if (cached) setSelf(JSON.parse(cached));
+
     axios
       .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
-      .then((res) => { if (res.status === 200) setSelf(res.data.data); })
-      .catch(() => {/* not authenticated — silently ignore */});
+      .then((res) => {
+        if (res.status === 200) {
+          setSelf(res.data.data);
+          localStorage.setItem("user", JSON.stringify(res.data.data));
+        }
+      })
+      .catch(() => {
+        setSelf(null);
+        localStorage.removeItem("user");
+      });
+    }, []);
+
+// ADD this new useEffect right after:
+  useEffect(() => {
+    const handler = () => {
+      const cached = localStorage.getItem("user");
+      if (cached) setSelf(JSON.parse(cached));
+    };
+    window.addEventListener("user-login", handler);
+    return () => window.removeEventListener("user-login", handler);
   }, []);
 
   // Close mobile menu on route change
@@ -84,6 +105,7 @@ const Header = () => {
         { withCredentials: true }    // ← this was in wrong position
       );
       setSelf(null);         // clear AFTER logout succeeds
+      localStorage.removeItem("user"); // ← ADD this line
       navigate("/home");
       toast.success("You have been signed out.");
     } catch (error) {
@@ -330,6 +352,7 @@ const MobileProfilePanel = ({
         {},
         { withCredentials: true }
       );
+       localStorage.removeItem("user"); // ← ADD this line
       onSignOut();           // clear self in parent AFTER logout succeeds
       onClose();
       navigate("/home");

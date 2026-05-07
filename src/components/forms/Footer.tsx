@@ -111,7 +111,7 @@ const Footer = () => {
         {/* Copyright */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-            © 2025 Barangay West Rembo™. All Rights Reserved.
+            © 2026 Barangay West Rembo™. All Rights Reserved.
           </p>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>
             Official Barangay Portal · Makati City
