@@ -2031,13 +2031,13 @@ const FrontDesk = () => {
     switch (docType) {
       case "clearance":
         cfg = {
-          url: "api/barangay-clearances",
+          url: "/barangay-clearances",
           payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
         };
         break;
       case "building-clearance":
         cfg = {
-          url: "api/building-clearances",
+          url: "/building-clearances",
           payload: {
             ...base,
             establishment:           formData.establishment || null,
@@ -2050,7 +2050,7 @@ const FrontDesk = () => {
         break;
       case "business-clearance":
         cfg = {
-          url: "api/business-clearances",
+          url: "/business-clearances",
           payload: {
             ...base,
             ext:              formData.ext_name      || null,
@@ -2066,7 +2066,7 @@ const FrontDesk = () => {
         break;
       case "barangay-certificate":
         cfg = {
-          url: "api/barangay-certificates",
+          url: "/barangay-certificates",
           payload: {
             ...base,
             extension:               formData.ext_name || null,
@@ -2079,7 +2079,7 @@ const FrontDesk = () => {
         break;
       default:
         cfg = {
-          url: "api/barangay-clearances",
+          url: "/barangay-clearances",
           payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
         };
         break;
@@ -2111,7 +2111,7 @@ const FrontDesk = () => {
         if (docType !== "business-clearance") {
           try {
             await api.post(
-              "api/schedules",
+              "/schedules",
               {
                 document_type:   documentType,
                 document_number: documentNumber,
@@ -2160,7 +2160,7 @@ const FrontDesk = () => {
             // so we send `surname` here to keep the kiosk-profile upsert
             // aligned with the kiosk-search lookup payload.
             await api.post(
-              "api/kiosk/profile",
+              "/kiosk/profile",
               { first_name: fn, surname: ln, date_of_birth: dob, payload: profileSnapshot },
               { withCredentials: true },
             );
