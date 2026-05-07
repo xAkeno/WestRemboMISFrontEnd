@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, RefreshCw, X,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Mail, Download,
-  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban,
+  IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban, Archive,
+  CalendarClock, Clock, AlertTriangle, History, Lock, Send, Sun, Moon,
+  CheckCircle, PlayCircle,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -14,10 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Layout } from "@/components/Layout";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { generatePDF } from '@/utils/pdfGenerator';
-import type { TextField } from '@/types/certificate';
-import type { QRCodeFieldData }from '@/components/documentMaker/QRCodeField';
-import type { SavedLayout } from '@/components/documentMaker/CertificateEditor';
+import { fetchUserById, getUserFullName } from '@/components/services/userApi';
 
 interface StreetOption {
   id: number;
@@ -26,280 +25,21 @@ interface StreetOption {
   formerly?: string;
 }
 
-// Zone options for dropdown
 const ZONE_OPTIONS = [
-  'Sitio 1',
-  'Sitio 2',
-  'Sitio 3',
-  'Sitio 4',
-  'Sitio 5',
-  'Sitio 6',
-  'Sitio 7',
-  'Sitio 8',
-  'Sitio 9',
-  'Sitio 10',
+  'Sitio 1','Sitio 2','Sitio 3','Sitio 4','Sitio 5',
+  'Sitio 6','Sitio 7','Sitio 8','Sitio 9','Sitio 10',
 ];
 
-// ─── CONCAT GROUPS ─────────────────────────────────────────────────────────────
-interface ConcatGroup {
-  label: string;
-  members: string[];
-  separator: string;
+console.log(import.meta.env.VITE_WEB_URL);
+
+// ─── Schedule History Entry ────────────────────────────────────────────────────
+interface ScheduleHistoryEntry {
+  schedule_date: string;
+  schedule_time: string;
+  missed_at: string;
+  note?: string | null;
 }
 
-const RELEASE_CONCAT_GROUPS: ConcatGroup[] = [
-  {
-    label: 'Full Name',
-    members: ['Prefix', 'First Name', 'Middle Name', 'Last Name', 'Ext Name', 'Extension'],
-    separator: ' ',
-  },
-  {
-    label: 'Full Address',
-    members: ['House Block Lot No', 'Street', 'Zone'],
-    separator: ', ',
-  },
-];
-
-// ─── Robust label normaliser ───────────────────────────────────────────────────
-const normLabel = (s: string) =>
-  s.trim()
-   .toLowerCase()
-   .replace(/[.\-_]/g, ' ')
-   .replace(/\s+/g, ' ')
-   .trim();
-
-// ─── LABEL_TO_KEY map ─────────────────────────────────────────────────────────
-const LABEL_TO_KEY: Record<string, string> = {
-  'First Name': 'first_name',
-  'Middle Name': 'middle_name',
-  'M.I.': 'middle_name',
-  'Last Name': 'surname',
-  'Prefix': 'prefix',
-  'Ext Name': 'ext_name',
-  'Extension': 'extension',
-  'Nickname': 'nick_name',
-  'Sex': 'sex',
-  'Marital Status': 'marital_status',
-  'Name of Spouse': 'name_of_spouse',
-  'Age': 'age',
-  'Date of Birth': 'dob',
-  'Place of Birth': 'pob',
-  'Date': 'created_at',
-  'House Block Lot No': 'house_block_lot_no',
-  'Street': 'street',
-  'Zone': 'zone',
-  'Resident Status': 'resident_status',
-  'Period of Residency': 'period_of_residency',
-  'House Owner': 'house_owner',
-  'Relationship to House Owner': 'relationship_to_owner',
-  'Contact No': 'contact_no',
-  'Phone Number': 'phone_number',
-  'Email Address': 'email_address',
-  'Business Name': 'business_name',
-  'Business Type': 'business_type',
-  'Business Details': 'business_details',
-  'Capital': 'capital',
-  'Establishment': 'establishment',
-  'Inspected By': 'inspected_by',
-  'Date of Inspection': 'date_of_inspection',
-  'Inspection Remarks': 'inspection_remarks',
-  'Inspected Remarks': 'inspected_remarks',
-  'Date Inspected': 'date_inspected',
-  'Inspected Note': 'inspected_note',
-  'OR No': 'or_no',
-  'OR No Alt': 'orNo',
-  'CTC/VRR No': 'ctc_vrr_no',
-  'Issued At': 'issued_at',
-  'Issued On': 'issued_on',
-  'Issued Date': 'issued_date',
-  'Purpose': 'purpose',
-  'Purpose Details': 'purpose_details',
-  'Remarks': 'remarks',
-  'Barangay Clearance No': 'bcert_number',
-  'Brgy Business No': 'brgy_business_no',
-  'Punong Barangay': 'punong_barangay',
-  'For The Punong Barangay': 'for_the_punong_barangay',
-  'Barangay Position': 'barangay_position',
-  'Status': 'status',
-  'Registered Voter': 'registered_voter',
-  'Photo': 'photo',
-  'Notes': 'notes',
-  'Position': 'position',
-  'Occupation': 'occupation',
-  'Employment Status': 'emp_status',
-  'Blood Type': 'blood_type',
-  'Complexion': 'complexion',
-  'PWD': 'pwd',
-  'Precinct No': 'precinct_no',
-  'Religion': 'religion',
-  'Voter Status': 'voter_status',
-  'Height (cm)': 'height_cm',
-  'Weight (kg)': 'weight_kg',
-  'ID': 'id',
-  'Resident ID': 'resident_id',
-  'Requester ID': 'requester_id',
-  'Requester Type': 'requester_type',
-  'Created At': 'created_at',
-  'Updated At': 'updated_at',
-  'Created By': 'created_by',
-};
-
-const NON_DATE_KEYS = new Set([
-  'zone', 'house_block_lot_no', 'street', 'houseBlockLot', 'houseBlockLotNo',
-  'resident_status', 'period_of_residency', 'house_owner', 'relationship_to_owner',
-  'contact_no', 'phone_number', 'email_address', 'business_name', 'business_type',
-  'business_details', 'establishment', 'inspection_remarks', 'inspected_remarks',
-  'inspected_note', 'or_no', 'orNo', 'ctc_vrr_no', 'issued_at', 'purpose',
-  'purpose_details', 'remarks', 'bcert_number', 'brgy_business_no',
-  'punong_barangay', 'for_the_punong_barangay', 'barangay_position', 'status',
-  'registered_voter', 'notes', 'position', 'occupation', 'emp_status',
-  'blood_type', 'complexion', 'pwd', 'precinct_no', 'religion', 'voter_status',
-  'resident_id', 'prefix', 'ext_name', 'nick_name', 'sex', 'marital_status',
-  'name_of_spouse', 'place_of_birth', 'pob', 'first_name', 'middle_name',
-  'surname', 'capital', 'inspected_by', 'height_cm', 'weight_kg', 'created_by',
-  'extension', 
-]);
-
-const FIELD_WRAP_CONFIG: Record<string, number> = {
-  'Full Address': 50,
-  'Address': 50,
-  'House Block Lot No': 40,
-  'Street': 35,
-  'Zone': 20,
-  'Full Name': 40,
-  'Purpose': 45,
-  'Purpose Details': 55,
-  'Remarks': 60,
-};
-
-function wrapTextFieldToLines(fieldLabel: string, value: string): string[] {
-  if (!value) return [''];
-  const configKey = Object.keys(FIELD_WRAP_CONFIG).find(
-    key => fieldLabel?.toLowerCase().includes(key.toLowerCase())
-  );
-  const maxChars = configKey ? FIELD_WRAP_CONFIG[configKey] : 60;
-  if (value.length <= maxChars) return [value];
-  const words = value.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-  for (const word of words) {
-    if ((currentLine + ' ' + word).length <= maxChars) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines;
-}
-
-function cleanZoneNumber(value: string): string {
-  if (!value) return '';
-  const sitioMatch = value.match(/SITIO\s*(\d+)/i);
-  if (sitioMatch) return `Sitio ${sitioMatch[1]}`;
-  const zoneMatch = value.match(/Zone\s*(\d+)/i);
-  if (zoneMatch) return `Sitio ${zoneMatch[1]}`;
-  const numberMatch = value.match(/^\d+$/);
-  if (numberMatch) return `Sitio ${numberMatch[0]}`;
-  const anyNumberMatch = value.match(/\d+/);
-  if (anyNumberMatch) return `Sitio ${anyNumberMatch[0]}`;
-  return value.trim();
-}
-
-// ─── buildLabelValueMap ────────────────────────────────────────────────────────
-function buildLabelValueMap(formData: any): Record<string, string> {
-  const prefix = formData.prefix ?? '';
-  const firstName = formData.first_name ?? '';
-  const middleName = formData.middle_name ?? '';
-  const lastName = formData.surname ?? '';
-  const extName = formData.ext_name ?? '';
-  const extension = formData.extension ?? '';
-  const nameParts = [];
-  if (prefix) nameParts.push(prefix);
-  if (firstName) nameParts.push(firstName);
-  if (middleName) nameParts.push(middleName);
-  if (lastName) nameParts.push(lastName);
-  if (extName) nameParts.push(extName);
-  if (extension) nameParts.push(extension);
-  const fullName = nameParts.join(' ');
-  const houseBlockLot = formData.house_block_lot_no ?? '';
-  const street = formData.street ?? '';
-  let zone = formData.zone ?? '';
-  zone = cleanZoneNumber(zone);
-  const addressParts = [];
-  if (houseBlockLot) addressParts.push(houseBlockLot);
-  if (street) addressParts.push(street);
-  if (zone) addressParts.push(zone);
-  const fullAddress = addressParts.join(', ');
-  return {
-    'Prefix':       prefix,
-    'First Name':   firstName,
-    'Middle Name':  middleName,
-    'Last Name':    lastName,
-    'Ext Name':     extName,
-    'Extension':    extension,
-    'Full Name':    fullName,
-    'House Block Lot No': houseBlockLot,
-    'Street':       street,
-    'Zone':         zone,
-    'Full Address': fullAddress,
-    'Age':          formData.age                  ?? '',
-    'Date of Birth': formData.dob                 ?? '',
-    'Period of Residency': formData.period_of_residency ?? '',
-    'Registered Voter':    formData.registered_voter    ?? '',
-    'Purpose':             formData.purpose             ?? '',
-    'BCert Number':        formData.bcert_number        ?? '',
-    'Issued Date':         formData.issued_date         ?? '',
-    'Issued At':           formData.issued_at           ?? '',
-    'Issued On':           formData.issued_on           ?? '',
-    'OR No':               formData.or_no               ?? '',
-    'CTC/VRR No':          formData.ctc_vrr_no          ?? '',
-    'Remarks':             formData.remarks             ?? '',
-    'Status':              formData.status              ?? '',
-    'Created By':          formData.created_by          ?? '',
-    'Date':                formData.created_at          ?? '',
-    'Email Address':       formData.email               ?? '',
-    'Requester Type':      formData.requester_type      ?? '',
-  };
-}
-
-// ─── buildReleasePDFFields ─────────────────────────────────────────────────────
-function buildReleasePDFFields(
-  fields: TextField[],
-  labelValueMap: Record<string, string>
-): TextField[] {
-  const suppressedNorm = new Set<string>();
-  const extras: TextField[] = [];
-  const fieldsToSuppress = [
-    'first name', 'middle name', 'm i', 'mi', 'last name', 'surname',
-    'prefix', 'ext name', 'extension', 'house block lot no', 'street', 'zone'
-  ];
-  for (const group of RELEASE_CONCAT_GROUPS) {
-    const anchor = group.members
-      .map(m => fields.find(f => normLabel(f.label) === normLabel(m)))
-      .find(Boolean);
-    if (!anchor) continue;
-    let combinedValue = '';
-    if (group.label === 'Full Name') {
-      combinedValue = labelValueMap['Full Name'] || '';
-    } else if (group.label === 'Full Address') {
-      combinedValue = labelValueMap['Full Address'] || '';
-    }
-    if (combinedValue) {
-      extras.push({ ...anchor, label: group.label, value: combinedValue });
-    }
-    group.members.forEach(m => suppressedNorm.add(normLabel(m)));
-  }
-  const base = fields.filter(f => {
-    const normalizedLabel = normLabel(f.label);
-    if (fieldsToSuppress.some(suppress => normalizedLabel === suppress)) return false;
-    return !suppressedNorm.has(normalizedLabel);
-  });
-  return [...base, ...extras];
-}
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
 interface ScheduleData {
   id: number;
   document_type: string;
@@ -308,6 +48,8 @@ interface ScheduleData {
   schedule_time: string;
   note?: string | null;
   status?: string;
+  user_id?: number;
+  missed_history?: ScheduleHistoryEntry[];
 }
 
 interface Street {
@@ -332,8 +74,8 @@ const EMPTY_FILTERS: FilterState = {
 };
 
 const PURPOSE_OPTIONS = [
-  'Employment', 'Business', 'Travel', 'Legal Purposes',
-  'School Requirement', 'Bank Transaction', 'Other', 'Government Transaction',
+  'Employment','Business','Travel','Legal Purposes',
+  'School Requirement','Bank Transaction','Other','Government Transaction',
 ];
 
 const FILTER_PARAM_KEYS: Record<keyof FilterState, string> = {
@@ -366,7 +108,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: `${import.meta.env.VITE_WEB_URL}`,
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -375,7 +117,7 @@ function formatTimeRange(timeStr: string) {
   try {
     const [hStr, mStr] = timeStr.split(':');
     const startH = parseInt(hStr, 10);
-    const endH   = startH + 1;
+    const endH = startH + 1;
     const fmt = (h: number) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${mStr}`;
     return `${fmt(startH)}–${fmt(endH)} ${endH >= 12 ? 'PM' : 'AM'}`;
   } catch { return timeStr; }
@@ -392,7 +134,7 @@ function formatDateShort(dateStr: string) {
 function formatCreatedAt(raw: string | null | undefined): string {
   if (!raw) return '—';
   try {
-    const d    = new Date(raw);
+    const d = new Date(raw);
     const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return `${date} · ${time}`;
@@ -405,6 +147,52 @@ function isNewRequest(createdAt: string | null | undefined): boolean {
   catch { return false; }
 }
 
+// ─── Session-based No-Show helpers ─────────────────────────────────────────────
+const AM_SESSION_END_HOUR = 12;
+const PM_SESSION_END_HOUR = 17;
+
+function getScheduleSession(schedule: ScheduleData | null | undefined): 'AM' | 'PM' | null {
+  if (!schedule) return null;
+  try {
+    const [hStr] = schedule.schedule_time.split(':');
+    const hour = parseInt(hStr, 10);
+    return hour < 12 ? 'AM' : 'PM';
+  } catch { return null; }
+}
+
+function getScheduleSessionLabel(schedule: ScheduleData | null | undefined): string {
+  const s = getScheduleSession(schedule);
+  if (s === 'AM') return 'Morning Session (until 12:00 NN)';
+  if (s === 'PM') return 'Afternoon Session (until 5:00 PM)';
+  return '';
+}
+
+function getScheduleSessionEnd(schedule: ScheduleData | null | undefined): Date | null {
+  if (!schedule) return null;
+  try {
+    const session = getScheduleSession(schedule);
+    if (!session) return null;
+    const endHour = session === 'AM' ? AM_SESSION_END_HOUR : PM_SESSION_END_HOUR;
+    const hh = String(endHour).padStart(2, '0');
+    return new Date(`${schedule.schedule_date}T${hh}:00:00`);
+  } catch { return null; }
+}
+
+function isSchedulePast(schedule: ScheduleData | null | undefined): boolean {
+  const sessionEnd = getScheduleSessionEnd(schedule);
+  if (!sessionEnd) return false;
+  return sessionEnd < new Date();
+}
+
+/** Terminal statuses — a record in these states is considered "completed" */
+const TERMINAL_STATUSES = new Set(['RELEASED','REJECTED','INCOMPLETE','ARCHIVED','DISABLED','EXPIRED']);
+
+/** Frozen statuses — record is read-only and completely non-interactive (archived) */
+const FROZEN_STATUSES = new Set(['ARCHIVED','DISABLED','EXPIRED']);
+
+/** Blocked statuses — record cannot progress further (rejected / incomplete) */
+const BLOCKED_STATUSES = new Set(['REJECTED','INCOMPLETE']);
+
 function countActiveFilters(f: FilterState): number {
   return [
     f.status, f.filter_date,
@@ -413,67 +201,130 @@ function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
-// ─── Status ordering for forward-only enforcement ──────────────────────────────
-// Higher index = further in the workflow. RELEASED is terminal.
+// ─── Status ordering ───────────────────────────────────────────────────────────
+// PROCESSING is inserted between REVIEWED and PAID in the workflow.
 const STATUS_ORDER: Record<string, number> = {
-  'PENDING':    0,
-  'SCHEDULED':  1,
-  'ENCODED':    2,
-  'INSPECTING': 3,
-  'REVIEWED':   4,  // formerly TO_PAY
-  'PAID':       5,
-  'RELEASED':   6,
-  // Side states — not on the main forward path
-  'INCOMPLETE': -1,
-  'REJECTED':   -1,
+  'PENDING':      0,
+  'RESCHEDULED':  0,
+  'SCHEDULED':    1,
+  'ENCODED':      2,
+  'INSPECTING':   3,
+  'REVIEWED':     4,
+  'PROCESSING':   5,   // ← NEW step between REVIEWED and PAID
+  'PAID':         6,
+  'RELEASED':     7,
+  'INCOMPLETE':  -1,
+  'REJECTED':    -1,
 };
 
-/** Returns true if moving from `current` to `next` is allowed */
 function isForwardTransition(current: string, next: string): boolean {
-  const cur = STATUS_ORDER[current.toUpperCase()] ?? -1;
-  const nxt = STATUS_ORDER[next.toUpperCase()] ?? -1;
-  // Released is terminal — nothing can come after
-  if (current.toUpperCase() === 'RELEASED') return false;
-  // Side states (INCOMPLETE / REJECTED) can always be set unless current is RELEASED
+  const currentUpper = (current ?? '').toUpperCase();
+  const nextUpper    = (next ?? '').toUpperCase();
+  if (TERMINAL_STATUSES.has(currentUpper)) return false;
+  const cur = STATUS_ORDER[currentUpper] ?? -1;
+  const nxt = STATUS_ORDER[nextUpper] ?? -1;
   if (nxt === -1) return true;
-  // Forward only
   return nxt > cur;
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:    'bg-yellow-100 text-yellow-800 border-yellow-200',
-  incomplete: 'bg-orange-50 text-orange-700 border-orange-200',
-  rejected:   'bg-rose-100 text-rose-800 border-rose-200',
-  released:   'bg-green-100 text-green-800 border-green-200',
-  scheduled:  'bg-blue-100 text-blue-800 border-blue-200',
-  encoded:    'bg-emerald-50 text-emerald-800 border-emerald-200',
-  // "to_pay" kept for legacy data coming from the server; display as "REVIEWED"
-  to_pay:     'bg-purple-100 text-purple-800 border-purple-200',
-  reviewed:   'bg-purple-100 text-purple-800 border-purple-200',
-  paid:       'bg-teal-100 text-teal-800 border-teal-200',
-  inspecting: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  pending:      'bg-yellow-100 text-yellow-800 border-yellow-200',
+  rescheduled:  'bg-sky-100 text-sky-800 border-sky-200',
+  incomplete:   'bg-orange-50 text-orange-700 border-orange-200',
+  rejected:     'bg-rose-100 text-rose-800 border-rose-200',
+  released:     'bg-green-100 text-green-800 border-green-200',
+  scheduled:    'bg-blue-100 text-blue-800 border-blue-200',
+  encoded:      'bg-emerald-50 text-emerald-800 border-emerald-200',
+  to_pay:       'bg-purple-100 text-purple-800 border-purple-200',
+  reviewed:     'bg-purple-100 text-purple-800 border-purple-200',
+  processing:   'bg-indigo-100 text-indigo-800 border-indigo-200',  // ← NEW
+  paid:         'bg-teal-100 text-teal-800 border-teal-200',
+  inspecting:   'bg-indigo-100 text-indigo-800 border-indigo-200',
+  archived:     'bg-gray-200 text-gray-600 border-gray-300',
+  disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
 
-function normaliseStatus(raw: string | null | undefined): string {
+function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
-  // Treat legacy "TO_PAY" as "REVIEWED" for display
   if (raw.toUpperCase() === 'TO_PAY') return 'REVIEWED';
+  if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
+  if (
+    requesterType?.toLowerCase() === 'walk-in' &&
+    (raw.toUpperCase() === 'RESCHEDULED' || raw.toUpperCase() === 'SCHEDULED')
+  ) {
+    return 'PENDING';
+  }
   return raw.toUpperCase();
 }
 
-function StatusBadge({ status }: { status: string | null | undefined }) {
+function StatusBadge({ status, requesterType }: {
+  status: string | null | undefined;
+  requesterType?: string;
+}) {
   if (!status) return <span className="text-gray-500 text-sm">—</span>;
-  const display = normaliseStatus(status);
+  const display = normaliseStatus(status, requesterType);
   const key = display.toLowerCase();
   const style = STATUS_STYLES[key] ?? 'bg-gray-100 text-gray-700 border-gray-200';
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${style}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
       {display}
     </span>
   );
 }
 
-function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined }) {
+// ─── Smart priority sort ───────────────────────────────────────────────────────
+function prioritySortData(items: BarangayClearanceType[]): BarangayClearanceType[] {
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  function getRowPriority(item: any): number {
+    const status = normaliseStatus(item.status ?? '', item.requester_type ?? '');
+    if (FROZEN_STATUSES.has(status)) return 3;
+    const schedule: ScheduleData | null = item.schedule ?? null;
+    if (schedule && schedule.schedule_date === todayStr) return 0;
+    return 1;
+  }
+
+  return [...items].sort((a, b) => {
+    const pa = getRowPriority(a);
+    const pb = getRowPriority(b);
+    if (pa !== pb) return pa - pb;
+    const ta = new Date((a as any).created_at ?? 0).getTime();
+    const tb = new Date((b as any).created_at ?? 0).getTime();
+    return tb - ta;
+  });
+}
+
+// ─── ScheduleCell ──────────────────────────────────────────────────────────────
+function ScheduleCell({
+  schedule, requesterType, status,
+}: {
+  schedule: ScheduleData | null | undefined;
+  requesterType?: string;
+  status?: string;
+}) {
+  const statusUpper = (status ?? '').toUpperCase();
+  if (requesterType?.toLowerCase() === 'walk-in') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-sm italic">
+        No schedule required (Walk-in)
+      </span>
+    );
+  }
+  if (statusUpper === 'RESCHEDULED') {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-sky-50 text-sky-700 border-sky-200">
+          <CalendarClock className="h-3 w-3" />
+          Awaiting Applicant
+        </span>
+        {schedule && (
+          <span className="text-[10px] text-gray-400 pl-0.5 line-through">
+            {formatDateShort(schedule.schedule_date)} · {formatTimeRange(schedule.schedule_time)}
+          </span>
+        )}
+      </div>
+    );
+  }
   if (!schedule) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-sm">
@@ -482,20 +333,62 @@ function ScheduleCell({ schedule }: { schedule: ScheduleData | null | undefined 
       </span>
     );
   }
-  const isUpcoming = new Date(`${schedule.schedule_date}T${schedule.schedule_time}`) >= new Date();
+  const isPast     = isSchedulePast(schedule);
+  const session    = getScheduleSession(schedule);
+  const isTerminal = TERMINAL_STATUSES.has(statusUpper);
+  if (isPast && !isTerminal) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-red-50 text-red-700 border-red-200">
+          <CalendarX className="h-3 w-3" />
+          No Show ({session === 'AM' ? 'Morning' : 'Afternoon'})
+        </span>
+        <span className="text-[10px] text-gray-400 pl-0.5 line-through">
+          {formatDateShort(schedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit ${
-        isUpcoming ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'
-      }`}>
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border w-fit bg-green-100 text-green-800 border-green-200">
         <CalendarCheck className="h-3 w-3" />
         {formatDateShort(schedule.schedule_date)}
       </span>
-      <span className="text-[10px] text-gray-500 pl-0.5">
-        {formatTimeRange(schedule.schedule_time)}
+      <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 pl-0.5">
+        {session === 'AM' ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
+        {session === 'AM' ? 'Morning' : 'Afternoon'} · {formatTimeRange(schedule.schedule_time)}
       </span>
     </div>
   );
+}
+
+// ─── Requester Type Label helper ───────────────────────────────────────────────
+/**
+ * Returns a formal, staff-friendly label for who submitted the request.
+ * Used in both the table "Created By" column and the modal.
+ */
+function getRequesterLabel(requesterType: string | null | undefined): {
+  label: string;
+  badgeClass: string;
+} {
+  const t = (requesterType ?? '').toLowerCase();
+  if (t === 'walk-in') {
+    return {
+      label: 'Walk-in Applicant',
+      badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    };
+  }
+  if (t === 'online') {
+    return {
+      label: 'Online Applicant',
+      badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    };
+  }
+  return {
+    label: requesterType ?? '—',
+    badgeClass: 'bg-gray-100 text-gray-600 border-gray-200',
+  };
 }
 
 function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
@@ -549,7 +442,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack,  setIdBack]  = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     const run = async () => {
@@ -561,7 +454,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `${import.meta.env.VITE_WEB_URL}/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -708,21 +601,203 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
+// ─── Reschedule Request Modal ──────────────────────────────────────────────────
+function RescheduleModal({
+  record,
+  missedSchedule,
+  onClose,
+  onSuccess,
+  toast,
+}: {
+  record: BarangayClearanceType;
+  missedSchedule: ScheduleData;
+  onClose: () => void;
+  onSuccess: () => void;
+  toast: any;
+}) {
+  const [note, setNote]                 = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const session = getScheduleSession(missedSchedule);
+
+  const handleSubmit = async () => {
+    if (record.requester_type?.toLowerCase() === 'walk-in') {
+      toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
+      return;
+    }
+    const recordStatus = (record.status ?? '').toUpperCase();
+    if (FROZEN_STATUSES.has(recordStatus) || BLOCKED_STATUSES.has(recordStatus) || recordStatus === 'RELEASED') {
+      toast({ title: 'Not allowed', description: 'This record can no longer be rescheduled.', variant: 'destructive' });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const missedEntry: ScheduleHistoryEntry = {
+        schedule_date: missedSchedule.schedule_date,
+        schedule_time: missedSchedule.schedule_time,
+        missed_at:     new Date().toISOString(),
+        note:          missedSchedule.note ?? null,
+      };
+      const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
+      const updatedHistory = [...existingHistory, missedEntry];
+      await axios.put(
+        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
+        { note: note.trim() || null, missed_history: updatedHistory },
+        { withCredentials: true }
+      );
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        { status: 'RESCHEDULED' },
+        { withCredentials: true }
+      );
+      toast({
+        title: 'Reschedule request sent',
+        description: 'The applicant has been notified to book a new appointment slot in their portal.',
+      });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to send reschedule request. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-sky-100 rounded-md">
+              <Send className="h-4 w-4 text-sky-700" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Send Reschedule Request</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Ref: {record.bcert_number}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
+          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
+            <p className="text-[11px] text-red-500 mt-0.5">
+              {formatDateShort(missedSchedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
+              {' '}({formatTimeRange(missedSchedule.schedule_time)})
+            </p>
+            <p className="text-[10px] text-red-400 mt-1">This missed appointment will be logged in the record's history.</p>
+          </div>
+        </div>
+
+        <div className="mx-5 mt-3 rounded-lg bg-sky-50 border border-sky-200 px-4 py-3">
+          <p className="text-xs font-semibold text-sky-700 mb-1">How rescheduling works</p>
+          <ul className="text-[11px] text-sky-700 leading-relaxed list-disc pl-4 space-y-0.5">
+            <li>The applicant will be notified that their previous appointment was missed.</li>
+            <li><strong>The applicant chooses</strong> the new date and session (morning or afternoon) through their own portal.</li>
+            <li>Admins do not select the new slot. This request will appear here as <strong>RESCHEDULED</strong> until the applicant rebooks.</li>
+          </ul>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              Note to applicant <span className="text-gray-400 font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Please bring your original valid ID on your next visit…"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none transition-all"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">This note will be shown to the applicant when they book a new slot.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="h-4 w-4" />
+            {isSubmitting ? 'Sending…' : 'Send Reschedule Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Missed Schedule History Panel ─────────────────────────────────────────────
+function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] }) {
+  if (!history || history.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <History className="h-3.5 w-3.5 text-amber-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-700">
+          Missed Appointment History ({history.length})
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {history.map((entry, idx) => {
+          const session = getScheduleSession({ schedule_date: entry.schedule_date, schedule_time: entry.schedule_time } as any);
+          return (
+            <div key={idx} className="flex items-start gap-2 text-[11px] text-amber-800">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200 text-amber-700 font-bold text-[9px] flex-shrink-0 mt-0.5">
+                {idx + 1}
+              </span>
+              <div>
+                <span className="font-semibold">
+                  {formatDateShort(entry.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
+                </span>
+                <span className="text-amber-500 ml-1.5">
+                  — No show logged {formatCreatedAt(entry.missed_at)}
+                </span>
+                {entry.note && (
+                  <p className="text-amber-600 mt-0.5 italic">Note: {entry.note}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Memoized Form Field Component ─────────────────────────────────────────────
-const FormField = memo(({ 
+const FormField = memo(({
   name, value, onChange, type = 'text', options, isTextArea = false, isEditing, label
 }: any) => {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null);
   const inputId = `field-${name}`;
-  
-  
+
   useEffect(() => {
     if (isEditing && inputRef.current) {
       const timer = setTimeout(() => { inputRef.current?.focus(); }, 50);
       return () => clearTimeout(timer);
     }
   }, [isEditing, name]);
-  
+
   if (type === 'select' && options) {
     return (
       <div>
@@ -739,7 +814,7 @@ const FormField = memo(({
       </div>
     );
   }
-  
+
   if (isTextArea) {
     return (
       <div>
@@ -753,7 +828,7 @@ const FormField = memo(({
       </div>
     );
   }
-  
+
   if (type === 'date') {
     return (
       <div>
@@ -767,7 +842,7 @@ const FormField = memo(({
       </div>
     );
   }
-  
+
   if (type === 'number') {
     return (
       <div>
@@ -781,7 +856,7 @@ const FormField = memo(({
       </div>
     );
   }
-  
+
   return (
     <div>
       <label htmlFor={inputId} className="text-xs text-gray-500 uppercase tracking-wider">{label}</label>
@@ -794,6 +869,7 @@ const FormField = memo(({
     </div>
   );
 });
+
 FormField.displayName = 'FormField';
 
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
@@ -818,15 +894,18 @@ function EditableDetailModal({
   const [isDisposing, setIsDisposing]                   = useState(false);
   const [streets, setStreets] = useState<Street[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentSchedule, setCurrentSchedule] = useState<ScheduleData | null>(null);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving]               = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
 
-  // ─── Disable (soft-delete) confirmation state ──────────────────────────────
-  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
-  const [isDisabling, setIsDisabling]               = useState(false);
+  const [createdByName, setCreatedByName]     = useState<string>('');
+  const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
 
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -847,18 +926,51 @@ function EditableDetailModal({
     rejection_reason: '', created_at: '',
   });
 
+  // Lazy-load the creator's full name
+  useEffect(() => {
+    const loadCreatorName = async () => {
+      const userId = formData.created_by;
+      if (!userId) { setCreatedByName('—'); return; }
+      const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+      if (isNaN(userIdNum)) { setCreatedByName('—'); return; }
+      setLoadingCreatedBy(true);
+      try {
+        const user = await fetchUserById(userIdNum);
+        setCreatedByName(getUserFullName(user));
+      } catch {
+        setCreatedByName('—');
+      } finally {
+        setLoadingCreatedBy(false);
+      }
+    };
+    loadCreatorName();
+  }, [formData.created_by]);
+
   const fetchFullRecord = useCallback(async () => {
     if (!record) return;
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances?search=${record.bcert_number}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
-      const normalisedStatus = normaliseStatus(full.status ?? '');
+      const normalisedStatus = normaliseStatus(full.status ?? '', full.requester_type ?? '');
       setCurrentStatus(normalisedStatus);
       setInitialReleasedPath(full.released_document_path ?? null);
+      setCurrentSchedule(full.schedule ?? null);
+
+      if (
+        full.requester_type?.toLowerCase() === 'walk-in' &&
+        (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
+      ) {
+        axios.put(
+          `https://westrembomis.onrender.com/api/barangay-clearances/${full.id}`,
+          { status: 'PENDING' },
+          { withCredentials: true }
+        ).catch(() => {});
+      }
+
       setFormData({
         first_name:               full.first_name               || '',
         middle_name:              full.middle_name              || '',
@@ -893,7 +1005,6 @@ function EditableDetailModal({
         barangay_position:        full.barangay_position        || '',
         rejection_reason:         full.rejection_reason         || '',
         created_at:               full.created_at               || '',
-        previous_status:          full.previous_status          || normalisedStatus,
       });
     } catch (error) {
       console.error('Error fetching full record:', error);
@@ -910,10 +1021,9 @@ function EditableDetailModal({
     toast({ title: 'Refreshed', description: 'Record data has been refreshed' });
   };
 
-  const [isReleasing,   setIsReleasing]   = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [releasedPath,  setReleasedPath]  = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (initialReleasedPath) setReleasedPath(initialReleasedPath);
   }, [initialReleasedPath]);
@@ -922,58 +1032,55 @@ function EditableDetailModal({
 
   if (!record) return null;
 
-  const status = currentStatus.toUpperCase(); // already normalised (TO_PAY → REVIEWED)
+  const status = currentStatus.toUpperCase();
+  const isReleased       = status === 'RELEASED';
+  const isArchived       = FROZEN_STATUSES.has(status);
+  const isBlocked        = BLOCKED_STATUSES.has(status);
+  const isNonEditable    = isArchived || isBlocked;
+  const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
-  // ─── Derived capability flags (forward-only, RELEASED is terminal) ──────────
-  const isReleased     = status === 'RELEASED';
-  // "Reviewed" replaces "To Pay"
-  const canMarkReviewed    = isForwardTransition(status, 'REVIEWED') &&
-    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'INSPECTING');
-  const canMarkAsPaid  = isForwardTransition(status, 'PAID') && status === 'REVIEWED';
-  const canRelease     = isForwardTransition(status, 'RELEASED') && status === 'PAID';
-  const canMarkToInspection = isForwardTransition(status, 'INSPECTING') &&
-    (status === 'ENCODED' || status === 'SCHEDULED');
-  // Disposition (INCOMPLETE / REJECTED) only available if NOT released
-  const canDispose = !isReleased;
+  // ── Workflow capability flags ──
+  // "Mark as Reviewed" is removed — reviewing now happens via the table-level "Review" button.
+  // Inside the modal we only show "Mark as Process" (SCHEDULED → REVIEWED → PROCESSING flow).
+  const canMarkProcess = !isWorkflowFrozen &&
+    isForwardTransition(status, 'PROCESSING') &&
+    status === 'REVIEWED';
 
-  // ─── handleMarkReviewed (formerly handleMarkToPay) ──────────────────────────
-  const handleMarkReviewed = async () => {
-    if (!isForwardTransition(status, 'REVIEWED')) {
-      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
+  const canMarkToInspection = !isWorkflowFrozen &&
+    isForwardTransition(status, 'INSPECTING') &&
+    (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
+
+  const canDispose = !isWorkflowFrozen && !TERMINAL_STATUSES.has(status);
+  const canArchive = isReleased && !isArchived;
+  const canEdit = !isArchived;
+
+  const isAwaitingReschedule = status === 'RESCHEDULED';
+  const isNoShow =
+    currentSchedule !== null &&
+    isSchedulePast(currentSchedule) &&
+    !TERMINAL_STATUSES.has(status) &&
+    !isAwaitingReschedule &&
+    formData.requester_type?.toLowerCase() !== 'walk-in';
+
+  const canReschedule = isNoShow && !isWorkflowFrozen;
+  const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
+
+  // ── Action: Mark as Process (REVIEWED → PROCESSING) ──
+  const handleMarkProcess = async () => {
+    if (!isForwardTransition(status, 'PROCESSING')) {
+      toast({ title: 'Not allowed', description: 'Cannot skip or revert workflow steps.', variant: 'destructive' });
       return;
     }
-    setActionLoading('reviewed');
-    try {
-      // Send 'TO_PAY' to the server (legacy API value), display as REVIEWED
-      await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
-        { status: 'TO_PAY' },
-        { withCredentials: true }
-      );
-      setCurrentStatus('REVIEWED');
-      setFormData((p: any) => ({ ...p, status: 'REVIEWED' }));
-      toast({ title: 'Success', description: 'Status set to Reviewed successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
-    } finally { setActionLoading(null); }
-  };
-
-  const handleMarkAsPaid = async () => {
-    if (!isForwardTransition(status, 'PAID')) {
-      toast({ title: 'Not allowed', description: 'Cannot revert status.', variant: 'destructive' });
-      return;
-    }
-    setActionLoading('paid');
+    setActionLoading('processing');
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
-        { status: 'PAID' },
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        { status: 'PROCESSING' },
         { withCredentials: true }
       );
-      setCurrentStatus('PAID');
-      setFormData((p: any) => ({ ...p, status: 'PAID' }));
-      toast({ title: 'Success', description: 'Status set to Paid successfully.' });
+      setCurrentStatus('PROCESSING');
+      setFormData((p: any) => ({ ...p, status: 'PROCESSING' }));
+      toast({ title: 'Success', description: 'Status updated to Processing.' });
       onUpdate();
     } catch (err: any) {
       toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update status.', variant: 'destructive' });
@@ -988,7 +1095,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1008,13 +1115,13 @@ function EditableDetailModal({
       return;
     }
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
       return;
     }
     setIsDisposing(true);
     try {
       await axios.post(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1037,7 +1144,7 @@ function EditableDetailModal({
 
   const openDisposition = (type: 'REJECTED' | 'INCOMPLETE') => {
     if (!canDispose) {
-      toast({ title: 'Not allowed', description: 'A released record cannot be changed.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'This record can no longer be modified.', variant: 'destructive' });
       return;
     }
     setDispositionType(type);
@@ -1045,131 +1152,37 @@ function EditableDetailModal({
     setShowDispositionModal(true);
   };
 
-  // ─── Disable (soft delete) — only for Released ─────────────────────────────
-  const handleDisable = async () => {
+  const handleArchive = async () => {
     if (!isReleased) {
-      toast({ title: 'Not allowed', description: 'Only released records can be disabled.', variant: 'destructive' });
+      toast({ title: 'Not allowed', description: 'Only released records can be archived.', variant: 'destructive' });
       return;
     }
-    setIsDisabling(true);
+    setIsArchiving(true);
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
-        { status: 'DISABLED' },
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        { status: 'ARCHIVED' },
         { withCredentials: true }
       );
-      setCurrentStatus('DISABLED');
-      setFormData((p: any) => ({ ...p, status: 'DISABLED' }));
-      toast({ title: 'Disabled', description: 'Record has been disabled successfully.' });
-      setShowDisableConfirm(false);
+      setCurrentStatus('ARCHIVED');
+      setFormData((p: any) => ({ ...p, status: 'ARCHIVED' }));
+      toast({ title: 'Archived', description: 'Record archived successfully.' });
+      setShowArchiveConfirm(false);
       onUpdate();
     } catch (err: any) {
       toast({
         title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to disable record.',
+        description: err?.response?.data?.message ?? 'Failed to archive record.',
         variant: 'destructive',
       });
-    } finally { setIsDisabling(false); }
+    } finally { setIsArchiving(false); }
   };
 
-  // ─── handleReleaseAndSave ──────────────────────────────────────────────────
-  const handleReleaseAndSave = async () => {
-    if (!record?.id) {
-      toast({ title: 'Error', description: 'No record to release.', variant: 'destructive' });
-      return;
-    }
-    if (!isForwardTransition(status, 'RELEASED')) {
-      toast({ title: 'Not allowed', description: 'Cannot release from the current status.', variant: 'destructive' });
-      return;
-    }
-    setIsReleasing(true);
-    try {
-      const metaRes = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/documents/single/2`,
-        { withCredentials: true }
-      );
-      const fileUrl = metaRes.data?.file_url;
-      if (!fileUrl) throw new Error('Template file URL missing.');
-
-      const resolvedUrl = fileUrl.startsWith('http')
-        ? fileUrl
-        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${fileUrl}`;
-
-      const pdfRes = await axios.get(resolvedUrl, {
-        responseType: 'arraybuffer',
-        withCredentials: true,
-      });
-      const templateBytes = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
-
-      let savedFields: TextField[] = [];
-      let savedQrField: QRCodeFieldData | null = null;
-
-      if (metaRes.data?.layout) {
-        try {
-          const parsed = Array.isArray(metaRes.data.layout)
-            ? metaRes.data.layout
-            : JSON.parse(metaRes.data.layout);
-
-          if (Array.isArray(parsed)) {
-            savedFields  = parsed;
-            savedQrField = null;
-          } else if (parsed.fields !== undefined) {
-            const layout = parsed as SavedLayout;
-            savedFields  = layout.fields ?? [];
-            savedQrField = layout.qrField ?? null;
-          }
-        } catch {
-          console.error('Could not parse template layout JSON');
-        }
-      }
-
-      const fieldsWithValues: TextField[] = savedFields.map((field: TextField) => {
-        const key = LABEL_TO_KEY[field.label];
-        if (!key) return { ...field, value: field.value ?? '' };
-        let value: any = (formData as any)[key] ?? '';
-        if (!NON_DATE_KEYS.has(key) && typeof value === 'string' && value.includes('T')) {
-          const d = new Date(value);
-          if (!isNaN(d.getTime())) value = d.toISOString().split('T')[0];
-        }
-        return { ...field, value: value ?? '' };
-      });
-
-      const labelValueMap = buildLabelValueMap(formData);
-      const finalFields   = buildReleasePDFFields(fieldsWithValues, labelValueMap);
-
-      const renderedBytes = await generatePDF(
-        templateBytes,
-        finalFields,
-        savedQrField,
-        record.bcert_number ?? null
-      );
-
-      const filename = `barangay-clearances-${record.id}-${record.bcert_number ?? 'doc'}.pdf`;
-      const blob = new Blob([new Uint8Array(renderedBytes).buffer], { type: 'application/pdf' });
-      const fd = new FormData();
-      fd.append('file', blob, filename);
-
-      const res = await axios.post(
-        `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-clearances/${record.id}`,
-        fd,
-        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-
-      const path = res.data?.data?.released_document_path;
-      if (path) setReleasedPath(path);
-      setCurrentStatus('RELEASED');
-      setFormData((p: any) => ({ ...p, status: 'RELEASED' }));
-      toast({ title: 'Success', description: 'Document released successfully.' });
-      onUpdate();
-    } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to release document.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsReleasing(false);
-    }
+  const handleRescheduleSuccess = () => {
+    setCurrentStatus('RESCHEDULED');
+    setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
+    setRefreshKey(prev => prev + 1);
+    onUpdate();
   };
 
   const downloadReleased = async () => {
@@ -1180,7 +1193,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1196,22 +1209,25 @@ function EditableDetailModal({
   };
 
   const handleUpdate = async () => {
+    if (isArchived) {
+      toast({ title: 'Not allowed', description: 'Archived records cannot be edited.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances?search=${record.bcert_number}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
-
       if (existingId) {
         await axios.put(
-          `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${existingId}`,
-          { ...formData, requester_type: formData.requester_type || 'Online' },
+          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
+          { ...formData },
           { withCredentials: true }
         );
         toast({ title: 'Success', description: 'Record updated successfully' });
@@ -1241,9 +1257,10 @@ function EditableDetailModal({
   };
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    if (isArchived) return;
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
-  }, []);
+  }, [isArchived]);
 
   if (isLoading) {
     return (
@@ -1257,12 +1274,51 @@ function EditableDetailModal({
     );
   }
 
+  const blockedLabel = status === 'REJECTED' ? 'Rejected' : status === 'INCOMPLETE' ? 'Incomplete' : '';
+  const session = getScheduleSession(currentSchedule);
+  const requesterInfo = getRequesterLabel(formData.requester_type);
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
-          {/* Header */}
+          {isArchived && (
+            <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
+              <Lock className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Archived Record</span>
+              <span className="text-xs text-gray-500 ml-1">— This record is locked. All actions, edits, and status updates are disabled.</span>
+            </div>
+          )}
+
+          {isBlocked && !isArchived && (
+            <div className={`border-b px-6 py-3 flex items-center gap-2 ${
+              status === 'REJECTED' ? 'bg-rose-50 border-rose-200' : 'bg-orange-50 border-orange-200'
+            }`}>
+              <Ban className={`h-4 w-4 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`} />
+              <span className={`text-sm font-semibold uppercase tracking-wide ${
+                status === 'REJECTED' ? 'text-rose-700' : 'text-orange-700'
+              }`}>
+                {blockedLabel} — workflow halted
+              </span>
+              <span className={`text-xs ml-1 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`}>
+                — This request cannot progress to the next step. All workflow actions are disabled.
+              </span>
+            </div>
+          )}
+
+          {isAwaitingReschedule && !isArchived && !isReleased && !isBlocked && (
+            <div className="bg-sky-50 border-b border-sky-200 px-6 py-3 flex items-center gap-3">
+              <CalendarClock className="h-4 w-4 text-sky-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-sky-700">Awaiting applicant to book a new appointment slot</p>
+                <p className="text-[11px] text-sky-600 mt-0.5">
+                  The applicant chooses the new date and session through their own portal. The status will return to <strong>SCHEDULED</strong> automatically once they rebook.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
@@ -1272,19 +1328,26 @@ function EditableDetailModal({
               <button onClick={handleRefresh} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
-              {!isEditing ? (
-                <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
-                  <Edit2 className="h-4 w-4" /> Edit
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
-                  <button onClick={handleUpdate} disabled={isSaving}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
-                    <Save className="h-4 w-4" />
-                    {isSaving ? 'Saving...' : 'Save Changes'}
+              {canEdit && (
+                !isEditing ? (
+                  <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                    <Edit2 className="h-4 w-4" /> Edit
                   </button>
-                </>
+                ) : (
+                  <>
+                    <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                    <button onClick={handleUpdate} disabled={isSaving}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50">
+                      <Save className="h-4 w-4" />
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )
+              )}
+              {isNonEditable && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border bg-gray-100 text-gray-600 border-gray-300">
+                  <Lock className="h-3 w-3" /> Read-only
+                </span>
               )}
               <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
                 <X className="h-5 w-5" />
@@ -1292,86 +1355,167 @@ function EditableDetailModal({
             </div>
           </div>
 
-          {/* Body */}
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* {formData.requester_type === 'Online' && (
+
+              {formData.requester_type === 'Online' && (
                 <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
-              )} */}
+              )}
+
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing} label="First Name" />
-                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Middle Name" />
-                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing} label="Surname" />
-                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing} label="Extension Name" />
-                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Atty.']} isEditing={isEditing} label="Prefix" />
-                <FormField name="dob" value={formData.dob || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Date of Birth" />
-                <FormField name="pob" value={formData.pob || ''} onChange={handleInputChange} isEditing={isEditing} label="Place of Birth" />
-                <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing} label="Contact Number" />
-                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing} label="Email" />
+                <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="First Name" />
+                <FormField name="middle_name" value={formData.middle_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Middle Name" />
+                <FormField name="surname" value={formData.surname || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Surname" />
+                <FormField name="ext_name" value={formData.ext_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Extension Name" />
+                <FormField name="prefix" value={formData.prefix || ''} onChange={handleInputChange} type="select" options={['Mr.','Ms.','Mrs.','Dr.','Atty.']} isEditing={isEditing && canEdit} label="Prefix" />
+                <FormField name="dob" value={formData.dob || ''} onChange={handleInputChange} type="date" isEditing={isEditing && canEdit} label="Date of Birth" />
+                <FormField name="pob" value={formData.pob || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Place of Birth" />
+                <FormField name="contact_no" value={formData.contact_no || ''} onChange={handleInputChange} type="tel" isEditing={isEditing && canEdit} label="Contact Number" />
+                <FormField name="email" value={formData.email || ''} onChange={handleInputChange} type="email" isEditing={isEditing && canEdit} label="Email" />
               </div>
+
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Address Information</h3>
-                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing} label="Zone" />
-                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing} label="Street" />
-                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing} label="House/Block/Lot No." />
-                <FormField name="period_of_residency" value={formData.period_of_residency || ''} onChange={handleInputChange} isEditing={isEditing} label="Period of Residency" />
-                <FormField name="house_owner" value={formData.house_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="House Owner" />
-                <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing} label="Relationship to Owner" />
-                <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes', 'No']} isEditing={isEditing} label="Registered Voter" />
+                <FormField name="zone" value={formData.zone || ''} onChange={handleInputChange} type="select" options={ZONE_OPTIONS} isEditing={isEditing && canEdit} label="Zone" />
+                <FormField name="street" value={formData.street || ''} onChange={handleInputChange} type="select" options={streets.map(s => s.name)} isEditing={isEditing && canEdit} label="Street" />
+                <FormField name="house_block_lot_no" value={formData.house_block_lot_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="House/Block/Lot No." />
+                <FormField name="period_of_residency" value={formData.period_of_residency || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Period of Residency" />
+                <FormField name="house_owner" value={formData.house_owner || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="House Owner" />
+                <FormField name="relationship_to_owner" value={formData.relationship_to_owner || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Relationship to Owner" />
+                <FormField name="registered_voter" value={formData.registered_voter || ''} onChange={handleInputChange} type="select" options={['Yes','No']} isEditing={isEditing && canEdit} label="Registered Voter" />
               </div>
+
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Document Information</h3>
-                <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing} label="Purpose" />
-                <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Purpose Details" />
-                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing} label="Issued On" />
-                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing} label="Issued At" />
-                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing} label="CTC/VRR No." />
+                <FormField name="purpose" value={formData.purpose || ''} onChange={handleInputChange} type="select" options={PURPOSE_OPTIONS} isEditing={isEditing && canEdit} label="Purpose" />
+                <FormField name="purpose_details" value={formData.purpose_details || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Purpose Details" />
+                <FormField name="issued_on" value={formData.issued_on || ''} onChange={handleInputChange} type="date" isEditing={isEditing && canEdit} label="Issued On" />
+                <FormField name="issued_at" value={formData.issued_at || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="Issued At" />
+                <FormField name="ctc_vrr_no" value={formData.ctc_vrr_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="CTC/VRR No." />
                 <FormField name="bcert_number" value={formData.bcert_number || ''} onChange={handleInputChange} isEditing={false} label="Barangay Clearance No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                  <div className="mt-1"><StatusBadge status={currentStatus} /></div>
+                  <div className="mt-1">
+                    <StatusBadge status={currentStatus} requesterType={formData.requester_type} />
+                  </div>
                 </div>
                 {formData.rejection_reason && (
-                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Reason of rejection" />
+                  <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
-                <FormField name="requester_type" value={formData.requester_type || ''} onChange={handleInputChange} type="select" options={['Online', 'Walk-in']} isEditing={isEditing} label="Requester Type" />
+                {/* ── Requester Type — formal label ── */}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
+                  <div className="mt-1.5">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${requesterInfo.badgeClass}`}>
+                      {requesterInfo.label}
+                    </span>
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Created At</label>
                   <p className="text-sm text-gray-700 mt-1">{formatCreatedAt(formData.created_at)}</p>
                 </div>
+                {/* Created By — lazy-loaded full name */}
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-wider">Created By</label>
-                  <p className="text-sm text-gray-700 mt-1">{formData.created_by || '—'}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Processed By</label>
+                  <div className="mt-1">
+                    {loadingCreatedBy ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading…
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {createdByName || (formData.created_by ? `Staff ID: ${formData.created_by}` : '—')}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Schedule & Remarks</h3>
-                {(record as any).schedule && (
+
+                {formData.requester_type?.toLowerCase() === 'walk-in' ? (
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
+                    <p className="text-sm text-gray-400 italic mt-1">No schedule required (Walk-in)</p>
+                  </div>
+                ) : isAwaitingReschedule ? (
+                  <>
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CalendarClock className="h-3.5 w-3.5 text-sky-600 flex-shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Awaiting Applicant Booking</span>
+                      </div>
+                      <p className="text-[11px] text-sky-600 leading-relaxed">
+                        The applicant has been notified to choose a new appointment slot through their own portal. Admins do not pick the date or session.
+                      </p>
+                    </div>
+                    {currentSchedule && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Last (missed) appointment</label>
+                        <p className="text-sm text-gray-500 mt-1 line-through">
+                          {formatDateShort(currentSchedule.schedule_date)} · {getScheduleSession(currentSchedule) === 'AM' ? 'Morning' : 'Afternoon'} session
+                          {' '}({formatTimeRange(currentSchedule.schedule_time)})
+                        </p>
+                      </div>
+                    )}
+                    {currentSchedule?.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Note to applicant</label>
+                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
+                      </div>
+                    )}
+                    <MissedScheduleHistory history={missedHistory} />
+                  </>
+                ) : currentSchedule ? (
                   <>
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Date</label>
-                      <p className="text-sm text-gray-700 mt-1">{new Date((record as any).schedule.schedule_date).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-700 mt-1">{formatDateShort(currentSchedule.schedule_date)}</p>
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Time</label>
-                      <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.schedule_time}</p>
+                      <p className="text-sm text-gray-700 mt-1">{formatTimeRange(currentSchedule.schedule_time)}</p>
                     </div>
-                    {(record as any).schedule.note && (
-                      <div>
-                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
-                        <p className="text-sm text-gray-700 mt-1">{(record as any).schedule.note}</p>
+
+                    {isNoShow && !TERMINAL_STATUSES.has(status) && !isBlocked && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                          <p className="text-xs font-semibold text-red-700">
+                            {session === 'AM' ? 'Morning' : 'Afternoon'} session has fully passed — No Show
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-red-500">
+                          {session === 'AM' ? 'AM session ended at 12:00 NN' : 'PM session ended at 5:00 PM'} on {formatDateShort(currentSchedule.schedule_date)}.
+                        </p>
                       </div>
                     )}
+
+                    {currentSchedule.note && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule Note</label>
+                        <p className="text-sm text-gray-700 mt-1">{currentSchedule.note}</p>
+                      </div>
+                    )}
+                    <MissedScheduleHistory history={missedHistory} />
                   </>
+                ) : (
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider">Schedule</label>
+                    <p className="text-sm text-gray-400 italic mt-1">Not yet scheduled</p>
+                  </div>
                 )}
-                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing} label="Remarks" />
+
+                <FormField name="remarks" value={formData.remarks || ''} onChange={handleInputChange} isTextArea={true} isEditing={isEditing && canEdit} label="Remarks" />
               </div>
+
             </div>
           </div>
 
-          {/* Disposition panel */}
           {showDispositionModal && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1390,6 +1534,10 @@ function EditableDetailModal({
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
+              <p className="text-[11px] text-gray-500 italic">
+                Heads up: marking the record as <strong>{dispositionType === 'REJECTED' ? 'Rejected' : 'Incomplete'}</strong> halts the workflow.
+                After this, no further status updates are allowed on this record.
+              </p>
               <textarea rows={3}
                 placeholder={dispositionType === 'REJECTED'
                   ? 'e.g. Insufficient documents, unverifiable information…'
@@ -1413,126 +1561,145 @@ function EditableDetailModal({
             </div>
           )}
 
-          {/* Disable confirmation panel */}
-          {showDisableConfirm && (
+          {showArchiveConfirm && (
             <div className="mx-6 mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Ban className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-semibold text-gray-800">Confirm Disable</span>
+                <Archive className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">Confirm Archive</span>
               </div>
               <p className="text-sm text-gray-600">
-                This will mark the record as <strong>Disabled</strong>. The action cannot be undone via the UI.
-                Are you sure you want to continue?
+                This will mark the record as <strong>Archived</strong>. Archived records are read-only and cannot be edited or updated. Are you sure you want to continue?
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button onClick={() => setShowDisableConfirm(false)}
+                <button onClick={() => setShowArchiveConfirm(false)}
                   className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">
                   Cancel
                 </button>
-                <button onClick={handleDisable} disabled={isDisabling}
+                <button onClick={handleArchive} disabled={isArchiving}
                   className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-md text-white bg-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">
-                  <Ban className="h-3.5 w-3.5" />
-                  {isDisabling ? 'Disabling…' : 'Yes, Disable Record'}
+                  <Archive className="h-3.5 w-3.5" />
+                  {isArchiving ? 'Archiving…' : 'Yes, Archive Record'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Footer action bar */}
+          {/* ── Bottom Action Bar ── */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
 
-                {/* Mark as Reviewed (formerly Mark to Pay) */}
-                {canMarkReviewed && (
-                  <button onClick={handleMarkReviewed} disabled={actionLoading === 'reviewed'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50">
-                    <CreditCard className="h-4 w-4" />
-                    {actionLoading === 'reviewed' ? 'Updating...' : 'Mark as Reviewed'}
-                  </button>
-                )}
-
-                {/* Mark as Paid */}
-                {canMarkAsPaid && (
-                  <button onClick={handleMarkAsPaid} disabled={actionLoading === 'paid'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
-                    <CreditCard className="h-4 w-4" />
-                    {actionLoading === 'paid' ? 'Updating...' : 'Mark as Paid'}
-                  </button>
-                )}
-
-                {/* Release Document */}
-                {canRelease && (
-                  <button onClick={handleReleaseAndSave} disabled={isReleasing}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50">
-                    <Mail className="h-4 w-4" />
-                    {isReleasing ? 'Releasing...' : 'Release Document'}
-                  </button>
-                )}
-
-                {/* Download Released */}
-                {hasReleasedDocument && (
-                  <button onClick={downloadReleased} disabled={isDownloading}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
-                    <Download className="h-4 w-4" />
-                    {isDownloading ? 'Downloading...' : 'Download Released'}
-                  </button>
-                )}
-
-                {/* Disposition actions — hidden once released */}
-                {canDispose && (
-                  <>
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
-                    <button onClick={() => openDisposition('INCOMPLETE')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
-                      <X className="h-4 w-4" />
-                      Mark as Incomplete
-                    </button>
-                    <button onClick={() => openDisposition('REJECTED')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                      <X className="h-4 w-4" />
-                      Reject
-                    </button>
-                  </>
-                )}
-
-                {/* Mark as Inspection */}
-                {canMarkToInspection && (
-                  <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
-                    <Eye className="h-4 w-4" />
-                    {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
-                  </button>
-                )}
-
-                {/* Disable button — only for Released */}
-                {isReleased && status !== 'DISABLED' && (
-                  <>
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
-                    <button onClick={() => setShowDisableConfirm(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
-                      <Ban className="h-4 w-4" />
-                      Disable Record
-                    </button>
-                  </>
-                )}
-
-                {/* Informational message for terminal states */}
-                {isReleased && (
-                  <p className="text-xs text-gray-400 italic">
-                    This record has been released. Status cannot be changed.
+                {isArchived ? (
+                  <p className="text-xs text-gray-500 italic flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5" />
+                    This record is archived. All actions are disabled.
                   </p>
+                ) : isBlocked ? (
+                  <p className={`text-xs italic flex items-center gap-1.5 ${
+                    status === 'REJECTED' ? 'text-rose-600' : 'text-orange-600'
+                  }`}>
+                    <Ban className="h-3.5 w-3.5" />
+                    Workflow halted — this record was marked <strong>{blockedLabel}</strong>. No further status changes allowed.
+                  </p>
+                ) : isReleased ? (
+                  <>
+                    {hasReleasedDocument && (
+                      <button onClick={downloadReleased} disabled={isDownloading}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                        <Download className="h-4 w-4" />
+                        {isDownloading ? 'Downloading...' : 'Download Released Document'}
+                      </button>
+                    )}
+                    {canArchive && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button onClick={() => setShowArchiveConfirm(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors">
+                          <Archive className="h-4 w-4" />
+                          Archive Record
+                        </button>
+                      </>
+                    )}
+                    <p className="text-xs text-gray-400 italic">
+                      Released by cashier. Status cannot be changed.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* ── Mark as Process (REVIEWED → PROCESSING) — replaces old "Mark as Reviewed" ── */}
+                    {canMarkProcess && (
+                      <>
+                        <button
+                          onClick={handleMarkProcess}
+                          disabled={actionLoading === 'processing'}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          {actionLoading === 'processing' ? 'Updating...' : 'Mark as Process'}
+                        </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                      </>
+                    )}
+
+                    {canDispose && (
+                      <>
+                        <button onClick={() => openDisposition('INCOMPLETE')}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors">
+                          <X className="h-4 w-4" />
+                          Mark as Incomplete
+                        </button>
+                        <button onClick={() => openDisposition('REJECTED')}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                          <X className="h-4 w-4" />
+                          Reject
+                        </button>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                      </>
+                    )}
+
+                    {canMarkToInspection && (
+                      <button onClick={handleMarkToInspection} disabled={actionLoading === 'inspection'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+                        <Eye className="h-4 w-4" />
+                        {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
+                      </button>
+                    )}
+
+                    {status === 'PROCESSING' && (
+                      <p className="text-xs text-indigo-600 italic flex items-center gap-1.5">
+                        <PlayCircle className="h-3.5 w-3.5" />
+                        Request is now being processed. Awaiting further action from cashier.
+                      </p>
+                    )}
+
+                    {status === 'PAID' && (
+                      <p className="text-xs text-teal-600 italic flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Payment confirmed by cashier. Awaiting cashier to release the document.
+                      </p>
+                    )}
+                  </>
                 )}
-                {!isReleased && status === 'DISABLED' && (
-                  <p className="text-xs text-gray-400 italic">This record is disabled.</p>
-                )}
+
               </div>
               <Button variant="outline" onClick={onClose}>Close</Button>
             </div>
           </div>
+
         </div>
       </div>
+
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+
+      {showRescheduleModal && currentSchedule && (
+        <RescheduleModal
+          record={record}
+          missedSchedule={currentSchedule}
+          onClose={() => setShowRescheduleModal(false)}
+          onSuccess={handleRescheduleSuccess}
+          toast={toast}
+        />
+      )}
     </>
   );
 }
@@ -1573,6 +1740,7 @@ function FilterBar({
           )}
           <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
+
         {filters.status && (
           <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full">
             Status: <strong>{filters.status}</strong>
@@ -1621,25 +1789,26 @@ function FilterBar({
           </button>
         )}
       </div>
+
       {open && (
         <div className="absolute top-full right-0 mt-2 min-w-[600px] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="grid grid-cols-2">
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Status</label>
               <div className="flex flex-wrap gap-1.5">
-                {/* REVIEWED replaces TO_PAY in the filter UI */}
-                {(['', 'PENDING', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE'] as const).map(v => (
+                {(['', 'PENDING', 'RESCHEDULED', 'SCHEDULED', 'ENCODED', 'INSPECTING', 'REVIEWED', 'PROCESSING', 'PAID', 'RELEASED', 'REJECTED', 'INCOMPLETE', 'ARCHIVED'] as const).map(v => (
                   <button key={v}
                     className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
                       filters.status === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                     onClick={() => onChange({ status: v })}
                   >
-                    {v === '' ? 'All' : v === 'ARCHIVED' ? 'Archived' : v.charAt(0) + v.slice(1).toLowerCase()}
+                    {v === '' ? 'All' : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
             </div>
+
             <div className="p-4 border-l border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Schedule</label>
               <div className="flex flex-wrap gap-1.5">
@@ -1658,6 +1827,7 @@ function FilterBar({
                 ))}
               </div>
             </div>
+
             <div className="p-4 border-r border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Created At</label>
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -1685,12 +1855,14 @@ function FilterBar({
                 </div>
               )}
             </div>
+
             <div className="p-4 border-l border-b border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Zone</label>
               <input type="text" placeholder="e.g. Zone 1, Zone 2…"
                 className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
                 value={filters.zone} onChange={e => onChange({ zone: e.target.value })} />
             </div>
+
             <div className="p-4 border-r border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Street</label>
               <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
@@ -1699,6 +1871,7 @@ function FilterBar({
                 {streets.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             </div>
+
             <div className="p-4 border-l border-gray-100">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Purpose</label>
               <select className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white cursor-pointer focus:outline-none focus:border-blue-400"
@@ -1708,6 +1881,7 @@ function FilterBar({
               </select>
             </div>
           </div>
+
           <div className="flex items-center justify-end gap-2 p-3 bg-gray-50 border-t border-gray-200">
             <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100" onClick={onReset}>
               <RotateCcw className="h-3.5 w-3.5" /> Reset filters
@@ -1727,9 +1901,11 @@ const BarangayClearance = () => {
   const { toast }       = useToast();
   const navigate        = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [searchValue, setSearchValueRaw] = useState(() => searchParams.get('search') ?? '');
   const [currentPage, setCurrentPageRaw] = useState(() => Number(searchParams.get('page') ?? '1'));
   const [filters, setFiltersRaw]         = useState<FilterState>(() => filtersFromParams(searchParams));
+
   const [data, setData]             = useState<BarangayClearanceType[]>([]);
   const [isLoading, setIsLoading]   = useState(true);
   const [total, setTotal]           = useState(0);
@@ -1739,6 +1915,9 @@ const BarangayClearance = () => {
   const [streets, setStreets]       = useState<Street[]>([]);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<BarangayClearanceType | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
+
+  // Track which records are currently being "reviewed" at the table level
+  const [reviewingIds, setReviewingIds] = useState<Set<number>>(new Set());
 
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
@@ -1784,7 +1963,7 @@ const BarangayClearance = () => {
         ...(filters.schedule_filter                                 ? { schedule_filter: filters.schedule_filter } : {}),
       };
       const response = await fetchBarangayClearances(params);
-      setData(response.data as any[]);
+      setData(prioritySortData(response.data as any[]));
       setTotal(response.total);
       setTotalPages(response.totalPages);
     } catch {
@@ -1812,8 +1991,41 @@ const BarangayClearance = () => {
     toast({ title: 'QR Scanned', description: `Searching for: ${trimmed}` });
   }, []);
 
+  // ── Table-level "Review" action: SCHEDULED → REVIEWED ──────────────────────
+  const handleTableReview = useCallback(async (item: BarangayClearanceType) => {
+    const itemId = item.id as number;
+    setReviewingIds(prev => new Set(prev).add(itemId));
+    try {
+      await axios.put(
+        `https://westrembomis.onrender.com/api/barangay-clearances/${itemId}`,
+        { status: 'REVIEWED' },
+        { withCredentials: true }
+      );
+      // Optimistically update the row's status in local state so the button
+      // switches to "View/Edit" immediately without waiting for a full reload.
+      setData(prev =>
+        prev.map(r =>
+          r.id === itemId ? { ...r, status: 'REVIEWED' } : r
+        )
+      );
+      toast({ title: 'Reviewed', description: 'Request status updated to Reviewed.' });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to mark as reviewed.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReviewingIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  }, [toast]);
+
   const activeFilterCount = countActiveFilters(filters);
-  
+
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th
       className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
@@ -1830,15 +2042,14 @@ const BarangayClearance = () => {
     <Layout>
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto">
+
           <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Barangay Clearance</h1>
               <p className="text-sm text-gray-500 mt-1">Manage barangay clearance records</p>
             </div>
-            <Button className="gap-2" onClick={() => navigate('/document-edit/2')}>
-              <Plus className="h-4 w-4" /> New Clearance
-            </Button>
           </div>
+
           <div className="flex items-start gap-3 mb-2 flex-wrap" style={{ position: 'relative', zIndex: 40 }}>
             <div className="flex-1 min-w-[200px] flex items-center gap-2">
               <ClearanceSearchBar searchValue={searchValue} onSearchChange={setSearchValue} onRefresh={handleRefresh} />
@@ -1859,6 +2070,7 @@ const BarangayClearance = () => {
               streets={streets}
             />
           </div>
+
           {(activeFilterCount > 0 || searchValue) && !isLoading && (
             <p className="text-xs text-gray-500 mb-3 mt-1">
               Showing <strong className="text-gray-900">{total}</strong> result{total !== 1 ? 's' : ''}
@@ -1868,6 +2080,7 @@ const BarangayClearance = () => {
               {searchValue && <> for <strong className="text-gray-900">"{searchValue}"</strong></>}
             </p>
           )}
+
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
@@ -1900,7 +2113,10 @@ const BarangayClearance = () => {
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div>
                       </th>
-                      <SortHeader field="created_by">Created By</SortHeader>
+                      {/* ── "Submitted By" column — replaces ambiguous "Created By" ── */}
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Submitted By
+                      </th>
                       <SortHeader field="purpose">Purpose</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
@@ -1908,11 +2124,38 @@ const BarangayClearance = () => {
                   <tbody className="divide-y divide-gray-100">
                     {data.map(item => {
                       const isNew = isNewRequest((item as any).created_at);
-                      const itemStatus = normaliseStatus(item.status);
+                      const itemStatus = normaliseStatus(item.status, (item as any).requester_type);
+                      const isItemArchived = FROZEN_STATUSES.has(itemStatus);
+                      const isItemBlocked = BLOCKED_STATUSES.has(itemStatus);
                       const isItemReleased = itemStatus === 'RELEASED';
+                      const itemSchedule: ScheduleData | null = (item as any).schedule ?? null;
+                      const itemRequesterType: string = (item as any).requester_type ?? '';
+                      const isItemAwaitingReschedule = itemStatus === 'RESCHEDULED';
+                      const isItemNoShow =
+                        itemSchedule !== null &&
+                        isSchedulePast(itemSchedule) &&
+                        !TERMINAL_STATUSES.has(itemStatus) &&
+                        !isItemAwaitingReschedule &&
+                        itemRequesterType.toLowerCase() !== 'walk-in';
+
+                      // ── "Review" button logic ──
+                      // Show "Review" only when status is SCHEDULED.
+                      // Once reviewed (status becomes REVIEWED), switch to "View/Edit".
+                      const isItemScheduled = itemStatus === 'SCHEDULED';
+                      const isReviewingThis = reviewingIds.has(item.id as number);
+
+                      const { label: submittedByLabel, badgeClass: submittedByBadgeClass } =
+                        getRequesterLabel(itemRequesterType);
+
+                      const rowClass = [
+                        isNew ? 'bg-blue-50/30' : '',
+                        isItemArchived ? 'opacity-50 bg-gray-50' : '',
+                        isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
+                        'hover:bg-gray-50 transition-colors',
+                      ].filter(Boolean).join(' ');
 
                       return (
-                        <tr key={item.id} className={`${isNew ? 'bg-blue-50/30' : ''} hover:bg-gray-50 transition-colors`}>
+                        <tr key={item.id} className={rowClass}>
                           <td className="pl-3 pr-0 py-3">
                             {isNew && (
                               <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
@@ -1935,51 +2178,95 @@ const BarangayClearance = () => {
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
                             {new Date(item.dob).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-4"><StatusBadge status={item.status} /></td>
-                          <td className="py-3 px-4"><ScheduleCell schedule={(item as any).schedule ?? null} /></td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{item.created_by}</td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <ScheduleCell
+                              schedule={itemSchedule}
+                              requesterType={itemRequesterType}
+                              status={itemStatus}
+                            />
+                          </td>
+
+                          {/* ── Submitted By — formal applicant channel label ── */}
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>
+                              {submittedByLabel}
+                            </span>
+                          </td>
+
                           <td className="py-3 px-4 text-sm text-gray-600">{item.purpose}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <button
-                                onClick={() => setSelectedDetailRecord(item)}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
-                                <Eye className="h-3 w-3" /> View/Edit
-                              </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/2/${item.bcert_number}`)}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                              >
-                                Preview
-                              </button>
-                              <button
-                                onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true } })}
-                                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
-                              >
-                                Print
-                              </button>
-
-                              {/*
-                                ─── Delete / Disable logic ───────────────────────
-                                • Released  → show "Disable" button (soft delete)
-                                • All other → no delete button at all
-                              */}
-                              {isItemReleased ? (
-                                <button
-                                  onClick={() => {
-                                    // Open the record's detail modal which has the disable flow,
-                                    // OR call the API directly here for a quick inline path.
-                                    // Here we open the detail modal so the confirm step is shown.
-                                    setSelectedDetailRecord(item);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
-                                  title="Disable this released record"
+                              {isItemArchived ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none whitespace-nowrap"
+                                  title="This record is archived and locked"
                                 >
-                                  <Ban className="h-3 w-3" /> Disable
-                                </button>
-                              ) : null}
-                              {/* Delete button is intentionally hidden for ALL statuses */}
+                                  <Lock className="h-3 w-3" /> Archived · Locked
+                                </span>
+                              ) : isItemBlocked ? (
+                                <>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${
+                                      itemStatus === 'REJECTED'
+                                        ? 'bg-rose-50 text-rose-500 border-rose-200'
+                                        : 'bg-orange-50 text-orange-500 border-orange-200'
+                                    }`}
+                                  >
+                                    <Ban className="h-3 w-3" /> No actions
+                                  </span>
+                                </>
+                              ) : isItemScheduled ? (
+                                // ── SCHEDULED status: show "Review" button, no "View/Edit" ──
+                                <>
+                                  <button
+                                    onClick={() => handleTableReview(item)}
+                                    disabled={isReviewingThis}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <CheckCircle className="h-3 w-3" />
+                                    {isReviewingThis ? 'Reviewing…' : 'Review'}
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                </>
+                              ) : (
+                                // ── All other active statuses: show "View/Edit" ──
+                                <>
+                                  <button
+                                    onClick={() => setSelectedDetailRecord(item)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    <Eye className="h-3 w-3" /> View/Edit
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/document-edit/2/${item.bcert_number}`, { state: { autoPrint: true, previewMode: true } })}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Print
+                                  </button>
+                                  {isItemReleased && (
+                                    <button
+                                      onClick={() => setSelectedDetailRecord(item)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                                    >
+                                      <Archive className="h-3 w-3" /> Archive
+                                    </button>
+                                  )}
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1990,14 +2277,17 @@ const BarangayClearance = () => {
               </div>
             )}
           </div>
+
           <ClearancePagination
             currentPage={currentPage}
             totalPages={totalPages}
             total={total}
             onPageChange={setCurrentPage}
           />
+
         </div>
       </div>
+
       {selectedDetailRecord && (
         <EditableDetailModal
           record={selectedDetailRecord}
@@ -2006,6 +2296,7 @@ const BarangayClearance = () => {
           toast={toast}
         />
       )}
+
       {showQRScanner && (
         <QRScannerModal
           onClose={() => setShowQRScanner(false)}
