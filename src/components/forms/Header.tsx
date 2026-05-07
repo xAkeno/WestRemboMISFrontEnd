@@ -7,15 +7,17 @@ import { toast } from "sonner";
 import ProfileDropdown from "./ProfileDropdown";
 import AuthRequiredModal from "../AuthRequiredModal";
 import NotificationBell from "../NotificationBell";
+
 // ── Protected routes that require login ───────────────────────────────────────
 const navLinks = [
-  { label: "Home",     href: "/home",     protected: false },
-  { label: "About",    href: "/aboutus",  protected: false },
-  { label: "Services", href: "/services", protected: false  },
-  { label: "QR Verification",  href: "/verify",  protected: false },
-  { label: "Calendar", href: "/calendar", protected: false  },
-  { label: "Contact",  href: "/contact",  protected: false },
+  { label: "Home",             href: "/home",      protected: false },
+  { label: "About",            href: "/aboutus",   protected: false },
+  { label: "Services",         href: "/services",  protected: false },
+  { label: "QR Verification",  href: "/verify",    protected: false },
+  { label: "Calendar",         href: "/calendar",  protected: false },
+  { label: "Contact",          href: "/contact",   protected: false },
 ];
+
 var isAdminStaff = false;
 
 const Header = () => {
@@ -29,7 +31,6 @@ const Header = () => {
   if (self && (self.role === "ADMIN" || self.role === "STAFF")) {
     isAdminStaff = true;
   }
-
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,9 +70,8 @@ const Header = () => {
         setSelf(null);
         localStorage.removeItem("user");
       });
-    }, []);
+  }, []);
 
-// ADD this new useEffect right after:
   useEffect(() => {
     const handler = () => {
       const cached = localStorage.getItem("user");
@@ -97,15 +97,15 @@ const Header = () => {
     }
   };
 
-    const signout = async () => { 
-      try {
+  const signout = async () => {
+    try {
       await axios.post(
         "https://westrembomis.onrender.com/api/logout",
-        {},                          // ← empty body was missing
-        { withCredentials: true }    // ← this was in wrong position
+        {},
+        { withCredentials: true }
       );
-      setSelf(null);         // clear AFTER logout succeeds
-      localStorage.removeItem("user"); // ← ADD this line
+      setSelf(null);
+      localStorage.removeItem("user");
       navigate("/home");
       toast.success("You have been signed out.");
     } catch (error) {
@@ -114,6 +114,7 @@ const Header = () => {
   };
 
   const isActive = (href: string) => location.pathname === href;
+
   return (
     <>
       <header
@@ -164,7 +165,7 @@ const Header = () => {
                 <a
                   key={link.label}
                   onClick={(e) => {
-                    handleNavClick(e as any, link); // keep your protected guard
+                    handleNavClick(e as any, link);
                     if (!link.protected || self) navigate(link.href);
                   }}
                   className="cursor-pointer px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-all duration-200"
@@ -191,10 +192,14 @@ const Header = () => {
                   {link.label}
                 </a>
               ))}
-              <div className="ml-4 pl-4 flex items-center gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
+
+              <div
+                className="ml-4 pl-4 flex items-center gap-3"
+                style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+              >
                 {self && <NotificationBell />}
                 {self ? (
-                  <ProfileDropdown self={self} onSignOut={()=> setSelf(null)} />
+                  <ProfileDropdown self={self} onSignOut={() => setSelf(null)} />
                 ) : (
                   <a
                     onClick={() => { navigate("/login"); setMobileMenuOpen(false); }}
@@ -215,6 +220,7 @@ const Header = () => {
 
             {/* ── Mobile: avatar indicator + hamburger ── */}
             <div className="md:hidden flex items-center gap-3">
+              {self && <NotificationBell />}
               {self && (
                 <div
                   className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
@@ -224,7 +230,7 @@ const Header = () => {
                     src={
                       self.url_photo
                         ? "https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + self.url_photo
-                        : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
+                        : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg"
                     }
                     className="w-full h-full object-cover"
                     alt="Avatar"
@@ -270,7 +276,6 @@ const Header = () => {
                   }}
                 >
                   {link.label}
-                  {/* Badge for protected links when not logged in */}
                   {link.protected && !self && (
                     <span
                       className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 flex-shrink-0"
@@ -290,15 +295,13 @@ const Header = () => {
             {/* Divider */}
             <div className="mx-4 my-2" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
 
-            {/* Profile panel — rendered FLAT inline, no floating dropdown = no glitch */}
+            {/* Profile panel */}
             <div className="px-4 pb-4">
               {self ? (
                 <MobileProfilePanel
                   self={self}
                   onClose={() => setMobileMenuOpen(false)}
-                  onSignOut={() => {
-                    setSelf(null);
-                  }}
+                  onSignOut={() => setSelf(null)}
                 />
               ) : (
                 <a
@@ -316,7 +319,6 @@ const Header = () => {
                 </a>
               )}
             </div>
-            {self && <NotificationBell />}
           </div>
         )}
       </header>
@@ -332,18 +334,16 @@ const Header = () => {
 };
 
 // ─── Flat mobile profile panel ────────────────────────────────────────────────
-// Renders inline inside the drawer — eliminates the z-index / scroll glitch
-// that occurs when a floating dropdown is nested inside overflow:hidden parents.
 const MobileProfilePanel = ({
-    self,
-    onClose,
-    onSignOut,
-  }: {
-    self: any;
-    onClose: () => void;
-    onSignOut: () => void;
-  }) => {
-    const navigate = useNavigate();
+  self,
+  onClose,
+  onSignOut,
+}: {
+  self: any;
+  onClose: () => void;
+  onSignOut: () => void;
+}) => {
+  const navigate = useNavigate();
 
   const signout = async () => {
     try {
@@ -352,8 +352,8 @@ const MobileProfilePanel = ({
         {},
         { withCredentials: true }
       );
-       localStorage.removeItem("user"); // ← ADD this line
-      onSignOut();           // clear self in parent AFTER logout succeeds
+      localStorage.removeItem("user");
+      onSignOut();
       onClose();
       navigate("/home");
       toast.success("You have been signed out.");
@@ -362,7 +362,6 @@ const MobileProfilePanel = ({
     }
   };
 
-    
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark")
   );
@@ -378,6 +377,7 @@ const MobileProfilePanel = ({
 
   const row =
     "flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium transition-colors duration-150 cursor-pointer";
+
   return (
     <div
       className="overflow-hidden"
@@ -396,15 +396,15 @@ const MobileProfilePanel = ({
           className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0"
           style={{ border: "1.5px solid rgba(194,70,125,0.55)" }}
         >
-        <img
-          src={
-            self.url_photo
-              ? "ttps://pub-ac8a9453b771431ba35a02dd460d8da1.r2.dev/" + self.url_photo
-              : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg" // <-- path to your default image
-          }
-          className="w-full h-full object-cover"
-          alt="Avatar"
-        />
+          <img
+            src={
+              self.url_photo
+                ? "https://bold-sunset-533d.clarkkentraguhos.workers.dev/" + self.url_photo
+                : "https://png.pngtree.com/png-vector/20221130/ourmid/pngtree-user-profile-button-for-web-and-mobile-design-vector-png-image_41767880.jpg"
+            }
+            className="w-full h-full object-cover"
+            alt="Avatar"
+          />
         </div>
         <div className="min-w-0">
           <p
@@ -421,17 +421,13 @@ const MobileProfilePanel = ({
 
       {/* Links */}
       {[
-        { href: "/profile",    label: "Profile",     icon: <path stroke="currentColor" strokeWidth="2" d="M7 17v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3Zm8-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /> },
-        { href: "/myrequest",  label: "My Requests", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
-        { href: "/mydocuments",  label: "My Documents", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
+        { href: "/profile",     label: "Profile",      icon: <path stroke="currentColor" strokeWidth="2" d="M7 17v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1a3 3 0 0 0-3-3h-4a3 3 0 0 0-3 3Zm8-9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /> },
+        { href: "/myrequest",   label: "My Requests",  icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
+        { href: "/mydocuments", label: "My Documents", icon: <path stroke="currentColor" strokeLinecap="round" strokeWidth="2" d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4" /> },
       ].map(({ href, label, icon }) => (
         <a
           key={href}
-          onClick={() => {
-              onClose();
-              navigate(href);
-            }
-          }
+          onClick={() => { onClose(); navigate(href); }}
           className={row}
           style={{ color: "rgba(255,255,255,0.72)", cursor: "pointer" }}
         >
@@ -442,11 +438,7 @@ const MobileProfilePanel = ({
 
       {isAdminStaff && (
         <a
-          onClick={() => {
-              onClose
-              navigate("/dashboard")
-            }
-          }
+          onClick={() => { onClose(); navigate("/dashboard"); }}
           className={row}
           style={{ color: "rgba(255,255,255,0.72)" }}
         >
@@ -473,9 +465,8 @@ const MobileProfilePanel = ({
           </svg>
           {isDark ? "Light Mode" : "Dark Mode"}
         </div>
-        {/* Toggle pill */}
         <div
-          className="relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 cursor-pointer"
+          className="relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200"
           style={{ backgroundColor: isDark ? "#c2467d" : "rgba(255,255,255,0.18)" }}
         >
           <div
@@ -490,7 +481,6 @@ const MobileProfilePanel = ({
 
       {/* Sign out */}
       <a
-
         onClick={signout}
         className={row}
         style={{ color: "#f87171" }}
