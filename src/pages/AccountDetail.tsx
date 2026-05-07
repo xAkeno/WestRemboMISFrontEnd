@@ -152,7 +152,7 @@ export default function AccountDetail() {
   const fetchAccount = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`https://westrembomis.onrender.com/api/users/${id}`, { withCredentials: true });
+      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/users/${id}`, { withCredentials: true });
       const user: FullAccount = res.data.data;
       let perms: string[] = [];
       if (Array.isArray(user.permissions)) perms = user.permissions;
@@ -183,7 +183,7 @@ export default function AccountDetail() {
       : permissions.filter(p => p !== permConfirm.key);
     setPermissions(updated);
     try {
-      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/permissions`,
+      await axios.put(`${import.meta.env.VITE_WEB_URL}/api/users/${account.id}/permissions`,
         { permissions: updated }, { withCredentials: true });
       toast("Permission updated.");
     } catch {
@@ -205,7 +205,7 @@ export default function AccountDetail() {
     if (!account || !roleConfirm) return;
     setRoleSaving(true);
     try {
-      await axios.put(`https://westrembomis.onrender.com/api/users/${account.id}/role`,
+      await axios.put(`${import.meta.env.VITE_WEB_URL}/api/users/${account.id}/role`,
         { role: roleConfirm.value }, { withCredentials: true });
       setAccount(prev => prev ? { ...prev, role: roleConfirm.value } : prev);
       shadToast({ title: "Role Updated", description: `Role changed to ${roleConfirm.label}.` });
@@ -222,7 +222,7 @@ export default function AccountDetail() {
     if (!account) return;
     setDeleting(true);
     try {
-      await axios.delete(`https://westrembomis.onrender.com/api/users/${account.id}`, { withCredentials: true });
+      await axios.delete(`${import.meta.env.VITE_WEB_URL}/api/users/${account.id}`, { withCredentials: true });
       shadToast({ title: "Account Deleted", description: `${fullName(account)} has been permanently removed.` });
       navigate("/AccountManage");
     } catch (err: any) {

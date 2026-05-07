@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 
 interface Street {
   id: number;

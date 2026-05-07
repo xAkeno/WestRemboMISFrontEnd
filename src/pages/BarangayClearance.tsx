@@ -366,7 +366,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'https://westrembomis.onrender.com',
+  baseURL: `${import.meta.env.VITE_WEB_URL}`,
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -561,7 +561,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `${import.meta.env.VITE_WEB_URL}/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -826,7 +826,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -852,7 +852,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -946,7 +946,7 @@ function EditableDetailModal({
     try {
       // Send 'TO_PAY' to the server (legacy API value), display as REVIEWED
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
         { status: 'TO_PAY' },
         { withCredentials: true }
       );
@@ -967,7 +967,7 @@ function EditableDetailModal({
     setActionLoading('paid');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
         { status: 'PAID' },
         { withCredentials: true }
       );
@@ -988,7 +988,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1014,7 +1014,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1054,7 +1054,7 @@ function EditableDetailModal({
     setIsDisabling(true);
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${record.id}`,
         { status: 'DISABLED' },
         { withCredentials: true }
       );
@@ -1085,7 +1085,7 @@ function EditableDetailModal({
     setIsReleasing(true);
     try {
       const metaRes = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/single/2`,
+        `${import.meta.env.VITE_WEB_URL}/api/documents/single/2`,
         { withCredentials: true }
       );
       const fileUrl = metaRes.data?.file_url;
@@ -1150,7 +1150,7 @@ function EditableDetailModal({
       fd.append('file', blob, filename);
 
       const res = await axios.post(
-        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-clearances/${record.id}`,
         fd,
         { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -1180,7 +1180,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
+        `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1201,7 +1201,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
+          `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1210,7 +1210,7 @@ function EditableDetailModal({
 
       if (existingId) {
         await axios.put(
-          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
+          `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${existingId}`,
           { ...formData, requester_type: formData.requester_type || 'Online' },
           { withCredentials: true }
         );

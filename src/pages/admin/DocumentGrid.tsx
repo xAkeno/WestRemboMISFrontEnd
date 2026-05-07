@@ -34,7 +34,7 @@ export function DocumentGrid() {
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const API_BASE = "https://westrembomis.onrender.com/api";
+  const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 
   // Fetch documents from backend and merge with defaults
   useEffect(() => {

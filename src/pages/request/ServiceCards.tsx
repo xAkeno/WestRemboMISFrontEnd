@@ -141,7 +141,7 @@ export default function ServiceCards() {
 
   useEffect(() => {
     axios
-      .get('https://westrembomis.onrender.com/api/details', { withCredentials: true })
+      .get(`${import.meta.env.VITE_WEB_URL}/api/details`, { withCredentials: true })
       .then((res) => { if (res.status === 200) setSelf(res.data.data); })
       .catch(() => {});
   }, []);

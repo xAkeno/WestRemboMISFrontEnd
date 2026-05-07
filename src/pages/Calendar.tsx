@@ -46,7 +46,7 @@ const Calendar: React.FC = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await axios.get("https://westrembomis.onrender.com/api/public-events");
+        const response = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/public-events`);
         if (response.data.status) {
           const mapped = response.data.data.map((event: CalendarEvent) => ({
             id: event.id,

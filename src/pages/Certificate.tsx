@@ -99,7 +99,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: 'https://westrembomis.onrender.com',
+  baseURL: import.meta.env.VITE_WEB_URL_WITH_API,
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -388,7 +388,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `import.meta.env.VITE_WEB_URL/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -624,7 +624,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL_WITH_API}/api/streets`, { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -666,7 +666,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`,
+        `import.meta.env.VITE_WEB_URL/api/barangay-certificates?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -681,7 +681,7 @@ function EditableDetailModal({
         (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
       ) {
         axios.put(
-          `https://westrembomis.onrender.com/api/barangay-certificates/${full.id}`,
+          `${import.meta.env.VITE_WEB_URL_WITH_API}/api/barangay-certificates/${full.id}`,
           { status: 'PENDING' },
           { withCredentials: true }
         ).catch(() => {});
@@ -781,7 +781,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${record.id}`,
         { 
           status: previousStatus || 'RELEASED',
           previous_status: status
@@ -814,7 +814,7 @@ function EditableDetailModal({
     setActionLoading('processing');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${record.id}`,
         { status: 'PROCESS' },
         { withCredentials: true }
       );
@@ -835,7 +835,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -861,7 +861,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}/disposition`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -900,7 +900,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${record.id}`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${record.id}`,
         { 
           status: 'ARCHIVED',
           previous_status: status
@@ -929,7 +929,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${record.id}/download`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/documents/release/barangay-certificates/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -954,7 +954,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `https://westrembomis.onrender.com/api/barangay-certificates?search=${record.bcert_number}`,
+          `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -998,7 +998,7 @@ function EditableDetailModal({
         });
         
         await axios.put(
-          `https://westrembomis.onrender.com/api/barangay-certificates/${existingId}`,
+          `${import.meta.env.VITE_WEB_URL_WITH_API}/barangay-certificates/${existingId}`,
           updatePayload,
           { withCredentials: true }
         );
@@ -1693,7 +1693,7 @@ const Certificate = () => {
     setReviewingIds(prev => new Set(prev).add(itemId));
     try {
       await axios.put(
-        `https://westrembomis.onrender.com/api/barangay-certificates/${itemId}`,
+        `${import.meta.env.VITE_WEB_URL_WITH_API}/api/barangay-certificates/${itemId}`,
         { status: 'REVIEW' },
         { withCredentials: true }
       );

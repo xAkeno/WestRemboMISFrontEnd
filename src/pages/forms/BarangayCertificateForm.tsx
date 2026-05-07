@@ -522,7 +522,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/streets`, { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -533,7 +533,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     const loadServiceInfo = async () => {
       setLoadingServiceInfo(true);
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/services`, { withCredentials: true });
         const services: any[] = res.data?.data ?? res.data ?? [];
         const cert = services.find((s) => s.name === "Barangay Certificate");
         if (cert) {
@@ -612,7 +612,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await axios.get("https://westrembomis.onrender.com/api/schedules/available-slots", {
+      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/schedules/available-slots`, {
         params: { document_type: formData.document_type, date },
         withCredentials: true,
       });
@@ -664,14 +664,14 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
     setIsSubmitting(true);
     try {
       const certRes = await axios.post(
-        "https://westrembomis.onrender.com/api/barangay-certificates",
+        `${import.meta.env.VITE_WEB_URL}/api/barangay-certificates`,
         { ...formData, age: formData.age ? Number(formData.age) : null },
         { withCredentials: true }
       );
       if (certRes.status === 201 || certRes.status === 200) {
         const documentNumber = certRes.data?.data?.service?.bcert_number;
         const scheduleRes = await axios.post(
-          "https://westrembomis.onrender.com/api/schedules",
+          `${import.meta.env.VITE_WEB_URL}/api/schedules`,
           { document_type: formData.document_type, document_number: documentNumber, schedule_date: formData.schedule_date, time_group: formData.time_group },
           { withCredentials: true }
         );
@@ -699,7 +699,7 @@ const BarangayCertificateForm = ({ onBack }: BarangayCertificateFormProps = {}) 
 
     const loadUser = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/details`, { withCredentials: true });
         const user = res.data.data;
         const normalizedDob = user.date_of_birth ? user.date_of_birth.split("T")[0] : "";
         const addressParts = parseAddress(user.address || "");

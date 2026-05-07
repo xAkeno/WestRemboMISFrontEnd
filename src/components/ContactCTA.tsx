@@ -32,7 +32,7 @@ const useScrollReveal = (threshold = 0.15) => {
 };
 
 const ContactCTA = () => {
-  const API_BASE = "https://westrembomis.onrender.com/api";
+  const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 
   const defaultContact: ContactInfo = {
     address: "Plaza Drive A. Mabini Street (21st), Barangay West Rembo, Taguig City",

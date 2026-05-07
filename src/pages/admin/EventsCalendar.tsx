@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 const IMAGE_BASE_URL = 'https://bold-sunset-533d.clarkkentraguhos.workers.dev/';
 
 interface Event {

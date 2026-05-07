@@ -59,7 +59,7 @@ const Header = () => {
     if (cached) setSelf(JSON.parse(cached));
 
     axios
-      .get("https://westrembomis.onrender.com/api/details", { withCredentials: true })
+      .get(`${import.meta.env.VITE_WEB_URL}/api/details`, { withCredentials: true })
       .then((res) => {
         if (res.status === 200) {
           setSelf(res.data.data);
@@ -100,7 +100,7 @@ const Header = () => {
   const signout = async () => {
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/logout",
+        `${import.meta.env.VITE_WEB_URL}/api/logout`,
         {},
         { withCredentials: true }
       );
@@ -348,7 +348,7 @@ const MobileProfilePanel = ({
   const signout = async () => {
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/logout",
+        `${import.meta.env.VITE_WEB_URL}/api/logout`,
         {},
         { withCredentials: true }
       );

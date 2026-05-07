@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://westrembomis.onrender.com/api",
+  baseURL: `${import.meta.env.VITE_WEB_URL}/api`,
   withCredentials: true,
 });
 

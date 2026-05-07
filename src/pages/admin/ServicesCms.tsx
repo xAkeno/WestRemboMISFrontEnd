@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 const STORAGE_KEY = 'services_overrides';
 
 interface Service {
