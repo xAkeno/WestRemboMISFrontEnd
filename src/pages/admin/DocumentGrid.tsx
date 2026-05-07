@@ -25,6 +25,8 @@ const DEFAULT_DOCS: DocItem[] = [
   // { name: "Cedula", file_url: null, file_name: null },
 ];
 
+const WORKER_BASE = "https://bold-sunset-533d.clarkkentraguhos.workers.dev";
+
 export function DocumentGrid() {
   const [docs, setDocs] = useState<DocItem[]>(DEFAULT_DOCS);
   const [replaceIdx, setReplaceIdx] = useState<number | null>(null);
@@ -44,7 +46,12 @@ export function DocumentGrid() {
           id: d.id,
           name: d.name,
           file_name: d.file_name,
-          file_url: d.file_url ?? null,
+          // Always store the full URL (with worker base) in file_url
+          file_url: d.file_url
+            ? `${WORKER_BASE}${d.file_url}`
+            : d.file_path
+            ? `${WORKER_BASE}${d.file_path}`
+            : null,
         }));
 
         const merged = DEFAULT_DOCS.map((def) => {
@@ -76,16 +83,12 @@ export function DocumentGrid() {
       let res;
 
       if (doc.id) {
-        // Existing document → POST /documents/update/{id}  (DocumentController@update)
-        // Using POST so PHP populates $_FILES correctly — no method spoofing needed
-        // because the route itself is defined as POST in api.php.
         res = await axios.post(
           `${API_BASE}/documents/update/${doc.id}`,
           formData,
           { headers: { "Content-Type": "multipart/form-data" }, withCredentials: true }
         );
       } else {
-        // New document → POST /documents/admin  (DocumentController@store)
         res = await axios.post(
           `${API_BASE}/documents/admin`,
           formData,
@@ -102,7 +105,8 @@ export function DocumentGrid() {
                 id: updated.id,
                 name: updated.name,
                 file_name: updated.file_name,
-                file_url: `https://bold-sunset-533d.clarkkentraguhos.workers.dev${updated.file_path}`,
+                // Store full URL here too
+                file_url: `${WORKER_BASE}${updated.file_path}`,
               }
             : d
         )
@@ -134,7 +138,7 @@ export function DocumentGrid() {
                 {doc.file_url ? (
                   <>
                     <iframe
-                      src={`${doc.file_url}`}
+                      src={doc.file_url}
                       title={doc.name}
                       className="w-full h-full pointer-events-none"
                     />
@@ -195,7 +199,7 @@ export function DocumentGrid() {
           onChange={handleFile}
         />
 
-        {/* Full Preview Dialog */}
+        {/* Full Preview Dialog — previewUrl already contains the full URL */}
         <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
           <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
             <DialogHeader className="flex-none">
@@ -206,10 +210,7 @@ export function DocumentGrid() {
             <div className="flex-1 mt-2">
               {previewUrl && (
                 <iframe
-                  src={
-                    "https://bold-sunset-533d.clarkkentraguhos.workers.dev" +
-                    previewUrl
-                  }
+                  src={previewUrl}
                   className="w-full h-full rounded-md border"
                   title="PDF Preview"
                 />
