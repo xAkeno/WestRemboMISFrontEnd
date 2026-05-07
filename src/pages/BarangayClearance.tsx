@@ -108,7 +108,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -446,7 +446,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back:  string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `${import.meta.env.VITE_API_BASE_URL}/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back')  back  = url;
           });
@@ -632,12 +632,12 @@ function RescheduleModal({
       const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
       const updatedHistory = [...existingHistory, missedEntry];
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/schedules/${missedSchedule.id}`,
+        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
         { note: note.trim() || null, missed_history: updatedHistory },
         { withCredentials: true }
       );
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'RESCHEDULED' },
         { withCredentials: true }
       );
@@ -889,7 +889,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/streets`, { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -935,7 +935,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances?search=${record.bcert_number}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
         { withCredentials: true }
       );
       const full = response.data.data.data[0];
@@ -950,7 +950,7 @@ function EditableDetailModal({
         (full.status?.toUpperCase() === 'RESCHEDULED' || full.status?.toUpperCase() === 'SCHEDULED')
       ) {
         axios.put(
-          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${full.id}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances/${full.id}`,
           { status: 'PENDING' },
           { withCredentials: true }
         ).catch(() => {});
@@ -1052,7 +1052,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'RELEASED' },
         { withCredentials: true }
       );
@@ -1082,7 +1082,7 @@ function EditableDetailModal({
     setActionLoading('processing');
     try {
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'PROCESS' },
         { withCredentials: true }
       );
@@ -1103,7 +1103,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { status: 'INSPECTING' },
         { withCredentials: true }
       );
@@ -1129,7 +1129,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() },
         { withCredentials: true }
       );
@@ -1168,7 +1168,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${record.id}`,
         { 
           status: 'ARCHIVED',
           previous_status: status
@@ -1204,7 +1204,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/documents/release/barangay-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -1229,7 +1229,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances?search=${record.bcert_number}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances?search=${record.bcert_number}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -1237,7 +1237,7 @@ function EditableDetailModal({
       } catch (error) { console.error('Check existing failed:', error); }
       if (existingId) {
         await axios.put(
-          `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/barangay-clearances/${existingId}`,
           { ...formData },
           { withCredentials: true }
         );
@@ -2003,7 +2003,7 @@ const BarangayClearance = () => {
     setReviewingIds(prev => new Set(prev).add(itemId));
     try {
       await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/api/barangay-clearances/${itemId}`,
+        `https://westrembomis.onrender.com/api/barangay-clearances/${itemId}`,
         { status: 'REVIEW' },
         { withCredentials: true }
       );

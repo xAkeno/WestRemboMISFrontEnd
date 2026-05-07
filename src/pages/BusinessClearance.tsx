@@ -90,7 +90,7 @@ function buildParams(filters: FilterState, search: string, page: number): URLSea
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_WEB_URL,
+  baseURL: 'https://westrembomis.onrender.com',
   withCredentials: true,
   headers: { Accept: 'application/json' },
 });
@@ -382,7 +382,7 @@ function UserIdViewer({ userId, onZoom }: { userId?: number | string; onZoom: (u
         let back: string | null = null;
         Object.values(documents).forEach((categoryDocs: any) => {
           (categoryDocs as any[]).forEach((doc: any) => {
-            const url = doc.url ?? `${import.meta.env.VITE_WEB_URL}/uploads/${doc.original_filename}`;
+            const url = doc.url ?? `https://westrembomis.onrender.com/uploads/${doc.original_filename}`;
             if (doc.type === 'valid_id_front') front = url;
             if (doc.type === 'valid_id_back') back = url;
           });
@@ -592,7 +592,7 @@ function EditableDetailModal({
   useEffect(() => {
     const loadStreets = async () => {
       try {
-        const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/streets", { withCredentials: true });
+        const res = await axios.get("https://westrembomis.onrender.com/api/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
@@ -633,7 +633,7 @@ function EditableDetailModal({
     setIsLoading(true);
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances?search=${record.brgy_business_no}`,
+        `https://westrembomis.onrender.com/api/business-clearances?search=${record.brgy_business_no}`,
         { withCredentials: true }
       );
       const fullRecord = response.data.data.data[0];
@@ -648,7 +648,7 @@ function EditableDetailModal({
         (fullRecord.status?.toUpperCase() === 'RESCHEDULED' || fullRecord.status?.toUpperCase() === 'SCHEDULED')
       ) {
         axios.put(
-          `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${fullRecord.id}`,
+          `https://westrembomis.onrender.com/api/business-clearances/${fullRecord.id}`,
           { status: 'PENDING' },
           { withCredentials: true }
         ).catch(() => {});
@@ -730,7 +730,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { 
           status: previousStatus || 'RELEASED',
           previous_status: status
@@ -762,7 +762,7 @@ function EditableDetailModal({
     setActionLoading('processing');
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { status: 'PROCESS' },
         { withCredentials: true }
       );
@@ -783,7 +783,7 @@ function EditableDetailModal({
     setActionLoading('inspection');
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { status: 'INSPECTING' }, { withCredentials: true }
       );
       setCurrentStatus('INSPECTING');
@@ -808,7 +808,7 @@ function EditableDetailModal({
     setIsDisposing(true);
     try {
       await axios.post(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${record.id}/disposition`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}/disposition`,
         { status: dispositionType, reason: dispositionReason.trim() }, { withCredentials: true }
       );
       const label = dispositionType === 'REJECTED' ? 'Rejected' : 'Marked as Incomplete';
@@ -842,7 +842,7 @@ function EditableDetailModal({
     setIsArchiving(true);
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${record.id}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
         { 
           status: 'ARCHIVED',
           previous_status: status
@@ -868,7 +868,7 @@ function EditableDetailModal({
     setIsDownloading(true);
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/documents/release/business-clearances/${record.id}/download`,
+        `https://westrembomis.onrender.com/api/documents/release/business-clearances/${record.id}/download`,
         { withCredentials: true }
       );
       const url = res.data?.data?.url;
@@ -889,7 +889,7 @@ function EditableDetailModal({
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `${import.meta.env.VITE_WEB_URL}/api/business-clearances?search=${record.brgy_business_no}`,
+          `https://westrembomis.onrender.com/api/business-clearances?search=${record.brgy_business_no}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -933,7 +933,7 @@ function EditableDetailModal({
         });
         
         await axios.put(
-          `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${existingId}`,
+          `https://westrembomis.onrender.com/api/business-clearances/${existingId}`,
           updatePayload,
           { withCredentials: true }
         );
@@ -1564,7 +1564,7 @@ const BusinessClearance = () => {
     setReviewingIds(prev => new Set(prev).add(itemId));
     try {
       await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${itemId}`,
+        `https://westrembomis.onrender.com/api/business-clearances/${itemId}`,
         { status: 'REVIEW' },
         { withCredentials: true }
       );

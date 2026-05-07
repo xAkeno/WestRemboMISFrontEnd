@@ -569,7 +569,7 @@ const Cashier = () => {
         const fetchCmsServices = async () => {
             setCmsLoaded(false);
             try {
-                const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/services", { withCredentials: true });
+                const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
                 const data: CmsService[] = res.data?.data ?? res.data ?? [];
                 setCmsServices(data);
             } catch (err) {
@@ -585,7 +585,7 @@ const Cashier = () => {
     useEffect(() => {
         const fetchPrices = async () => {
             try {
-                const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/service-prices", { withCredentials: true });
+                const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", { withCredentials: true });
                 const data: { type: string; amount: string | number }[] = res.data?.data ?? res.data ?? [];
                 const map: { [type: string]: number } = {};
                 data.forEach((d) => { map[d.type] = parseFloat(String(d.amount)) || 0; });
@@ -601,7 +601,7 @@ const Cashier = () => {
     const fetchTinByOrNumber = useCallback(async (orNumber: string, rowIndex: number) => {
         if (!orNumber || tinByOr[orNumber] !== undefined) return;
         try {
-            const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/official-receipts/by-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
                 params: { or_number: orNumber }, withCredentials: true,
             });
             const tin: string = res.data?.data?.tin_no ?? "";
@@ -620,20 +620,20 @@ const Cashier = () => {
 
 
     const getEndpoint = useCallback(() => {
-        if (choose === "Barangay Clearance")   return "${import.meta.env.VITE_WEB_URL}/api/barangay-clearances";
-        if (choose === "Business Clearance")   return "${import.meta.env.VITE_WEB_URL}/api/business-clearances";
-        if (choose === "Building Clearance")   return "${import.meta.env.VITE_WEB_URL}/api/building-clearances";
-        if (choose === "Barangay Certificate") return "${import.meta.env.VITE_WEB_URL}/api/barangay-certificates";
+        if (choose === "Barangay Clearance")   return "https://westrembomis.onrender.com/api/barangay-clearances";
+        if (choose === "Business Clearance")   return "https://westrembomis.onrender.com/api/business-clearances";
+        if (choose === "Building Clearance")   return "https://westrembomis.onrender.com/api/building-clearances";
+        if (choose === "Barangay Certificate") return "https://westrembomis.onrender.com/api/barangay-certificates";
         return "";
     }, [choose]);
 
 
     const getRowEndpoint = (row: any): string => {
         switch (choose) {
-            case "Barangay Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/${row.id}`;
-            case "Business Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/business-clearances/${row.id}`;
-            case "Building Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/building-clearances/${row.id}`;
-            case "Barangay Certificate": return `${import.meta.env.VITE_WEB_URL}/api/barangay-certificates/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/${row.id}`;
             default: return "";
         }
     };
@@ -641,10 +641,10 @@ const Cashier = () => {
 
     const getStatusEndpoint = (row: any): string => {
         switch (choose) {
-            case "Barangay Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/barangay-clearances/status/${row.id}`;
-            case "Business Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/business-clearances/status/${row.id}`;
-            case "Building Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/building-clearances/status/${row.id}`;
-            case "Barangay Certificate": return `${import.meta.env.VITE_WEB_URL}/api/barangay-certificates/status/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/barangay-clearances/status/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/business-clearances/status/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/building-clearances/status/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/barangay-certificates/status/${row.id}`;
             default:                     return getRowEndpoint(row);
         }
     };
@@ -652,10 +652,10 @@ const Cashier = () => {
 
     const getReleaseEndpoint = (row: any): string => {
         switch (choose) {
-            case "Barangay Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-clearances/${row.id}`;
-            case "Business Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/documents/release/business-clearances/${row.id}`;
-            case "Building Clearance":   return `${import.meta.env.VITE_WEB_URL}/api/documents/release/building-clearances/${row.id}`;
-            case "Barangay Certificate": return `${import.meta.env.VITE_WEB_URL}/api/documents/release/barangay-certificates/${row.id}`;
+            case "Barangay Clearance":   return `https://westrembomis.onrender.com/api/documents/release/barangay-clearances/${row.id}`;
+            case "Business Clearance":   return `https://westrembomis.onrender.com/api/documents/release/business-clearances/${row.id}`;
+            case "Building Clearance":   return `https://westrembomis.onrender.com/api/documents/release/building-clearances/${row.id}`;
+            case "Barangay Certificate": return `https://westrembomis.onrender.com/api/documents/release/barangay-certificates/${row.id}`;
             default: return "";
         }
     };
@@ -825,7 +825,7 @@ const Cashier = () => {
     const checkOrDuplicate = async (orNumber: string, excludeRowId?: number): Promise<boolean> => {
         if (!orNumber.trim()) return false;
         try {
-            const res = await axios.get("${import.meta.env.VITE_WEB_URL}/api/official-receipts/by-or", {
+            const res = await axios.get("https://westrembomis.onrender.com/api/official-receipts/by-or", {
                 params: { or_number: orNumber.trim() }, withCredentials: true,
             });
             const existing = res.data?.data;
@@ -846,7 +846,7 @@ const Cashier = () => {
     const upsertTinForOr = async (orNumber: string, rawTin: string) => {
         try {
             await axios.patch(
-                "${import.meta.env.VITE_WEB_URL}/api/official-receipts/by-or",
+                "https://westrembomis.onrender.com/api/official-receipts/by-or",
                 { or_number: orNumber, tin_no: rawTin },
                 { withCredentials: true }
             );
@@ -856,7 +856,7 @@ const Cashier = () => {
             // Try common create endpoint shapes.
             try {
                 await axios.post(
-                    "${import.meta.env.VITE_WEB_URL}/api/official-receipts",
+                    "https://westrembomis.onrender.com/api/official-receipts",
                     { or_number: orNumber, tin_no: rawTin },
                     { withCredentials: true }
                 );
@@ -864,7 +864,7 @@ const Cashier = () => {
             } catch {
                 try {
                     await axios.post(
-                        "${import.meta.env.VITE_WEB_URL}/api/official-receipts/by-or",
+                        "https://westrembomis.onrender.com/api/official-receipts/by-or",
                         { or_number: orNumber, tin_no: rawTin },
                         { withCredentials: true }
                     );

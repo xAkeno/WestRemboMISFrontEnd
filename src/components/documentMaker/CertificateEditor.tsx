@@ -410,14 +410,14 @@ export function CertificateEditor() {
 
   const fetchStreets = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/streets`, { withCredentials: true });
+      const res = await axios.get('https://westrembomis.onrender.com/api/streets', { withCredentials: true });
       setStreets(res.data);
     } catch { toast.error('Failed to load streets'); }
   };
 
   const fetchUser = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/me`, { withCredentials: true });
+      const res = await axios.get("https://westrembomis.onrender.com/api/me", { withCredentials: true });
       setIsAdmin(res.data.data?.role === "ADMIN");
     } catch { console.error("Failed to fetch user"); }
   };
@@ -426,7 +426,7 @@ export function CertificateEditor() {
     try {
       const apiPath = getApiPath(id!);
       const res = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/${apiPath}?search=${bcertNumber}`,
+        `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
       setDocumentUserData((res.data.data.data as any[]).map(normalizeRecord));
@@ -443,7 +443,7 @@ export function CertificateEditor() {
     try {
       const apiPath = getApiPath(id!);
       const res = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/${apiPath}?search=${bcertNumber}`,
+        `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
         { withCredentials: true }
       );
       const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
@@ -498,7 +498,7 @@ export function CertificateEditor() {
     try {
       const numId = parseInt(documentId, 10);
       const metaRes = await axios.get(
-        `${import.meta.env.VITE_WEB_URL}/api/documents/single/${numId}`,
+        `https://westrembomis.onrender.com/api/documents/single/${numId}`,
         { withCredentials: true }
       );
       const metadata = metaRes.data;
@@ -506,7 +506,7 @@ export function CertificateEditor() {
 
       const fileUrl = metadata.file_url.startsWith("http")
         ? metadata.file_url
-        : `${import.meta.env.VITE_WEB_URL}${metadata.file_url}`;
+        : `https://bold-sunset-533d.clarkkentraguhos.workers.dev${metadata.file_url}`;
 
       const pdfRes = await axios.get(fileUrl, { responseType: 'arraybuffer', withCredentials: true });
       templateBytesRef.current = await new Blob([pdfRes.data], { type: 'application/pdf' }).arrayBuffer();
@@ -581,7 +581,7 @@ export function CertificateEditor() {
         try {
           const apiPath = getApiPath(id!);
           const res = await axios.get(
-            `${import.meta.env.VITE_WEB_URL}/api/${apiPath}?search=${bcertNumber}`,
+            `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
             { withCredentials: true }
           );
           const records: DocumentUserData[] = (res.data.data.data as any[]).map(normalizeRecord);
@@ -716,7 +716,7 @@ export function CertificateEditor() {
     setIsChangingStatus(true);
     try {
       const res = await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/${getApiPath(id!)}/${existingRecord.id}`,
+        `https://westrembomis.onrender.com/api/${getApiPath(id!)}/${existingRecord.id}`,
         { status }, { withCredentials: true }
       );
       if (res.status === 200) {
@@ -760,7 +760,7 @@ export function CertificateEditor() {
         formData.append("file", blob, "certificate.pdf");
  
         const res = await axios.post(
-          `${import.meta.env.VITE_WEB_URL}/api/documents/release/${apiPath}/${recordId}/download-register`,
+          `https://westrembomis.onrender.com/api/documents/release/${apiPath}/${recordId}/download-register`,
           formData,
           {
             withCredentials: true,
@@ -807,7 +807,7 @@ export function CertificateEditor() {
     };
 
     axios.put(
-      `${import.meta.env.VITE_WEB_URL}/api/documents/${id}/layout`,
+      `https://westrembomis.onrender.com/api/documents/${id}/layout`,
       { layout: layoutToSave },
       { withCredentials: true }
     ).then((res) => {
@@ -864,7 +864,7 @@ export function CertificateEditor() {
       let existingId: number | null = null;
       try {
         const checkRes = await axios.get(
-          `${import.meta.env.VITE_WEB_URL}/api/${apiPath}?search=${bcertNumber}`,
+          `https://westrembomis.onrender.com/api/${apiPath}?search=${bcertNumber}`,
           { withCredentials: true }
         );
         const records = checkRes.data.data.data;
@@ -872,10 +872,10 @@ export function CertificateEditor() {
       } catch { console.error("Check existing failed"); }
 
       if (existingId) {
-        await axios.put(`${import.meta.env.VITE_WEB_URL}/api/${apiPath}/${existingId}`, payload, { withCredentials: true });
+        await axios.put(`https://westrembomis.onrender.com/api/${apiPath}/${existingId}`, payload, { withCredentials: true });
         toast.success("Record updated");
       } else {
-        await axios.post(`${import.meta.env.VITE_WEB_URL}/api/${apiPath}`, payload, { withCredentials: true });
+        await axios.post(`https://westrembomis.onrender.com/api/${apiPath}`, payload, { withCredentials: true });
         toast.success("Record saved successfully");
       }
     } catch (error) {
@@ -896,7 +896,7 @@ export function CertificateEditor() {
     setIsMarkingToPay(true);
     try {
       const res = await axios.put(
-        `${import.meta.env.VITE_WEB_URL}/api/${getApiPath(id!)}/${existingRecord.id}`,
+        `https://westrembomis.onrender.com/api/${getApiPath(id!)}/${existingRecord.id}`,
         { status: "TO_PAY" }, { withCredentials: true }
       );
       if (res.status === 200) {
