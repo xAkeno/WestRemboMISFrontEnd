@@ -331,14 +331,14 @@ function QRScannerModal({ onClose, onScanSuccess }: {
             if (upperRef.startsWith("BCERT-")) {
               documentType = "barangay_certificate";
               referenceNumber = decodedText;
-            } else if (upperRef.startsWith("BCLEAR-")) {
+            } else if (upperRef.startsWith("BC-")) {
               documentType = "barangay_clearance";
               referenceNumber = decodedText;
-            } else if (upperRef.startsWith("BBUILDINGCLE-")) {
-              documentType = "building_clearance";
-              referenceNumber = decodedText;
-            } else if (upperRef.startsWith("BBUSINESS-")) {
+            } else if (upperRef.startsWith("BBC-")) {
               documentType = "business_clearance";
+              referenceNumber = decodedText;
+            } else if (upperRef.startsWith("BDC-")) {
+              documentType = "building_clearance";
               referenceNumber = decodedText;
             }
           }
