@@ -1025,7 +1025,10 @@ function EditableDetailModal({
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
   // ── Workflow capability flags ──
-  const canMarkProcess = !isWorkflowFrozen && isForwardTransition(status, 'PROCESS') && status === 'REVIEW';
+  const canMarkProcess =
+    !isWorkflowFrozen &&
+    isForwardTransition(status, 'PROCESS') &&
+    (status === 'REVIEW' || status === 'PENDING');
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');

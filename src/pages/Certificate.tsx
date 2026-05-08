@@ -753,7 +753,10 @@ function EditableDetailModal({
   const isNonEditable    = isArchived || isBlocked;
   const isWorkflowFrozen = isReleased || isArchived || isBlocked;
 
-  const canMarkProcess = !isWorkflowFrozen && isForwardTransition(status, 'PROCESS') && status === 'REVIEW';
+  const canMarkProcess =
+    !isWorkflowFrozen &&
+    isForwardTransition(status, 'PROCESS') &&
+    (status === 'REVIEW' || status === 'PENDING');
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
