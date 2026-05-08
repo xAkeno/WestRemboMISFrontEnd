@@ -1,20 +1,19 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import QRCodeLib from "qrcode";
+
 // Auto-reset the success screen back to the kiosk welcome page after this idle
-// window. Spec: "Wait for approximately 5 seconds." Also acts as the inactivity
-// timeout if the resident leaves the success screen untouched.
-const SUCCESS_AUTO_RESET_MS = 5000;
+// window. Spec: "Wait for approximately 15 seconds."
+const SUCCESS_AUTO_RESET_MS = 15000;
 // Route that renders the SearchResident landing page (Yes/No prompt). The
 // kiosk navigates back here after a successful submission so the next
 // resident lands on the proper start-of-flow.
 const KIOSK_WELCOME_ROUTE = "/frontdesk";
 
 // ── Local kiosk profile cache ─────────────────────────────────────────────────
-// Mirrors SearchResident.tsx so the Yes-flow can look up a resident's last
-// submission entirely on-device when the backend search misses. The key is
-// normalised so casing / whitespace differences don't break lookups.
 const KIOSK_CACHE_PREFIX = "kiosk:profile:";
 const makeKioskCacheKey = (fn: string, ln: string, dob: string) =>
   `${KIOSK_CACHE_PREFIX}${(fn || "").trim().toLowerCase()}|${(ln || "").trim().toLowerCase()}|${(dob || "").trim()}`;
+
 import api from "@/lib/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentType, BarangayDocument } from "@/types/BarangayDocument";
@@ -22,7 +21,7 @@ import { toast } from "sonner";
 import {
   FileText, Building2, Briefcase, Check,
   ChevronRight, ChevronDown, X, Type, Globe, ScrollText,
-  Shield, ArrowRight,
+  Shield, ArrowRight, Camera, Hash, AlertTriangle,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MaskedInput } from "@/components/MaskedInput";
@@ -66,7 +65,6 @@ const PH_HOLIDAYS_2026 = [
 ];
 
 // ─── Auto-detect current time slot & today's date ─────────────────────────────
-// Morning: 12:00 AM – 11:59 AM  |  Afternoon: 12:00 PM – 11:59 PM
 const getAutoTimeGroup = (): "morning" | "afternoon" => {
   const hour = new Date().getHours();
   return hour < 12 ? "morning" : "afternoon";
@@ -85,7 +83,6 @@ const getTodayDateString = (): string => {
 // ═══════════════════════════════════════════════════════════════════════════════
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   en: {
-    // Welcome screen
     "welcome.title":          "Document Request System",
     "welcome.subtitle":       "Barangay West Rembo · Makati City",
     "welcome.tagline":        "Fast, simple, and paperless document requests for all barangay residents.",
@@ -94,7 +91,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "welcome.privacy.text":   "Your personal information will be collected and processed solely for the purpose of this barangay document request, in accordance with the Data Privacy Act of 2012 (RA 10173). It will not be shared with unauthorized third parties.",
     "welcome.privacy.check":  "I have read and understood the Data Privacy Notice.",
     "welcome.privacy.proceed":"Proceed",
-    // ── New fields ──────────────────────────────────────────
     "field.nickname":         "Nickname",
     "field.pwd":              "PWD",
     "field.email":            "Email address",
@@ -139,7 +135,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Weight must be a positive number.",
     "err.invalidCapital":     "Capital must be a positive number.",
     "err.invalidResidency":   "Please enter a valid period (e.g., 5 years, 6 months).",
-    "err.selectDoc": "Please select a document type before continuing.",
+    "err.selectDoc":          "Please select a document type before continuing.",
     "a11y.language":          "Language",
     "a11y.fontSize":          "Text size",
     "a11y.small":             "A",
@@ -267,6 +263,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.sub":            "Your request has been successfully received. Kindly wait for your turn to be served.",
     "success.refLabel":       "Reference number",
     "success.autoReset":      "Returning to home in {n}s…",
+    "success.qr.instruction": "Please take a photo of this QR code or note your reference number to track your queue.",
+    "success.qr.scan":        "Scan to verify your request",
+    "success.remember.title": "Important — Don't forget!",
+    "success.remember.text":  "You will need your reference number to claim your document. Take a photo of the QR code or write down the number before this screen closes.",
     "addr.preview":           "Full address:",
     "field.spouse":           "Name of spouse (Optional)",
     "field.bloodType":        "Blood type (Optional)",
@@ -468,6 +468,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.sub":            "Natanggap na ang iyong kahilingan sa dokumento. Mangyaring maghintay ng pagpoproseso.",
     "success.refLabel":       "Reference number",
     "success.autoReset":      "Babalik sa home sa {n}s…",
+    "success.qr.instruction": "Kumuha ng larawan ng QR code o tandaan ang iyong reference number para ma-track ang iyong pila.",
+    "success.qr.scan":        "I-scan para ma-verify ang iyong kahilingan",
+    "success.remember.title": "Mahalaga — Huwag kalimutan!",
+    "success.remember.text":  "Kakailanganin mo ang iyong reference number para makuha ang iyong dokumento. Kumuha ng larawan ng QR code o isulat ang numero bago magsara ang screen na ito.",
     "addr.preview":           "Buong tirahan:",
     "field.spouse":           "Pangalan ng asawa (Opsyonal)",
     "field.bloodType":        "Uri ng dugo (Opsyonal)",
@@ -542,7 +546,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "err.invalidWeight":      "Ang timbang kinahanglan nga positibo nga numero.",
     "err.invalidCapital":     "Ang kapital kinahanglan nga positibo nga numero.",
     "err.invalidResidency":   "Palihug pagbutang og balido nga panahon (pananglitan, 5 ka tuig, 6 ka bulan).",
-    "err.selectDoc": "Palihug pagpili sa matang sa dokumento sa wala pa magpadayon.",
+    "err.selectDoc":          "Palihug pagpili sa matang sa dokumento sa wala pa magpadayon.",
     "a11y.language":          "Pinulongan",
     "a11y.fontSize":          "Gidak-on sa teksto",
     "a11y.small":             "A",
@@ -662,7 +666,6 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "btn.submit":             "Isumite ang hangyo",
     "btn.newRequest":         "Magsugod og bag-ong hangyo",
     "btn.cancel":             "Ikansela",
-    
     "err.fillRequired":       "Palihug pun-a ang tanan nga gikinahanglang field.",
     "err.fillAddress":        "Palihug pun-a ang tanan nga gikinahanglang field lakip ang karsada ug zone.",
     "err.consent":            "Palihug dawata ang pahintulot sa privacy sa data aron magpadayon.",
@@ -670,6 +673,10 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "success.sub":            "Nadawat na ang imong hangyo sa dokumento. Palihug maghulat sa pagproseso.",
     "success.refLabel":       "Reference number",
     "success.autoReset":      "Mobalik sa home sulod sa {n}s…",
+    "success.qr.instruction": "Kuha og litrato sa QR code o hinumdumi ang imong reference number aron ma-track ang imong pila.",
+    "success.qr.scan":        "I-scan aron ma-verify ang imong hangyo",
+    "success.remember.title": "Importante — Ayaw kalimti!",
+    "success.remember.text":  "Kinahanglan nimo ang imong reference number aron makuha ang imong dokumento. Kuha og litrato sa QR code o isulat ang numero sa wala pa magsira kini nga screen.",
     "addr.preview":           "Tibuok adres:",
     "field.spouse":           "Ngalan sa asawa (Opsyonal)",
     "field.bloodType":        "Matang sa dugo (Opsyonal)",
@@ -993,24 +1000,16 @@ const WelcomeScreen = ({ tr, onProceed }: WelcomeScreenProps) => {
   );
 };
 
-////////////
-////////////
-///////////
-// Add this new function near the top with other helper functions
+// ─── Default adult date helpers ────────────────────────────────────────────────
 const getDefaultAdultYear = (): number => {
   const currentYear = new Date().getFullYear();
-  // Default to 18 years ago (ensures age >= 18)
   return currentYear - 18;
 };
 
-// Also add a function to get the default date string with the adult year
 const getDefaultAdultDateString = (): string => {
   const defaultYear = getDefaultAdultYear();
-  const defaultMonth = "01"; // January
-  const defaultDay = "01"; // 1st day
-  return `${defaultYear}-${defaultMonth}-${defaultDay}`;
+  return `${defaultYear}-01-01`;
 };
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PURE UI HELPERS
@@ -1287,7 +1286,7 @@ const DOC_TR_KEYS: Record<string, { label: string; sub: string }> = {
 
 const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDocumentProps) => {
   const [localError, setLocalError] = useState("");
-  
+
   const handleNext = () => {
     if (!docType) {
       setLocalError(tr("err.selectDoc"));
@@ -1296,7 +1295,7 @@ const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDo
       onNext();
     }
   };
-  
+
   return (
     <Card eyebrow={tr("step1.eyebrow")} title={tr("step1.title")} subtitle={tr("step1.subtitle")}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1305,10 +1304,7 @@ const StepDocument = ({ docType, setDocType, error, onNext, onHome, tr }: StepDo
           return (
             <button
               key={d.type}
-              onClick={() => {
-                setDocType(d.type);
-                setLocalError("");
-              }}
+              onClick={() => { setDocType(d.type); setLocalError(""); }}
               className="flex items-center gap-3 p-4 text-left transition-all duration-150"
               style={{
                 borderRadius: 2,
@@ -1399,17 +1395,6 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
     setFieldErrors(prev => ({ ...prev, [field]: errorMsg }));
   };
 
-  // Handle calendar opening - set default date if field is empty
-  const handleCalendarOpen = (e: React.MouseEvent<HTMLInputElement>) => {
-    const target = e.target as HTMLInputElement;
-    if (target.showPicker && !formData.date_of_birth) {
-      // Set default adult date before opening calendar
-      const defaultDate = getDefaultAdultDateString();
-      validateAndSet("date_of_birth", defaultDate);
-    }
-  };
-
-  // Alternative: Use the onClick event to pre-populate when clicking the calendar icon
   const handleDateInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
     if (!formData.date_of_birth) {
       const defaultDate = getDefaultAdultDateString();
@@ -1451,14 +1436,14 @@ const StepPersonal = ({ formData, set, error, onBack, onNext, tr, inputCls }: Co
           <MaskedInput value={formData.surname || ""} onValueChange={(v) => validateAndSet("surname", v)} placeholder={tr("ph.Surname")} className={inputCls} style={{ borderColor: fieldErrors.surname ? PINK : "#d1d5db" }} />
         </Field>
         <Field label={`${tr("field.dob")}`} error={fieldErrors.date_of_birth} required>
-          <MaskedInput 
-            type="date" 
-            value={formData.date_of_birth || ""} 
+          <MaskedInput
+            type="date"
+            value={formData.date_of_birth || ""}
             onValueChange={(v) => validateAndSet("date_of_birth", v)}
             onClick={handleDateInputClick}
             onFocus={handleDateInputClick}
-            placeholder={tr("field.dob")} 
-            className={inputCls} 
+            placeholder={tr("field.dob")}
+            className={inputCls}
             style={{ borderColor: fieldErrors.date_of_birth ? PINK : "#d1d5db" }}
             ref={dateInputRef}
           />
@@ -1698,7 +1683,7 @@ const StepDetails = ({ formData, set, error, onBack, onNext, tr, inputCls, docTy
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 4: REVIEW  (was Step 5, now Step 4 — schedule removed from UI)
+// STEP 4: REVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 interface StepReviewProps {
   docType: string;
@@ -1708,7 +1693,7 @@ interface StepReviewProps {
   error: string;
   onBack: () => void;
   onSubmit: () => void;
-  onEdit: () => void; 
+  onEdit: () => void;
   tr: (k: string) => string;
   isSubmitting: boolean;
 }
@@ -1792,7 +1777,9 @@ const StepReview = ({
   );
 };
 
-// ─── Success screen ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUCCESS SCREEN — with QR code + reminder instructions
+// ═══════════════════════════════════════════════════════════════════════════════
 interface SuccessScreenProps {
   onReset: () => void;
   tr: (k: string) => string;
@@ -1805,11 +1792,37 @@ interface SuccessScreenProps {
 const SuccessScreen = ({
   onReset, tr, bcertNumber, serviceLabel, applicantName, autoResetSeconds,
 }: SuccessScreenProps) => {
-  // Live countdown so the resident can see how long until the kiosk resets.
-  // Drives the visible "Returning to home in Ns" text. The actual reset is
-  // triggered by the parent's auto-reset timer; we only mirror the value
-  // here for display.
   const [secondsLeft, setSecondsLeft] = useState(autoResetSeconds);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState(false);
+
+  // ── Generate QR code ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const qrPayload = [
+      "Barangay West Rembo — Document Request",
+      bcertNumber   ? `Ref No: ${bcertNumber}` : "",
+      applicantName ? `Applicant: ${applicantName}` : "",
+      serviceLabel  ? `Service: ${serviceLabel}` : "",
+      `Date: ${getTodayDateString()}`,
+    ].filter(Boolean).join("\n");
+
+    QRCodeLib.toDataURL(qrPayload, {
+      width: 220,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: {
+        dark:  NAVY,
+        light: "#ffffff",
+      },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch((err) => {
+        console.error("QR generation failed:", err);
+        setQrError(true);
+      });
+  }, [bcertNumber, applicantName, serviceLabel]);
+
+  // ── Live countdown ─────────────────────────────────────────────────────────
   useEffect(() => {
     setSecondsLeft(autoResetSeconds);
     const id = setInterval(() => {
@@ -1818,61 +1831,254 @@ const SuccessScreen = ({
     return () => clearInterval(id);
   }, [autoResetSeconds]);
 
+  // Progress bar width
+  const progressPct = (secondsLeft / autoResetSeconds) * 100;
+
   return (
     <div
-      className="bg-card border border-border overflow-hidden text-center py-12 px-8"
+      className="bg-card border border-border overflow-hidden"
       style={{ borderRadius: 2, borderTopWidth: 3, borderTopColor: PINK }}
       role="alert"
       aria-live="polite"
     >
-      <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#e8f0fe" }}>
-        <Check className="h-6 w-6" style={{ color: NAVY }} />
-      </div>
-      <h2 className="font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: NAVY, fontSize: "1.3em" }}>
-        {tr("success.title")}
-      </h2>
-      <p className="text-muted-foreground mb-6" style={{ fontSize: "0.9em" }}>{tr("success.sub")}</p>
-
-      {bcertNumber && (
-        <div
-          className="inline-flex flex-col items-center px-6 py-4 mb-6"
-          style={{ background: "#f8faff", border: `1px solid ${NAVY}22`, borderRadius: 4 }}
-        >
-          <span className="font-bold uppercase tracking-[0.18em]" style={{ color: PINK, fontSize: "0.6em" }}>
-            {tr("success.refLabel")}
-          </span>
-          <span
-            className="font-bold mt-1"
-            style={{ color: NAVY, fontFamily: "'Georgia', serif", fontSize: "1.4em", letterSpacing: "0.04em" }}
-          >
-            {bcertNumber}
-          </span>
-          {(applicantName || serviceLabel) && (
-            <span className="text-muted-foreground mt-2" style={{ fontSize: "0.78em" }}>
-              {applicantName}{applicantName && serviceLabel ? " · " : ""}{serviceLabel}
-            </span>
-          )}
-        </div>
-      )}
-
-      <p className="text-muted-foreground mb-4" style={{ fontSize: "0.78em" }}>
-        {tr("success.autoReset").replace("{n}", String(secondsLeft))}
-      </p>
-
-      <button
-        onClick={onReset}
-        className="px-6 py-2.5 font-bold uppercase tracking-wider text-white transition-all duration-200"
-        style={{ backgroundColor: NAVY, borderRadius: 1, fontSize: "0.8em" }}
-        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
-        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+      {/* ── Top success banner ─────────────────────────────────────────────── */}
+      <div
+        className="px-8 py-6 text-center"
+        style={{ background: NAVY }}
       >
-        {tr("btn.newRequest")}
-      </button>
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+          style={{ background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)" }}
+        >
+          <Check className="h-7 w-7 text-white" />
+        </div>
+        <h2
+          className="font-bold text-white mb-2"
+          style={{ fontFamily: "'Georgia', serif", fontSize: "1.4em" }}
+        >
+          {tr("success.title")}
+        </h2>
+        <p style={{ color: "#ffffffcc", fontSize: "0.88em" }}>{tr("success.sub")}</p>
+      </div>
+
+      {/* ── Main content ───────────────────────────────────────────────────── */}
+      <div className="p-6 sm:p-8">
+
+        {/* ── ⚠ IMPORTANT REMINDER BANNER ─────────────────────────────────── */}
+        <div
+          className="flex items-start gap-3 p-4 mb-6"
+          style={{
+            background:   "#fff8e6",
+            border:       "1.5px solid #f5c842",
+            borderRadius: 6,
+            borderLeft:   `4px solid #f5c842`,
+          }}
+        >
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#b45309" }} />
+          <div>
+            <p className="font-bold mb-1" style={{ color: "#92400e", fontSize: "0.82em" }}>
+              {tr("success.remember.title")}
+            </p>
+            <p style={{ color: "#78350f", fontSize: "0.8em", lineHeight: 1.55 }}>
+              {tr("success.remember.text")}
+            </p>
+            {/* ── Step-by-step instructions ──────────────────────────────── */}
+            <div className="flex flex-wrap gap-3 mt-3">
+              <div
+                className="flex items-center gap-2 px-3 py-1.5"
+                style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 20, fontSize: "0.75em" }}
+              >
+                <Camera className="h-3.5 w-3.5" style={{ color: "#b45309" }} />
+                <span style={{ color: "#92400e", fontWeight: 600 }}>
+                  📷 Take a photo of the QR code
+                </span>
+              </div>
+              <div
+                className="flex items-center gap-2 px-3 py-1.5"
+                style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 20, fontSize: "0.75em" }}
+              >
+                <Hash className="h-3.5 w-3.5" style={{ color: "#b45309" }} />
+                <span style={{ color: "#92400e", fontWeight: 600 }}>
+                  ✍️ Or write down the reference number
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Two-column: ref number + QR code ─────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start justify-center mb-6">
+
+          {/* Reference number card */}
+          {bcertNumber && (
+            <div
+              className="flex flex-col items-center px-6 py-5 flex-shrink-0"
+              style={{
+                background:   "#f8faff",
+                border:       `1.5px solid ${NAVY}22`,
+                borderRadius: 8,
+                minWidth:     180,
+              }}
+            >
+              <span
+                className="font-bold uppercase tracking-[0.18em] mb-2 block"
+                style={{ color: PINK, fontSize: "0.6em" }}
+              >
+                {tr("success.refLabel")}
+              </span>
+              <span
+                className="font-bold block text-center"
+                style={{
+                  color:       NAVY,
+                  fontFamily:  "'Georgia', serif",
+                  fontSize:    "1.5em",
+                  letterSpacing: "0.06em",
+                  lineHeight:  1.2,
+                  wordBreak:   "break-all",
+                }}
+              >
+                {bcertNumber}
+              </span>
+              {(applicantName || serviceLabel) && (
+                <div
+                  className="mt-3 pt-3 w-full text-center"
+                  style={{ borderTop: "1px solid #dde3ed" }}
+                >
+                  {applicantName && (
+                    <span className="block font-medium text-foreground" style={{ fontSize: "0.8em" }}>
+                      {applicantName}
+                    </span>
+                  )}
+                  {serviceLabel && (
+                    <span className="block text-muted-foreground" style={{ fontSize: "0.75em" }}>
+                      {serviceLabel}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* QR code */}
+          <div className="flex flex-col items-center">
+            {qrDataUrl && !qrError ? (
+              <div
+                className="p-3 inline-block"
+                style={{
+                  background:   "#ffffff",
+                  border:       `2px solid ${NAVY}22`,
+                  borderRadius: 10,
+                  boxShadow:    "0 4px 16px rgba(15,42,94,0.10)",
+                }}
+              >
+                <img
+                  src={qrDataUrl}
+                  alt="QR Code for this document request"
+                  width={220}
+                  height={220}
+                  style={{ display: "block", borderRadius: 4 }}
+                />
+              </div>
+            ) : qrError ? (
+              <div
+                className="flex flex-col items-center justify-center gap-2"
+                style={{
+                  width: 220, height: 220,
+                  background: "#f8faff",
+                  borderRadius: 10,
+                  border: `2px dashed ${NAVY}44`,
+                }}
+              >
+                <X className="h-6 w-6" style={{ color: PINK }} />
+                <span className="text-muted-foreground text-center px-4" style={{ fontSize: "0.75em" }}>
+                  QR code could not be generated
+                </span>
+              </div>
+            ) : (
+              // Loading placeholder
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  width: 220, height: 220,
+                  background: "#f0f4ff",
+                  borderRadius: 10,
+                  border: `2px dashed ${NAVY}33`,
+                }}
+              >
+                <span className="text-muted-foreground" style={{ fontSize: "0.78em" }}>
+                  Generating QR…
+                </span>
+              </div>
+            )}
+
+            {/* Instruction below QR */}
+            <div className="flex items-center gap-1.5 mt-2">
+              <Camera className="h-3.5 w-3.5 flex-shrink-0" style={{ color: NAVY }} />
+              <p className="text-muted-foreground" style={{ fontSize: "0.72em" }}>
+                {tr("success.qr.scan")}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Photo instruction strip ───────────────────────────────────────── */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 mb-6"
+          style={{
+            background:   "#f0f4ff",
+            border:       `1px solid ${NAVY}20`,
+            borderRadius: 6,
+          }}
+        >
+          <div
+            className="w-8 h-8 flex items-center justify-center flex-shrink-0 rounded-full"
+            style={{ background: NAVY }}
+          >
+            <Camera className="h-4 w-4 text-white" />
+          </div>
+          <p style={{ color: NAVY, fontSize: "0.82em", lineHeight: 1.5 }}>
+            <span className="font-bold">Get in queue: </span>
+            {tr("success.qr.instruction")}
+          </p>
+        </div>
+
+        {/* ── Auto-reset progress bar + countdown ──────────────────────────── */}
+        <div className="mb-5">
+          <div
+            className="h-1.5 w-full rounded-full overflow-hidden"
+            style={{ background: "#e5e7eb" }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-linear"
+              style={{
+                width:      `${progressPct}%`,
+                background: progressPct > 50 ? NAVY : progressPct > 25 ? PINK : "#ef4444",
+              }}
+            />
+          </div>
+          <p className="text-center text-muted-foreground mt-2" style={{ fontSize: "0.78em" }}>
+            {tr("success.autoReset").replace("{n}", String(secondsLeft))}
+          </p>
+        </div>
+
+        {/* ── New request button ────────────────────────────────────────────── */}
+        <div className="text-center">
+          <button
+            onClick={onReset}
+            className="px-8 py-3 font-bold uppercase tracking-wider text-white transition-all duration-200"
+            style={{ backgroundColor: NAVY, borderRadius: 1, fontSize: "0.8em" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = NAVY)}
+          >
+            {tr("btn.newRequest")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
-// ─── Step Bar (now 5 steps) ────────────────────────────────────────────────────
+// ─── Step Bar ─────────────────────────────────────────────────────────────────
 interface StepBarProps { currentStep: number; steps: string[]; }
 const StepBar = ({ currentStep, steps }: StepBarProps) => (
   <div className="flex items-center mb-8" role="navigation" aria-label="Form steps">
@@ -1919,9 +2125,6 @@ const FrontDesk = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Yes-flow handoff: SearchResident.tsx pushes a normalised `prefill` blob
-  // into router state when a returning resident is matched. Pull it once on
-  // mount; subsequent renders keep working off `formData`.
   const initialPrefill = useMemo<Record<string, string> | null>(() => {
     const state = location.state as { prefill?: Record<string, string> } | null;
     const p = state?.prefill;
@@ -1936,7 +2139,6 @@ const FrontDesk = () => {
   const inputCls =
     "w-full bg-transparent border-0 border-b py-2.5 text-foreground placeholder-gray-400 focus:outline-none transition-colors duration-200";
 
-  // 5 steps now (schedule removed from UI)
   const STEPS_TR = useMemo(() => [
     tr("step.document"),
     tr("step.personal"),
@@ -1945,23 +2147,14 @@ const FrontDesk = () => {
     tr("step.review"),
   ], [tr]);
 
-  // ── App stage ──────────────────────────────────────────────────────────────
-  // Prefilled residents skip the welcome / privacy gate and land directly on
-  // the document picker so they can pick a service and breeze through the
-  // pre-populated steps. Fresh residents still see the welcome screen.
   const [stage, setStage]                   = useState<"welcome" | "form">(
     initialPrefill ? "form" : "welcome"
   );
-
-  // ── Form state ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep]       = useState(0);
   const [docType, setDocType]               = useState("");
   const [formData, setFormData]             = useState<Record<string, string>>(
     () => initialPrefill ?? {}
   );
-  // Already-consented Yes-flow residents inherit the privacy acknowledgement
-  // they accepted on the previous submission so they don't have to re-tick
-  // the review-step consent box.
   const [consentChecked, setConsentChecked] = useState(initialPrefill !== null);
   const [errors, setErrors]                 = useState("");
   const [submitted, setSubmitted]           = useState(false);
@@ -1969,37 +2162,31 @@ const FrontDesk = () => {
   const [streets, setStreets]               = useState<StreetRecord[]>([]);
   const [bcertNumber, setBcertNumber]       = useState<string | null>(null);
 
-  // ── Fetch streets ──────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("api/streets", { withCredentials: true });
+        const res = await api.get("/streets", { withCredentials: true });
         setStreets(res.data?.data ?? res.data ?? []);
       } catch (e) { console.error("Failed to fetch streets:", e); }
     };
     load();
   }, []);
 
-  // ── Stable field setter ────────────────────────────────────────────────────
   const set = useCallback((field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── Step navigation ────────────────────────────────────────────────────────
   const goNext = useCallback(() => { setErrors(""); setCurrentStep((s) => s + 1); }, []);
   const goBack = useCallback(() => { setErrors(""); setCurrentStep((s) => s - 1); }, []);
 
-  // ── Submit — schedule auto-computed from wall-clock time at submission ─────
   const handleSubmit = useCallback(async () => {
     if (!consentChecked) { setErrors(tr("err.consent")); return; }
-  
-    // ── Derive schedule values at the moment of submission ──────────────────
+
     const submissionTimeGroup = getAutoTimeGroup();
     const submissionDate      = getTodayDateString();
-  
+
     setIsSubmitting(true);
-  
-    // ── Build base payload ──────────────────────────────────────────────────
+
     const base = {
       requester_type:        "Walk-in",
       prefix:                formData.prefix         || null,
@@ -2023,77 +2210,44 @@ const FrontDesk = () => {
       purpose:               formData.purpose               || "",
       purpose_details:       formData.purpose_details       || null,
     };
-  
-    // ── Pick endpoint per document type ────────────────────────────────────
+
     type EndpointCfg = { url: string; payload: Record<string, unknown> };
     let cfg: EndpointCfg;
-  
+
     switch (docType) {
       case "clearance":
-        cfg = {
-          url: "api/barangay-clearances",
-          payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
-        };
+        cfg = { url: "/barangay-clearances", payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null } };
         break;
       case "building-clearance":
         cfg = {
-          url: "api/building-clearances",
-          payload: {
-            ...base,
-            establishment:           formData.establishment || null,
-            purpose:                 formData.purpose       || "New Construction",
-            purpose_details:         formData.purpose_details || null,
-            or_no: null, remarks: null, punong_barangay: null,
-            for_the_punong_barangay: null, barangay_position: null,
-          },
+          url: "/building-clearances",
+          payload: { ...base, establishment: formData.establishment || null, purpose: formData.purpose || "New Construction", purpose_details: formData.purpose_details || null, or_no: null, remarks: null, punong_barangay: null, for_the_punong_barangay: null, barangay_position: null },
         };
         break;
       case "business-clearance":
         cfg = {
-          url: "api/business-clearances",
-          payload: {
-            ...base,
-            ext:              formData.ext_name      || null,
-            business_name:    formData.business_name || null,
-            business_type:    formData.business_type || null,
-            business_details: formData.purpose_details || null,
-            capital:          formData.capital ? Number(formData.capital) : null,
-            or_no: null, inspected_by: null, date_of_inspection: null,
-            inspection_remarks: null, inspected_remarks: null,
-            date_inspected: null, inspected_note: null,
-          },
+          url: "/business-clearances",
+          payload: { ...base, ext: formData.ext_name || null, business_name: formData.business_name || null, business_type: formData.business_type || null, business_details: formData.purpose_details || null, capital: formData.capital ? Number(formData.capital) : null, or_no: null, inspected_by: null, date_of_inspection: null, inspection_remarks: null, inspected_remarks: null, date_inspected: null, inspected_note: null },
         };
         break;
       case "barangay-certificate":
         cfg = {
-          url: "api/barangay-certificates",
-          payload: {
-            ...base,
-            extension:               formData.ext_name || null,
-            punong_barangay:         null,
-            for_the_punong_barangay: null,
-            bcert_number:            "Example",
-            issued_date:             null,
-          },
+          url: "/barangay-certificates",
+          payload: { ...base, extension: formData.ext_name || null, punong_barangay: null, for_the_punong_barangay: null, bcert_number: "Example", issued_date: null },
         };
         break;
       default:
-        cfg = {
-          url: "api/barangay-clearances",
-          payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null },
-        };
+        cfg = { url: "/barangay-clearances", payload: { ...base, ctc_vrr_no: null, issued_at: null, issued_on: null, or_no: null } };
         break;
     }
-  
+
     try {
-      // ── Step 1: Submit the document ────────────────────────────────────────
       const docRes = await api.post(cfg.url, cfg.payload, { withCredentials: true });
-  
+
       if (docRes.status === 201 || docRes.status === 200) {
-        // ✅ FIX: Extract document number based on document type
         const service = docRes.data?.data?.service;
         let documentNumber: string | null = null;
-  
+
         if (docType === "business-clearance") {
           documentNumber = service?.brgy_business_no ?? null;
         } else if (docType === "building-clearance") {
@@ -2101,71 +2255,42 @@ const FrontDesk = () => {
         } else if (docType === "barangay-certificate") {
           documentNumber = service?.bcert_number ?? null;
         } else {
-          
           documentNumber = service?.bcert_number ?? null;
         }
-  
-        const documentType   = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
-  
-        // ── Step 2: Auto-schedule based on wall-clock time at submission ────
+
+        const documentType = DOC_TYPE_TO_SCHEDULE_TYPE[docType] ?? "barangay_clearance";
+
         if (docType !== "business-clearance") {
           try {
             await api.post(
-              "api/schedules",
-              {
-                document_type:   documentType,
-                document_number: documentNumber,
-                schedule_date:   submissionDate,   // today
-                time_group:      submissionTimeGroup, // "morning" or "afternoon"
-              },
+              "/schedules",
+              { document_type: documentType, document_number: documentNumber, schedule_date: submissionDate, time_group: submissionTimeGroup },
               { withCredentials: true }
             );
           } catch (schedErr) {
-            // Non-blocking — document already submitted successfully
             console.error("Auto-schedule creation failed:", schedErr);
           }
         }
-  
-        // ── Step 3: Persist the resident's profile so future Yes-flow lookups
-        // (FN/LN/DOB) auto-fill every step. We mirror to localStorage (keyed
-        // by normalised FN|LN|DOB so SearchResident.tsx finds it) AND, best-
-        // effort, push to a backend endpoint so the lookup survives across
-        // browsers / kiosks. Both writes are non-blocking.
+
         const fn  = formData.first_name    || "";
         const ln  = formData.surname       || formData.last_name || "";
         const dob = formData.date_of_birth || "";
         if (fn && ln && dob) {
           const profileSnapshot: Record<string, string> = {};
           Object.entries(formData).forEach(([k, v]) => {
-            if (v !== undefined && v !== null && String(v).trim() !== "") {
-              profileSnapshot[k] = String(v);
-            }
+            if (v !== undefined && v !== null && String(v).trim() !== "") profileSnapshot[k] = String(v);
           });
-          // Make sure both surname and last_name keys are populated so
-          // either spelling resolves on the next lookup.
-          if (!profileSnapshot.surname    && profileSnapshot.last_name)  profileSnapshot.surname   = profileSnapshot.last_name;
-          if (!profileSnapshot.last_name  && profileSnapshot.surname)    profileSnapshot.last_name = profileSnapshot.surname;
+          if (!profileSnapshot.surname   && profileSnapshot.last_name) profileSnapshot.surname   = profileSnapshot.last_name;
+          if (!profileSnapshot.last_name && profileSnapshot.surname)   profileSnapshot.last_name = profileSnapshot.surname;
 
           try {
-            window.localStorage.setItem(
-              makeKioskCacheKey(fn, ln, dob),
-              JSON.stringify(profileSnapshot),
-            );
+            window.localStorage.setItem(makeKioskCacheKey(fn, ln, dob), JSON.stringify(profileSnapshot));
           } catch (lsErr) {
             console.error("Local kiosk profile cache failed:", lsErr);
           }
-
           try {
-            
-            // so we send `surname` here to keep the kiosk-profile upsert
-            // aligned with the kiosk-search lookup payload.
-            await api.post(
-              "api/kiosk/profile",
-              { first_name: fn, surname: ln, date_of_birth: dob, payload: profileSnapshot },
-              { withCredentials: true },
-            );
+            await api.post("/kiosk/profile", { first_name: fn, surname: ln, date_of_birth: dob, payload: profileSnapshot }, { withCredentials: true });
           } catch (profileErr) {
-            // Non-blocking — local cache still works for next Yes-flow.
             console.error("Backend kiosk profile save failed:", profileErr);
           }
         }
@@ -2181,28 +2306,20 @@ const FrontDesk = () => {
     }
   }, [consentChecked, docType, formData, tr]);
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setCurrentStep(0); setDocType(""); setFormData({});
     setConsentChecked(false); setErrors(""); setSubmitted(false);
     setBcertNumber(null);
     setStage("welcome");
-    // Also bounce back to the SearchResident landing page so the next
-    // resident starts on the Yes/No prompt instead of the privacy gate.
     navigate(KIOSK_WELCOME_ROUTE, { replace: true });
   }, [navigate]);
 
-  // ── Auto-reset after success ────────────────────────────────────────────────
-  // The success screen shows a live countdown; this timer is the source of
-  // truth that actually fires the reset. Cleared if the resident hits
-  // "Start new request" early.
   useEffect(() => {
     if (!submitted) return;
     const id = setTimeout(() => { handleReset(); }, SUCCESS_AUTO_RESET_MS);
     return () => clearTimeout(id);
   }, [submitted, handleReset]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   if (stage === "welcome") {
     return (
       <div style={{ fontSize: `${FONT_SCALE[fontSize].scale}rem` }}>
