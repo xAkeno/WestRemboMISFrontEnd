@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/components/services/clearanceApi";
 import axios from "axios";
@@ -24,8 +23,6 @@ interface StreetOption { id: number; name: string; sitio: string; formerly?: str
 interface ServiceInfo { requirements: string[]; processing_time: string; fee: string; }
 
 // ── Validation helpers ────────────────────────────────────────────────────────
-const MIN_AGE = 18;
-
 const todayDate = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -102,17 +99,136 @@ const calculateAge = (dob: string): number => {
   return age;
 };
 
-const getTimeSlotAvailability = (selectedDate: string) => {
-  const today = toDateString(new Date());
-  if (selectedDate !== today) {
-    return { morningDisabled: false, afternoonDisabled: false };
-  }
-  const now = new Date();
-  const currentHour = now.getHours();
-  const morningDisabled = currentHour >= 12;
-  const afternoonDisabled = currentHour >= 18;
-  return { morningDisabled, afternoonDisabled };
+// ── Format time helper ────────────────────────────────────────────────────────
+const formatTime = (t: string): string => {
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 };
+
+// ── Slot Card ─────────────────────────────────────────────────────────────────
+interface SlotCardProps {
+  slot: any;
+  selected: boolean;
+  onSelect: (time: string) => void;
+}
+
+const SlotCard = ({ slot, selected, onSelect }: SlotCardProps) => {
+  const remaining = slot.max_slots ?? 0;
+  const isDisabled = remaining <= 0;
+  const isLow = remaining > 0 && remaining <= 3;
+
+  const pill = isDisabled
+    ? { bg: "#FCEBEB", color: "#A32D2D", border: "#F7C1C1", label: "Full" }
+    : isLow
+    ? { bg: "#FAEEDA", color: "#854F0B", border: "#FAC775", label: `${remaining} left` }
+    : { bg: "#EAF3DE", color: "#3B6D11", border: "#C0DD97", label: `${remaining} left` };
+
+  return (
+    <button
+      type="button"
+      disabled={isDisabled}
+      onClick={() => !isDisabled && onSelect(slot.schedule_time)}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+        padding: "12px 8px 10px",
+        borderRadius: 10,
+        border: selected ? "2px solid #185FA5" : "1.5px solid #e5e7eb",
+        backgroundColor: selected ? "#E6F1FB" : isDisabled ? "#f9fafb" : "#ffffff",
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        opacity: isDisabled ? 0.45 : 1,
+        position: "relative",
+        transition: "border-color 0.15s, background 0.15s",
+        textAlign: "center",
+      }}
+      onMouseEnter={(e) => {
+        if (!isDisabled && !selected)
+          (e.currentTarget as HTMLElement).style.backgroundColor = "#f8faff";
+      }}
+      onMouseLeave={(e) => {
+        if (!isDisabled && !selected)
+          (e.currentTarget as HTMLElement).style.backgroundColor = "#ffffff";
+      }}
+    >
+      {selected && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 7,
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            backgroundColor: "#185FA5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CheckCircle style={{ width: 10, height: 10, color: "#E6F1FB" }} />
+        </span>
+      )}
+      <Clock
+        style={{
+          width: 16,
+          height: 16,
+          color: selected ? "#185FA5" : isDisabled ? "#9ca3af" : "#6b7280",
+        }}
+      />
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: selected ? "#0C447C" : isDisabled ? "#9ca3af" : "#111827",
+          lineHeight: 1.2,
+        }}
+      >
+        {formatTime(slot.schedule_time)}
+      </span>
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          padding: "2px 8px",
+          borderRadius: 99,
+          backgroundColor: pill.bg,
+          color: pill.color,
+          border: `0.5px solid ${pill.border}`,
+          marginTop: 1,
+        }}
+      >
+        {pill.label}
+      </span>
+    </button>
+  );
+};
+
+// ── Divider label ─────────────────────────────────────────────────────────────
+const SlotDivider = ({ label }: { label: string }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "12px 0 10px" }}>
+    <div style={{ flex: 1, height: "0.5px", backgroundColor: "#e5e7eb" }} />
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 500,
+        color: "#6b7280",
+        padding: "2px 12px",
+        borderRadius: 99,
+        backgroundColor: "#f3f4f6",
+        border: "0.5px solid #e5e7eb",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+    <div style={{ flex: 1, height: "0.5px", backgroundColor: "#e5e7eb" }} />
+  </div>
+);
 
 // ── Scheduling Info Modal ────────────────────────────────────────────────────
 const SchedulingInfoModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -244,6 +360,8 @@ const SuccessModal = ({
 
   if (!successData) return null;
 
+  const displayTime = successData.scheduleTime ? formatTime(successData.scheduleTime) : "";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
       <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
@@ -256,47 +374,33 @@ const SuccessModal = ({
           <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted Successfully!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Building Clearance & Appointment Scheduled</p>
         </div>
-
         <div className="px-6 py-6 space-y-6">
           <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
-            <canvas
-              ref={canvasRef}
-              className="rounded-lg"
-              style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }}
-            />
+            <canvas ref={canvasRef} className="rounded-lg" style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }} />
           </div>
-
           <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
               <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>
-                  Present this at the counter
-                </p>
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>Present this at the counter</p>
                 <div className="text-xs space-y-2" style={{ color: "#92400e", lineHeight: 1.6 }}>
-                  <p>
-                    Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
-                  </p>
-                  <p>
-                    Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
-                  </p>
+                  <p>Present this QR code at the counter to be scanned by barangay staff and included in the processing queue.</p>
+                  <p>Screenshot or keep this page open — no printing needed. Just show your screen to the staff.</p>
                 </div>
               </div>
             </div>
           </div>
-
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-green-600 mb-1">Appointment Scheduled</p>
                 <p className="text-sm font-semibold text-green-900">{successData.scheduleDate}</p>
-                <p className="text-sm text-green-700">{successData.scheduleTime}</p>
+                <p className="text-sm text-green-700">{displayTime}</p>
               </div>
             </div>
           </div>
-
           <div className="space-y-3 pt-2">
             <button
               onClick={() => navigate(`/request/building_clearance/${successData.id}?fromSubmit=1`)}
@@ -308,16 +412,7 @@ const SuccessModal = ({
             <button
               onClick={onBack}
               className="w-full py-2 text-sm font-semibold text-center transition-colors"
-              style={{
-                color: "#0f2a5e",
-                textDecoration: "underline",
-                textDecorationThickness: "1.5px",
-                textUnderlineOffset: "4px",
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: "8px 0",
-              }}
+              style={{ color: "#0f2a5e", textDecoration: "underline", textDecorationThickness: "1.5px", textUnderlineOffset: "4px", backgroundColor: "transparent", border: "none", cursor: "pointer", padding: "8px 0" }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
@@ -357,7 +452,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
   const [successData, setSuccessData] = useState<{ id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showSchedulingModal, setShowSchedulingModal] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState<{ morning: any; afternoon: any } | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<any[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
   const [loadingServiceInfo, setLoadingServiceInfo] = useState(true);
@@ -426,7 +521,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     const textFields = ["establishment", "purpose_details"];
     const value = textFields.includes(f) ? toUpperCase(v) : v;
     setFormData((p) => ({ ...p, [f]: value }));
-    if (errors[f as keyof typeof errors]) {
+    if (errors[f as keyof typeof errors] !== undefined) {
       setErrors((prev) => ({ ...prev, [f]: "" }));
     }
   };
@@ -435,13 +530,17 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await axios.get("https://westrembomis.onrender.com/api/schedules/available-slots", {
-        params: { document_type: formData.document_type, date },
+      const res = await axios.get("https://westrembomis.onrender.com/api/schedule-slots", {
         withCredentials: true,
+        params: { document_type: "building_clearance", date },
       });
-      setAvailableSlots(res.data?.data ?? null);
-    } catch (error) { console.error("Failed to fetch available slots:", error); }
-    finally { setLoadingSlots(false); }
+      setAvailableSlots(res.data?.data ?? res.data ?? []);
+    } catch (error) {
+      console.error("Failed to fetch available slots:", error);
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
   };
 
   const handleScheduleDateChange = (date: string) => {
@@ -458,11 +557,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     fetchAvailableSlots(date);
   };
 
-  const getMinScheduleDate = () => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
+  const handleSlotSelect = (scheduleTime: string) => {
+    setFormData((p) => ({ ...p, time_group: scheduleTime }));
+    setErrors((prev) => ({ ...prev, time_group: "" }));
   };
 
+  const getMinScheduleDate = () => new Date().toISOString().split("T")[0];
   const getMaxScheduleDate = () => "2026-12-31";
 
   const validateForm = (): boolean => {
@@ -506,7 +606,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
         const documentNumber = res.data?.data?.service?.bcert_number;
         const scheduleRes = await axios.post(
           "https://westrembomis.onrender.com/api/schedules",
-          { document_type: formData.document_type, document_number: documentNumber, schedule_date: formData.schedule_date, time_group: formData.time_group },
+          {
+            document_type: formData.document_type,
+            document_number: documentNumber,
+            schedule_date: formData.schedule_date,
+            schedule_time: formData.time_group,
+          },
           { withCredentials: true }
         );
         if (scheduleRes.status === 201) {
@@ -530,7 +635,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     } finally { setIsSubmitting(false); }
   };
 
-  // ── Auto-fill from authenticated user ──
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -566,13 +670,16 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     loadUser();
   }, [streets]);
 
-  // ── Compute time-slot disabled states ──
-  const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
-    getTimeSlotAvailability(formData.schedule_date);
+  // Split slots into morning / afternoon
+  const morningSlots = (availableSlots ?? []).filter((s: any) => parseInt(s.schedule_time.split(":")[0], 10) < 12);
+  const afternoonSlots = (availableSlots ?? []).filter((s: any) => parseInt(s.schedule_time.split(":")[0], 10) >= 12);
 
-  // ── Shared styles ──
+  // Currently selected slot object (for remaining count in confirmation bar)
+  const selectedSlot = (availableSlots ?? []).find((s: any) => s.schedule_time === formData.time_group);
+
   const readonlyStyle: React.CSSProperties = { borderBottomColor: "#c7d2fe", backgroundColor: "#f0f4ff" };
   const editableRequiredStyle: React.CSSProperties = { borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" };
+  const editableOptionalStyle: React.CSSProperties = { borderBottomColor: "#bbf7d0", backgroundColor: "#f0fdf4" };
   const readonlyInputCls = "rounded-none border-0 border-b-2 px-0 text-sm cursor-not-allowed opacity-80";
   const editableInputCls = "rounded-none border-0 border-b-2 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
@@ -598,7 +705,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
 
         <div className="p-8 md:p-10">
 
-          {/* ── Before You Apply ── */}
+          {/* Before You Apply */}
           <div className="mb-8 p-6 rounded-lg border" style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}>
             <h3 className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2" style={{ color: "#854d0e" }}>📌 Before You Apply</h3>
             {loadingServiceInfo ? (
@@ -645,7 +752,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
 
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* ═══ Section 1 — Personal Information (READ-ONLY) ═══ */}
+            {/* Section 1 — Personal Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>1</div>
@@ -669,7 +776,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                   </div>
                 ))}
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
                 {[
                   { label: "Extension", value: formData.ext_name, placeholder: "Jr., Sr." },
@@ -684,7 +790,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══ Section 2 — Contact Information (READ-ONLY) ═══ */}
+            {/* Section 2 — Contact Information */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>2</div>
@@ -704,7 +810,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
               </div>
             </div>
 
-            {/* ═══ Section 3 — Project Location (READ-ONLY - Auto-filled from user address) ═══ */}
+            {/* Section 3 — Project Location */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>3</div>
@@ -712,44 +818,23 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>Auto-filled</span>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No.</Label>
-                  <Input
-                    value={formData.house_block_lot_no}
-                    readOnly
-                    disabled
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
+                  <Input value={formData.house_block_lot_no} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street</Label>
-                  <Input
-                    value={formData.street}
-                    readOnly
-                    disabled
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
+                  <Input value={formData.street} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok</Label>
-                  <Input
-                    value={formData.zone}
-                    readOnly
-                    disabled
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
+                  <Input value={formData.zone} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
                 </div>
               </div>
             </div>
 
-            {/* ═══ Section 4 — Building Details (EDITABLE) ═══ */}
+            {/* Section 4 — Building Details */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
@@ -771,16 +856,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.establishment ? "#ef4444" : "#fed7aa")}
                   />
-                  {errors.establishment && <p className="mt-1 text-xs text-red-500">{errors.establishment}</p>}
+                  {errors.establishment && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.establishment}</p>}
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose</Label>
-                  <Select
-                    value={formData.purpose}
-                    onValueChange={(v) => setFormData((p) => ({ ...p, purpose: v }))}
-                  >
-                    <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm uppercase" style={editableRequiredStyle}>
+                  <Select value={formData.purpose} onValueChange={(v) => setFormData((p) => ({ ...p, purpose: v }))}>
+                    <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm uppercase" style={editableOptionalStyle}>
                       <SelectValue placeholder="Select purpose" />
                     </SelectTrigger>
                     <SelectContent>
@@ -790,7 +871,6 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                     Purpose Details <span style={{ color: "#ef4444" }}>*</span>
@@ -805,12 +885,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.purpose_details ? "#ef4444" : "#fed7aa")}
                   />
-                  {errors.purpose_details && <p className="mt-1 text-xs text-red-500">{errors.purpose_details}</p>}
+                  {errors.purpose_details && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.purpose_details}</p>}
                 </div>
               </div>
             </div>
 
-            {/* ═══ Section 5 — Schedule Appointment ═══ */}
+            {/* Section 5 — Schedule Appointment */}
             <div>
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>5</div>
@@ -840,10 +920,9 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
               </div>
 
               <div className="space-y-6">
+                {/* Date picker */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Select Date <span style={{ color: "#ef4444" }}>*</span>
-                  </Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Select Date <span style={{ color: "#ef4444" }}>*</span></Label>
                   <Input
                     type="date"
                     min={getMinScheduleDate()}
@@ -856,9 +935,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#fed7aa")}
                   />
                   {errors.schedule_date && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />{errors.schedule_date}
-                    </p>
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.schedule_date}</p>
                   )}
                   {(() => {
                     const today = new Date();
@@ -872,12 +949,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                           return (
                             <p className="text-xs mt-1" style={{ color: "#0369a1" }}>
                               💡 Today is a weekend or holiday. Next available date:{" "}
-                              <button
-                                type="button"
-                                className="underline font-semibold"
-                                style={{ color: "#0284c7" }}
-                                onClick={() => handleScheduleDateChange(nextStr)}
-                              >
+                              <button type="button" className="underline font-semibold" style={{ color: "#0284c7" }} onClick={() => handleScheduleDateChange(nextStr)}>
                                 {next.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                               </button>
                             </p>
@@ -889,22 +961,12 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                   })()}
                 </div>
 
+                {/* Time slot picker */}
                 {formData.schedule_date && !errors.schedule_date && (
                   <div>
                     <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>
                       Select Time Slot <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
-
-                    {formData.schedule_date === toDateString(new Date()) && (isMorningPastDue || isAfternoonPastDue) && (
-                      <div className="mb-3 p-3 rounded-lg flex items-start gap-2" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
-                        <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
-                        <p className="text-xs" style={{ color: "#c2410c" }}>
-                          {isAfternoonPastDue
-                            ? "The barangay office is now closed for today. Please select a different date."
-                            : "The morning slot has passed. Only the afternoon slot is available for today."}
-                        </p>
-                      </div>
-                    )}
 
                     {loadingSlots ? (
                       <div className="flex items-center gap-2 text-gray-500">
@@ -914,66 +976,79 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
                         </svg>
                         <span className="text-sm">Loading available slots...</span>
                       </div>
-                    ) : availableSlots ? (
-                      <RadioGroup
-                        value={formData.time_group}
-                        onValueChange={(v) => {
-                          setFormData((p) => ({ ...p, time_group: v }));
-                          setErrors((prev) => ({ ...prev, time_group: "" }));
-                        }}
-                        className="space-y-3"
-                      >
-                        {[
-                          { key: "morning", label: "Morning Slot", time: "8:00 AM – 11:50 AM" },
-                          { key: "afternoon", label: "Afternoon Slot", time: "1:00 PM – 5:50 PM" },
-                        ].map(({ key, label, time }) => {
-                          const slot = availableSlots[key as "morning" | "afternoon"];
-                          const timeDisabled =
-                            key === "morning" ? isMorningPastDue :
-                            key === "afternoon" ? isAfternoonPastDue : false;
-                          const isDisabled = !slot.available || timeDisabled;
-                          const isSelected = formData.time_group === key;
-                          const disabledReason = !slot.available
-                            ? "Fully booked"
-                            : timeDisabled
-                            ? key === "morning" ? "Morning has passed" : "Office closed"
-                            : "";
+                    ) : availableSlots && availableSlots.length > 0 ? (
+                      <div>
+                        {morningSlots.length > 0 && (
+                          <div className="mb-4">
+                            <SlotDivider label="Morning" />
+                            <div className="grid grid-cols-3 gap-2">
+                              {morningSlots.map((slot: any) => (
+                                <SlotCard
+                                  key={slot.id}
+                                  slot={slot}
+                                  selected={formData.time_group === slot.schedule_time}
+                                  onSelect={handleSlotSelect}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {afternoonSlots.length > 0 && (
+                          <div>
+                            <SlotDivider label="Afternoon" />
+                            <div className="grid grid-cols-3 gap-2">
+                              {afternoonSlots.map((slot: any) => (
+                                <SlotCard
+                                  key={slot.id}
+                                  slot={slot}
+                                  selected={formData.time_group === slot.schedule_time}
+                                  onSelect={handleSlotSelect}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                          return (
+                        {/* Confirmation bar */}
+                        {formData.time_group && (
+                          <div
+                            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl"
+                            style={{ backgroundColor: "#E6F1FB", border: "1.5px solid #B5D4F4" }}
+                          >
                             <div
-                              key={key}
-                              className="flex items-center space-x-3 p-4 rounded-lg border-2 transition-all"
                               style={{
-                                borderColor: isSelected ? "#0f2a5e" : isDisabled ? "#e5e7eb" : "#fed7aa",
-                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : isDisabled ? "#f9fafb" : "#fff7ed",
-                                cursor: isDisabled ? "not-allowed" : "pointer",
-                                opacity: isDisabled ? 0.5 : 1,
+                                width: 34, height: 34, borderRadius: "50%",
+                                backgroundColor: "#185FA5",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                flexShrink: 0,
                               }}
                             >
-                              <RadioGroupItem value={key} id={`bldg-slot-${key}`} disabled={isDisabled} />
-                              <label htmlFor={`bldg-slot-${key}`} className="flex-1" style={{ cursor: isDisabled ? "not-allowed" : "pointer" }}>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
-                                  <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
-                                  {isDisabled && disabledReason && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "10px", fontWeight: 600 }}>
-                                      {disabledReason}
-                                    </span>
-                                  )}
-                                </div>
-                              </label>
+                              <Clock style={{ width: 16, height: 16, color: "#E6F1FB" }} />
                             </div>
-                          );
-                        })}
-                      </RadioGroup>
+                            <div>
+                              <p className="text-sm font-semibold" style={{ color: "#0C447C" }}>
+                                {formatTime(formData.time_group)} — confirmed
+                              </p>
+                              <p className="text-xs" style={{ color: "#185FA5" }}>
+                                {selectedSlot?.max_slots ?? 0} slot{(selectedSlot?.max_slots ?? 0) !== 1 ? "s" : ""} remaining on this date
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
+                      </div>
+                    ) : availableSlots && availableSlots.length === 0 ? (
+                      <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+                        No available slots for this date. Please select a different date.
+                      </div>
                     ) : null}
-                    {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* ── Form Actions ── */}
+            {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
                 type="button"
