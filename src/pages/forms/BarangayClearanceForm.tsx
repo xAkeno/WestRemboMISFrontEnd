@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Copy, Check, Clock, Calendar, X,
+  CheckCircle, Clock, Calendar, X,
   FileText, IdCard, Timer, DollarSign, Info, AlertTriangle,
   ClipboardCheck,
 } from "lucide-react";
@@ -80,18 +80,13 @@ const validateRequired = (value: string, fieldName: string): string => {
   return "";
 };
 
-// Helper function to parse period of residency string to years (as a decimal)
 const parsePeriodToYears = (period: string): number | null => {
   if (!period) return null;
   const match = period.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(year|years|month|months)?$/);
   if (!match) return null;
-  
   const value = parseFloat(match[1]);
-  const unit = match[2] || 'years';
-  
-  if (unit.startsWith('month')) {
-    return value / 12;
-  }
+  const unit = match[2] || "years";
+  if (unit.startsWith("month")) return value / 12;
   return value;
 };
 
@@ -99,14 +94,10 @@ const validatePeriodOfResidency = (value: string, age: number): string => {
   if (!value || value.trim() === "") return "Period of residency is required.";
   if (!/^\d+(?:\.\d+)?\s*(year|years|month|months)?$/i.test(value.trim()))
     return "Please enter a valid period (e.g., 5 years, 6 months, 1.5 years)";
-  
   const periodYears = parsePeriodToYears(value.trim());
   if (periodYears === null) return "Please enter a valid period (e.g., 5 years, 6 months)";
-  
-  if (periodYears > age) {
-    return `Period of residency (${value.trim()}) cannot exceed your age (${age} ${age === 1 ? 'year' : 'years'}). Please enter a valid period.`;
-  }
-  
+  if (periodYears > age)
+    return `Period of residency (${value.trim()}) cannot exceed your age (${age} ${age === 1 ? "year" : "years"}). Please enter a valid period.`;
   return "";
 };
 
@@ -115,16 +106,13 @@ const validatePurpose = (value: string): string => {
   return "";
 };
 
-// DOB must be strictly in the past — today and any future date are invalid
 const validateDob = (value: string): string => {
   if (!value) return "Date of birth is required.";
   const dob = new Date(value + "T00:00:00");
   const today = todayDate();
   if (dob >= today) return "Date of birth must be in the past. Today and future dates are not allowed.";
-  
   const age = calculateAge(value);
   if (age < MIN_AGE) return `Applicant must be at least ${MIN_AGE} years old. Current age: ${age} years.`;
-  
   return "";
 };
 
@@ -134,17 +122,143 @@ const parseAddress = (address: string) => {
   return { house_block_lot_no: parts[0] || "", street: parts[1] || "", zone: parts[2] || "" };
 };
 
-const getTimeSlotAvailability = (selectedDate: string) => {
-  const today = toDateString(new Date());
-  if (selectedDate !== today) {
-    return { morningDisabled: false, afternoonDisabled: false };
-  }
-  const now = new Date();
-  const currentHour = now.getHours();
-  const morningDisabled = currentHour >= 12;
-  const afternoonDisabled = currentHour >= 18;
-  return { morningDisabled, afternoonDisabled };
+// ─── Format time helper ────────────────────────────────────────────────────────
+const formatTime = (t: string): string => {
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 };
+
+// ─── Slot Card ─────────────────────────────────────────────────────────────────
+interface SlotCardProps {
+  slot: any;
+  selected: boolean;
+  onSelect: (time: string) => void;
+}
+
+const SlotCard = ({ slot, selected, onSelect }: SlotCardProps) => {
+  const remaining = slot.max_slots ?? 0;
+  const isDisabled = remaining <= 0;
+  const isLow = remaining > 0 && remaining <= 3;
+
+  const pill = isDisabled
+    ? { bg: "#FCEBEB", color: "#A32D2D", border: "#F7C1C1", label: "Full" }
+    : isLow
+    ? { bg: "#FAEEDA", color: "#854F0B", border: "#FAC775", label: `${remaining} left` }
+    : { bg: "#EAF3DE", color: "#3B6D11", border: "#C0DD97", label: `${remaining} left` };
+
+  return (
+    <button
+      type="button"
+      disabled={isDisabled}
+      onClick={() => !isDisabled && onSelect(slot.schedule_time)}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+        padding: "12px 8px 10px",
+        borderRadius: 10,
+        border: selected ? "2px solid #185FA5" : "1.5px solid #e5e7eb",
+        backgroundColor: selected ? "#E6F1FB" : isDisabled ? "#f9fafb" : "#ffffff",
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        opacity: isDisabled ? 0.45 : 1,
+        position: "relative",
+        transition: "border-color 0.15s, background 0.15s",
+        textAlign: "center",
+      }}
+      onMouseEnter={(e) => {
+        if (!isDisabled && !selected)
+          (e.currentTarget as HTMLElement).style.backgroundColor = "#f8faff";
+      }}
+      onMouseLeave={(e) => {
+        if (!isDisabled && !selected)
+          (e.currentTarget as HTMLElement).style.backgroundColor = "#ffffff";
+      }}
+    >
+      {/* Check dot */}
+      {selected && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 7,
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            backgroundColor: "#185FA5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CheckCircle style={{ width: 10, height: 10, color: "#E6F1FB" }} />
+        </span>
+      )}
+
+      {/* Clock icon */}
+      <Clock
+        style={{
+          width: 16,
+          height: 16,
+          color: selected ? "#185FA5" : isDisabled ? "#9ca3af" : "#6b7280",
+        }}
+      />
+
+      {/* Time label */}
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: selected ? "#0C447C" : isDisabled ? "#9ca3af" : "#111827",
+          lineHeight: 1.2,
+        }}
+      >
+        {formatTime(slot.schedule_time)}
+      </span>
+
+      {/* Availability pill */}
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          padding: "2px 8px",
+          borderRadius: 99,
+          backgroundColor: pill.bg,
+          color: pill.color,
+          border: `0.5px solid ${pill.border}`,
+          marginTop: 1,
+        }}
+      >
+        {pill.label}
+      </span>
+    </button>
+  );
+};
+
+// ─── Divider label ─────────────────────────────────────────────────────────────
+const SlotDivider = ({ label }: { label: string }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "12px 0 10px" }}>
+    <div style={{ flex: 1, height: "0.5px", backgroundColor: "#e5e7eb" }} />
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 500,
+        color: "#6b7280",
+        padding: "2px 12px",
+        borderRadius: 99,
+        backgroundColor: "#f3f4f6",
+        border: "0.5px solid #e5e7eb",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+    <div style={{ flex: 1, height: "0.5px", backgroundColor: "#e5e7eb" }} />
+  </div>
+);
 
 // ─── Register Dependent Toggle ─────────────────────────────────────────────────
 function RegisterDependentToggle({
@@ -167,57 +281,25 @@ function RegisterDependentToggle({
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
           style={{ backgroundColor: enabled ? "#fef3c7" : "#f3f4f6" }}
         >
-          <svg
-            className="w-4 h-4"
-            style={{ color: enabled ? "#d97706" : "#9ca3af" }}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
-            />
+          <svg className="w-4 h-4" style={{ color: enabled ? "#d97706" : "#9ca3af" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </div>
         <div>
-          <p className="text-sm font-bold" style={{ color: enabled ? "#92400e" : "#374151" }}>
-            Register Dependent
-          </p>
+          <p className="text-sm font-bold" style={{ color: enabled ? "#92400e" : "#374151" }}>Register Dependent</p>
           <p className="text-xs mt-0.5" style={{ color: enabled ? "#b45309" : "#9ca3af" }}>
-            {enabled
-              ? "Auto-fill is OFF — all fields are now manually editable for dependent registration"
-              : "Toggle on to register a family member or dependent instead of yourself"}
+            {enabled ? "Auto-fill is OFF — all fields are now manually editable for dependent registration" : "Toggle on to register a family member or dependent instead of yourself"}
           </p>
           {enabled && (
-            <div
-              className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full w-fit"
-              style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d" }}
-            >
-              <svg
-                className="w-3 h-3"
-                style={{ color: "#d97706" }}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
+            <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full w-fit" style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d" }}>
+              <svg className="w-3 h-3" style={{ color: "#d97706" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-xs font-semibold" style={{ color: "#92400e" }}>
-                Enter the dependent's information in all fields below
-              </span>
+              <span className="text-xs font-semibold" style={{ color: "#92400e" }}>Enter the dependent's information in all fields below</span>
             </div>
           )}
         </div>
       </div>
-
       <button
         type="button"
         role="switch"
@@ -239,15 +321,8 @@ function RegisterDependentToggle({
 const SchedulingInfoModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="w-full max-w-md bg-white overflow-hidden"
-        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed" }}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-md bg-white overflow-hidden" style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed" }}>
         <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between flex-shrink-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Document Pickup</p>
@@ -291,9 +366,7 @@ const SchedulingInfoModal = ({ open, onClose }: { open: boolean; onClose: () => 
               <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>If you cannot pick up on your scheduled date, please coordinate with the barangay office as soon as possible to set a new pickup date.</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider" style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
-            Got It
-          </button>
+          <button type="button" onClick={onClose} className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider" style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>Got It</button>
         </div>
       </div>
     </div>
@@ -304,21 +377,12 @@ const SchedulingInfoModal = ({ open, onClose }: { open: boolean; onClose: () => 
 const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="w-full max-w-lg bg-white overflow-hidden"
-        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-lg bg-white overflow-hidden" style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
         <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between flex-shrink-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Legal</p>
-            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>
-              Data Privacy Notice
-            </h2>
+            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>Data Privacy Notice</h2>
           </div>
           <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}>
             <X className="w-4 h-4" />
@@ -340,9 +404,7 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
           </ul>
         </div>
         <div className="p-4 flex-shrink-0" style={{ borderTop: "1px solid #e5e7eb" }}>
-          <button type="button" onClick={onClose} className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider" style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
-            Close
-          </button>
+          <button type="button" onClick={onClose} className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider" style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>Close</button>
         </div>
       </div>
     </div>
@@ -358,25 +420,23 @@ const SuccessModal = ({
   onBack: () => void;
 }) => {
   const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
- 
+
   useEffect(() => {
     if (!canvasRef.current || !successData?.refNo) return;
     QRCodeLib.toCanvas(canvasRef.current, successData.refNo, {
-      width: 152,
-      margin: 1,
+      width: 152, margin: 1,
       color: { dark: "#0f2a5e", light: "#ffffff" },
       errorCorrectionLevel: "M",
     }).catch(console.error);
   }, [successData?.refNo]);
- 
+
   if (!successData) return null;
- 
-  const handleBackClick = () => {
-    navigate("/");
-  };
- 
+
+  const displayTime = successData.scheduleTime
+    ? formatTime(successData.scheduleTime)
+    : "";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.55)" }}>
       <div className="w-full sm:max-w-lg md:max-w-2xl overflow-hidden" style={{ borderRadius: "20px", backgroundColor: "white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
@@ -389,68 +449,41 @@ const SuccessModal = ({
           <p className="text-white font-bold text-xl relative z-10 mb-1">Request Submitted Successfully!</p>
           <p className="text-sm relative z-10" style={{ color: "rgba(255,255,255,0.65)" }}>Barangay Clearance & Appointment Scheduled</p>
         </div>
- 
         <div className="px-6 py-6 space-y-6">
           <div className="flex flex-col items-center justify-center p-6 rounded-xl" style={{ backgroundColor: "#f8faff", border: "2px solid #e5e7eb" }}>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: "#9ca3af" }}>Present at Counter</p>
-            <canvas
-              ref={canvasRef}
-              className="rounded-lg"
-              style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }}
-            />
+            <canvas ref={canvasRef} className="rounded-lg" style={{ backgroundColor: "white", padding: "8px", border: "1px solid #e5e7eb" }} />
           </div>
- 
           <div className="p-5 rounded-lg" style={{ backgroundColor: "#fef3c7", border: "1.5px solid #fcd34d" }}>
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
               <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>
-                  Present this at the counter
-                </p>
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#b45309" }}>Present this at the counter</p>
                 <div className="text-xs space-y-2" style={{ color: "#92400e", lineHeight: 1.6 }}>
-                  <p>
-                    Present this QR code at the counter to be scanned by barangay staff and included in the processing queue. Once included, it will be used for instant retrieval of your request.
-                  </p>
-                  <p>
-                    Screenshot or keep this page open — no printing needed. Just show your screen to the staff.
-                  </p>
+                  <p>Present this QR code at the counter to be scanned by barangay staff and included in the processing queue.</p>
+                  <p>Screenshot or keep this page open — no printing needed. Just show your screen to the staff.</p>
                 </div>
               </div>
             </div>
           </div>
- 
           <div className="px-4 py-3 rounded-xl" style={{ backgroundColor: "#f0fdf4", border: "1px solid #dcfce7" }}>
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 mt-0.5" style={{ color: "#16a34a" }} />
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-green-600 mb-1">Appointment Scheduled</p>
                 <p className="text-sm font-semibold text-green-900">{successData.scheduleDate}</p>
-                <p className="text-sm text-green-700">{successData.scheduleTime}</p>
+                <p className="text-sm text-green-700">{displayTime}</p>
               </div>
             </div>
           </div>
- 
           <div className="space-y-3 pt-2">
-            <button 
-              onClick={() => navigate(`/request/barangay_clearance/${successData.id}?fromSubmit=1`)} 
-              className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity" 
-              style={{ backgroundColor: "#0f2a5e" }}
-            >
+            <button onClick={() => navigate(`/request/barangay_clearance/${successData.id}?fromSubmit=1`)} className="w-full py-3 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity" style={{ backgroundColor: "#0f2a5e" }}>
               View My Request
             </button>
-            <button 
-              onClick={handleBackClick} 
+            <button
+              onClick={() => navigate("/")}
               className="w-full py-2 text-sm font-semibold text-center transition-colors"
-              style={{ 
-                color: "#0f2a5e",
-                textDecoration: "underline",
-                textDecorationThickness: "1.5px",
-                textUnderlineOffset: "4px",
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: "8px 0"
-              }}
+              style={{ color: "#0f2a5e", textDecoration: "underline", textDecorationThickness: "1.5px", textUnderlineOffset: "4px", backgroundColor: "transparent", border: "none", cursor: "pointer", padding: "8px 0" }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
@@ -488,13 +521,13 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [streets, setStreets] = useState<StreetOption[]>([]);
   const [successData, setSuccessData] = useState<{ id: number; refNo: string; scheduleTime?: string; scheduleDate?: string } | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<{ morning: any; afternoon: any } | null>(null);
+  // ← Now an array (same as Certificate), not { morning, afternoon }
+  const [availableSlots, setAvailableSlots] = useState<any[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showSchedulingModal, setShowSchedulingModal] = useState(false);
   const [serviceInfo, setServiceInfo] = useState<ServiceInfo | null>(null);
   const [loadingServiceInfo, setLoadingServiceInfo] = useState(true);
-
   const [isDependent, setIsDependent] = useState(false);
   const autoFilledDataRef = useRef<Partial<typeof formData>>({});
 
@@ -578,23 +611,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     if (enabled) {
       setFormData((prev) => ({
         ...prev,
-        prefix: "",
-        first_name: "",
-        middle_name: "",
-        surname: "",
-        ext_name: "",
-        age: "",
-        dob: "",
-        pob: "",
-        contact_no: "",
-        email: "",
-        house_block_lot_no: "",
-        street: "",
-        zone: "",
-        period_of_residency: "",
-        registered_voter: "",
-        house_owner: "",
-        relationship_to_owner: "",
+        prefix: "", first_name: "", middle_name: "", surname: "", ext_name: "",
+        age: "", dob: "", pob: "",
+        contact_no: "", email: "",
+        house_block_lot_no: "", street: "", zone: "",
+        period_of_residency: "", registered_voter: "",
+        house_owner: "", relationship_to_owner: "",
       }));
       setErrors((prev) => ({ ...prev, dob: "", period_of_residency: "" }));
     } else {
@@ -603,17 +625,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     }
   };
 
+  // ← Same endpoint + array shape as Certificate
   const fetchAvailableSlots = async (date: string) => {
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/schedules/available-slots`, {
-        params: { document_type: formData.document_type, date },
+      const res = await axios.get("https://westrembomis.onrender.com/api/schedule-slots", {
         withCredentials: true,
+        params: { document_type: "barangay_clearance", date },
       });
-      setAvailableSlots(res.data?.data ?? null);
-    } catch (error) { console.error("Failed to fetch available slots:", error); }
-    finally { setLoadingSlots(false); }
+      setAvailableSlots(res.data?.data ?? res.data ?? []);
+    } catch (error) {
+      console.error("Failed to fetch available slots:", error);
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
   };
 
   const handleScheduleDateChange = (date: string) => {
@@ -630,9 +657,13 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     fetchAvailableSlots(date);
   };
 
+  const handleSlotSelect = (scheduleTime: string) => {
+    setFormData((p) => ({ ...p, time_group: scheduleTime }));
+    setErrors((prev) => ({ ...prev, time_group: "" }));
+  };
+
   const validateForm = (): boolean => {
     const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
-    
     const newErrors = {
       ...errors,
       period_of_residency: validatePeriodOfResidency(formData.period_of_residency, currentAge),
@@ -662,8 +693,13 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
       if (certRes.status === 201 || certRes.status === 200) {
         const documentNumber = certRes.data?.data?.service?.bcert_number;
         const scheduleRes = await axios.post(
-          `${import.meta.env.VITE_WEB_URL}/api/schedules`,
-          { document_type: formData.document_type, document_number: documentNumber, schedule_date: formData.schedule_date, time_group: formData.time_group },
+          "https://westrembomis.onrender.com/api/schedules",
+          {
+            document_type: formData.document_type,
+            document_number: documentNumber,
+            schedule_date: formData.schedule_date,
+            schedule_time: formData.time_group, // ← key matches Certificate
+          },
           { withCredentials: true }
         );
         if (scheduleRes.status === 201) {
@@ -686,7 +722,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
 
   useEffect(() => {
     if (isDependent) return;
-
     const loadUser = async () => {
       try {
         const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/details`, { withCredentials: true });
@@ -701,14 +736,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           );
           if (foundStreet) matchedStreet = toUpperCase(foundStreet.name);
         }
-
         const profileHouseOwner = user.house_owner ?? user.houseOwner ?? user.house_owner_name ?? "";
         const VALID_RELATIONSHIPS = ["Owner", "Tenant", "Son", "Daughter", "Spouse", "Parent", "Sibling", "Relative", "Other"];
         const profileRelationship = user.relationship_to_owner ?? user.relationshipToOwner ?? user.relationship ?? "";
         const matchedRelationship = VALID_RELATIONSHIPS.find(
           (r) => r.toLowerCase() === String(profileRelationship).toLowerCase()
         ) ?? "";
-
         const filled = {
           prefix: user.prefix ?? "",
           first_name: user.first_name ?? "",
@@ -728,7 +761,6 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
           age: normalizedDob ? String(calculateAge(normalizedDob)) : "",
           registered_voter: user.voter_status ? "Yes" : "No",
         };
-
         autoFilledDataRef.current = filled;
         setFormData((prev) => ({ ...prev, ...filled }));
       } catch (error) { console.error("Failed to load authenticated user:", error); }
@@ -736,53 +768,30 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
     loadUser();
   }, [streets, isDependent]);
 
-  const getMinScheduleDate = () => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  };
-
+  const getMinScheduleDate = () => new Date().toISOString().split("T")[0];
   const getMaxScheduleDate = () => "2026-12-31";
 
-  const readonlyStyle: React.CSSProperties = {
-    borderBottomColor: "#c7d2fe",
-    backgroundColor: "#f0f4ff",
-  };
-  const editableRequiredStyle: React.CSSProperties = {
-    borderBottomColor: "#fed7aa",
-    backgroundColor: "#fff7ed",
-  };
-  const editableOptionalStyle: React.CSSProperties = {
-    borderBottomColor: "#bbf7d0",
-    backgroundColor: "#f0fdf4",
-  };
-  const dependentEditableStyle: React.CSSProperties = {
-    borderBottomColor: "#fcd34d",
-    backgroundColor: "#fffbeb",
-  };
-
+  const readonlyStyle: React.CSSProperties = { borderBottomColor: "#c7d2fe", backgroundColor: "#f0f4ff" };
+  const editableRequiredStyle: React.CSSProperties = { borderBottomColor: "#fed7aa", backgroundColor: "#fff7ed" };
+  const editableOptionalStyle: React.CSSProperties = { borderBottomColor: "#bbf7d0", backgroundColor: "#f0fdf4" };
+  const dependentEditableStyle: React.CSSProperties = { borderBottomColor: "#fcd34d", backgroundColor: "#fffbeb" };
   const readonlyInputCls = "rounded-none border-0 border-b-2 px-0 text-sm cursor-not-allowed opacity-80";
   const editableInputCls = "rounded-none border-0 border-b-2 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
 
-  const { morningDisabled: isMorningPastDue, afternoonDisabled: isAfternoonPastDue } =
-    getTimeSlotAvailability(formData.schedule_date);
-
   if (successData) return <SuccessModal successData={successData} onBack={handleBack} />;
+
+  // Split slots into morning / afternoon
+  const morningSlots = (availableSlots ?? []).filter((s: any) => parseInt(s.schedule_time.split(":")[0], 10) < 12);
+  const afternoonSlots = (availableSlots ?? []).filter((s: any) => parseInt(s.schedule_time.split(":")[0], 10) >= 12);
+
+  // Currently selected slot object (for remaining count in confirmation bar)
+  const selectedSlot = (availableSlots ?? []).find((s: any) => s.schedule_time === formData.time_group);
 
   const SectionBadge = () =>
     isDependent ? (
-      <span
-        className="text-xs px-2 py-0.5 rounded-full font-semibold"
-        style={{ backgroundColor: "#fef3c7", color: "#d97706", border: "1px solid #fcd34d" }}
-      >
-        Enter Manually
-      </span>
+      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fef3c7", color: "#d97706", border: "1px solid #fcd34d" }}>Enter Manually</span>
     ) : (
-      <span
-        className="text-xs px-2 py-0.5 rounded-full font-semibold"
-        style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}
-      >
-        Auto-filled
-      </span>
+      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#f0f4ff", color: "#4338ca", border: "1px solid #c7d2fe" }}>Auto-filled</span>
     );
 
   return (
@@ -791,28 +800,21 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
       <DataPrivacyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
       <SchedulingInfoModal open={showSchedulingModal} onClose={() => setShowSchedulingModal(false)} />
 
-      <div
-        className="w-full max-w-4xl bg-white overflow-hidden items-start mx-auto my-24"
-        style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}
-      >
+      <div className="w-full max-w-4xl bg-white overflow-hidden items-start mx-auto my-24" style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}>
+        {/* Page Header */}
         <div style={{ backgroundColor: "#0f2a5e", padding: "20px 40px" }} className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>
-              Republic of the Philippines · City of Taguig
-            </p>
-            <h1 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1.15rem" }}>
-              Barangay Clearance Application
-            </h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] mb-0.5" style={{ color: "#e8a0bf" }}>Republic of the Philippines · City of Taguig</p>
+            <h1 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1.15rem" }}>Barangay Clearance Application</h1>
           </div>
         </div>
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         <div className="p-8 md:p-10">
 
+          {/* Before You Apply */}
           <div className="mb-8 p-6 rounded-lg border" style={{ backgroundColor: "#fefce8", borderColor: "#fde047" }}>
-            <h3 className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2" style={{ color: "#854d0e" }}>
-              📌 Before You Apply
-            </h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2" style={{ color: "#854d0e" }}>📌 Before You Apply</h3>
             {loadingServiceInfo ? (
               <div className="flex items-center gap-2" style={{ color: "#713f12" }}>
                 <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -829,9 +831,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   </h4>
                   <ul className="space-y-2 text-sm" style={{ color: "#713f12" }}>
                     {serviceInfo.requirements.map((req, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <IdCard className="w-4 h-4 mt-0.5 opacity-80 flex-shrink-0" />{req}
-                      </li>
+                      <li key={i} className="flex items-start gap-2"><IdCard className="w-4 h-4 mt-0.5 opacity-80 flex-shrink-0" />{req}</li>
                     ))}
                   </ul>
                 </div>
@@ -846,9 +846,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: "#854d0e" }}>
                       <DollarSign className="w-4 h-4" /> Service Fee
                     </h4>
-                    <p className="text-base font-bold pl-2" style={{ color: "#713f12" }}>
-                      {serviceInfo.fee === "Free" ? "Free" : `₱${serviceInfo.fee}`}
-                    </p>
+                    <p className="text-base font-bold pl-2" style={{ color: "#713f12" }}>{serviceInfo.fee === "Free" ? "Free" : `₱${serviceInfo.fee}`}</p>
                   </div>
                 </div>
               </div>
@@ -870,18 +868,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <SectionBadge />
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Prefix</Label>
                   {isDependent ? (
                     <Select value={formData.prefix} onValueChange={(v) => upd("prefix", v)}>
-                      <SelectTrigger
-                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                        style={{ ...dependentEditableStyle, textTransform: "uppercase" }}
-                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
-                      >
+                      <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm" style={{ ...dependentEditableStyle, textTransform: "uppercase" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}>
                         <SelectValue placeholder="e.g. Mr., Ms." />
                       </SelectTrigger>
                       <SelectContent>
@@ -891,29 +883,19 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={formData.prefix}
-                      readOnly
-                      disabled
-                      placeholder="e.g. Mr., Ms."
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                    <Input value={formData.prefix} readOnly disabled placeholder="e.g. Mr., Ms." className={readonlyInputCls} style={readonlyStyle} />
                   )}
                 </div>
-
-                {[
+                {([
                   { label: "Surname *", field: "surname", placeholder: "de la Cruz" },
                   { label: "First Name *", field: "first_name", placeholder: "Juan" },
                   { label: "Middle Name", field: "middle_name", placeholder: "Reyes" },
-                ].map(({ label, field, placeholder }) => (
+                ] as const).map(({ label, field, placeholder }) => (
                   <div key={label} className="space-y-1.5">
                     <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>{label}</Label>
                     <Input
                       value={formData[field as keyof typeof formData] as string}
-                      readOnly={!isDependent}
-                      disabled={!isDependent}
-                      placeholder={placeholder}
+                      readOnly={!isDependent} disabled={!isDependent} placeholder={placeholder}
                       onChange={isDependent ? (e) => upd(field, e.target.value) : undefined}
                       className={isDependent ? editableInputCls : readonlyInputCls}
                       style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -923,16 +905,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   </div>
                 ))}
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Extension</Label>
-                  <Input
-                    type="text"
-                    value={formData.ext_name}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
-                    placeholder="Jr., Sr."
+                  <Input type="text" value={formData.ext_name} readOnly={!isDependent} disabled={!isDependent} placeholder="Jr., Sr."
                     onChange={isDependent ? (e) => upd("ext_name", e.target.value) : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
                     style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -940,31 +916,15 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
                   />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Age</Label>
-                  <Input
-                    type="number"
-                    value={formData.age}
-                    readOnly
-                    disabled
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
+                  <Input type="number" value={formData.age} readOnly disabled className={readonlyInputCls} style={readonlyStyle} />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Date of Birth *</Label>
                   <Input
-                    type="date"
-                    value={formData.dob}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
-                    max={(() => {
-                      const yesterday = new Date();
-                      yesterday.setDate(yesterday.getDate() - 1);
-                      return toDateString(yesterday);
-                    })()}
+                    type="date" value={formData.dob} readOnly={!isDependent} disabled={!isDependent}
+                    max={(() => { const y = new Date(); y.setDate(y.getDate() - 1); return toDateString(y); })()}
                     onChange={isDependent ? (e) => {
                       const val = e.target.value;
                       const dobErr = val ? validateDob(val) : "Date of birth is required.";
@@ -973,37 +933,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                         const computedAge = calculateAge(val);
                         setFormData((p) => ({ ...p, dob: val, age: String(computedAge) }));
                         if (formData.period_of_residency) {
-                          const periodErr = validatePeriodOfResidency(formData.period_of_residency, computedAge);
-                          setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                          setErrors((prev) => ({ ...prev, period_of_residency: validatePeriodOfResidency(formData.period_of_residency, computedAge) }));
                         }
                       } else {
                         setFormData((p) => ({ ...p, dob: val, age: "" }));
                       }
                     } : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
-                    style={{
-                      ...(isDependent ? dependentEditableStyle : readonlyStyle),
-                      borderBottomColor: errors.dob ? "#ef4444" : isDependent ? "#fcd34d" : "#c7d2fe",
-                    }}
+                    style={{ ...(isDependent ? dependentEditableStyle : readonlyStyle), borderBottomColor: errors.dob ? "#ef4444" : isDependent ? "#fcd34d" : "#c7d2fe" }}
                     onFocus={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#c2467d") : undefined}
                     onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = errors.dob ? "#ef4444" : "#fcd34d") : undefined}
                   />
-                  {errors.dob && isDependent && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      {errors.dob}
-                    </p>
-                  )}
+                  {errors.dob && isDependent && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.dob}</p>}
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Place of Birth *</Label>
-                  <Input
-                    type="text"
-                    value={formData.pob}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
-                    placeholder="Manila"
+                  <Input type="text" value={formData.pob} readOnly={!isDependent} disabled={!isDependent} placeholder="Manila"
                     onChange={isDependent ? (e) => upd("pob", e.target.value) : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
                     style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -1025,12 +970,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Contact Number *</Label>
-                  <Input
-                    type="tel"
-                    placeholder="09XX XXX XXXX"
-                    value={formData.contact_no}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
+                  <Input type="tel" placeholder="09XX XXX XXXX" value={formData.contact_no} readOnly={!isDependent} disabled={!isDependent}
                     onChange={isDependent ? (e) => upd("contact_no", e.target.value) : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
                     style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -1040,12 +980,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
-                  <Input
-                    type="email"
-                    placeholder="juan@email.com"
-                    value={formData.email}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
+                  <Input type="email" placeholder="juan@email.com" value={formData.email} readOnly={!isDependent} disabled={!isDependent}
                     onChange={isDependent ? (e) => upd("email", e.target.value) : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
                     style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -1064,15 +999,10 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 {isDependent && <SectionBadge />}
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House / Block / Lot No. *</Label>
-                  <Input
-                    placeholder="e.g., 123-A"
-                    value={formData.house_block_lot_no}
-                    readOnly={!isDependent}
-                    disabled={!isDependent}
+                  <Input placeholder="e.g., 123-A" value={formData.house_block_lot_no} readOnly={!isDependent} disabled={!isDependent}
                     onChange={isDependent ? (e) => upd("house_block_lot_no", e.target.value) : undefined}
                     className={isDependent ? editableInputCls : readonlyInputCls}
                     style={isDependent ? dependentEditableStyle : readonlyStyle}
@@ -1080,105 +1010,51 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     onBlur={isDependent ? (e) => (e.currentTarget.style.borderBottomColor = "#fcd34d") : undefined}
                   />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street *</Label>
                   {isDependent ? (
-                    <Select
-                      value={formData.street}
-                      onValueChange={(v) => {
-                        const matched = streets.find((s) => toUpperCase(s.name) === v);
-                        const sitio = matched?.sitio ? toUpperCase(matched.sitio) : "";
-                        setFormData((p) => ({ ...p, street: v, zone: sitio }));
-                      }}
-                    >
-                      <SelectTrigger
-                        className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                        style={dependentEditableStyle}
-                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                        onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}
-                      >
+                    <Select value={formData.street} onValueChange={(v) => {
+                      const matched = streets.find((s) => toUpperCase(s.name) === v);
+                      setFormData((p) => ({ ...p, street: v, zone: matched?.sitio ? toUpperCase(matched.sitio) : "" }));
+                    }}>
+                      <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm" style={dependentEditableStyle} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#fcd34d")}>
                         <SelectValue placeholder="Select street" />
                       </SelectTrigger>
                       <SelectContent>
-                        {streets.map((s) => (
-                          <SelectItem key={s.id} value={toUpperCase(s.name)}>
-                            {toUpperCase(s.name)}
-                          </SelectItem>
-                        ))}
+                        {streets.map((s) => <SelectItem key={s.id} value={toUpperCase(s.name)}>{toUpperCase(s.name)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={formData.street}
-                      readOnly
-                      disabled
-                      placeholder="Street"
-                      className={readonlyInputCls}
-                      style={readonlyStyle}
-                    />
+                    <Input value={formData.street} readOnly disabled placeholder="Street" className={readonlyInputCls} style={readonlyStyle} />
                   )}
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Zone / Purok *</Label>
-                  <Input
-                    value={formData.zone}
-                    readOnly
-                    disabled
-                    placeholder="Auto-filled from street"
-                    className={readonlyInputCls}
-                    style={readonlyStyle}
-                  />
-                  {isDependent && formData.street && !formData.zone && (
-                    <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>No sitio mapped for this street.</p>
-                  )}
+                  <Input value={formData.zone} readOnly disabled placeholder="Auto-filled from street" className={readonlyInputCls} style={readonlyStyle} />
+                  {isDependent && formData.street && !formData.zone && <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>No sitio mapped for this street.</p>}
                 </div>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    House Owner <span style={{ color: "#ef4444" }}>*</span>
-                  </Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>House Owner <span style={{ color: "#ef4444" }}>*</span></Label>
                   <Input
-                    placeholder="Enter name of house owner"
-                    value={formData.house_owner}
+                    placeholder="Enter name of house owner" value={formData.house_owner}
                     onChange={(e) => upd("house_owner", e.target.value)}
                     className={editableInputCls}
-                    style={{
-                      ...editableRequiredStyle,
-                      borderBottomColor: errors.house_owner ? "#ef4444" : "#fed7aa",
-                    }}
+                    style={{ ...editableRequiredStyle, borderBottomColor: errors.house_owner ? "#ef4444" : "#fed7aa" }}
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.house_owner ? "#ef4444" : "#fed7aa")}
                   />
                   {errors.house_owner && <p className="mt-1 text-xs text-red-500">{errors.house_owner}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Relationship to Owner <span style={{ color: "#ef4444" }}>*</span>
-                  </Label>
-                  <Select
-                    value={formData.relationship_to_owner}
-                    onValueChange={(v) => {
-                      setFormData((p) => ({ ...p, relationship_to_owner: v }));
-                      setErrors((p) => ({ ...p, relationship_to_owner: "" }));
-                    }}
-                  >
-                    <SelectTrigger
-                      className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                      style={{
-                        ...editableRequiredStyle,
-                        borderBottomColor: errors.relationship_to_owner ? "#ef4444" : "#fed7aa",
-                      }}
-                    >
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Relationship to Owner <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Select value={formData.relationship_to_owner} onValueChange={(v) => { setFormData((p) => ({ ...p, relationship_to_owner: v })); setErrors((p) => ({ ...p, relationship_to_owner: "" })); }}>
+                    <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm" style={{ ...editableRequiredStyle, borderBottomColor: errors.relationship_to_owner ? "#ef4444" : "#fed7aa" }}>
                       <SelectValue placeholder="Select relationship" />
                     </SelectTrigger>
                     <SelectContent>
-                      {["Owner", "Tenant", "Son", "Daughter", "Spouse", "Parent", "Sibling", "Relative", "Other"].map((r) => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
+                      {["Owner", "Tenant", "Son", "Daughter", "Spouse", "Parent", "Sibling", "Relative", "Other"].map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   {errors.relationship_to_owner && <p className="mt-1 text-xs text-red-500">{errors.relationship_to_owner}</p>}
@@ -1192,16 +1068,11 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Clearance Details</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>
-                  Fill in required fields
-                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa" }}>Fill in required fields</span>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Period of Residency <span style={{ color: "#ef4444" }}>*</span>
-                  </Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Period of Residency <span style={{ color: "#ef4444" }}>*</span></Label>
                   <Input
                     placeholder="e.g., 5 years, 6 months, 1.5 years"
                     value={formData.period_of_residency}
@@ -1209,30 +1080,18 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                       const value = e.target.value;
                       upd("period_of_residency", value);
                       const currentAge = formData.age ? parseInt(formData.age) : (formData.dob ? calculateAge(formData.dob) : 0);
-                      const periodErr = validatePeriodOfResidency(value, currentAge);
-                      setErrors((prev) => ({ ...prev, period_of_residency: periodErr }));
+                      setErrors((prev) => ({ ...prev, period_of_residency: validatePeriodOfResidency(value, currentAge) }));
                     }}
                     className={editableInputCls}
-                    style={{
-                      ...editableRequiredStyle,
-                      borderBottomColor: errors.period_of_residency ? "#ef4444" : "#fed7aa",
-                    }}
+                    style={{ ...editableRequiredStyle, borderBottomColor: errors.period_of_residency ? "#ef4444" : "#fed7aa" }}
                     onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
                     onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.period_of_residency ? "#ef4444" : "#fed7aa")}
                   />
-                  {errors.period_of_residency && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      {errors.period_of_residency}
-                    </p>
-                  )}
+                  {errors.period_of_residency && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.period_of_residency}</p>}
                   {formData.age && !errors.period_of_residency && formData.period_of_residency && (
-                    <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" />Valid period
-                    </p>
+                    <p className="mt-1 text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3 h-3" />Valid period</p>
                   )}
                 </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Registered Voter</Label>
                   <RadioGroup value={formData.registered_voter} onValueChange={(v) => upd("registered_voter", v)} className="flex gap-6 mt-2.5">
@@ -1245,11 +1104,8 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   </RadioGroup>
                 </div>
               </div>
-
               <div className="mt-6 space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                  CTC / VRR No. <span style={{ color: "#ef4444" }}>*</span>
-                </Label>
+                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>CTC / VRR No. <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Input
                   inputMode="numeric"
                   placeholder="Enter CTC or VRR number"
@@ -1270,8 +1126,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                     e.preventDefault();
                     const pasted = e.clipboardData.getData("text");
                     const numericOnly = pasted.replace(/\D/g, "").slice(0, 20);
-                    const current = formData.ctc_vrr_no;
-                    const combined = (current + numericOnly).slice(0, 20);
+                    const combined = (formData.ctc_vrr_no + numericOnly).slice(0, 20);
                     upd("ctc_vrr_no", combined);
                   }}
                   className={editableInputCls}
@@ -1280,44 +1135,22 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#bbf7d0")}
                 />
                 <div className="flex items-center justify-between">
-                  <p className="text-xs" style={{ color: "#9ca3af" }}>
-                    Community Tax Certificate or Voter's Registration Record number (numbers only)
-                  </p>
-                  <p className="text-xs" style={{ color: formData.ctc_vrr_no.length >= 20 ? "#ef4444" : "#9ca3af" }}>
-                    {formData.ctc_vrr_no.length}/20
-                  </p>
+                  <p className="text-xs" style={{ color: "#9ca3af" }}>Community Tax Certificate or Voter's Registration Record number (numbers only)</p>
+                  <p className="text-xs" style={{ color: formData.ctc_vrr_no.length >= 20 ? "#ef4444" : "#9ca3af" }}>{formData.ctc_vrr_no.length}/20</p>
                 </div>
               </div>
-
               <div className="mt-6 space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                  Purpose <span style={{ color: "#ef4444" }}>*</span>
-                </Label>
-                <Select
-                  value={formData.purpose}
-                  onValueChange={(v) => {
-                    setFormData((p) => ({ ...p, purpose: v }));
-                    setErrors((prev) => ({ ...prev, purpose: "" }));
-                  }}
-                >
-                  <SelectTrigger
-                    className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm"
-                    style={{
-                      ...editableRequiredStyle,
-                      borderBottomColor: errors.purpose ? "#ef4444" : "#fed7aa",
-                    }}
-                  >
+                <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={formData.purpose} onValueChange={(v) => { setFormData((p) => ({ ...p, purpose: v })); setErrors((prev) => ({ ...prev, purpose: "" })); }}>
+                  <SelectTrigger className="rounded-none border-0 border-b-2 px-0 focus:ring-0 text-sm" style={{ ...editableRequiredStyle, borderBottomColor: errors.purpose ? "#ef4444" : "#fed7aa" }}>
                     <SelectValue placeholder="Select purpose" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clearancePurposes.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    ))}
+                    {clearancePurposes.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {errors.purpose && <p className="mt-1 text-xs text-red-500">{errors.purpose}</p>}
               </div>
-
               <div className="mt-6 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Purpose Details</Label>
                 <textarea
@@ -1340,60 +1173,42 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Schedule Appointment</h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                 <button
-                  type="button"
-                  onClick={() => setShowSchedulingModal(true)}
+                  type="button" onClick={() => setShowSchedulingModal(true)}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
                   style={{ backgroundColor: "#f0f9ff", color: "#0284c7", border: "1px solid #bae6fd" }}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#e0f2fe")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#f0f9ff")}
                 >
-                  <Info className="w-3.5 h-3.5" />
-                  Scheduling Guidelines
+                  <Info className="w-3.5 h-3.5" /> Scheduling Guidelines
                 </button>
               </div>
 
               <div className="mb-5 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
                 <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#0284c7" }} />
                 <div>
-                  <p className="text-xs font-bold" style={{ color: "#0369a1" }}>
-                    Appointments are available Monday – Friday only.
-                  </p>
+                  <p className="text-xs font-bold" style={{ color: "#0369a1" }}>Appointments are available Monday – Friday only.</p>
                   <p className="text-xs mt-0.5" style={{ color: "#0369a1" }}>
                     Weekends, public holidays, and special non-working holidays are not available.
-                    Weekends and holidays are automatically disabled in the date picker.
-                    <button type="button" onClick={() => setShowSchedulingModal(true)} className="underline ml-1 font-semibold" style={{ color: "#0284c7" }}>
-                      Learn more
-                    </button>
+                    <button type="button" onClick={() => setShowSchedulingModal(true)} className="underline ml-1 font-semibold" style={{ color: "#0284c7" }}>Learn more</button>
                   </p>
                 </div>
               </div>
 
               <div className="space-y-6">
+                {/* Date picker */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                    Select Date <span style={{ color: "#ef4444" }}>*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      min={getMinScheduleDate()}
-                      max={getMaxScheduleDate()}
-                      value={formData.schedule_date}
-                      onChange={(e) => handleScheduleDateChange(e.target.value)}
-                      className={editableInputCls}
-                      style={{
-                        ...editableRequiredStyle,
-                        borderBottomColor: errors.schedule_date ? "#ef4444" : "#fed7aa",
-                      }}
-                      onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                      onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#fed7aa")}
-                    />
-                  </div>
+                  <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Select Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Input
+                    type="date" min={getMinScheduleDate()} max={getMaxScheduleDate()}
+                    value={formData.schedule_date}
+                    onChange={(e) => handleScheduleDateChange(e.target.value)}
+                    className={editableInputCls}
+                    style={{ ...editableRequiredStyle, borderBottomColor: errors.schedule_date ? "#ef4444" : "#fed7aa" }}
+                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = errors.schedule_date ? "#ef4444" : "#fed7aa")}
+                  />
                   {errors.schedule_date && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      {errors.schedule_date}
-                    </p>
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{errors.schedule_date}</p>
                   )}
                   {(() => {
                     const today = new Date();
@@ -1407,12 +1222,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                           return (
                             <p className="text-xs mt-1" style={{ color: "#0369a1" }}>
                               💡 Today is a weekend or holiday. Next available date:{" "}
-                              <button
-                                type="button"
-                                className="underline font-semibold"
-                                style={{ color: "#0284c7" }}
-                                onClick={() => handleScheduleDateChange(nextStr)}
-                              >
+                              <button type="button" className="underline font-semibold" style={{ color: "#0284c7" }} onClick={() => handleScheduleDateChange(nextStr)}>
                                 {next.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                               </button>
                             </p>
@@ -1424,22 +1234,12 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                   })()}
                 </div>
 
+                {/* Time slot picker — SlotCard grid (matches Certificate) */}
                 {formData.schedule_date && !errors.schedule_date && (
                   <div>
                     <Label className="text-xs font-semibold uppercase tracking-wider mb-3 block" style={{ color: "#6b7280" }}>
                       Select Time Slot <span style={{ color: "#ef4444" }}>*</span>
                     </Label>
-
-                    {formData.schedule_date === toDateString(new Date()) && (isMorningPastDue || isAfternoonPastDue) && (
-                      <div className="mb-3 p-3 rounded-lg flex items-start gap-2" style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa" }}>
-                        <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ea580c" }} />
-                        <p className="text-xs" style={{ color: "#c2410c" }}>
-                          {isAfternoonPastDue
-                            ? "The barangay office is now closed for today. Please select a different date."
-                            : "The morning slot has passed. Only the afternoon slot is available for today."}
-                        </p>
-                      </div>
-                    )}
 
                     {loadingSlots ? (
                       <div className="flex items-center gap-2 text-gray-500">
@@ -1449,60 +1249,76 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                         </svg>
                         <span className="text-sm">Loading available slots...</span>
                       </div>
-                    ) : availableSlots ? (
-                      <RadioGroup
-                        value={formData.time_group}
-                        onValueChange={(v) => {
-                          setFormData((p) => ({ ...p, time_group: v }));
-                          setErrors((prev) => ({ ...prev, time_group: "" }));
-                        }}
-                        className="space-y-3"
-                      >
-                        {[
-                          { key: "morning", label: "Morning Slot", time: "8:00 AM – 11:50 AM" },
-                          { key: "afternoon", label: "Afternoon Slot", time: "1:00 PM – 5:50 PM" },
-                        ].map(({ key, label, time }) => {
-                          const slot = availableSlots[key as "morning" | "afternoon"];
-                          const timeDisabled =
-                            key === "morning" ? isMorningPastDue :
-                            key === "afternoon" ? isAfternoonPastDue : false;
-                          const isDisabled = !slot.available || timeDisabled;
-                          const isSelected = formData.time_group === key;
-                          const disabledReason = !slot.available
-                            ? "Fully booked"
-                            : timeDisabled
-                            ? key === "morning" ? "Morning has passed" : "Office closed"
-                            : "";
+                    ) : availableSlots && availableSlots.length > 0 ? (
+                      <div>
+                        {/* Morning */}
+                        {morningSlots.length > 0 && (
+                          <div className="mb-4">
+                            <SlotDivider label="Morning" />
+                            <div className="grid grid-cols-3 gap-2">
+                              {morningSlots.map((slot: any) => (
+                                <SlotCard
+                                  key={slot.id}
+                                  slot={slot}
+                                  selected={formData.time_group === slot.schedule_time}
+                                  onSelect={handleSlotSelect}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                          return (
+                        {/* Afternoon */}
+                        {afternoonSlots.length > 0 && (
+                          <div>
+                            <SlotDivider label="Afternoon" />
+                            <div className="grid grid-cols-3 gap-2">
+                              {afternoonSlots.map((slot: any) => (
+                                <SlotCard
+                                  key={slot.id}
+                                  slot={slot}
+                                  selected={formData.time_group === slot.schedule_time}
+                                  onSelect={handleSlotSelect}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Confirmation bar */}
+                        {formData.time_group && (
+                          <div
+                            className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl"
+                            style={{ backgroundColor: "#E6F1FB", border: "1.5px solid #B5D4F4" }}
+                          >
                             <div
-                              key={key}
-                              className="flex items-center space-x-3 p-4 rounded-lg border-2 transition-all"
                               style={{
-                                borderColor: isSelected ? "#0f2a5e" : isDisabled ? "#e5e7eb" : "#fed7aa",
-                                backgroundColor: isSelected ? "rgba(15,42,94,0.05)" : isDisabled ? "#f9fafb" : "#fff7ed",
-                                cursor: isDisabled ? "not-allowed" : "pointer",
-                                opacity: isDisabled ? 0.5 : 1,
+                                width: 34, height: 34, borderRadius: "50%",
+                                backgroundColor: "#185FA5",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                flexShrink: 0,
                               }}
                             >
-                              <RadioGroupItem value={key} id={`slot-${key}`} disabled={isDisabled} />
-                              <label htmlFor={`slot-${key}`} className="flex-1" style={{ cursor: isDisabled ? "not-allowed" : "pointer" }}>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Clock className="w-5 h-5" style={{ color: "#0f2a5e" }} />
-                                  <span className="font-semibold text-sm" style={{ color: "#0f2a5e" }}>{label} ({time})</span>
-                                  {isDisabled && disabledReason && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "10px", fontWeight: 600 }}>
-                                      {disabledReason}
-                                    </span>
-                                  )}
-                                </div>
-                              </label>
+                              <Clock style={{ width: 16, height: 16, color: "#E6F1FB" }} />
                             </div>
-                          );
-                        })}
-                      </RadioGroup>
+                            <div>
+                              <p className="text-sm font-semibold" style={{ color: "#0C447C" }}>
+                                {formatTime(formData.time_group)} — confirmed
+                              </p>
+                              <p className="text-xs" style={{ color: "#185FA5" }}>
+                                {selectedSlot?.max_slots ?? 0} slot{(selectedSlot?.max_slots ?? 0) !== 1 ? "s" : ""} remaining on this date
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
+                      </div>
+                    ) : availableSlots && availableSlots.length === 0 ? (
+                      <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+                        No available slots for this date. Please select a different date.
+                      </div>
                     ) : null}
-                    {errors.time_group && <p className="mt-2 text-xs text-red-500">{errors.time_group}</p>}
                   </div>
                 )}
               </div>
@@ -1511,8 +1327,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
             {/* Form Actions */}
             <div className="flex flex-wrap items-center justify-end gap-4 pt-6" style={{ borderTop: "1px solid #e5e7eb" }}>
               <button
-                type="button"
-                onClick={handleBack}
+                type="button" onClick={handleBack}
                 className="px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
                 style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8")}
@@ -1521,8 +1336,7 @@ const BarangayClearanceForm = ({ onBack }: BarangayClearanceFormProps = {}) => {
                 Back
               </button>
               <button
-                type="submit"
-                disabled={isSubmitting}
+                type="submit" disabled={isSubmitting}
                 className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
                 style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}
                 onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}

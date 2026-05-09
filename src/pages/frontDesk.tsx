@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import QRCodeLib from "qrcode";
 
 // Auto-reset the success screen back to the kiosk welcome page after this idle
-// window. Spec: "Wait for approximately 20 seconds."
-const SUCCESS_AUTO_RESET_MS = 20000;
+// window. Spec: "Wait for approximately 15 seconds."
+const SUCCESS_AUTO_RESET_MS = 15000;
 // Route that renders the SearchResident landing page (Yes/No prompt). The
 // kiosk navigates back here after a successful submission so the next
 // resident lands on the proper start-of-flow.

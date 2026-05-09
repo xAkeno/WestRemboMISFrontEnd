@@ -60,6 +60,7 @@ const menuSections = [
       { title: "Services", path: "/serviceCms", icon: NotebookTabs, permission: "settings" },
       { title: "Streets", path: "/street-cms", icon: NotebookTabs, permission: "settings" },
       { title: "Elected Officials", path: "/elected-officials", icon: Contact, permission: "settings" },
+      { title: "Schedule Slots", path: "/schedule-slots", icon: CalendarCog, permission: "settings" },
     ],
   },
   {

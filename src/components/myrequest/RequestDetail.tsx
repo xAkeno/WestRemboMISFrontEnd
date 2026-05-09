@@ -334,8 +334,10 @@ function ScheduleCard({ schedule }: { schedule: ScheduleData }) {
 
   const friendlyTime = (() => {
     try {
-      const hour = parseInt(timeStr.split(":")[0], 10);
-      return hour >= 7 && hour < 12 ? "Morning" : "Afternoon";
+      const [h, m] = timeStr.split(":").map(Number);
+      const period = h >= 12 ? "PM" : "AM";
+      const hour   = h % 12 || 12;
+      return `${hour}:${String(m).padStart(2, "0")} ${period}`;
     } catch { return timeStr; }
   })();
 
@@ -1029,8 +1031,10 @@ function ScheduledVisitCard({
 
   const timeLabel = (() => {
     try {
-      const hour = parseInt(schedule.schedule_time.split(":")[0], 10);
-      return hour >= 7 && hour < 12 ? "Morning" : "Afternoon";
+      const [h, m] = schedule.schedule_time.split(":").map(Number);
+      const period = h >= 12 ? "PM" : "AM";
+      const hour   = h % 12 || 12;
+      return `${hour}:${String(m).padStart(2, "0")} ${period}`;
     } catch { return schedule.schedule_time; }
   })();
 
@@ -1623,8 +1627,8 @@ export default function RequestDetail() {
                 <div>
                   <p className="text-[10px] text-gray-400">Submitted on</p>
                   <p className="text-sm font-bold" style={{ color: NAVY }}>
-                    {format(new Date(request.created_at), "MMM d, yyyy")} &bull;{" "}
-                    {format(new Date(request.created_at), "hh:mm aa")}
+                    {format(new Date(request.created_at), "MMM d, yyyy")} 
+                    {/* {format(new Date(request.created_at), "hh:mm aa")} */}
                   </p>
                 </div>
               </div>
