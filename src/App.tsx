@@ -76,6 +76,7 @@ import ResidentRegistrationForm from "./pages/forms/ResidentRegistrationForm";
 import StreetCms from "./pages/admin/StreetCms";
 import AdminDocumentVerifier from "./pages/AdminDocumentVerifier";
 import CitizensCharter from "./components/CitizensCharter";
+import ScheduleSlotsAdmin from "./pages/admin/ScheduleSlotAdmin";
 const App = () => { 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const { showMaintenance, message } = useMaintenance(user);
@@ -102,6 +103,7 @@ const App = () => {
 
               <Routes>
                 <Route path="/citizens-charter" element={<CitizensCharter />} />
+                <Route path="/schedule-slots" element={<ScheduleSlotsAdmin />} />
                 <Route path="/AdminDocumentVerifier" element={<AdminDocumentVerifier />} />
                 <Route path="/login" element={<Login />} /> {/*Login*/}
                 <Route path="/calendar" element={<Calendar />} />
