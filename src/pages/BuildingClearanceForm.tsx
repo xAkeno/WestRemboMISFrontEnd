@@ -27,7 +27,7 @@ import { set } from "date-fns";
 import { BarangayBusinessFindModal } from "@/components/BarangayBusinessFindModal";
 import { BarangayBuildingFindModal } from "@/components/BarangayBuildingFindModal";
 import { useLocation } from "react-router-dom";
-
+import { constructionPurposes } from "@/components/purpose/purpose";
 interface BuildingClearanceFormData {
   id: number,
   bcert_number: string;

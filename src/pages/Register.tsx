@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Upload, Eye, EyeOff, Check, X, AlertTriangle, ChevronRight,
-  Loader2, Scan, CreditCard, FileText, RefreshCw, ChevronDown,
+  Loader2, Scan, FileText, RefreshCw, ChevronDown, Shield,
 } from "lucide-react";
 import axios from "axios";
 import ReCAPTCHA from "react-google-recaptcha";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 type OcrResult = {
   firstName?: string;
   middleName?: string;
@@ -38,10 +38,10 @@ type IdType = {
   label: string;
   hasBack: boolean;
   icon: string;
+  isDependent?: boolean;
 };
 
-// ─── NEW VALIDATOR ────────────────────────────────────────────────────────────
-
+// ─── OCR Normalizer ───────────────────────────────────────────────────────────
 function normalizeOcr(text: string): string {
   return text
     .toLowerCase()
@@ -95,21 +95,16 @@ function isSchoolId(text: string): boolean {
 
 function isPWDId(text: string): boolean {
   let score = 0;
-
   if (
     text.includes("pwd") ||
     text.includes("person with disability") ||
     text.includes("persons with disability") ||
-    text.includes("persons with disabilites") || // OCR typo handled
-    text.includes("disabilit")                   // partial match
-  ) {
-    score++;
-  }
-
+    text.includes("persons with disabilites") ||
+    text.includes("disabilit")
+  ) score++;
   if (text.includes("affairs office")) score++;
   if (text.includes("type of disability")) score++;
   if (text.includes("identification number") && text.includes("disabilit")) score++;
-
   return score >= 2;
 }
 
@@ -139,10 +134,7 @@ type OcrValidationResult = {
   errors: string[];
 };
 
-function validateOcrResult(
-  rawText: string,
-  selectedId: IdTypeValue
-): OcrValidationResult {
+function validateOcrResult(rawText: string, selectedId: IdTypeValue): OcrValidationResult {
   const errors: string[] = [];
   const text = normalizeOcr(rawText);
 
@@ -170,84 +162,74 @@ function validateOcrResult(
 
   if (!selectedMatches) {
     const hint = detected ? ` The uploaded image appears to be a ${ID_LABELS[detected]}.` : "";
-    errors.push(
-      `The uploaded ID does not match the selected ID type (${ID_LABELS[selectedId]}).${hint}`
-    );
+    errors.push(`The uploaded ID does not match the selected ID type (${ID_LABELS[selectedId]}).${hint}`);
   }
 
-  return {
-    isValid: errors.length === 0,
-    detectedIdType: detected,
-    isPWD,
-    errors,
-  };
+  return { isValid: errors.length === 0, detectedIdType: detected, isPWD, errors };
 }
 
-// ─── West Rembo Address Validator ────────────────────────────────────────────
-
+// ─── West Rembo Address Validator ─────────────────────────────────────────────
 type WestRemboStreet = { name: string; formerly: string | null };
 
-// Seeded from barangay DB — kept in sync with the streets API
 const WEST_REMBO_STREETS: WestRemboStreet[] = [
-  { name: "A. Bonifacio Street",                    formerly: null           },
-  { name: "A. Luna Street",                         formerly: null           },
-  { name: "A. Mabini Street",                       formerly: "21st street"  },
-  { name: "Agulan Street corner Baden Powell",       formerly: null           },
-  { name: "Agulan Street corner T. Alonzo",          formerly: null           },
-  { name: "Avocado Street",                          formerly: null           },
-  { name: "B. Serrano Street",                      formerly: "25th street"  },
-  { name: "Balagtas Street",                        formerly: "3rd street"   },
-  { name: "Banez Street",                           formerly: null           },
-  { name: "Bayabas Street",                         formerly: null           },
-  { name: "Block 4",                                formerly: null           },
-  { name: "Block 5",                                formerly: null           },
-  { name: "Block 6",                                formerly: null           },
-  { name: "Block 7",                                formerly: null           },
-  { name: "Block 8",                                formerly: null           },
-  { name: "Caimito Street",                         formerly: null           },
-  { name: "Crisolo Street",                         formerly: null           },
-  { name: "Dagohoy Street",                         formerly: "7th street"   },
-  { name: "Dalandan Street",                        formerly: null           },
-  { name: "E. Aguinaldo Street",                    formerly: "1st street"   },
-  { name: "E. Jacinto Street",                      formerly: "13th street"  },
-  { name: "G.L. Jaena Street",                      formerly: "17th street"  },
-  { name: "Gen. Arellano Street",                   formerly: null           },
-  { name: "Hidalgo Street",                         formerly: null           },
-  { name: "Ilustrado Street",                       formerly: "9th street"   },
-  { name: "J. Rizal Street",                        formerly: null           },
-  { name: "Katipunan Street",                       formerly: "5th street"   },
-  { name: "Lapu-Lapu Street",                       formerly: null           },
-  { name: "Lanzones Street",                        formerly: null           },
-  { name: "Limahong Street",                        formerly: null           },
-  { name: "Mactan Street",                          formerly: null           },
-  { name: "Maharlika Street",                       formerly: null           },
-  { name: "Makiling Street",                        formerly: null           },
-  { name: "Mango Street",                           formerly: null           },
-  { name: "Masagana Street",                        formerly: null           },
-  { name: "Masikap Street",                         formerly: null           },
-  { name: "N. Domingo Street",                      formerly: null           },
-  { name: "Atis Street",                            formerly: null           },
-  { name: "P. Guevarra Street",                     formerly: null           },
-  { name: "P. Paterno Street",                      formerly: "15th street"  },
-  { name: "Pakwan Street",                          formerly: null           },
-  { name: "Pili Street",                            formerly: null           },
-  { name: "Pinatubo Street",                        formerly: null           },
-  { name: "R. Magsaysay Street",                    formerly: null           },
-  { name: "R. Papa Street",                         formerly: "11th street"  },
-  { name: "Rambutan Street",                        formerly: null           },
-  { name: "S. Aquino Street",                       formerly: null           },
-  { name: "Sampalok Street",                        formerly: null           },
-  { name: "Santol Street",                          formerly: null           },
-  { name: "Sineguelas Street",                      formerly: null           },
-  { name: "Tamarind Street",                        formerly: null           },
-  { name: "Tirad Pass Street",                      formerly: "19th street"  },
-  { name: "Zapote Street",                          formerly: null           },
+  { name: "A. Bonifacio Street",              formerly: null          },
+  { name: "A. Luna Street",                   formerly: null          },
+  { name: "A. Mabini Street",                 formerly: "21st street" },
+  { name: "Agulan Street corner Baden Powell", formerly: null         },
+  { name: "Agulan Street corner T. Alonzo",   formerly: null          },
+  { name: "Avocado Street",                   formerly: null          },
+  { name: "B. Serrano Street",                formerly: "25th street" },
+  { name: "Balagtas Street",                  formerly: "3rd street"  },
+  { name: "Banez Street",                     formerly: null          },
+  { name: "Bayabas Street",                   formerly: null          },
+  { name: "Block 4",                          formerly: null          },
+  { name: "Block 5",                          formerly: null          },
+  { name: "Block 6",                          formerly: null          },
+  { name: "Block 7",                          formerly: null          },
+  { name: "Block 8",                          formerly: null          },
+  { name: "Caimito Street",                   formerly: null          },
+  { name: "Crisolo Street",                   formerly: null          },
+  { name: "Dagohoy Street",                   formerly: "7th street"  },
+  { name: "Dalandan Street",                  formerly: null          },
+  { name: "E. Aguinaldo Street",              formerly: "1st street"  },
+  { name: "E. Jacinto Street",                formerly: "13th street" },
+  { name: "G.L. Jaena Street",                formerly: "17th street" },
+  { name: "Gen. Arellano Street",             formerly: null          },
+  { name: "Hidalgo Street",                   formerly: null          },
+  { name: "Ilustrado Street",                 formerly: "9th street"  },
+  { name: "J. Rizal Street",                  formerly: null          },
+  { name: "Katipunan Street",                 formerly: "5th street"  },
+  { name: "Lapu-Lapu Street",                 formerly: null          },
+  { name: "Lanzones Street",                  formerly: null          },
+  { name: "Limahong Street",                  formerly: null          },
+  { name: "Mactan Street",                    formerly: null          },
+  { name: "Maharlika Street",                 formerly: null          },
+  { name: "Makiling Street",                  formerly: null          },
+  { name: "Mango Street",                     formerly: null          },
+  { name: "Masagana Street",                  formerly: null          },
+  { name: "Masikap Street",                   formerly: null          },
+  { name: "N. Domingo Street",                formerly: null          },
+  { name: "Atis Street",                      formerly: null          },
+  { name: "P. Guevarra Street",               formerly: null          },
+  { name: "P. Paterno Street",                formerly: "15th street" },
+  { name: "Pakwan Street",                    formerly: null          },
+  { name: "Pili Street",                      formerly: null          },
+  { name: "Pinatubo Street",                  formerly: null          },
+  { name: "R. Magsaysay Street",              formerly: null          },
+  { name: "R. Papa Street",                   formerly: "11th street" },
+  { name: "Rambutan Street",                  formerly: null          },
+  { name: "S. Aquino Street",                 formerly: null          },
+  { name: "Sampalok Street",                  formerly: null          },
+  { name: "Santol Street",                    formerly: null          },
+  { name: "Sineguelas Street",                formerly: null          },
+  { name: "Tamarind Street",                  formerly: null          },
+  { name: "Tirad Pass Street",                formerly: "19th street" },
+  { name: "Zapote Street",                    formerly: null          },
 ];
 
-/** Strip road-type suffixes and noise so we compare only the core name token. */
 function simplifyStreet(name: string): string {
   return normalizeOcr(name)
-    .replace(/\b(street|st|avenue|ave|road|rd|corner|cor)\b/g, "")
+    .replace(/\b(street|st|avenue|ave|road|rd|corner|cor|extension|ext|blvd)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -259,16 +241,12 @@ type AddressValidationResult = {
   errors: string[];
 };
 
-function validateAddress(
-  ocrText: string,
-  liveStreets?: WestRemboStreet[]          // optional: pass API streets to override defaults
-): AddressValidationResult {
+function validateAddress(ocrText: string, liveStreets?: WestRemboStreet[]): AddressValidationResult {
   const text = normalizeOcr(ocrText);
 
-  // 1. West Rembo check
   const isFromWestRembo =
     text.includes("west rembo") ||
-    text.includes("westrembo")  ||
+    text.includes("westrembo") ||
     text.includes("w rembo");
 
   if (!isFromWestRembo) {
@@ -280,26 +258,15 @@ function validateAddress(
     };
   }
 
-  // 2. Street match — prefer live API streets, fallback to static list
-  const streetList = (liveStreets && liveStreets.length > 0) ? liveStreets : WEST_REMBO_STREETS;
+  const streetList = liveStreets && liveStreets.length > 0 ? liveStreets : WEST_REMBO_STREETS;
   let matchedStreet: string | null = null;
 
   for (const street of streetList) {
     const core = simplifyStreet(street.name);
-
-    // Skip very short tokens (e.g. "block 4") only need exact block match
-    if (core.length >= 3 && text.includes(core)) {
-      matchedStreet = street.name;
-      break;
-    }
-
-    // Formerly / old name
+    if (core.length >= 3 && text.includes(core)) { matchedStreet = street.name; break; }
     if (street.formerly) {
       const oldCore = simplifyStreet(street.formerly);
-      if (oldCore.length >= 3 && text.includes(oldCore)) {
-        matchedStreet = street.name;
-        break;
-      }
+      if (oldCore.length >= 3 && text.includes(oldCore)) { matchedStreet = street.name; break; }
     }
   }
 
@@ -312,29 +279,24 @@ function validateAddress(
     };
   }
 
-  return {
-    isValid: true,
-    isFromWestRembo: true,
-    matchedStreet,
-    errors: [],
-  };
+  return { isValid: true, isFromWestRembo: true, matchedStreet, errors: [] };
 }
 
 // ─── ID Types Config ──────────────────────────────────────────────────────────
 const ALL_ID_TYPES: IdType[] = [
-  { value: "national_id",     label: "National ID (PhilSys)", hasBack: true,  icon: "🪪"  },
-  { value: "sss",             label: "SSS",                   hasBack: true,  icon: "🏛️" },
-  { value: "philhealth",      label: "PhilHealth",            hasBack: false, icon: "🏥" },
-  { value: "school_id",       label: "School ID",             hasBack: true,  icon: "🎓" },
-  { value: "drivers_license", label: "Driver's License",      hasBack: true,  icon: "🚗" },
-  { value: "pwd_id",          label: "PWD ID",                hasBack: true,  icon: "♿" },
+  { value: "national_id",     label: "National ID (PhilSys)", hasBack: true,  icon: "🪪", isDependent: false },
+  { value: "sss",             label: "SSS",                   hasBack: true,  icon: "🏛️", isDependent: false },
+  { value: "philhealth",      label: "PhilHealth",            hasBack: false, icon: "🏥", isDependent: false },
+  { value: "school_id",       label: "School ID (Dependent)", hasBack: true,  icon: "🎓", isDependent: true  },
+  { value: "drivers_license", label: "Driver's License",      hasBack: true,  icon: "🚗", isDependent: false },
+  { value: "pwd_id",          label: "PWD ID",                hasBack: true,  icon: "♿", isDependent: false },
 ];
 
 // ─── OCR API Config ───────────────────────────────────────────────────────────
 const OCR_ENDPOINT     = "https://api.ocr.space/parse/image";
 const OCR_API_KEY      = "K81879032088957";
 const MAX_FILE_SIZE_MB = 5;
-const ACCEPTED_TYPES   = ["image/jpeg","image/jpg","image/png","image/webp","image/heic","image/heif"];
+const ACCEPTED_TYPES   = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
 const ACCEPTED_ATTR    = ACCEPTED_TYPES.join(",");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -344,7 +306,6 @@ const toDateString = (date: Date): string => {
   const dd   = String(date.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 };
-const getTodayString            = () => toDateString(new Date());
 const getDefaultAdultDateString = () => { const y = new Date().getFullYear() - 18; return `${y}-01-01`; };
 const validateFile = (file: File): string | null => {
   if (!ACCEPTED_TYPES.includes(file.type)) return "Only JPG, PNG, WEBP, HEIC images are accepted.";
@@ -352,122 +313,68 @@ const validateFile = (file: File): string | null => {
   return null;
 };
 
-const MONTHS: Record<string,string> = {
-  january:"01",february:"02",march:"03",april:"04",may:"05",june:"06",
-  july:"07",august:"08",september:"09",october:"10",november:"11",december:"12",
-  jan:"01",feb:"02",mar:"03",apr:"04",jun:"06",jul:"07",aug:"08",
-  sep:"09",oct:"10",nov:"11",dec:"12",
+const MONTHS: Record<string, string> = {
+  january:"01", february:"02", march:"03", april:"04", may:"05", june:"06",
+  july:"07", august:"08", september:"09", october:"10", november:"11", december:"12",
+  jan:"01", feb:"02", mar:"03", apr:"04", jun:"06", jul:"07", aug:"08",
+  sep:"09", oct:"10", nov:"11", dec:"12",
 };
+
 const normDate = (s?: string): string | undefined => {
   if (!s) return undefined;
   s = s.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,"0")}-${dmy[1].padStart(2,"0")}`;
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
   const ymd = s.match(/^(\d{4})[\/\-\.](\d{2})[\/\-\.](\d{2})$/);
   if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
   const mdy = s.match(/^([a-zA-Z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-  if (mdy) { const m = MONTHS[mdy[1].toLowerCase()]; if (m) return `${mdy[3]}-${m}-${mdy[2].padStart(2,"0")}`; }
+  if (mdy) { const m = MONTHS[mdy[1].toLowerCase()]; if (m) return `${mdy[3]}-${m}-${mdy[2].padStart(2, "0")}`; }
   const dmy2 = s.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})$/);
-  if (dmy2) { const m = MONTHS[dmy2[2].toLowerCase()]; if (m) return `${dmy2[3]}-${m}-${dmy2[1].padStart(2,"0")}`; }
+  if (dmy2) { const m = MONTHS[dmy2[2].toLowerCase()]; if (m) return `${dmy2[3]}-${m}-${dmy2[1].padStart(2, "0")}`; }
   return undefined;
 };
 
 // ─── PWD Name Extractor ───────────────────────────────────────────────────────
-/**
- * Smart name extraction for PWD IDs.
- *
- * PWD IDs do NOT use labels like "First Name / Given Name".
- * The name can appear:
- *   1. ABOVE the word "NAME" (e.g. "MIGUEL CARLO TAPALLA\nNAME")
- *   2. BELOW "NAME:" (e.g. "NAME:\nMauro B. Cruz")
- *   3. As a standalone ALL-CAPS line with no label at all
- */
-function extractNameFromPWD(lines: string[]): {
-  firstName?: string;
-  middleName?: string;
-  lastName?: string;
-} {
+function extractNameFromPWD(lines: string[]): { firstName?: string; middleName?: string; lastName?: string } {
   let fullName: string | null = null;
 
-  // ── Strategy 1: label-based (NAME above or below) ──
   for (let i = 0; i < lines.length; i++) {
     const lineLower = lines[i].toLowerCase().trim();
-
     if (lineLower.includes("name")) {
       const prev = lines[i - 1]?.trim() ?? "";
       const next = lines[i + 1]?.trim() ?? "";
-
-      // Case A: name is the line ABOVE the "NAME" label
-      // e.g. "MIGUEL CARLO TAPALLA\nNAME"
-      if (
-        prev &&
-        /^[A-Za-z\s\.]+$/.test(prev) &&
-        prev.split(" ").filter(Boolean).length >= 2 &&
-        prev.length > 5 &&
-        prev.length < 60
-      ) {
-        fullName = prev;
-        break;
+      if (prev && /^[A-Za-z\s\.]+$/.test(prev) && prev.split(" ").filter(Boolean).length >= 2 && prev.length > 5 && prev.length < 60) {
+        fullName = prev; break;
       }
-
-      // Case B: name is the line BELOW the "NAME:" label
-      // e.g. "NAME:\nMauro B. Cruz"
-      if (
-        next &&
-        /^[A-Za-z\s\.]+$/.test(next) &&
-        next.split(" ").filter(Boolean).length >= 2 &&
-        next.length > 5 &&
-        next.length < 60
-      ) {
-        fullName = next;
-        break;
+      if (next && /^[A-Za-z\s\.]+$/.test(next) && next.split(" ").filter(Boolean).length >= 2 && next.length > 5 && next.length < 60) {
+        fullName = next; break;
       }
     }
   }
 
-  // ── Strategy 2: standalone ALL-CAPS line fallback ──
   if (!fullName) {
-    const BLACKLIST = [
-      "REPUBLIC","OFFICE","DISABILITY","IDENTIFICATION",
-      "SIGNATURE","PHILIPPINES","DEPARTMENT","AFFAIRS",
-      "BARANGAY","CITY","MUNICIPALITY","PROVINCE",
-      "PERSONS","PERSON","WELFARE",
-    ];
+    const BLACKLIST = ["REPUBLIC","OFFICE","DISABILITY","IDENTIFICATION","SIGNATURE","PHILIPPINES","DEPARTMENT","AFFAIRS","BARANGAY","CITY","MUNICIPALITY","PROVINCE","PERSONS","PERSON","WELFARE"];
     for (const line of lines) {
       const clean = line.trim();
-      if (
-        /^[A-Z\s\.]+$/.test(clean) &&           // ALL CAPS (and dots for middle initials)
-        clean.split(" ").filter(Boolean).length >= 2 &&  // at least 2 words
-        clean.length > 5 &&
-        clean.length < 50 &&
-        !BLACKLIST.some((kw) => clean.includes(kw))
-      ) {
-        fullName = clean;
-        break;
+      if (/^[A-Z\s\.]+$/.test(clean) && clean.split(" ").filter(Boolean).length >= 2 && clean.length > 5 && clean.length < 50 && !BLACKLIST.some(kw => clean.includes(kw))) {
+        fullName = clean; break;
       }
     }
   }
 
   if (!fullName) return {};
-
-  // ── Split into first / middle / last ──
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return {};
   if (parts.length === 1) return { firstName: parts[0] };
-
-  const firstName  = parts[0];
-  const lastName   = parts[parts.length - 1];
-  const middleName = parts.length > 2 ? parts.slice(1, parts.length - 1).join(" ") : undefined;
-
-  return { firstName, middleName, lastName };
+  return {
+    firstName:  parts[0],
+    lastName:   parts[parts.length - 1],
+    middleName: parts.length > 2 ? parts.slice(1, parts.length - 1).join(" ") : undefined,
+  };
 }
 
 // ─── OCR Response Parser ──────────────────────────────────────────────────────
-/**
- * Accepts a raw OCR API response object.
- * The `raw.text` field may be the MERGED front+back text (see handleScan).
- */
 const parseOcrResponse = (raw: any): OcrResult => {
   if (!raw) return {};
   const d = raw?.data ?? raw?.result ?? raw;
@@ -477,22 +384,19 @@ const parseOcrResponse = (raw: any): OcrResult => {
   const lines    = rawText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
   const fullText = lines.join(" ");
 
-  // ── Date of Birth ──
   let dateOfBirth: string | undefined;
-  const dobMatch = fullText.match(
-    /\b(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+(\d{1,2}),?\s+(\d{4})\b/i
-  );
+  const dobMatch = fullText.match(/\b(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+(\d{1,2}),?\s+(\d{4})\b/i);
   if (dobMatch) dateOfBirth = normDate(`${dobMatch[1]} ${dobMatch[2]}, ${dobMatch[3]}`);
   if (!dateOfBirth) {
     for (const line of lines) {
       const partial = line.match(/([A-Z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
       if (partial) {
-        const suffixes: Record<string,string> = {
+        const suffixes: Record<string, string> = {
           tember:"September",ber:"October",vember:"November",cember:"December",
           nuary:"January",bruary:"February",ruary:"February",arch:"March",
           ril:"April",ne:"June",ly:"July",gust:"August",
         };
-        const frag = partial[1].toLowerCase();
+        const frag     = partial[1].toLowerCase();
         const resolved = Object.entries(suffixes).find(([k]) => frag.endsWith(k));
         if (resolved) { dateOfBirth = normDate(`${resolved[1]} ${partial[2]}, ${partial[3]}`); if (dateOfBirth) break; }
       }
@@ -501,37 +405,24 @@ const parseOcrResponse = (raw: any): OcrResult => {
     }
   }
 
-  // ── Address ──
   const addressKeywords = /\b(ST\.|STREET|AVE\.|AVENUE|ROAD|BLVD|BARANGAY|BRGY|VILLAGE|SUBD|SUBDIVISION|WEST REMBO|EAST REMBO|TAGUIG|MANILA|QUEZON|MAKATI|PASIG|CALOOCAN|MARIKINA|PARANAQUE|MUNTINLUPA|VALENZUELA|MALABON|NAVOTAS|PASAY|PATEROS|SAN JUAN|LAS PINAS)\b/i;
   let address: string | undefined;
   for (const line of lines) {
     if (addressKeywords.test(line) && line.length > 10) { address = line.replace(/[,;]+$/, "").trim(); break; }
   }
   if (!address) {
-    const cityPattern = /\b(CITY|METRO MANILA|PHILIPPINES)\b/i;
     for (const line of lines) {
-      if (cityPattern.test(line) && line.length > 10) { address = line.replace(/[,;]+$/, "").trim(); break; }
+      if (/\b(CITY|METRO MANILA|PHILIPPINES)\b/i.test(line) && line.length > 10) { address = line.replace(/[,;]+$/, "").trim(); break; }
     }
   }
 
-  // ── Detect ID type from the combined text ──
   const detectedType = detectIdType(normalizeOcr(rawText));
-
-  // ── Name extraction ──
-  let firstName:  string | undefined;
-  let middleName: string | undefined;
-  let lastName:   string | undefined;
+  let firstName: string | undefined, middleName: string | undefined, lastName: string | undefined;
 
   if (detectedType === "pwd_id") {
-    // 🔥 PWD IDs use free-text layout — use smart extractor
-    const nameParts = extractNameFromPWD(lines);
-    firstName  = nameParts.firstName;
-    middleName = nameParts.middleName;
-    lastName   = nameParts.lastName;
+    const n = extractNameFromPWD(lines);
+    firstName = n.firstName; middleName = n.middleName; lastName = n.lastName;
   } else {
-    // ── Standard label-based extraction for other IDs ──
-
-    // Last Name
     for (let i = 0; i < lines.length; i++) {
       if (/apelyido|last\s*name|surname/i.test(lines[i])) {
         const next = lines[i + 1];
@@ -544,16 +435,12 @@ const parseOcrResponse = (raw: any): OcrResult => {
         if (m) { lastName = m[1].trim(); break; }
       }
     }
-
-    // Middle Name
     for (let i = 0; i < lines.length; i++) {
       if (/gitnang|middle\s*name/i.test(lines[i])) {
         const next = lines[i + 1];
         if (next && /^[A-Z\s\-]+$/.test(next) && next.length > 1 && next.length < 40) { middleName = next.trim(); break; }
       }
     }
-
-    // First Name
     for (let i = 0; i < lines.length; i++) {
       if (/pangalan|first\s*name|given\s*name/i.test(lines[i])) {
         const next = lines[i + 1];
@@ -562,7 +449,6 @@ const parseOcrResponse = (raw: any): OcrResult => {
     }
   }
 
-  // ── ID Number ──
   let idNumber: string | undefined;
   const idMatch = fullText.match(/\b(\d{4}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4})\b/);
   if (idMatch) idNumber = idMatch[1].replace(/\s/g, "-");
@@ -575,7 +461,7 @@ type OcrStepProps = {
   onComplete: (result: OcrResult, front: File, back: File | null) => void;
   onSkip: () => void;
   onSelectIdType: (v: string) => void;
-  liveStreets?: WestRemboStreet[];  // live API streets passed down for address validation
+  liveStreets?: WestRemboStreet[];
 };
 
 const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepProps) => {
@@ -584,13 +470,13 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
   const [backFile,     setBackFile]     = useState<File | null>(null);
   const [frontError,   setFrontError]   = useState<string | null>(null);
   const [backError,    setBackError]    = useState<string | null>(null);
-  const [ocrState,     setOcrState]     = useState<"idle"|"scanning"|"done"|"error">("idle");
+  const [ocrState,     setOcrState]     = useState<"idle" | "scanning" | "done" | "error">("idle");
   const [ocrError,     setOcrError]     = useState<string | null>(null);
-  const [ocrErrorType, setOcrErrorType] = useState<"id"|"address"|"general"|null>(null);
-  const [phase,        setPhase]        = useState<"select"|"requirements"|"upload">("select");
+  const [ocrErrorType, setOcrErrorType] = useState<"id" | "address" | "general" | null>(null);
+  const [phase,        setPhase]        = useState<"select" | "requirements" | "upload">("select");
   const { toast } = useToast();
 
-  const handleFileChange = (side: "front"|"back", file: File | null) => {
+  const handleFileChange = (side: "front" | "back", file: File | null) => {
     if (!file) { side === "front" ? setFrontFile(null) : setBackFile(null); return; }
     const err = validateFile(file);
     if (err) { side === "front" ? setFrontError(err) : setBackError(err); return; }
@@ -624,19 +510,13 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
     setOcrErrorType(null);
 
     try {
-      // ── Scan front ──
       const frontRaw  = await sendToOcr(frontFile);
-      const frontText: string = frontRaw?.text ?? "";
+      const frontText = frontRaw?.text ?? "";
 
-      // ── Scan back (if provided) — always OCR it when present ──
       let backRaw:  any    = null;
       let backText: string = "";
-      if (backFile) {
-        backRaw  = await sendToOcr(backFile);
-        backText = backRaw?.text ?? "";
-      }
+      if (backFile) { backRaw = await sendToOcr(backFile); backText = backRaw?.text ?? ""; }
 
-      // ── Step 1: ID type validation (front only) ──
       const idValidation = validateOcrResult(frontText, selectedType.value);
       if (!idValidation.isValid) {
         setOcrState("error");
@@ -646,52 +526,41 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         return;
       }
 
-      // ── Step 2: Address validation — try front first, fall back to back ──
-      let addrValidation = validateAddress(frontText, liveStreets);
+      // School IDs show the school's address, not the student's home — skip address validation
+      if (!selectedType.isDependent) {
+        let addrValidation = validateAddress(frontText, liveStreets);
 
-      if (!addrValidation.isValid && backFile && backText) {
-        const backAddr = validateAddress(backText, liveStreets);
-
-        if (!backAddr.isValid) {
-          // Neither side has a valid address
+        if (!addrValidation.isValid && backFile && backText) {
+          const backAddr = validateAddress(backText, liveStreets);
+          if (!backAddr.isValid) {
+            setOcrState("error");
+            setOcrErrorType("address");
+            const finalError = backAddr.isFromWestRembo
+              ? backAddr.errors[0]
+              : addrValidation.isFromWestRembo
+                ? addrValidation.errors[0]
+                : "The uploaded ID does not show a West Rembo address on either side.";
+            setOcrError(finalError);
+            toast({ title: "Address Not Found", description: finalError, variant: "destructive" });
+            return;
+          }
+          addrValidation = backAddr;
+        } else if (!addrValidation.isValid && !backFile) {
           setOcrState("error");
           setOcrErrorType("address");
-          const finalError = backAddr.isFromWestRembo
-            ? backAddr.errors[0]
-            : addrValidation.isFromWestRembo
-              ? addrValidation.errors[0]
-              : "The uploaded ID does not show a West Rembo address on either side.";
-          setOcrError(finalError);
-          toast({ title: "Address Not Found", description: finalError, variant: "destructive" });
+          setOcrError(addrValidation.errors.join(" "));
+          toast({
+            title: addrValidation.isFromWestRembo ? "Street Not Recognised" : "Address Not From West Rembo",
+            description: addrValidation.errors[0],
+            variant: "destructive",
+          });
           return;
         }
-
-        // Back has a valid address — merge and proceed
-        addrValidation = backAddr;
-      } else if (!addrValidation.isValid && !backFile) {
-        // No back file — reject based on front result
-        setOcrState("error");
-        setOcrErrorType("address");
-        setOcrError(addrValidation.errors.join(" "));
-        toast({
-          title: addrValidation.isFromWestRembo ? "Street Not Recognised" : "Address Not From West Rembo",
-          description: addrValidation.errors[0],
-          variant: "destructive",
-        });
-        return;
       }
 
-      // ── 🔥 Merge front + back text before parsing ──
-      // This gives the parser full context from both sides of the ID,
-      // which is especially important for PWD IDs where the name may
-      // appear on the front and the address on the back (or vice versa).
-      const mergedText = backText
-        ? `${frontText}\n${backText}`
-        : frontText;
-
-      const mergedRaw = { text: mergedText };
-      const result    = parseOcrResponse(mergedRaw);
-      result.isPWD    = idValidation.isPWD;
+      const mergedText = backText ? `${frontText}\n${backText}` : frontText;
+      const result     = parseOcrResponse({ text: mergedText });
+      result.isPWD     = idValidation.isPWD;
 
       setOcrState("done");
       onComplete(result, frontFile, backFile);
@@ -714,12 +583,8 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4" style={{ backgroundColor: "#0f2a5e" }}>
             <Scan className="w-6 h-6 text-white" />
           </div>
-          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>
-            Smart ID Scanning
-          </h2>
-          <p className="text-sm" style={{ color: "#6b7280" }}>
-            Select your ID type to automatically fill the registration form via OCR.
-          </p>
+          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>Smart ID Scanning</h2>
+          <p className="text-sm" style={{ color: "#6b7280" }}>Select your ID type to automatically fill the registration form via OCR.</p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
@@ -728,7 +593,7 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
               key={idType.value}
               type="button"
               onClick={() => { setSelectedType(idType); onSelectIdType(idType.value); }}
-              className="flex flex-col items-center gap-2 p-4 transition-all"
+              className="flex flex-col items-center gap-2 p-4 transition-all relative"
               style={{
                 border: `2px solid ${selectedType?.value === idType.value ? "#c2467d" : "#dde3ed"}`,
                 borderRadius: 4,
@@ -736,10 +601,15 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
               }}
             >
               <span style={{ fontSize: 28 }}>{idType.icon}</span>
-              <span className="text-xs font-semibold text-center"
-                style={{ color: selectedType?.value === idType.value ? "#c2467d" : "#374151" }}>
+              <span className="text-xs font-semibold text-center" style={{ color: selectedType?.value === idType.value ? "#c2467d" : "#374151" }}>
                 {idType.label}
               </span>
+              {idType.isDependent && (
+                <span className="absolute top-1 right-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full"
+                  style={{ backgroundColor: "#fbbf24", color: "#78350f" }}>
+                  <Shield className="w-2.5 h-2.5" /> Parental
+                </span>
+              )}
               {selectedType?.value === idType.value && (
                 <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: "#c2467d" }}>
                   <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
@@ -749,18 +619,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
           ))}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* <button type="button" onClick={onSkip}
-            className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all"
-            style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
-            Skip — Fill Manually
-          </button> */}
-          <button type="button" disabled={!selectedType} onClick={() => setPhase("requirements")}
-            className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2"
-            style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
-            Continue <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button type="button" disabled={!selectedType} onClick={() => setPhase("requirements")}
+          className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2"
+          style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
+          Continue <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
     );
   }
@@ -783,20 +646,29 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
           </div>
         </div>
 
+        {selectedType?.isDependent && (
+          <div className="flex items-start gap-3 mb-5 p-3"
+            style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+            <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+            <div>
+              <p className="text-xs font-semibold" style={{ color: "#92400e" }}>Parent/Guardian Verification Required</p>
+              <p className="text-xs mt-1" style={{ color: "#78350f" }}>
+                After submitting your school ID, you'll need to upload your parent's or guardian's government-issued ID for verification.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-start gap-3 mb-5 p-3"
           style={{ backgroundColor: "#fff8e1", border: "1px solid #ffd54f", borderRadius: 2 }}>
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-          <p className="text-xs" style={{ color: "#78350f" }}>
-            Please read all requirements carefully before uploading your ID.
-          </p>
+          <p className="text-xs" style={{ color: "#78350f" }}>Please read all requirements carefully before uploading your ID.</p>
         </div>
 
         <ul className="space-y-3 mb-8">
           {[
             "All ID details must be clearly readable — no blur, glare, or cropping",
-            selectedType?.hasBack
-              ? "Submit both the front and back of your ID"
-              : "Only the front is required for this ID type",
+            selectedType?.hasBack ? "Submit both the front and back of your ID" : "Only the front is required for this ID type",
             `Max file size: ${MAX_FILE_SIZE_MB}MB per image (JPG, PNG)`,
             "The ID type you selected must match the ID you upload — mismatches will be rejected",
           ].map((text) => (
@@ -807,18 +679,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
           ))}
         </ul>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* <button type="button" onClick={onSkip}
-            className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider"
-            style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
-            Skip — Fill Manually
-          </button> */}
-          <button type="button" onClick={() => setPhase("upload")}
-            className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
-            style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
-            I Understand — Proceed <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button type="button" onClick={() => setPhase("upload")}
+          className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
+          style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
+          I Understand — Proceed <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
     );
   }
@@ -840,7 +705,6 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         </div>
       </div>
 
-      {/* ID match notice */}
       <div className="flex items-start gap-3 mb-5 p-3"
         style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
         <Scan className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#6366f1" }} />
@@ -850,12 +714,12 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         </p>
       </div>
 
-      {selectedType?.value === "pwd_id" && (
+      {selectedType?.isDependent && (
         <div className="flex items-start gap-3 mb-5 p-3"
-          style={{ backgroundColor: "#fdf5f8", border: "1px solid #c2467d", borderRadius: 2 }}>
-          <span className="text-sm flex-shrink-0">♿</span>
-          <p className="text-xs" style={{ color: "#9b2563" }}>
-            Upload your <strong>PWD ID issued by the NCDA or your local government</strong>. Your PWD status will be detected automatically from the ID scan.
+          style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+          <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+          <p className="text-xs" style={{ color: "#78350f" }}>
+            You're registering as a <strong>dependent student</strong>. You'll submit your school ID now, and then your parent's/guardian's ID next.
           </p>
         </div>
       )}
@@ -877,7 +741,6 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         )}
       </div>
 
-      {/* OCR / validation error */}
       {ocrState === "error" && ocrError && (
         <div className="flex items-start gap-3 mb-4 p-3"
           style={{
@@ -893,36 +756,22 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
             <p className="text-xs font-semibold" style={{ color: ocrErrorType === "address" ? "#92400e" : "#dc2626" }}>
               {ocrErrorType === "address" ? "Address Validation Failed" : "ID Validation Failed"}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: ocrErrorType === "address" ? "#78350f" : "#7f1d1d" }}>
-              {ocrError}
-            </p>
-            <p className="text-xs mt-1.5" style={{ color: "#9ca3af" }}>
-              {ocrErrorType === "address"
-                ? "Only West Rembo residents with a valid street address may register. Please use a different ID that shows your West Rembo address."
-                : "Please upload the correct ID type or go back to change your selection."}
-            </p>
+            <p className="text-xs mt-0.5" style={{ color: ocrErrorType === "address" ? "#78350f" : "#7f1d1d" }}>{ocrError}</p>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* <button type="button" onClick={onSkip}
-          className="flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider"
-          style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#9ca3af" }}>
-          Skip — Fill Manually
-        </button> */}
-        <button type="button" disabled={!canScan || ocrState === "scanning"} onClick={handleScan}
-          className="flex-1 py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
-          style={{ borderRadius: 2, backgroundColor: ocrState === "error" ? "#c2467d" : "#0f2a5e" }}>
-          {ocrState === "scanning" ? (
-            <><Loader2 className="w-3.5 h-3.5 animate-spin" />Scanning ID…</>
-          ) : ocrState === "error" ? (
-            <><RefreshCw className="w-3.5 h-3.5" />Retry Scan</>
-          ) : (
-            <><Scan className="w-3.5 h-3.5" />Scan &amp; Auto-Fill</>
-          )}
-        </button>
-      </div>
+      <button type="button" disabled={!canScan || ocrState === "scanning"} onClick={handleScan}
+        className="w-full py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+        style={{ borderRadius: 2, backgroundColor: ocrState === "error" ? "#c2467d" : "#0f2a5e" }}>
+        {ocrState === "scanning" ? (
+          <><Loader2 className="w-3.5 h-3.5 animate-spin" />Scanning ID…</>
+        ) : ocrState === "error" ? (
+          <><RefreshCw className="w-3.5 h-3.5" />Retry Scan</>
+        ) : (
+          <><Scan className="w-3.5 h-3.5" />Scan &amp; Auto-Fill</>
+        )}
+      </button>
     </div>
   );
 };
@@ -966,8 +815,6 @@ const DropZone = ({ label, file, error, onFileChange, hint }: DropZoneProps) => 
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        onMouseEnter={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = "#c2467d"; }}
-        onMouseLeave={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = error ? "#ef4444" : "#d1d5db"; }}
       >
         {preview ? (
           <img src={preview} alt="ID preview" className="w-full h-full object-cover" style={{ minHeight: 140, maxHeight: 200 }} />
@@ -982,7 +829,7 @@ const DropZone = ({ label, file, error, onFileChange, hint }: DropZoneProps) => 
           <>
             <Upload className="w-5 h-5 mb-1.5" style={{ color: "#9ca3af" }} />
             <span className="text-xs text-center" style={{ color: "#6b7280" }}>
-              <span className="font-semibold" style={{ color: "#0f2a5e" }}>Click to upload</span> or drag & drop
+              <span className="font-semibold" style={{ color: "#0f2a5e" }}>Click to upload</span> or drag &amp; drop
             </span>
             <span className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{hint}</span>
           </>
@@ -1007,9 +854,7 @@ const DropZone = ({ label, file, error, onFileChange, hint }: DropZoneProps) => 
 };
 
 // ─── OCR Preview Banner ───────────────────────────────────────────────────────
-const OcrPreviewBanner = ({
-  result, idType, isPWD, onRescan,
-}: {
+const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
   result: OcrResult; idType: string; isPWD: boolean; onRescan: () => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -1044,7 +889,6 @@ const OcrPreviewBanner = ({
             style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)" }} />
         </div>
       </div>
-
       {expanded && (
         <div className="px-5 py-4">
           {isPWD && (
@@ -1067,9 +911,7 @@ const OcrPreviewBanner = ({
               </div>
             ))}
             {fields.length === 0 && (
-              <p className="text-xs col-span-3" style={{ color: "#9ca3af" }}>
-                No fields were extracted. Please fill the form manually.
-              </p>
+              <p className="text-xs col-span-3" style={{ color: "#9ca3af" }}>No fields were extracted. Please fill the form manually.</p>
             )}
           </div>
         </div>
@@ -1080,14 +922,14 @@ const OcrPreviewBanner = ({
 
 // ─── ID Upload Modal ──────────────────────────────────────────────────────────
 const IDUploadModal = ({
-  open, onClose, onConfirm,
-  idFront, idBack, setIdFront, setIdBack,
+  open, onClose, onConfirm, idFront, idBack, setIdFront, setIdBack, isParentId = false,
 }: {
   open: boolean; onClose: () => void; onConfirm: () => void;
   idFront: File | null; idBack: File | null;
   setIdFront: (f: File | null) => void; setIdBack: (f: File | null) => void;
+  isParentId?: boolean;
 }) => {
-  const [step, setStep] = useState<"requirements"|"upload">("requirements");
+  const [step, setStep] = useState<"requirements" | "upload">("requirements");
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -1098,7 +940,9 @@ const IDUploadModal = ({
         <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Identity Verification</p>
-            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>Government-Issued ID Upload</h2>
+            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>
+              {isParentId ? "Parent/Guardian ID Upload" : "Government-Issued ID Upload"}
+            </h2>
           </div>
           <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full"
             style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}>
@@ -1109,6 +953,15 @@ const IDUploadModal = ({
         <div className="p-6">
           {step === "requirements" ? (
             <>
+              {isParentId && (
+                <div className="flex items-start gap-3 mb-5 p-3"
+                  style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+                  <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+                  <p className="text-xs" style={{ color: "#78350f" }}>
+                    This ID will be used to verify your parent's/guardian's identity and confirm the dependent relationship.
+                  </p>
+                </div>
+              )}
               <div className="flex items-start gap-3 mb-5 p-3"
                 style={{ backgroundColor: "#fff8e1", border: "1px solid #ffd54f", borderRadius: 2 }}>
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
@@ -1116,9 +969,18 @@ const IDUploadModal = ({
               </div>
               <ul className="space-y-2.5 mb-5">
                 {[
-                  "You must be visibly holding the government ID in the photo",
-                  "All ID details must be clearly readable — no blur, glare, or cropping",
-                  "Your face must be fully visible and well-lit",
+                  ...(isParentId
+                    ? [
+                        "This must be the parent's or guardian's government-issued ID",
+                        "Your parent/guardian's face must be fully visible and well-lit",
+                        "All ID details must be clearly readable — no blur, glare, or cropping",
+                      ]
+                    : [
+                        "You must be visibly holding the government ID in the photo",
+                        "All ID details must be clearly readable — no blur, glare, or cropping",
+                        "Your face must be fully visible and well-lit",
+                      ]
+                  ),
                   "Submit both the front and back of your ID",
                 ].map(text => (
                   <li key={text} className="flex items-start gap-2.5">
@@ -1141,8 +1003,8 @@ const IDUploadModal = ({
           ) : (
             <>
               <div className="space-y-4 mb-5">
-                <DropZone label="Front of ID *" file={idFront} error={null} onFileChange={setIdFront} hint="Clear photo of the front side" />
-                <DropZone label="Back of ID *"  file={idBack}  error={null} onFileChange={setIdBack}  hint="Clear photo of the back side" />
+                <DropZone label={`Front of ${isParentId ? "Parent's " : ""}ID *`} file={idFront} error={null} onFileChange={setIdFront} hint="Clear photo of the front side" />
+                <DropZone label={`Back of ${isParentId ? "Parent's " : ""}ID *`}  file={idBack}  error={null} onFileChange={setIdBack}  hint="Clear photo of the back side" />
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setStep("requirements")}
@@ -1180,10 +1042,10 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
         <div style={{ height: 3, backgroundColor: "#c2467d", flexShrink: 0 }} />
         <div className="overflow-y-auto p-6 text-xs space-y-4" style={{ color: "#6b7280", lineHeight: 1.7 }}>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Republic Act No. 10173 — Data Privacy Act of 2012</p>
-          <p>Barangay West Rembo, City of Taguig, is committed to protecting and respecting your privacy. This notice explains how we collect, use, and protect your personal data in compliance with the Data Privacy Act of 2012 (RA 10173).</p>
+          <p>Barangay West Rembo, City of Taguig, is committed to protecting and respecting your privacy.</p>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Purpose of Data Collection</p>
-          <p>The personal information you provide — including your name, address, date of birth, contact details, and government-issued ID — is collected solely for the purpose of resident registration, verification of identity, and delivery of barangay services.</p>
-          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Data Processing & Storage</p>
+          <p>The personal information you provide is collected solely for the purpose of resident registration, verification of identity, and delivery of barangay services.</p>
+          <p className="font-semibold" style={{ color: "#0f2a5e" }}>Data Processing &amp; Storage</p>
           <p>Your data will be stored securely and will only be accessed by authorized barangay personnel. We do not sell, trade, or transfer your personal information to third parties without your consent, except as required by law.</p>
           <p className="font-semibold" style={{ color: "#0f2a5e" }}>Your Rights</p>
           <ul className="space-y-1 list-disc pl-4">
@@ -1193,7 +1055,6 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
             <li>Right to erasure or blocking of unlawfully processed data</li>
             <li>Right to file a complaint with the National Privacy Commission</li>
           </ul>
-          <p>For questions or concerns about your data, please contact the Barangay West Rembo office directly.</p>
           <p className="text-xs" style={{ color: "#9ca3af" }}>By submitting this registration form, you acknowledge that you have read and understood this Data Privacy Notice and consent to the processing of your personal data for the stated purposes.</p>
         </div>
         <div className="p-4 flex-shrink-0" style={{ borderTop: "1px solid #e5e7eb" }}>
@@ -1208,35 +1069,33 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
 
 // ─── Main Register Component ──────────────────────────────────────────────────
 const Register = () => {
-  // ── Flow state (2 steps: ocr → form) ──
-  const [flowStep,       setFlowStep]       = useState<"ocr"|"form">("ocr");
+  const [flowStep,       setFlowStep]       = useState<"ocr" | "form" | "parent_id">("ocr");
   const [ocrResult,      setOcrResult]      = useState<OcrResult | null>(null);
   const [selectedIdType, setSelectedIdType] = useState<string>("");
   const [isPwdUser,      setIsPwdUser]      = useState(false);
 
-  // ── Form state ──
   const [formData, setFormData] = useState({
     firstName: "", middleName: "", surname: "", email: "", phone: "",
     gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "",
     zonePurok: "", password: "", confirmPassword: "",
   });
 
-  // ── ID files ──
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack,  setIdBack]  = useState<File | null>(null);
 
-  // ── UI state ──
-  const [showIDModal,      setShowIDModal]      = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [showPassword,     setShowPassword]     = useState(false);
-  const [showConfirm,      setShowConfirm]      = useState(false);
-  const [isLoading,        setIsLoading]        = useState(false);
-  const [dobError,         setDobError]         = useState<string | null>(null);
-  const [streets,          setStreets]          = useState<any[]>([]);
-  const [zoneOptions,      setZoneOptions]      = useState<string[]>([]);
+  const [parentIdFront, setParentIdFront] = useState<File | null>(null);
+  const [parentIdBack,  setParentIdBack]  = useState<File | null>(null);
 
-  // ── reCAPTCHA ──
-  const recaptchaRef  = useRef<ReCAPTCHA>(null);
+  const [showParentIDModal, setShowParentIDModal] = useState(false);
+  const [showPrivacyModal,  setShowPrivacyModal]  = useState(false);
+  const [showPassword,      setShowPassword]      = useState(false);
+  const [showConfirm,       setShowConfirm]       = useState(false);
+  const [isLoading,         setIsLoading]         = useState(false);
+  const [dobError,          setDobError]          = useState<string | null>(null);
+  const [streets,           setStreets]           = useState<any[]>([]);
+  const [zoneOptions,       setZoneOptions]       = useState<string[]>([]);
+
+  const recaptchaRef   = useRef<ReCAPTCHA>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const navigate = useNavigate();
@@ -1293,22 +1152,21 @@ const Register = () => {
     return a.localeCompare(b);
   });
 
-  const rawZones     = Array.from(new Set(streets.map((s: any) => s.sitio).filter(Boolean)));
-  const uniqueZones  = rawZones.length > 0
+  const rawZones    = Array.from(new Set(streets.map((s: any) => s.sitio).filter(Boolean)));
+  const uniqueZones = rawZones.length > 0
     ? sortSitios(rawZones as string[])
     : ["Sitio 1","Sitio 2","Sitio 3","Sitio 4","Sitio 5","Sitio 6","Sitio 7","Sitio 8","Sitio 9"];
   const displayZones = formData.street && zoneOptions.length > 0 ? zoneOptions : uniqueZones;
 
   const passwordRules = [
-    { label: "Maximum 10 characters",               valid: formData.password.length >= 1 && formData.password.length <= 10 },
-    { label: "Contains an uppercase letter",         valid: /[A-Z]/.test(formData.password) },
-    { label: "Contains a lowercase letter",          valid: /[a-z]/.test(formData.password) },
-    { label: "Contains a numeric digit",             valid: /\d/.test(formData.password) },
-    { label: "Contains a special character (!@#…)",  valid: /[^A-Za-z0-9]/.test(formData.password) },
+    { label: "Maximum 10 characters",              valid: formData.password.length >= 1 && formData.password.length <= 10 },
+    { label: "Contains an uppercase letter",        valid: /[A-Z]/.test(formData.password) },
+    { label: "Contains a lowercase letter",         valid: /[a-z]/.test(formData.password) },
+    { label: "Contains a numeric digit",            valid: /\d/.test(formData.password) },
+    { label: "Contains a special character (!@#…)", valid: /[^A-Za-z0-9]/.test(formData.password) },
   ];
   const passwordValid = formData.password.length > 0 && passwordRules.every(r => r.valid);
 
-  // ── Street fuzzy match ──
   const matchStreetFromOcr = (addressText: string): { street: string; sitio: string } | null => {
     if (!addressText || streets.length === 0) return null;
     const haystack = addressText.toUpperCase();
@@ -1316,12 +1174,12 @@ const Register = () => {
     for (const s of streets as any[]) {
       const streetName: string = s.name.toUpperCase();
       const formerly: string   = s.formerly ? (s.formerly as string).toUpperCase() : "";
-      const tokens = streetName.replace(/STREET|AVENUE|AVE|EXTENSION|EXT|CORNER/g, "").split(/[\s,.]+/).filter(t => t.length > 2);
-      const score  = tokens.filter(t => haystack.includes(t)).length;
-      let formerScore = 0;
+      const tokens     = streetName.replace(/STREET|AVENUE|AVE|EXTENSION|EXT|CORNER/g, "").split(/[\s,.]+/).filter((t: string) => t.length > 2);
+      const score      = tokens.filter((t: string) => haystack.includes(t)).length;
+      let formerScore  = 0;
       if (formerly) {
-        const ft = formerly.split(/[\s,.]+/).filter(t => t.length > 2);
-        formerScore = ft.filter(t => haystack.includes(t)).length;
+        const ft = formerly.split(/[\s,.]+/).filter((t: string) => t.length > 2);
+        formerScore = ft.filter((t: string) => haystack.includes(t)).length;
       }
       const finalScore = Math.max(score, formerScore);
       if (finalScore > 0 && (!best || finalScore > best.score))
@@ -1330,22 +1188,19 @@ const Register = () => {
     return best && best.score > 0 ? { street: best.street, sitio: best.sitio } : null;
   };
 
-  // ── OCR complete handler ──
   const handleOcrComplete = (result: OcrResult, front: File, back: File | null) => {
     setOcrResult(result);
     setIdFront(front);
     if (back) setIdBack(back);
-
-    // PWD is auto-detected from OCR scan — no manual question needed
     if (result.isPWD !== undefined) setIsPwdUser(result.isPWD);
 
     const streetMatch = result.address ? matchStreetFromOcr(result.address) : null;
 
     setFormData(prev => ({
       ...prev,
-      firstName:       result.firstName  ?? prev.firstName,
-      middleName:      result.middleName ?? prev.middleName,
-      surname:         result.lastName   ?? prev.surname,
+      firstName:       result.firstName   ?? prev.firstName,
+      middleName:      result.middleName  ?? prev.middleName,
+      surname:         result.lastName    ?? prev.surname,
       dateOfBirth:     result.dateOfBirth ?? prev.dateOfBirth,
       houseBlockLotNo: result.address ? result.address.split(",")[0]?.trim() ?? prev.houseBlockLotNo : prev.houseBlockLotNo,
       street:    streetMatch ? streetMatch.street : prev.street,
@@ -1379,9 +1234,9 @@ const Register = () => {
   const handleOcrSkip = () => { setOcrResult(null); setFlowStep("form"); };
   const handleRescan  = () => { setFlowStep("ocr"); setOcrResult(null); };
 
-  // ── Submit ──
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── Core submission logic (no event object needed) ────────────────────────
+  const submitForm = async () => {
+    // Field validation
     if (!formData.firstName || !formData.surname || !formData.email || !formData.password || !formData.confirmPassword || !formData.dateOfBirth || !formData.gender) {
       toast({ title: "Error", description: "Please fill in all required fields including Sex", variant: "destructive" }); return;
     }
@@ -1399,6 +1254,13 @@ const Register = () => {
     if (!idFront || !idBack) {
       toast({ title: "Error", description: "Please upload both the front and back of your government ID", variant: "destructive" }); return;
     }
+
+    // Dependent student — require parent ID
+    const isSchoolIdRegistrant = selectedIdType === "school_id";
+    if (isSchoolIdRegistrant && (!parentIdFront || !parentIdBack)) {
+      toast({ title: "Error", description: "As a dependent student, please upload both the front and back of your parent's/guardian's ID", variant: "destructive" }); return;
+    }
+
     if (!captchaToken) {
       toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" }); return;
     }
@@ -1424,6 +1286,10 @@ const Register = () => {
       form.append("is_pwd",                String(isPwdUser));
       if (selectedIdType) form.append("id_type", selectedIdType);
 
+      // Append parent ID files for dependent students
+      if (isSchoolIdRegistrant && parentIdFront) form.append("parent_id_url",      parentIdFront as File);
+      if (isSchoolIdRegistrant && parentIdBack)  form.append("parent_id_url_back", parentIdBack  as File);
+
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
       toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
       navigate("/email-verification", { state: { email: formData.email } });
@@ -1436,31 +1302,47 @@ const Register = () => {
     }
   };
 
+  // ── Form onSubmit wrapper — only used by the <form> element ───────────────
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // School ID registrants go to parent_id step first; submission happens there
+    if (!isSchoolIdRegistrant) submitForm();
+  };
+
   const handleClear = () => {
     setFormData({ firstName: "", middleName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "", zonePurok: "", password: "", confirmPassword: "" });
     setIdFront(null); setIdBack(null);
+    setParentIdFront(null); setParentIdBack(null);
     setDobError(null); setZoneOptions([]);
     recaptchaRef.current?.reset(); setCaptchaToken(null);
     setOcrResult(null); setIsPwdUser(false);
     setFlowStep("ocr");
   };
 
-  const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
-  const idUploaded     = idFront && idBack;
+  const underlineInput     = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
+  const idUploaded         = idFront && idBack;
+  const parentIdUploaded   = parentIdFront && parentIdBack;
+  const isSchoolIdRegistrant = selectedIdType === "school_id";
 
-  // ── Progress steps config (2 steps now) ──
   const progressSteps = [
     { step: "ocr",  label: "ID Scan",      icon: <Scan className="w-3.5 h-3.5" />     },
     { step: "form", label: "Registration", icon: <FileText className="w-3.5 h-3.5" /> },
+    ...(isSchoolIdRegistrant ? [{ step: "parent_id", label: "Parent ID", icon: <Shield className="w-3.5 h-3.5" /> }] : []),
   ];
-  const stepOrder      = ["ocr", "form"];
+  const stepOrder      = ["ocr", "form", ...(isSchoolIdRegistrant ? ["parent_id"] : [])];
   const currentStepIdx = stepOrder.indexOf(flowStep);
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <AuthLayout>
-      <IDUploadModal open={showIDModal} onClose={() => setShowIDModal(false)} onConfirm={() => {}}
-        idFront={idFront} idBack={idBack} setIdFront={setIdFront} setIdBack={setIdBack} />
+      {/* Parent ID modal — shown when user clicks "Click to upload / change" in section 4 for school ID */}
+      <IDUploadModal
+        open={showParentIDModal}
+        onClose={() => setShowParentIDModal(false)}
+        onConfirm={() => {}}
+        idFront={parentIdFront} idBack={parentIdBack}
+        setIdFront={setParentIdFront} setIdBack={setParentIdBack}
+        isParentId={true}
+      />
       <DataPrivacyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
 
       <div className="w-full max-w-4xl bg-white overflow-hidden"
@@ -1480,14 +1362,14 @@ const Register = () => {
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
         {/* Progress Indicator */}
-        <div className="flex items-center px-8 md:px-10 py-4"
+        <div className="flex items-center px-8 md:px-10 py-4 overflow-x-auto"
           style={{ backgroundColor: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
           {progressSteps.map((s, i) => {
             const sIdx     = stepOrder.indexOf(s.step);
             const isActive = s.step === flowStep;
             const isDone   = sIdx < currentStepIdx;
             return (
-              <div key={s.step} className="flex items-center gap-2">
+              <div key={s.step} className="flex items-center gap-2 flex-shrink-0">
                 {i > 0 && (
                   <div className="w-8 h-px mx-2"
                     style={{ backgroundColor: stepOrder.indexOf(progressSteps[i - 1].step) < currentStepIdx ? "#c2467d" : "#dde3ed" }} />
@@ -1500,7 +1382,7 @@ const Register = () => {
                     }}>
                     {isDone ? <Check className="w-3 h-3" strokeWidth={3} /> : s.icon}
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-wider hidden sm:block"
+                  <span className="text-xs font-semibold uppercase tracking-wider hidden sm:block whitespace-nowrap"
                     style={{ color: isActive ? "#0f2a5e" : "#9ca3af" }}>
                     {s.label}
                   </span>
@@ -1526,12 +1408,7 @@ const Register = () => {
           {flowStep === "form" && (
             <>
               {ocrResult ? (
-                <OcrPreviewBanner
-                  result={ocrResult}
-                  idType={selectedIdType}
-                  isPWD={isPwdUser}
-                  onRescan={handleRescan}
-                />
+                <OcrPreviewBanner result={ocrResult} idType={selectedIdType} isPWD={isPwdUser} onRescan={handleRescan} />
               ) : (
                 <div className="flex items-center gap-3 mb-8 p-3"
                   style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
@@ -1547,7 +1424,6 @@ const Register = () => {
                 </div>
               )}
 
-              {/* PWD badge — shown only when auto-detected from scan */}
               {isPwdUser && (
                 <div className="flex items-center gap-2.5 mb-6 px-4 py-2.5 w-fit"
                   style={{ backgroundColor: "#e0f2fe", border: "1px solid #7dd3fc", borderRadius: 2 }}>
@@ -1558,7 +1434,20 @@ const Register = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-8">
+              {isSchoolIdRegistrant && (
+                <div className="flex items-start gap-3 mb-6 p-3"
+                  style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+                  <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "#92400e" }}>Dependent Student Registration</p>
+                    <p className="text-xs mt-1" style={{ color: "#78350f" }}>
+                      After completing this form, you'll upload your parent's/guardian's ID on the next step for verification.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleFormSubmit} className="space-y-8">
 
                 {/* Section 1 — Personal Information */}
                 <div>
@@ -1570,9 +1459,9 @@ const Register = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[
-                      { label: "First Name *",  field: "firstName",  placeholder: "Juan"      },
-                      { label: "Middle Name",   field: "middleName", placeholder: "Santos"    },
-                      { label: "Last Name *",   field: "surname",    placeholder: "dela Cruz" },
+                      { label: "First Name *", field: "firstName",  placeholder: "Juan"      },
+                      { label: "Middle Name",  field: "middleName", placeholder: "Santos"    },
+                      { label: "Last Name *",  field: "surname",    placeholder: "dela Cruz" },
                     ].map(({ label, field, placeholder }) => (
                       <div key={field} className="space-y-1.5">
                         <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
@@ -1587,7 +1476,7 @@ const Register = () => {
                           onChange={(e) => updateField(field, e.target.value)} className={underlineInput}
                           style={{ borderBottomColor: "#dde3ed" }}
                           onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
-                          onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                          onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
                       </div>
                     ))}
 
@@ -1646,11 +1535,17 @@ const Register = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Phone Number</Label>
-                      <Input placeholder="09XXXXXXXXX" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} className={underlineInput} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                      <Input placeholder="09XXXXXXXXX" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)}
+                        className={underlineInput} style={{ borderBottomColor: "#dde3ed" }}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Email Address *</Label>
-                      <Input type="email" placeholder="juan@email.com" value={formData.email} onChange={(e) => updateField("email", e.target.value)} className={underlineInput} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                      <Input type="email" placeholder="juan@email.com" value={formData.email} onChange={(e) => updateField("email", e.target.value)}
+                        className={underlineInput} style={{ borderBottomColor: "#dde3ed" }}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
                     </div>
                     <div className="hidden md:block" />
                   </div>
@@ -1684,7 +1579,11 @@ const Register = () => {
                           </span>
                         )}
                       </Label>
-                      <Input placeholder="e.g., 123-A, Blk 5, Lot 12" value={formData.houseBlockLotNo} onChange={(e) => updateField("houseBlockLotNo", e.target.value)} className={underlineInput} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                      <Input placeholder="e.g., 123-A, Blk 5, Lot 12" value={formData.houseBlockLotNo}
+                        onChange={(e) => updateField("houseBlockLotNo", e.target.value)}
+                        className={underlineInput} style={{ borderBottomColor: "#dde3ed" }}
+                        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                        onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Street Name</Label>
@@ -1702,7 +1601,10 @@ const Register = () => {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Input placeholder="Enter street name" value={formData.street} onChange={(e) => handleStreetChange(e.target.value)} className={underlineInput} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                        <Input placeholder="Enter street name" value={formData.street} onChange={(e) => handleStreetChange(e.target.value)}
+                          className={underlineInput} style={{ borderBottomColor: "#dde3ed" }}
+                          onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                          onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
                       )}
                     </div>
                     <div className="space-y-1.5">
@@ -1727,12 +1629,12 @@ const Register = () => {
                   <div className="flex items-center gap-3 mb-5">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                       style={{ backgroundColor: "#0f2a5e", fontSize: 11 }}>4</div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Credentials & Documents</h3>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#0f2a5e" }}>Credentials &amp; Documents</h3>
                     <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* ID Upload status */}
+                    {/* ID status cards */}
                     <div className="space-y-3">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                         Government-Issued ID with Address *
@@ -1743,10 +1645,7 @@ const Register = () => {
                           { file: idBack,  side: "Back",  hint: "id_url_back" },
                         ].map(({ file, side, hint }) => (
                           <div key={side} className="flex flex-col items-center justify-center p-4 min-h-[100px]"
-                            style={{
-                              border: `1.5px dashed ${file ? "#c2467d" : "#d1d5db"}`,
-                              backgroundColor: file ? "#fdf5f8" : "#fafafa", borderRadius: 2,
-                            }}>
+                            style={{ border: `1.5px dashed ${file ? "#c2467d" : "#d1d5db"}`, backgroundColor: file ? "#fdf5f8" : "#fafafa", borderRadius: 2 }}>
                             {file ? (
                               <>
                                 <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1.5" style={{ backgroundColor: "#c2467d" }}>
@@ -1765,13 +1664,19 @@ const Register = () => {
                           </div>
                         ))}
                       </div>
-                      <button type="button" onClick={() => setShowIDModal(true)}
-                        className="w-full py-2 text-xs font-semibold uppercase tracking-wider transition-all"
-                        style={{ borderRadius: 2, border: `1.5px solid ${idUploaded ? "#c2467d" : "#dde3ed"}`, color: idUploaded ? "#c2467d" : "#9ca3af", backgroundColor: "transparent" }}>
-                        {idUploaded ? "✓ Both IDs ready — Click to change" : "Click to upload / change IDs"}
-                      </button>
+                      {/* The school ID was already uploaded in the OCR step — this note reminds the user */}
+                      {idUploaded ? (
+                        <p className="w-full py-2 text-xs font-semibold text-center"
+                          style={{ color: "#c2467d", border: "1.5px solid #c2467d", borderRadius: 2 }}>
+                          ✓ School ID uploaded from scan step
+                        </p>
+                      ) : (
+                        <p className="w-full py-2 text-xs text-center" style={{ color: "#9ca3af", border: "1.5px solid #dde3ed", borderRadius: 2 }}>
+                          ID will be uploaded from the scan step
+                        </p>
+                      )}
                       <p className="text-xs" style={{ color: "#9ca3af" }}>
-                        Accepted IDs: PhilSys, Driver's License, Passport, Voter's ID, NBI, SSS, PRC License, PWD ID, etc.
+                        Accepted: PhilSys, Driver's License, Passport, Voter's ID, NBI, SSS, PRC, PWD ID, School ID, etc.
                       </p>
                     </div>
 
@@ -1781,8 +1686,13 @@ const Register = () => {
                         <div className="space-y-1.5">
                           <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Password *</Label>
                           <div className="relative">
-                            <Input type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.password} onChange={(e) => updateField("password", e.target.value)} maxLength={10} className={`${underlineInput} pr-8`} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
+                            <Input type={showPassword ? "text" : "password"} placeholder="••••••••"
+                              value={formData.password} onChange={(e) => updateField("password", e.target.value)}
+                              maxLength={10} className={`${underlineInput} pr-8`} style={{ borderBottomColor: "#dde3ed" }}
+                              onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                              onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
                               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
@@ -1790,8 +1700,13 @@ const Register = () => {
                         <div className="space-y-1.5">
                           <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Confirm Password *</Label>
                           <div className="relative">
-                            <Input type={showConfirm ? "text" : "password"} placeholder="••••••••" value={formData.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)} maxLength={10} className={`${underlineInput} pr-8`} style={{ borderBottomColor: "#dde3ed" }} onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")} onBlur={(e) => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
-                            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
+                            <Input type={showConfirm ? "text" : "password"} placeholder="••••••••"
+                              value={formData.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)}
+                              maxLength={10} className={`${underlineInput} pr-8`} style={{ borderBottomColor: "#dde3ed" }}
+                              onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#c2467d")}
+                              onBlur={(e)  => (e.currentTarget.style.borderBottomColor = "#dde3ed")} />
+                            <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                              className="absolute right-0 top-1/2 -translate-y-1/2" style={{ color: "#9ca3af" }}>
                               {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                             {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
@@ -1811,7 +1726,9 @@ const Register = () => {
                             {formData.password.length > 0 ? (
                               <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{ backgroundColor: rule.valid ? "#d45ea3" : "#fee2e2" }}>
-                                {rule.valid ? <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} /> : <X className="w-2.5 h-2.5" style={{ color: "#ef4444" }} strokeWidth={3} />}
+                                {rule.valid
+                                  ? <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                                  : <X className="w-2.5 h-2.5" style={{ color: "#ef4444" }} strokeWidth={3} />}
                               </div>
                             ) : (
                               <div className="w-4 h-4 rounded-full border flex-shrink-0" style={{ borderColor: "#d1d5db" }} />
@@ -1883,7 +1800,12 @@ const Register = () => {
                         onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}>
                         Clear Form
                       </button>
-                      <button type="submit" disabled={isLoading || !captchaToken || !!dobError}
+
+                      {/* ── KEY FIX: school ID → go to parent_id step; others → submitForm() ── */}
+                      <button
+                        type="button"
+                        onClick={() => isSchoolIdRegistrant ? setFlowStep("parent_id") : submitForm()}
+                        disabled={isLoading || !captchaToken || !!dobError}
                         className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
                         style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
                         onMouseEnter={(e) => { if (!isLoading && captchaToken && !dobError) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
@@ -1891,12 +1813,18 @@ const Register = () => {
                         {isLoading ? (
                           <span className="flex items-center gap-2">
                             <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                             </svg>
                             Submitting…
                           </span>
-                        ) : !captchaToken ? "Complete CAPTCHA to Submit" : "Submit Registration"}
+                        ) : isSchoolIdRegistrant ? (
+                          "Continue to Parent ID →"
+                        ) : !captchaToken ? (
+                          "Complete CAPTCHA to Submit"
+                        ) : (
+                          "Submit Registration"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1905,6 +1833,87 @@ const Register = () => {
               </form>
             </>
           )}
+
+          {/* ── STEP 3: Parent ID Upload ── */}
+          {flowStep === "parent_id" && isSchoolIdRegistrant && (
+            <div className="w-full max-w-2xl mx-auto">
+              <button type="button" onClick={() => setFlowStep("form")}
+                className="flex items-center gap-1.5 text-xs font-semibold mb-6 transition-opacity hover:opacity-60"
+                style={{ color: "#0f2a5e" }}>
+                ← Back to Registration Form
+              </button>
+
+              <div className="flex items-center gap-3 mb-6 p-4"
+                style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+                <Shield className="w-5 h-5 flex-shrink-0" style={{ color: "#d97706" }} />
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#92400e" }}>Parent / Guardian Verification</p>
+                  <p className="text-xs mt-1" style={{ color: "#78350f" }}>
+                    Please upload your parent's or guardian's government-issued ID to complete your registration.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <DropZone
+                  label="Front of Parent's ID *"
+                  file={parentIdFront} error={null}
+                  onFileChange={setParentIdFront}
+                  hint="Clear photo — parent_id_url"
+                />
+                <DropZone
+                  label="Back of Parent's ID *"
+                  file={parentIdBack} error={null}
+                  onFileChange={setParentIdBack}
+                  hint="Clear photo — parent_id_url_back"
+                />
+              </div>
+
+              {/* Show uploaded status if files are selected */}
+              {parentIdUploaded && (
+                <div className="flex items-center gap-2 mb-4 p-3"
+                  style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 2 }}>
+                  <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#16a34a" }} strokeWidth={3} />
+                  <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
+                    Both parent ID images uploaded — ready to submit.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setFlowStep("form")}
+                  className="flex-1 px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
+                  style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
+                  onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}>
+                  ← Back
+                </button>
+
+                {/* ── KEY FIX: calls submitForm() directly — no event object needed ── */}
+                <button
+                  type="button"
+                  disabled={!parentIdUploaded || isLoading}
+                  onClick={submitForm}
+                  className="flex-1 px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
+                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
+                  onMouseEnter={(e) => { if (parentIdUploaded && !isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
+                  onMouseLeave={(e) => { if (parentIdUploaded && !isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}>
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Submitting…
+                    </span>
+                  ) : (
+                    "Submit Registration with Parent ID"
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </AuthLayout>
