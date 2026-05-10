@@ -186,11 +186,11 @@ function priorityStorageKey(): string {
 
 function loadPriorityIds(): Set<number> {
   try {
-    const key = priorityStorageKey();
+    const d = new Date();
+    const key = `queue_priority_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const raw = localStorage.getItem(key);
     if (!raw) return new Set();
-    const arr = JSON.parse(raw) as number[];
-    return new Set(arr);
+    return new Set(JSON.parse(raw) as number[]);
   } catch {
     return new Set();
   }
