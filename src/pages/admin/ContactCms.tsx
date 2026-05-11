@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Layout } from '@/components/Layout';
 
-const API_BASE = 'https://westrembomis.onrender.com/api';
+const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 
 interface ContactInfo {
   id?: number;

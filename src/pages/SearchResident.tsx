@@ -203,7 +203,7 @@ const ProcessFrontDesk = () => {
         // the request boundary. We deliberately send ONLY first_name +
         // surname + date_of_birth so a stray field can't fail validation.
         const res = await axios.post(
-          "https://westrembomis.onrender.com/api/kiosk/search",
+          `${import.meta.env.VITE_WEB_URL_WITH_API}/kiosk/search`,
           {
             first_name:    searchData.first_name.trim(),
             surname:       searchData.last_name.trim(),

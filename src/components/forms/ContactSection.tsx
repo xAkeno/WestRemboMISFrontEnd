@@ -27,7 +27,7 @@ const defaultContact: ContactInfo = {
   office_hours: "5:00 AM – 6:00 PM",
 };
 
-const API_BASE = "https://westrembomis.onrender.com/api";
+const API_BASE = `${import.meta.env.VITE_WEB_URL}/api`;
 
 const ContactSection = () => {
   const { toast } = useToast();

@@ -96,7 +96,7 @@ interface FullAccount {
 
 
 const POLL_MS = 5000;
-const USER_API_BASE = "https://westrembomis.onrender.com/api/users";
+const USER_API_BASE = `${import.meta.env.VITE_WEB_URL_WITH_API}/users`;
 const SENIOR_AGE_THRESHOLD = 60;
 
 

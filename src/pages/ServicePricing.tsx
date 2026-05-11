@@ -69,7 +69,7 @@ const ServicePricing = () => {
     useEffect(() => {
         const fetchPrices = async () => {
             try {
-                const res = await axios.get("https://westrembomis.onrender.com/api/service-prices", {
+                const res = await axios.get(`${import.meta.env.VITE_WEB_URL_WITH_API}/service-prices`, {
                     withCredentials: true,
                 });
 
@@ -159,7 +159,7 @@ const ServicePricing = () => {
         setSaving((prev) => new Set(prev).add(service.type));
         try {
             await axios.put(
-                `https://westrembomis.onrender.com/api/service-prices/${service.type}`,
+                `${import.meta.env.VITE_WEB_URL_WITH_API}/service-prices/${service.type}`,
                 { amount: service.amount },
                 { withCredentials: true }
             );

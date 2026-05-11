@@ -256,7 +256,7 @@ const ProfileManagement = () => {
     const payload = fields.reduce((acc, key) => { acc[key] = formData[key] as any; return acc; }, {} as Record<string, any>);
     try {
       setIsSaving(true);
-      await axios.put("https://westrembomis.onrender.com/api/updateProfile", payload, { withCredentials: true });
+      await axios.put(`${import.meta.env.VITE_WEB_URL_WITH_API}/updateProfile`, payload, { withCredentials: true });
       toast.success("Profile updated successfully!");
       // Refresh profile data after successful update
       fetchProfile();

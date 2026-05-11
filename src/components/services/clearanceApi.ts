@@ -7,7 +7,7 @@ import {
   ClearanceResponse 
 } from '../../types/clearance';
 
-const API_BASE_URL = 'https://westrembomis.onrender.com/api';
+const API_BASE_URL = `${import.meta.env.VITE_WEB_URL}/api`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,7 +17,7 @@ const api = axios.create({
 });
 
 export const deleteBarangayClearance = async (id: number) => {
-  return axios.delete(`https://westrembomis.onrender.com/api/barangay-clearances/${id}`,{withCredentials:true});
+  return axios.delete(`${API_BASE_URL}/barangay-clearances/${id}`,{withCredentials:true});
 };
 
 export interface FetchClearanceParams {

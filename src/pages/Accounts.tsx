@@ -103,7 +103,7 @@ export default function Accounts() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get("https://westrembomis.onrender.com/api/getAllUser", { withCredentials: true });
+      const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/getAllUser`, { withCredentials: true });
       const raw: Account[] = (res.data?.data || []).map((a: any) => ({
         ...a,
         name: [a.first_name, a.middle_name, a.surname].filter(Boolean).join(" "),

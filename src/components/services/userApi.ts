@@ -9,7 +9,7 @@ export interface User {
 export const fetchUserById = async (id: number): Promise<User | null> => {
   try {
     const response = await axios.get(
-      `https://westrembomis.onrender.com/api/users/${id}`,
+      `${import.meta.env.VITE_WEB_URL}/api/users/${id}`,
       { withCredentials: true }
     );
     

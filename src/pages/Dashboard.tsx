@@ -13,7 +13,7 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
 
-const BASE = "https://westrembomis.onrender.com/api";
+const BASE = import.meta.env.VITE_WEB_URL_WITH_API;
 
 
 const timeFilters = ["week", "month", "year"];

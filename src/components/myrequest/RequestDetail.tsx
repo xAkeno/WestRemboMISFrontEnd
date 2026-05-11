@@ -19,7 +19,7 @@ const NAVY = "#0f2a5e";
 const PINK = "#c2467d";
 
 const api = axios.create({
-  baseURL: "https://westrembomis.onrender.com/api",
+  baseURL: `${import.meta.env.VITE_WEB_URL}/api`,
   withCredentials: true,
   headers: { Accept: "application/json" },
 });
@@ -723,7 +723,7 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
       setSlots(null);
       try {
         const res  = await fetch(
-          `https://westrembomis.onrender.com/api/schedules/available-slots?document_type=${documentType}&date=${selectedDate}`,
+          `${import.meta.env.VITE_WEB_URL}/api/schedules/available-slots?document_type=${documentType}&date=${selectedDate}`,
           { credentials: "include", headers: { Accept: "application/json" } }
         );
         const json = await res.json();
@@ -742,7 +742,7 @@ function RescheduleModal({ documentNumber, documentType, onClose, onSuccess }: R
     setError("");
     try {
       const res  = await fetch(
-        `https://westrembomis.onrender.com/api/schedules/${documentNumber}/reschedule`,
+        `${import.meta.env.VITE_WEB_URL}/api/schedules/${documentNumber}/reschedule`,
         {
           method: "PUT",
           credentials: "include",
@@ -1374,7 +1374,7 @@ export default function RequestDetail() {
     queryKey: ["schedule", request?.bcert_number],
     queryFn: async (): Promise<ScheduleData | null> => {
       const res  = await fetch(
-        `https://westrembomis.onrender.com/api/schedules/${request!.bcert_number}`,
+        `${import.meta.env.VITE_WEB_URL}/api/schedules/${request!.bcert_number}`,
         { credentials: "include", headers: { Accept: "application/json" } }
       );
       if (!res.ok) return null;
@@ -1407,7 +1407,7 @@ export default function RequestDetail() {
 
     // Use both document_type + id to avoid ID collisions across document types
     fetch(
-      `https://westrembomis.onrender.com/api/schedules/${schedule.document_type}/${schedule.id}/no-show`,
+      `${import.meta.env.VITE_WEB_URL}/api/schedules/${schedule.document_type}/${schedule.id}/no-show`,
       {
         method: "POST",
         credentials: "include",

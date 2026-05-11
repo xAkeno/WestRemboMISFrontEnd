@@ -485,7 +485,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
     const loadServiceInfo = async () => {
       setLoadingServiceInfo(true);
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/services`, { withCredentials: true });
         const services: any[] = res.data?.data ?? res.data ?? [];
         const building = services.find((s) => s.name === "Building Clearance");
         if (building) {
@@ -638,7 +638,7 @@ const BuildingClearanceForm = ({ onBack }: BuildingClearanceFormProps = {}) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/details", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/details`, { withCredentials: true });
         const user = res.data.data;
         const normalizedDob = user.date_of_birth ? user.date_of_birth.split("T")[0] : "";
         const addressParts = parseAddress(user.address || "");

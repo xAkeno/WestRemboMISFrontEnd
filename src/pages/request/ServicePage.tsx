@@ -72,7 +72,7 @@ const ServicePage = () => {
       setLoading(true);
       setNotFound(false);
       try {
-        const res = await axios.get("https://westrembomis.onrender.com/api/services", { withCredentials: true });
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/services`, { withCredentials: true });
         const services: any[] = res.data?.data ?? res.data ?? [];
         const match = services.find((s) => s.name === apiName);
 

@@ -59,7 +59,7 @@ export const CertificationForm = ({ formData, setFormData }: CertificationFormPr
   useEffect(() => {
     const get = async () => {
       try{
-        const res = await axios.get('https://westrembomis.onrender.com/api/latestRecordBrgyCertificates',{withCredentials:true})
+        const res = await axios.get(`${import.meta.env.VITE_WEB_URL}/api/latestRecordBrgyCertificates`,{withCredentials:true})
         var json = res.data.data
         setLatestId(json);
          console.log(json);

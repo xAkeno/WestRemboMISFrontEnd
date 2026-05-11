@@ -53,7 +53,7 @@ export default function ProfileDropdown({
     onSignOut();
     try {
       await axios.post(
-        "https://westrembomis.onrender.com/api/logout",
+        `${import.meta.env.VITE_WEB_URL}/api/logout`,
         {},
         { withCredentials: true }
       );
