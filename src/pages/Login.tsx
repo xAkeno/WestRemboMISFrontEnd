@@ -49,12 +49,12 @@ const Login = () => {
       if (error) throw error;
 
       await api.post(
-        "/api/login",
+        "/login",
         { token: data.session.access_token },
         { withCredentials: true }
       );
 
-      const detailsRes = await api.get("/api/details", { withCredentials: true });
+      const detailsRes = await api.get("/details", { withCredentials: true });
       localStorage.setItem("user", JSON.stringify(detailsRes.data.data));
       window.dispatchEvent(new Event("user-login")); // ← signal the header
 
