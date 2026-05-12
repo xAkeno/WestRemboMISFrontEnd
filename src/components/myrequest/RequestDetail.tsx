@@ -1997,36 +1997,36 @@ function InspectingCard({ reason, onViewDetails }: { reason?: string | null; onV
 }
 
 // ─── Review Required Card ──────────────────────────────────────────────────────
-function ReviewRequiredCard({ onViewDetails }: { onViewDetails: () => void }) {
-  return (
-    <div className="rounded-2xl overflow-hidden mb-4"
-      style={{ background: "#fff", border: "2px solid #f59e0b", boxShadow: "0 2px 16px rgba(245,158,11,0.15)" }}>
-      <div className="flex items-center gap-3 px-5 py-4"
-        style={{ background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderBottom: "2px solid #f59e0b" }}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: "#fef3c7", border: "1.5px solid #f59e0b" }}>
-          <span className="text-base font-black" style={{ color: "#b45309" }}>1</span>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-black" style={{ color: "#78350f" }}>Review Your Application</p>
-          <p className="text-[11px] mt-0.5" style={{ color: "#b45309" }}>Action needed before your request proceeds</p>
-        </div>
-      </div>
-      <div className="px-5 py-5 flex flex-col gap-4">
-        <div className="flex items-start gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#fffbeb", border: "1.5px dashed #f59e0b" }}>
-          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
-          <p className="text-sm font-bold leading-snug" style={{ color: "#78350f" }}>Please review your submitted details and uploaded documents before proceeding.</p>
-        </div>
-        <button onClick={onViewDetails}
-          className="w-full py-3.5 text-sm font-black rounded-xl text-white flex items-center justify-center gap-2"
-          style={{ background: "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)" }}>
-          <FileCheck className="h-4 w-4" />
-          👉 Click Here to Review
-        </button>
-      </div>
-    </div>
-  );
-}
+// function ReviewRequiredCard({ onViewDetails }: { onViewDetails: () => void }) {
+//   return (
+//     <div className="rounded-2xl overflow-hidden mb-4"
+//       style={{ background: "#fff", border: "2px solid #f59e0b", boxShadow: "0 2px 16px rgba(245,158,11,0.15)" }}>
+//       <div className="flex items-center gap-3 px-5 py-4"
+//         style={{ background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", borderBottom: "2px solid #f59e0b" }}>
+//         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+//           style={{ backgroundColor: "#fef3c7", border: "1.5px solid #f59e0b" }}>
+//           <span className="text-base font-black" style={{ color: "#b45309" }}>1</span>
+//         </div>
+//         <div className="flex-1">
+//           <p className="text-sm font-black" style={{ color: "#78350f" }}>Review Your Application</p>
+//           <p className="text-[11px] mt-0.5" style={{ color: "#b45309" }}>Action needed before your request proceeds</p>
+//         </div>
+//       </div>
+//       <div className="px-5 py-5 flex flex-col gap-4">
+//         <div className="flex items-start gap-3 px-4 py-4 rounded-xl" style={{ backgroundColor: "#fffbeb", border: "1.5px dashed #f59e0b" }}>
+//           <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+//           <p className="text-sm font-bold leading-snug" style={{ color: "#78350f" }}>Please review your submitted details and uploaded documents before proceeding.</p>
+//         </div>
+//         <button onClick={onViewDetails}
+//           className="w-full py-3.5 text-sm font-black rounded-xl text-white flex items-center justify-center gap-2"
+//           style={{ background: "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)" }}>
+//           <FileCheck className="h-4 w-4" />
+//           👉 Click Here to Review
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function RequestDetail() {
@@ -2295,7 +2295,7 @@ export default function RequestDetail() {
         </div>
 
         {/* Review Required */}
-        {isReviewStatus && <ReviewRequiredCard onViewDetails={() => setShowDetails(true)} />}
+        {/* {isReviewStatus && <ReviewRequiredCard onViewDetails={() => setShowDetails(true)} />} */}
 
         {/* Generic Schedule Card (for non-standard statuses) */}
         {schedule && !isReleased && !isScheduled && !isRescheduled && !isNoShow && !isBlockedStatus && !isAnyReprintFlow && (

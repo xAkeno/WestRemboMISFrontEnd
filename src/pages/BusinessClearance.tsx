@@ -3,7 +3,7 @@ import {
   Plus, ArrowUpDown, CalendarCheck, CalendarX, Calendar, X, RefreshCw,
   Filter, ChevronDown, SlidersHorizontal, RotateCcw, Eye, Edit2, Save, CreditCard, Download,
   IdCard, ZoomIn, FileQuestion, Loader2, QrCode, Camera, Ban, Archive,
-  CalendarClock, AlertTriangle, History, Lock, Sun, Moon, PlayCircle, CheckCircle,
+  CalendarClock, AlertTriangle, History, Lock, Sun, Moon, Send, PlayCircle, CheckCircle,
 } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,19 @@ const ZONE_OPTIONS = [
   'Zone 1','Zone 2','Zone 3','Zone 4','Zone 5',
   'Zone 6','Zone 7','Zone 8','Zone 9','Zone 10',
 ];
+
+// ─── Reprint Request ───────────────────────────────────────────────────────────
+interface ReprintRequest {
+  id: number;
+  document_type: string;
+  document_number: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PRINTED' | 'CLAIMED';
+  rejection_reason?: string | null;
+  schedule_date?: string | null;
+  schedule_time?: string | null;
+  notes?: string | null;
+}
 
 // ─── Schedule History Entry ────────────────────────────────────────────────────
 interface ScheduleHistoryEntry {
@@ -227,6 +240,35 @@ const STATUS_STYLES: Record<string, string> = {
   disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
 
+// ─── Reprint status styles ──────────────────────────────────────────────────────
+const REPRINT_STATUS_STYLES: Record<string, string> = {
+  PENDING:  'bg-yellow-50 text-yellow-700 border-yellow-300',
+  APPROVED: 'bg-green-50 text-green-700 border-green-300',
+  REJECTED: 'bg-rose-50 text-rose-700 border-rose-300',
+  PRINTED:  'bg-blue-50 text-blue-700 border-blue-300',
+  CLAIMED:  'bg-emerald-50 text-emerald-700 border-emerald-300',
+};
+
+const REPRINT_STATUS_PANEL_STYLES: Record<string, string> = {
+  PENDING:  'bg-yellow-50 border-yellow-200',
+  APPROVED: 'bg-blue-50 border-blue-200',
+  REJECTED: 'bg-rose-50 border-rose-200',
+  PRINTED:  'bg-blue-50 border-blue-200',
+  CLAIMED:  'bg-emerald-50 border-emerald-200',
+};
+
+// ─── ReprintBadge component ────────────────────────────────────────────────────
+function ReprintBadge({ status }: { status: ReprintRequest['status'] }) {
+  const style = REPRINT_STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600 border-gray-200';
+  const label = status.charAt(0) + status.slice(1).toLowerCase();
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}>
+      <RefreshCw className="h-2.5 w-2.5" />
+      Reprint · {label}
+    </span>
+  );
+}
+
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
   if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';
@@ -253,6 +295,41 @@ function StatusBadge({ status, requesterType }: {
       {display}
     </span>
   );
+}
+
+// ─── Requester Type Label helper ───────────────────────────────────────────────
+function getRequesterLabel(requesterType: string | null | undefined): {
+  label: string;
+  badgeClass: string;
+} {
+  const t = (requesterType ?? '').toLowerCase();
+  if (t === 'walk-in') {
+    return { label: 'Walk-in Applicant', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' };
+  }
+  if (t === 'online') {
+    return { label: 'Online Applicant', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+  }
+  return { label: requesterType ?? '—', badgeClass: 'bg-gray-100 text-gray-600 border-gray-200' };
+}
+
+// ─── Smart priority sort ───────────────────────────────────────────────────────
+function prioritySortData(items: BusinessClearanceType[]): BusinessClearanceType[] {
+  const todayStr = new Date().toISOString().split('T')[0];
+  function getRowPriority(item: any): number {
+    const status = normaliseStatus(item.status ?? '', item.requester_type ?? '');
+    if (FROZEN_STATUSES.has(status)) return 3;
+    const schedule: ScheduleData | null = item.schedule ?? null;
+    if (schedule && schedule.schedule_date === todayStr) return 0;
+    return 1;
+  }
+  return [...items].sort((a, b) => {
+    const pa = getRowPriority(a);
+    const pb = getRowPriority(b);
+    if (pa !== pb) return pa - pb;
+    const ta = new Date((a as any).created_at ?? 0).getTime();
+    const tb = new Date((b as any).created_at ?? 0).getTime();
+    return tb - ta;
+  });
 }
 
 function ScheduleCell({ schedule, requesterType, status }: {
@@ -319,6 +396,40 @@ function ScheduleCell({ schedule, requesterType, status }: {
         {session === 'AM' ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
         {session === 'AM' ? 'Morning' : 'Afternoon'} · {formatTimeRange(schedule.schedule_time)}
       </span>
+    </div>
+  );
+}
+
+// ─── Reprint Indicator Cell ────────────────────────────────────────────────────
+function ReprintIndicatorCell({ reprintRequest }: { reprintRequest: ReprintRequest | null }) {
+  if (!reprintRequest) {
+    return <span className="text-[10px] text-gray-400 italic">—</span>;
+  }
+  const statusConfig = {
+    PENDING:  { color: 'bg-yellow-50 text-yellow-700 border-yellow-300', label: 'Pending' },
+    APPROVED: { color: 'bg-green-50 text-green-700 border-green-300',   label: 'Approved' },
+    REJECTED: { color: 'bg-rose-50 text-rose-700 border-rose-300',      label: 'Rejected' },
+    PRINTED:  { color: 'bg-blue-50 text-blue-700 border-blue-300',      label: 'Printed' },
+    CLAIMED:  { color: 'bg-emerald-50 text-emerald-700 border-emerald-300', label: 'Claimed' },
+  };
+  const config = statusConfig[reprintRequest.status];
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${config.color}`}>
+        <RefreshCw className="h-3 w-3" />
+        {config.label}
+      </span>
+      {reprintRequest.schedule_date && (
+        <span className="text-[9px] text-gray-600 italic">
+          📅 {formatDateShort(reprintRequest.schedule_date)}
+          {reprintRequest.schedule_time && ` · ${formatTimeRange(reprintRequest.schedule_time)}`}
+        </span>
+      )}
+      {reprintRequest.notes && (
+        <span className="text-[9px] text-gray-500 italic truncate">
+          📝 {reprintRequest.notes}
+        </span>
+      )}
     </div>
   );
 }
@@ -465,6 +576,144 @@ function QRScannerModal({ onClose, onScan }: { onClose: () => void; onScan: (res
   );
 }
 
+// ─── Reschedule Request Modal ──────────────────────────────────────────────────
+function RescheduleModal({
+  record,
+  missedSchedule,
+  onClose,
+  onSuccess,
+  toast,
+}: {
+  record: BusinessClearanceType;
+  missedSchedule: ScheduleData;
+  onClose: () => void;
+  onSuccess: () => void;
+  toast: any;
+}) {
+  const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const session = getScheduleSession(missedSchedule);
+
+  const handleSubmit = async () => {
+    if ((record as any).requester_type?.toLowerCase() === 'walk-in') {
+      toast({ title: 'Not allowed', description: 'Walk-in requests cannot be rescheduled.', variant: 'destructive' });
+      return;
+    }
+    const recordStatus = ((record as any).status ?? '').toUpperCase();
+    if (FROZEN_STATUSES.has(recordStatus) || BLOCKED_STATUSES.has(recordStatus) || recordStatus === 'RELEASED') {
+      toast({ title: 'Not allowed', description: 'This record can no longer be rescheduled.', variant: 'destructive' });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const missedEntry: ScheduleHistoryEntry = {
+        schedule_date: missedSchedule.schedule_date,
+        schedule_time: missedSchedule.schedule_time,
+        missed_at:     new Date().toISOString(),
+        note:          missedSchedule.note ?? null,
+      };
+      const existingHistory: ScheduleHistoryEntry[] = missedSchedule.missed_history ?? [];
+      const updatedHistory = [...existingHistory, missedEntry];
+      await axios.put(
+        `https://westrembomis.onrender.com/api/schedules/${missedSchedule.id}`,
+        { note: note.trim() || null, missed_history: updatedHistory },
+        { withCredentials: true }
+      );
+      await axios.put(
+        `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
+        { status: 'RESCHEDULED' },
+        { withCredentials: true }
+      );
+      toast({
+        title: 'Reschedule request sent',
+        description: 'The applicant has been notified to book a new appointment slot in their portal.',
+      });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to send reschedule request. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-sky-100 rounded-md">
+              <Send className="h-4 w-4 text-sky-700" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Send Reschedule Request</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Ref: {(record as any).brgy_business_no}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex gap-3">
+          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-red-700">Previous appointment was missed (No Show)</p>
+            <p className="text-[11px] text-red-500 mt-0.5">
+              {formatDateShort(missedSchedule.schedule_date)} · {session === 'AM' ? 'Morning' : 'Afternoon'} session
+              ({formatTimeRange(missedSchedule.schedule_time)})
+            </p>
+            <p className="text-[10px] text-red-400 mt-1">This missed appointment will be logged in the record's history.</p>
+          </div>
+        </div>
+        <div className="mx-5 mt-3 rounded-lg bg-sky-50 border border-sky-200 px-4 py-3">
+          <p className="text-xs font-semibold text-sky-700 mb-1">How rescheduling works</p>
+          <ul className="text-[11px] text-sky-700 leading-relaxed list-disc pl-4 space-y-0.5">
+            <li>The applicant will be notified that their previous appointment was missed.</li>
+            <li><strong>The applicant chooses</strong> the new date and session (morning or afternoon) through their own portal.</li>
+            <li>Admins do not select the new slot. This request will appear here as <strong>RESCHEDULED</strong> until the applicant rebooks.</li>
+          </ul>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              Note to applicant <span className="text-gray-400 font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Please bring your original valid ID and business permit on your next visit…"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 resize-none transition-all"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">This note will be shown to the applicant when they book a new slot.</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="h-4 w-4" />
+            {isSubmitting ? 'Sending…' : 'Send Reschedule Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Missed Schedule History Panel ─────────────────────────────────────────────
 function MissedScheduleHistory({ history }: { history: ScheduleHistoryEntry[] }) {
   if (!history || history.length === 0) return null;
@@ -571,6 +820,7 @@ function EditableDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [markingPrinted, setMarkingPrinted] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -588,6 +838,12 @@ function EditableDetailModal({
   const [previousStatus, setPreviousStatus] = useState<string>('');
   const [createdByName, setCreatedByName] = useState<string>('');
   const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+
+  // ─── Reprint state ──────────────────────────────────────────────────────────
+  const [reprintRequest, setReprintRequest] = useState<ReprintRequest | null>(null);
+  const [loadingReprint, setLoadingReprint] = useState(false);
+  
 
   useEffect(() => {
     const loadStreets = async () => {
@@ -599,6 +855,30 @@ function EditableDetailModal({
     loadStreets();
   }, []);
 
+  // ─── Fetch reprint request for this record ──────────────────────────────────
+  useEffect(() => {
+    if (!record?.brgy_business_no) return;
+    const loadReprint = async () => {
+      setLoadingReprint(true);
+      try {
+        const res = await api.get('/api/reprint-requests', { withCredentials: true });
+        const allRequests = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        const matched = allRequests.find(
+          (r: ReprintRequest) =>
+            r.document_number === record.brgy_business_no &&
+            r.document_type === 'business_clearance'
+        );
+        setReprintRequest(matched ?? null);
+      } catch {
+        setReprintRequest(null);
+      } finally {
+        setLoadingReprint(false);
+      }
+    };
+    loadReprint();
+  }, [record?.brgy_business_no, refreshKey]);
+
+  
   const [formData, setFormData] = useState<any>({
     first_name: '', middle_name: '', surname: '', ext_name: '', prefix: '',
     business_name: '', business_type: '', brgy_business_no: '', issued_date: '',
@@ -705,7 +985,7 @@ function EditableDetailModal({
   const canMarkProcess =
     !isWorkflowFrozen &&
     isForwardTransition(status, 'PROCESS') &&
-    (status === 'REVIEW' || status === 'PENDING');
+    (status === 'REVIEW' || status === 'PENDING' || status === 'RESCHEDULED');
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
@@ -720,8 +1000,16 @@ function EditableDetailModal({
     !TERMINAL_STATUSES.has(status) &&
     !isAwaitingReschedule &&
     formData.requester_type?.toLowerCase() !== 'walk-in';
+  const canReschedule = isNoShow && !isWorkflowFrozen;
 
   const missedHistory: ScheduleHistoryEntry[] = currentSchedule?.missed_history ?? [];
+
+  const handleRescheduleSuccess = () => {
+    setCurrentStatus('RESCHEDULED');
+    setFormData((p: any) => ({ ...p, status: 'RESCHEDULED' }));
+    setRefreshKey(prev => prev + 1);
+    onUpdate();
+  };
 
   // ── Restore/Unarchive Function ──
   const handleRestore = async () => {
@@ -729,15 +1017,11 @@ function EditableDetailModal({
       toast({ title: 'Not allowed', description: 'Only archived records can be restored.', variant: 'destructive' });
       return;
     }
-    
     setIsArchiving(true);
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { 
-          status: previousStatus || 'RELEASED',
-          previous_status: status
-        },
+        { status: previousStatus || 'RELEASED', previous_status: status },
         { withCredentials: true }
       );
       setCurrentStatus(previousStatus || 'RELEASED');
@@ -747,14 +1031,8 @@ function EditableDetailModal({
       onUpdate();
       setTimeout(() => onClose(), 500);
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to restore record.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsArchiving(false);
-    }
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to restore record.', variant: 'destructive' });
+    } finally { setIsArchiving(false); }
   };
 
   const handleMarkProcess = async () => {
@@ -798,6 +1076,19 @@ function EditableDetailModal({
     } finally { setActionLoading(null); }
   };
 
+  const handleMarkPrinted = async () => {
+    if (!reprintRequest) return;
+    setMarkingPrinted(true);
+    try {
+      await api.put(`/api/reprint-requests/${reprintRequest.id}/printed`, {}, { withCredentials: true });
+      setReprintRequest(prev => prev ? { ...prev, status: 'PRINTED' } : prev);
+      toast({ title: 'Marked as Printed', description: 'Reprint request status updated to Printed.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to mark as printed.', variant: 'destructive' });
+    } finally { setMarkingPrinted(false); }
+  };
+
   const handleDisposition = async () => {
     if (!record?.id || !dispositionType) return;
     if (!dispositionReason.trim()) {
@@ -821,11 +1112,7 @@ function EditableDetailModal({
       setShowDispositionModal(false); setDispositionReason(''); setDispositionType(null);
       onUpdate();
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to update disposition.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to update disposition.', variant: 'destructive' });
     } finally { setIsDisposing(false); }
   };
 
@@ -846,10 +1133,7 @@ function EditableDetailModal({
     try {
       await axios.put(
         `https://westrembomis.onrender.com/api/business-clearances/${record.id}`,
-        { 
-          status: 'ARCHIVED',
-          previous_status: status
-        },
+        { status: 'ARCHIVED', previous_status: status },
         { withCredentials: true }
       );
       setCurrentStatus('ARCHIVED');
@@ -858,11 +1142,7 @@ function EditableDetailModal({
       setShowArchiveConfirm(false);
       onUpdate();
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to archive record.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to archive record.', variant: 'destructive' });
     } finally { setIsArchiving(false); }
   };
 
@@ -898,47 +1178,28 @@ function EditableDetailModal({
         const records = checkRes.data.data.data;
         if (records?.length > 0) existingId = records[0].id;
       } catch (error) { console.error('Check existing failed:', error); }
-      
+
       if (existingId) {
         const updatePayload = {
-          first_name: formData.first_name,
-          middle_name: formData.middle_name,
-          surname: formData.surname,
-          ext_name: formData.ext_name,
-          prefix: formData.prefix,
-          business_name: formData.business_name,
-          business_type: formData.business_type,
-          house_block_lot_no: formData.house_block_lot_no,
-          street: formData.street,
-          zone: formData.zone,
-          or_no: formData.or_no,
-          ctc_vrr_no: formData.ctc_vrr_no,
-          inspected_by: formData.inspected_by,
-          inspected_remarks: formData.inspected_remarks,
-          date_inspected: formData.date_inspected,
-          inspected_note: formData.inspected_note,
-          remarks: formData.remarks,
-          requester_type: formData.requester_type,
-          email: formData.email,
-          issued_date: formData.issued_date,
-          issued_at: formData.issued_at,
-          issued_on: formData.issued_on,
-          capital: formData.capital,
-          punong_barangay: formData.punong_barangay,
+          first_name: formData.first_name, middle_name: formData.middle_name,
+          surname: formData.surname, ext_name: formData.ext_name, prefix: formData.prefix,
+          business_name: formData.business_name, business_type: formData.business_type,
+          house_block_lot_no: formData.house_block_lot_no, street: formData.street, zone: formData.zone,
+          or_no: formData.or_no, ctc_vrr_no: formData.ctc_vrr_no,
+          inspected_by: formData.inspected_by, inspected_remarks: formData.inspected_remarks,
+          date_inspected: formData.date_inspected, inspected_note: formData.inspected_note,
+          remarks: formData.remarks, requester_type: formData.requester_type, email: formData.email,
+          issued_date: formData.issued_date, issued_at: formData.issued_at, issued_on: formData.issued_on,
+          capital: formData.capital, punong_barangay: formData.punong_barangay,
           for_the_punong_barangay: formData.for_the_punong_barangay,
           barangay_position: formData.barangay_position,
         };
-        
         Object.keys(updatePayload).forEach(key => {
-          if (updatePayload[key] === undefined || updatePayload[key] === null) {
-            delete updatePayload[key];
-          }
+          if (updatePayload[key] === undefined || updatePayload[key] === null) delete updatePayload[key];
         });
-        
         await axios.put(
           `https://westrembomis.onrender.com/api/business-clearances/${existingId}`,
-          updatePayload,
-          { withCredentials: true }
+          updatePayload, { withCredentials: true }
         );
         toast({ title: 'Success', description: 'Record updated successfully' });
         setIsEditing(false);
@@ -950,16 +1211,10 @@ function EditableDetailModal({
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const s = error.response?.status;
-        console.error('Update error response:', error.response?.data);
-        
         if (s === 422) {
           const errs = error.response?.data?.errors;
           if (errs) {
-            Object.values(errs).forEach((m: any) => {
-              if (m && m[0]) {
-                toast({ title: 'Validation Error', description: m[0], variant: 'destructive' });
-              }
-            });
+            Object.values(errs).forEach((m: any) => { if (m && m[0]) toast({ title: 'Validation Error', description: m[0], variant: 'destructive' }); });
           } else {
             toast({ title: 'Validation Error', description: error.response?.data?.message || 'Please check your input and try again.', variant: 'destructive' });
           }
@@ -994,11 +1249,13 @@ function EditableDetailModal({
 
   const blockedLabel = status === 'REJECTED' ? 'Rejected' : status === 'INCOMPLETE' ? 'Incomplete' : '';
   const session = getScheduleSession(currentSchedule);
+  const requesterInfo = getRequesterLabel(formData.requester_type);
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-lg border border-gray-200 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+
           {/* Archived banner */}
           {isArchived && (
             <div className="bg-gray-100 border-b border-gray-300 px-6 py-3 flex items-center gap-2">
@@ -1010,13 +1267,9 @@ function EditableDetailModal({
 
           {/* Blocked banner */}
           {isBlocked && !isArchived && (
-            <div className={`border-b px-6 py-3 flex items-center gap-2 ${
-              status === 'REJECTED' ? 'bg-rose-50 border-rose-200' : 'bg-orange-50 border-orange-200'
-            }`}>
+            <div className={`border-b px-6 py-3 flex items-center gap-2 ${status === 'REJECTED' ? 'bg-rose-50 border-rose-200' : 'bg-orange-50 border-orange-200'}`}>
               <Ban className={`h-4 w-4 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`} />
-              <span className={`text-sm font-semibold uppercase tracking-wide ${
-                status === 'REJECTED' ? 'text-rose-700' : 'text-orange-700'
-              }`}>
+              <span className={`text-sm font-semibold uppercase tracking-wide ${status === 'REJECTED' ? 'text-rose-700' : 'text-orange-700'}`}>
                 {blockedLabel} — workflow halted
               </span>
               <span className={`text-xs ml-1 ${status === 'REJECTED' ? 'text-rose-500' : 'text-orange-500'}`}>
@@ -1048,6 +1301,48 @@ function EditableDetailModal({
               <span className="text-xs text-red-500">
                 ({formatDateShort(currentSchedule!.schedule_date)} · {session === 'AM' ? 'until 12:00 NN' : 'until 5:00 PM'})
               </span>
+            </div>
+          )}
+
+          {/* ── Reprint Banner ── */}
+          {!loadingReprint && reprintRequest && (
+            <div className={`border-b px-6 py-3 flex items-center gap-3 ${
+              reprintRequest.status === 'REJECTED'  ? 'bg-rose-50 border-rose-200'     :
+              reprintRequest.status === 'CLAIMED'   ? 'bg-emerald-50 border-emerald-200' :
+              reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                                                    ? 'bg-blue-50 border-blue-200'     :
+                                                      'bg-amber-50 border-amber-200'
+            }`}>
+              <RefreshCw className={`h-4 w-4 flex-shrink-0 ${
+                reprintRequest.status === 'REJECTED'  ? 'text-rose-500'    :
+                reprintRequest.status === 'CLAIMED'   ? 'text-emerald-600' :
+                reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                                                      ? 'text-blue-600'    :
+                                                        'text-amber-600'
+              }`} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-sm font-semibold ${
+                  reprintRequest.status === 'REJECTED'  ? 'text-rose-700'    :
+                  reprintRequest.status === 'CLAIMED'   ? 'text-emerald-700' :
+                  reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                                                        ? 'text-blue-700'    :
+                                                          'text-amber-700'
+                }`}>
+                  Reprint Request Filed
+                </span>
+                <ReprintBadge status={reprintRequest.status} />
+                <span className={`text-xs ${
+                  reprintRequest.status === 'REJECTED'  ? 'text-rose-500'    :
+                  reprintRequest.status === 'CLAIMED'   ? 'text-emerald-600' :
+                  reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                                                        ? 'text-blue-500'    :
+                                                          'text-amber-600'
+                }`}>
+                  — The applicant has requested a reprint of this document.
+                  {reprintRequest.status === 'CLAIMED'  && ' This reprint has been claimed.'}
+                  {reprintRequest.status === 'REJECTED' && ` Rejection reason: ${reprintRequest.rejection_reason ?? 'Not specified'}`}
+                </span>
+              </div>
             </div>
           )}
 
@@ -1087,10 +1382,7 @@ function EditableDetailModal({
           </div>
 
           {/* Body */}
-          <div className={`p-6 ${
-            isArchived ? 'opacity-70 pointer-events-none select-none' :
-            isBlocked  ? 'opacity-90' : ''
-          }`}>
+          <div className={`p-6 ${isArchived ? 'opacity-70 pointer-events-none select-none' : isBlocked ? 'opacity-90' : ''}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {formData.requester_type === 'Online' && (
                 <UserIdViewer userId={(record as any)?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
@@ -1134,22 +1426,54 @@ function EditableDetailModal({
                 <FormField name="or_no" value={formData.or_no || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="OR No." />
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Status</label>
-                  <div className="mt-1">
-                    <StatusBadge status={currentStatus} requesterType={formData.requester_type} />
-                  </div>
+                  <div className="mt-1"><StatusBadge status={currentStatus} requesterType={formData.requester_type} /></div>
                 </div>
                 {formData.rejection_reason && (
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
+
+                {/* ── Reprint Request Info Panel ── */}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Reprint Request</label>
+                  {loadingReprint ? (
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Checking reprint status…
+                    </div>
+                  ) : reprintRequest ? (
+                    <div className={`mt-1.5 rounded-lg border px-3 py-3 space-y-2 ${REPRINT_STATUS_PANEL_STYLES[reprintRequest.status] ?? 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <ReprintBadge status={reprintRequest.status} />
+                        <span className="text-[10px] text-gray-400 font-medium">ID #{reprintRequest.id}</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">Reason</p>
+                        <p className="text-xs text-gray-700 leading-relaxed">{reprintRequest.reason}</p>
+                      </div>
+                      {reprintRequest.rejection_reason && (
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-0.5">Rejection Reason</p>
+                          <p className="text-xs text-rose-700 leading-relaxed">{reprintRequest.rejection_reason}</p>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-500 italic border-t border-gray-200 pt-2 mt-1">
+                        {reprintRequest.status === 'PENDING'  && 'Awaiting review by the barangay office.'}
+                        {reprintRequest.status === 'APPROVED' && 'Reprint has been approved. Prepare the document for printing.'}
+                        {reprintRequest.status === 'REJECTED' && 'Reprint was rejected. See reason above.'}
+                        {reprintRequest.status === 'PRINTED'  && 'Document has been printed and is ready for pickup.'}
+                        {reprintRequest.status === 'CLAIMED'  && 'The reprinted document has been claimed by the applicant.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic mt-1.5">No reprint request on file.</p>
+                  )}
+                </div>
+
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
                   <div className="mt-1.5">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${
-                      formData.requester_type?.toLowerCase() === 'walk-in' 
-                        ? 'bg-slate-100 text-slate-700 border-slate-300'
-                        : 'bg-cyan-50 text-cyan-700 border-cyan-200'
-                    }`}>
-                      {formData.requester_type === 'Walk-in' ? 'Walk-in Applicant' : 'Online Applicant'}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${requesterInfo.badgeClass}`}>
+                      {requesterInfo.label}
                     </span>
                   </div>
                 </div>
@@ -1158,14 +1482,9 @@ function EditableDetailModal({
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Processed By</label>
                   <div className="mt-1">
                     {loadingCreatedBy ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading…
-                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-400"><Loader2 className="h-3 w-3 animate-spin" />Loading…</div>
                     ) : (
-                      <p className="text-sm text-gray-700">
-                        {createdByName || (formData.created_by ? `Staff ID: ${formData.created_by}` : '—')}
-                      </p>
+                      <p className="text-sm text-gray-700">{createdByName || (formData.created_by ? `Staff ID: ${formData.created_by}` : '—')}</p>
                     )}
                   </div>
                 </div>
@@ -1236,11 +1555,7 @@ function EditableDetailModal({
             <div className="mx-6 mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${
-                    dispositionType === 'REJECTED'
-                      ? 'bg-rose-100 text-rose-800 border-rose-200'
-                      : 'bg-orange-50 text-orange-700 border-orange-200'
-                  }`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border ${dispositionType === 'REJECTED' ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                     {dispositionType === 'REJECTED' ? 'Reject' : 'Mark as Incomplete'}
                   </span>
                   <span className="text-sm font-semibold text-gray-800">Provide a reason</span>
@@ -1287,8 +1602,7 @@ function EditableDetailModal({
               </div>
               <p className="text-sm text-gray-600">
                 This will restore the archived record back to its previous active status ({previousStatus || 'RELEASED'}).
-                The record will become editable and visible in the active records list again.
-                Are you sure you want to continue?
+                The record will become editable and visible in the active records list again. Are you sure you want to continue?
               </p>
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setShowRestoreConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors">Cancel</button>
@@ -1325,6 +1639,20 @@ function EditableDetailModal({
                         <Download className="h-4 w-4" />
                         {isDownloading ? 'Downloading...' : 'Download Released Document'}
                       </button>
+                    )}
+                    {/* Mark as Printed for pending reprint */}
+                    {reprintRequest?.status === 'PENDING' && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button
+                          onClick={handleMarkPrinted}
+                          disabled={markingPrinted}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${markingPrinted ? 'animate-spin' : ''}`} />
+                          {markingPrinted ? 'Updating…' : 'Mark as Printed'}
+                        </button>
+                      </>
                     )}
                     {canArchive && (
                       <>
@@ -1368,6 +1696,18 @@ function EditableDetailModal({
                         {actionLoading === 'inspection' ? 'Updating...' : 'Mark as Inspection'}
                       </button>
                     )}
+                    {/* Reschedule button for no-shows */}
+                    {canReschedule && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button
+                          onClick={() => setShowRescheduleModal(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors"
+                        >
+                          <Send className="h-4 w-4" /> Send Reschedule Request
+                        </button>
+                      </>
+                    )}
                     {status === 'PROCESS' && (
                       <p className="text-xs text-indigo-600 italic flex items-center gap-1.5">
                         <PlayCircle className="h-3.5 w-3.5" /> Request is now being processed. Awaiting further action from cashier.
@@ -1387,6 +1727,15 @@ function EditableDetailModal({
         </div>
       </div>
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {showRescheduleModal && currentSchedule && (
+        <RescheduleModal
+          record={record}
+          missedSchedule={currentSchedule}
+          onClose={() => setShowRescheduleModal(false)}
+          onSuccess={handleRescheduleSuccess}
+          toast={toast}
+        />
+      )}
     </>
   );
 }
@@ -1504,6 +1853,10 @@ const BusinessClearance = () => {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [reviewingIds, setReviewingIds] = useState<Set<number>>(new Set());
 
+  // ─── Reprint requests list ──────────────────────────────────────────────────
+  const [reprintRequests, setReprintRequests] = useState<ReprintRequest[]>([]);
+  const [loadingReprints, setLoadingReprints] = useState(false);
+
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
   }, [setSearchParams]);
@@ -1529,6 +1882,33 @@ const BusinessClearance = () => {
       .catch(e => console.error('Failed to fetch streets:', e));
   }, []);
 
+  // ─── Fetch all reprint requests on mount ───────────────────────────────────
+  useEffect(() => {
+    const loadReprints = async () => {
+      setLoadingReprints(true);
+      try {
+        const res = await api.get('/api/reprint-requests', { withCredentials: true });
+        const reprints = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        setReprintRequests(reprints);
+      } catch (e) {
+        console.error('Failed to fetch reprint requests:', e);
+      } finally {
+        setLoadingReprints(false);
+      }
+    };
+    loadReprints();
+  }, []);
+
+  // ─── Helper: get reprint for a record by brgy_business_no ─────────────────
+  const getReprintForRecord = useCallback(
+    (docNumber: string): ReprintRequest | null => {
+      return reprintRequests.find(
+        (r) => r.document_number === docNumber && r.document_type === 'business_clearance'
+      ) ?? null;
+    },
+    [reprintRequests]
+  );
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -1544,7 +1924,9 @@ const BusinessClearance = () => {
         ...(filters.schedule_filter ? { schedule_filter: filters.schedule_filter } : {}),
       };
       const response = await fetchBusinessClearances(params);
-      setData(response.data as any[]); setTotal(response.total); setTotalPages(response.totalPages);
+      setData(prioritySortData(response.data as any[]));
+      setTotal(response.total);
+      setTotalPages(response.totalPages);
     } catch { toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' }); }
     finally { setIsLoading(false); }
   }, [currentPage, searchValue, sortField, sortDirection, filters, toast]);
@@ -1555,7 +1937,19 @@ const BusinessClearance = () => {
     if (sortField === field) setSortDirection(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDirection('asc'); }
   };
-  const handleRefresh = () => { loadData(); toast({ title: 'Refreshed', description: 'Data has been refreshed' }); };
+
+  const handleRefresh = () => {
+    loadData();
+    // Also refresh reprint requests
+    api.get('/api/reprint-requests', { withCredentials: true })
+      .then(res => {
+        const reprints = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        setReprintRequests(reprints);
+      })
+      .catch(() => {});
+    toast({ title: 'Refreshed', description: 'Data has been refreshed' });
+  };
+
   const handleQRScan = useCallback((scannedValue: string) => {
     const trimmed = scannedValue.trim();
     setSearchValue(trimmed);
@@ -1571,24 +1965,12 @@ const BusinessClearance = () => {
         { status: 'REVIEW' },
         { withCredentials: true }
       );
-      setData(prev =>
-        prev.map(r =>
-          Number(r.id) === itemId ? { ...r, status: 'REVIEW' } : r
-        )
-      );
+      setData(prev => prev.map(r => Number(r.id) === itemId ? { ...r, status: 'REVIEW' } : r));
       toast({ title: 'Reviewed', description: 'Request status updated to Review.' });
     } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.message ?? 'Failed to mark as reviewed.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed to mark as reviewed.', variant: 'destructive' });
     } finally {
-      setReviewingIds(prev => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
+      setReviewingIds(prev => { const next = new Set(prev); next.delete(itemId); return next; });
     }
   }, [toast]);
 
@@ -1650,6 +2032,7 @@ const BusinessClearance = () => {
                       <SortHeader field="business_type">Type</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider"><div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div></th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Reprint Request</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Request Type</th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
@@ -1666,28 +2049,61 @@ const BusinessClearance = () => {
                       const isItemAwaitingReschedule = itemStatus === 'RESCHEDULED';
                       const isItemScheduled = itemStatus === 'SCHEDULED';
                       const isReviewingThis = reviewingIds.has(Number(item.id));
-                      const { label: submittedByLabel, badgeClass: submittedByBadgeClass } = 
-                        itemRequesterType?.toLowerCase() === 'walk-in' 
-                          ? { label: 'Walk-in Applicant', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
-                          : { label: 'Online Applicant', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+                      const { label: submittedByLabel, badgeClass: submittedByBadgeClass } =
+                        getRequesterLabel(itemRequesterType);
+
+                      // ── Reprint lookup for this row ──
+                      const itemReprint = getReprintForRecord(item.brgy_business_no ?? '');
+
                       const rowClass = [
                         isNew ? 'bg-blue-50/30' : '',
                         isItemArchived ? 'opacity-60 bg-gray-50' : '',
                         isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
+                        // Subtle amber tint if there's a pending reprint
+                        itemReprint && itemReprint.status === 'PENDING' && !isItemArchived ? 'bg-amber-50/20' : '',
                         'hover:bg-gray-50 transition-colors',
                       ].filter(Boolean).join(' ');
-                      
+
                       return (
                         <tr key={item.id} className={rowClass}>
-                          <td className="pl-3 pr-0 py-3">{isNew && <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />}</td>
+                          <td className="pl-3 pr-0 py-3">
+                            <div className="flex flex-col items-center gap-1">
+                              {isNew && (
+                                <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
+                              )}
+                              {/* Reprint dot indicator */}
+                              {itemReprint && (
+                                <span
+                                  className={`inline-block w-1.5 h-1.5 rounded-full ${
+                                    itemReprint.status === 'PENDING'  ? 'bg-amber-500 animate-pulse' :
+                                    itemReprint.status === 'APPROVED' ? 'bg-blue-500' :
+                                    itemReprint.status === 'PRINTED'  ? 'bg-blue-600' :
+                                    itemReprint.status === 'CLAIMED'  ? 'bg-emerald-500' :
+                                    'bg-rose-500'
+                                  }`}
+                                  title={`Reprint request: ${itemReprint.status}`}
+                                />
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">{`${item.first_name} ${item.middle_name ?? ''} ${item.surname}`.trim()}</td>
                           <td className="py-3 px-4 text-sm font-mono text-blue-600">{item.brgy_business_no}</td>
-                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap"><div className="flex flex-col gap-0.5"><span>{formatCreatedAt((item as any).created_at)}</span>{isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}</div></td>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{formatCreatedAt((item as any).created_at)}</span>
+                              {isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}
+                            </div>
+                          </td>
                           <td className="py-3 px-4 text-sm font-medium">{item.business_name ?? '—'}</td>
                           <td className="py-3 px-4 text-sm text-gray-600">{item.business_type ?? '—'}</td>
                           <td className="py-3 px-4"><StatusBadge status={item.status} requesterType={(item as any).requester_type} /></td>
                           <td className="py-3 px-4"><ScheduleCell schedule={itemSchedule} requesterType={itemRequesterType} status={itemStatus} /></td>
-                          <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>{submittedByLabel}</span></td>
+                          <td className="py-3 px-4"><ReprintIndicatorCell reprintRequest={itemReprint} /></td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>
+                              {submittedByLabel}
+                            </span>
+                          </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {isItemArchived ? (
@@ -1702,9 +2118,7 @@ const BusinessClearance = () => {
                               ) : isItemBlocked ? (
                                 <>
                                   <button onClick={() => navigate(`/document-edit/4/${item.brgy_business_no}`, { state: { autoPrint: true, previewMode: true } })} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors whitespace-nowrap">Print</button>
-                                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${
-                                    itemStatus === 'REJECTED' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-orange-50 text-orange-500 border-orange-200'
-                                  }`}>
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border cursor-not-allowed select-none whitespace-nowrap ${itemStatus === 'REJECTED' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-orange-50 text-orange-500 border-orange-200'}`}>
                                     <Ban className="h-3 w-3" /> No actions
                                   </span>
                                 </>

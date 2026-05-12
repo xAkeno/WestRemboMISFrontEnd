@@ -1140,7 +1140,7 @@ function EditableDetailModal({
   const canMarkProcess =
     !isWorkflowFrozen &&
     isForwardTransition(status, 'PROCESS') &&
-    (status === 'REVIEW' || status === 'PENDING');
+    (status === 'REVIEW' || status === 'PENDING' || status === 'RESCHEDULED');
   const canMarkToInspection = !isWorkflowFrozen &&
     isForwardTransition(status, 'INSPECTING') &&
     (status === 'ENCODED' || status === 'SCHEDULED' || status === 'RESCHEDULED');
