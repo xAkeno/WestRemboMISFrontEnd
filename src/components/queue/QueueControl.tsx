@@ -524,7 +524,7 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
 
 
     try {
-      const addRes = await api.post("api/queue/manual-add", {
+      const addRes = await api.post("/queue/manual-add", {
         document_type: documentType,
         document_id: searchResult.id,
         reference_number: searchResult.reference_number,
@@ -787,7 +787,7 @@ export function QueueControl() {
         return;
       }
 
-      const searchRes = await api.get("api/queue/search-bcert", {
+      const searchRes = await api.get("/queue/search-bcert", {
         params: {
           document_type: documentType,
           bcert_number: referenceNumber,
@@ -802,7 +802,7 @@ export function QueueControl() {
           showToast(`Document ${doc.reference_number} is already in queue`, false);
           addLog(`QR Scan: ${doc.reference_number} already in queue`, "warn");
         } else {
-          const addRes = await api.post("api/queue/manual-add", {
+          const addRes = await api.post("/queue/manual-add", {
             document_type: documentType,
             document_id: doc.id,
             reference_number: doc.reference_number,
@@ -849,7 +849,7 @@ export function QueueControl() {
 
     setBusy(true);
     try {
-      const res = await api.post("api/queue/next");
+      const res = await api.post("/queue/next");
 
 
       if (res.data?.status === "empty") {
@@ -876,7 +876,7 @@ export function QueueControl() {
   async function handleDone(item: DisplayQueueItem) {
     setBusy(true);
     try {
-      await api.post(`api/queue/${item.queueId}/done`);
+      await api.post(`/queue/${item.queueId}/done`);
 
 
       showToast(`${item.refNumber} — dry seal released`);
