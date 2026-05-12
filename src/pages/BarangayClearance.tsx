@@ -32,6 +32,19 @@ const ZONE_OPTIONS = [
 
 console.log(import.meta.env.VITE_WEB_URL);
 
+// ─── Reprint Request ───────────────────────────────────────────────────────────
+interface ReprintRequest {
+  id: number;
+  document_type: string;
+  document_number: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PRINTED' | 'CLAIMED';
+  rejection_reason?: string | null;
+  schedule_date?: string | null;
+  schedule_time?: string | null;
+  notes?: string | null;
+}
+
 // ─── Schedule History Entry ────────────────────────────────────────────────────
 interface ScheduleHistoryEntry {
   schedule_date: string;
@@ -200,15 +213,14 @@ function countActiveFilters(f: FilterState): number {
 }
 
 // ─── Status ordering ───────────────────────────────────────────────────────────
-// PROCESS is inserted between REVIEW and PAID in the workflow.
 const STATUS_ORDER: Record<string, number> = {
   'PENDING':      0,
   'RESCHEDULED':  0,
   'SCHEDULED':    1,
   'ENCODED':      2,
   'INSPECTING':   3,
-  'REVIEW':       4,   // backend value
-  'PROCESS':      5,   // backend value (between REVIEW and PAID)
+  'REVIEW':       4,
+  'PROCESS':      5,
   'PAID':         6,
   'RELEASED':     7,
   'INCOMPLETE':  -1,
@@ -242,9 +254,40 @@ const STATUS_STYLES: Record<string, string> = {
   disabled:     'bg-gray-200 text-gray-600 border-gray-300',
 };
 
+// ─── Reprint status styles ──────────────────────────────────────────────────────
+const REPRINT_STATUS_STYLES: Record<string, string> = {
+  PENDING:  'bg-yellow-50 text-yellow-700 border-yellow-300',
+  APPROVED: 'bg-green-50 text-green-700 border-green-300',
+  REJECTED: 'bg-rose-50 text-rose-700 border-rose-300',
+  PRINTED:  'bg-blue-50 text-blue-700 border-blue-300',
+  CLAIMED:  'bg-emerald-50 text-emerald-700 border-emerald-300',
+};
+
+const REPRINT_STATUS_PANEL_STYLES: Record<string, string> = {
+  PENDING:  'bg-yellow-50 border-yellow-200',
+  APPROVED: 'bg-blue-50 border-blue-200',
+  REJECTED: 'bg-rose-50 border-rose-200',
+  PRINTED:  'bg-blue-50 border-blue-200',
+  CLAIMED:  'bg-emerald-50 border-emerald-200',
+};
+
+// ─── ReprintBadge component ────────────────────────────────────────────────────
+function ReprintBadge({ status }: { status: ReprintRequest['status'] }) {
+  const style = REPRINT_STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-600 border-gray-200';
+  const label = status.charAt(0) + status.slice(1).toLowerCase();
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${style}`}
+    >
+      <RefreshCw className="h-2.5 w-2.5" />
+      Reprint · {label}
+    </span>
+  );
+}
+
 function normaliseStatus(raw: string | null | undefined, requesterType?: string): string {
   if (!raw) return '';
-  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';   // map TO_PAY → REVIEW
+  if (raw.toUpperCase() === 'TO_PAY') return 'REVIEW';
   if (raw.toUpperCase() === 'DISABLED') return 'ARCHIVED';
   if (
     requesterType?.toLowerCase() === 'walk-in' &&
@@ -855,6 +898,44 @@ const FormField = memo(({
 });
 FormField.displayName = 'FormField';
 
+// ─── Reprint Indicator Cell (NEW) ──────────────────────────────────────────────
+function ReprintIndicatorCell({ reprintRequest }: { reprintRequest: ReprintRequest | null }) {
+  if (!reprintRequest) {
+    return <span className="text-[10px] text-gray-400 italic">—</span>;
+  }
+
+  const statusConfig = {
+    PENDING: { icon: '⏳', color: 'bg-yellow-50 text-yellow-700 border-yellow-300', label: 'Pending' },
+    APPROVED: { icon: '✓', color: 'bg-green-50 text-green-700 border-green-300', label: 'Approved' },
+    REJECTED: { icon: '✗', color: 'bg-rose-50 text-rose-700 border-rose-300', label: 'Rejected' },
+    PRINTED: { icon: '🖨', color: 'bg-blue-50 text-blue-700 border-blue-300', label: 'Printed' },
+    CLAIMED: { icon: '✓✓', color: 'bg-emerald-50 text-emerald-700 border-emerald-300', label: 'Claimed' },
+  };
+
+  const config = statusConfig[reprintRequest.status];
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-sm border w-fit ${config.color}`}>
+        <RefreshCw className="h-3 w-3" />
+        {config.label}
+      </span>
+      {/* Show new schedule if available */}
+      {reprintRequest.schedule_date && (
+        <span className="text-[9px] text-gray-600 italic">
+          📅 {formatDateShort(reprintRequest.schedule_date)}
+          {reprintRequest.schedule_time && ` · ${formatTimeRange(reprintRequest.schedule_time)}`}
+        </span>
+      )}
+      {reprintRequest.notes && (
+        <span className="text-[9px] text-gray-500 italic truncate">
+          📝 {reprintRequest.notes}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Editable Detail Modal ─────────────────────────────────────────────────────
 function EditableDetailModal({
   record, onClose, onUpdate, toast,
@@ -867,6 +948,7 @@ function EditableDetailModal({
   const [isEditing, setIsEditing]         = useState(false);
   const [isSaving, setIsSaving]           = useState(false);
   const [isLoading, setIsLoading]         = useState(false);
+  const [markingPrinted, setMarkingPrinted] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [lightboxUrl, setLightboxUrl]     = useState<string | null>(null);
@@ -886,6 +968,10 @@ function EditableDetailModal({
   const [loadingCreatedBy, setLoadingCreatedBy] = useState(false);
   const [previousStatus, setPreviousStatus] = useState<string>('');
 
+  // ─── Reprint state ──────────────────────────────────────────────────────────
+  const [reprintRequest, setReprintRequest] = useState<ReprintRequest | null>(null);
+  const [loadingReprint, setLoadingReprint] = useState(false);
+
   useEffect(() => {
     const loadStreets = async () => {
       try {
@@ -895,6 +981,32 @@ function EditableDetailModal({
     };
     loadStreets();
   }, []);
+
+  // ─── Fetch reprint request for this record ──────────────────────────────────
+  useEffect(() => {
+    if (!record?.bcert_number) return;
+    const loadReprint = async () => {
+      setLoadingReprint(true);
+      try {
+        const res = await api.get('/api/reprint-requests', { withCredentials: true });
+        // Handle both response structures
+        const allRequests = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        console.log('Fetched reprint requests in modal:', allRequests);
+        const matched = allRequests.find(
+          (r: ReprintRequest) =>
+            r.document_number === record.bcert_number &&
+            r.document_type === 'barangay_clearance'
+        );
+        setReprintRequest(matched ?? null);
+      } catch {
+        setReprintRequest(null);
+      } finally {
+        setLoadingReprint(false);
+      }
+    };
+    
+    loadReprint();
+  }, [record?.bcert_number, refreshKey]);
 
   const [formData, setFormData] = useState<any>({
     first_name: '', middle_name: '', surname: '', ext_name: '',
@@ -1199,6 +1311,25 @@ function EditableDetailModal({
     onUpdate();
   };
 
+  const handleMarkPrinted = async () => {
+    if (!reprintRequest) return;
+    setMarkingPrinted(true);
+    try {
+      await api.put(`/api/reprint-requests/${reprintRequest.id}/printed`, {}, { withCredentials: true });
+      setReprintRequest(prev => prev ? { ...prev, status: 'PRINTED' } : prev);
+      toast({ title: 'Marked as Printed', description: 'Reprint request status updated to Printed.' });
+      onUpdate();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message ?? 'Failed to mark as printed.',
+        variant: 'destructive',
+      });
+    } finally {
+      setMarkingPrinted(false);
+    }
+  };
+
   const downloadReleased = async () => {
     if (!record?.id) {
       toast({ title: 'Error', description: 'No record to download.', variant: 'destructive' });
@@ -1329,6 +1460,54 @@ function EditableDetailModal({
               </div>
             </div>
           )}
+
+          {/* ── Reprint Banner (top of modal, only when a reprint exists) ── */}
+          {!loadingReprint && reprintRequest && (
+            <div className={`border-b px-6 py-3 flex items-center gap-3 ${
+              reprintRequest.status === 'REJECTED'
+                ? 'bg-rose-50 border-rose-200'
+                : reprintRequest.status === 'CLAIMED'
+                ? 'bg-emerald-50 border-emerald-200'
+                : reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-amber-50 border-amber-200'
+            }`}>
+              <RefreshCw className={`h-4 w-4 flex-shrink-0 ${
+                reprintRequest.status === 'REJECTED'
+                  ? 'text-rose-500'
+                  : reprintRequest.status === 'CLAIMED'
+                  ? 'text-emerald-600'
+                  : reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                  ? 'text-blue-600'
+                  : 'text-amber-600'
+              }`} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-sm font-semibold ${
+                  reprintRequest.status === 'REJECTED'
+                    ? 'text-rose-700'
+                    : reprintRequest.status === 'CLAIMED'
+                    ? 'text-emerald-700'
+                    : reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED'
+                    ? 'text-blue-700'
+                    : 'text-amber-700'
+                }`}>
+                  Reprint Request Filed
+                </span>
+                <ReprintBadge status={reprintRequest.status} />
+                <span className={`text-xs ${
+                  reprintRequest.status === 'REJECTED' ? 'text-rose-500' :
+                  reprintRequest.status === 'CLAIMED' ? 'text-emerald-600' :
+                  reprintRequest.status === 'APPROVED' || reprintRequest.status === 'PRINTED' ? 'text-blue-500' :
+                  'text-amber-600'
+                }`}>
+                  — The applicant has requested a reprint of this document.
+                  {reprintRequest.status === 'CLAIMED' && ' This reprint has been claimed.'}
+                  {reprintRequest.status === 'REJECTED' && ` Rejection reason: ${reprintRequest.rejection_reason ?? 'Not specified'}`}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Clearance Details</h2>
@@ -1366,9 +1545,6 @@ function EditableDetailModal({
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* {formData.requester_type === 'Online' && (
-                <UserIdViewer userId={record?.schedule?.user_id} onZoom={url => setLightboxUrl(url)} />
-              )} */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
                 <FormField name="first_name" value={formData.first_name || ''} onChange={handleInputChange} isEditing={isEditing && canEdit} label="First Name" />
@@ -1408,6 +1584,48 @@ function EditableDetailModal({
                 {formData.rejection_reason && (
                   <FormField name="rejection_reason" value={formData.rejection_reason || ''} onChange={handleInputChange} isTextArea={true} isEditing={false} label="Reason of rejection" />
                 )}
+
+                {/* ── Reprint Request Info Panel (inside Document Information) ── */}
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider">Reprint Request</label>
+                  {loadingReprint ? (
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Checking reprint status…
+                    </div>
+                  ) : reprintRequest ? (
+                    <div className={`mt-1.5 rounded-lg border px-3 py-3 space-y-2 ${REPRINT_STATUS_PANEL_STYLES[reprintRequest.status] ?? 'bg-gray-50 border-gray-200'}`}>
+                      {/* Status row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <ReprintBadge status={reprintRequest.status} />
+                        <span className="text-[10px] text-gray-400 font-medium">ID #{reprintRequest.id}</span>
+                      </div>
+                      {/* Reason */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">Reason</p>
+                        <p className="text-xs text-gray-700 leading-relaxed">{reprintRequest.reason}</p>
+                      </div>
+                      {/* Rejection reason if applicable */}
+                      {reprintRequest.rejection_reason && (
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-0.5">Rejection Reason</p>
+                          <p className="text-xs text-rose-700 leading-relaxed">{reprintRequest.rejection_reason}</p>
+                        </div>
+                      )}
+                      {/* Status message */}
+                      <p className="text-[10px] text-gray-500 italic border-t border-gray-200 pt-2 mt-1">
+                        {reprintRequest.status === 'PENDING'  && 'Awaiting review by the barangay office.'}
+                        {reprintRequest.status === 'APPROVED' && 'Reprint has been approved. Prepare the document for printing.'}
+                        {reprintRequest.status === 'REJECTED' && 'Reprint was rejected. See reason above.'}
+                        {reprintRequest.status === 'PRINTED'  && 'Document has been printed and is ready for pickup.'}
+                        {reprintRequest.status === 'CLAIMED'  && 'The reprinted document has been claimed by the applicant.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic mt-1.5">No reprint request on file.</p>
+                  )}
+                </div>
+
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider">Submission Channel</label>
                   <div className="mt-1.5">
@@ -1640,6 +1858,19 @@ function EditableDetailModal({
                         <Download className="h-4 w-4" />
                         {isDownloading ? 'Downloading...' : 'Download Released Document'}
                       </button>
+                    )}
+                    {reprintRequest?.status === 'PENDING' && (
+                      <>
+                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                        <button
+                          onClick={handleMarkPrinted}
+                          disabled={markingPrinted}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${markingPrinted ? 'animate-spin' : ''}`} />
+                          {markingPrinted ? 'Updating…' : 'Mark as Printed'}
+                        </button>
+                      </>
                     )}
                     {canArchive && (
                       <>
@@ -1929,6 +2160,10 @@ const BarangayClearance = () => {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [reviewingIds, setReviewingIds] = useState<Set<number>>(new Set());
 
+  // ─── Reprint requests list ──────────────────────────────────────────────────
+  const [reprintRequests, setReprintRequests] = useState<ReprintRequest[]>([]);
+  const [loadingReprints, setLoadingReprints] = useState(false);
+
   const syncToUrl = useCallback((nextSearch: string, nextPage: number, nextFilters: FilterState) => {
     setSearchParams(buildParams(nextFilters, nextSearch, nextPage), { replace: true });
   }, [setSearchParams]);
@@ -1955,6 +2190,45 @@ const BarangayClearance = () => {
       .then(res => setStreets(res.data?.data ?? res.data ?? []))
       .catch(e => console.error('Failed to fetch streets:', e));
   }, []);
+
+  // ─── Fetch all reprint requests on mount ───────────────────────────────────
+  useEffect(() => {
+    const loadReprints = async () => {
+      setLoadingReprints(true);
+      try {
+        const res = await api.get('/api/reprint-requests', { withCredentials: true });
+        console.log('Fetched reprint requests:', res.data);
+        // Handle both response structures: res.data.data (nested) or res.data (direct)
+        const reprints = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        setReprintRequests(reprints);
+      } catch (e) {
+        console.error('Failed to fetch reprint requests:', e);
+      } finally {
+        setLoadingReprints(false);
+      }
+    };
+    loadReprints();
+  }, []);
+
+  // ─── Helper: get reprint for a record by bcert_number ─────────────────────
+  const getReprintForRecord = useCallback(
+    (docNumber: string): ReprintRequest | null => {
+      // First try exact match with barangay_clearance
+      const exactMatch = reprintRequests.find(
+        (r) => r.document_number === docNumber && r.document_type === 'barangay_clearance'
+      );
+      if (exactMatch) return exactMatch;
+      
+      // Debug: log when searching
+      console.log(`Looking for reprint request: ${docNumber}`, {
+        available: reprintRequests.map(r => ({ doc: r.document_number, type: r.document_type })),
+        searching: docNumber
+      });
+      
+      return null;
+    },
+    [reprintRequests]
+  );
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -1992,6 +2266,13 @@ const BarangayClearance = () => {
 
   const handleRefresh = () => {
     loadData();
+    // Also refresh reprint requests
+    api.get('/api/reprint-requests', { withCredentials: true })
+      .then(res => {
+        const reprints = res.data?.data?.length ? res.data.data : Array.isArray(res.data) ? res.data : [];
+        setReprintRequests(reprints);
+      })
+      .catch(() => {});
     toast({ title: 'Refreshed', description: 'Data has been refreshed' });
   };
 
@@ -2109,12 +2390,13 @@ const BarangayClearance = () => {
                       <SortHeader field="fullName">Full Name</SortHeader>
                       <SortHeader field="bcertNumber">BCert No.</SortHeader>
                       <SortHeader field="created_at">Created At</SortHeader>
-                      <SortHeader field="zone">Zone</SortHeader>
-                      <SortHeader field="street">Street</SortHeader>
                       <SortHeader field="dateOfBirth">Date of Birth</SortHeader>
                       <SortHeader field="status">Status</SortHeader>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Schedule</div>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Reprint Request
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Request Type
@@ -2143,18 +2425,40 @@ const BarangayClearance = () => {
                       const isReviewingThis = reviewingIds.has(Number(item.id));
                       const { label: submittedByLabel, badgeClass: submittedByBadgeClass } =
                         getRequesterLabel(itemRequesterType);
+
+                      // ── Reprint lookup for this row ──
+                      const itemReprint = getReprintForRecord(item.bcert_number ?? '');
+
                       const rowClass = [
                         isNew ? 'bg-blue-50/30' : '',
                         isItemArchived ? 'opacity-60 bg-gray-50' : '',
                         isItemBlocked && !isItemArchived ? 'opacity-80 bg-gray-50/40' : '',
+                        // Subtle amber tint if there's a pending reprint
+                        itemReprint && itemReprint.status === 'PENDING' && !isItemArchived ? 'bg-amber-50/20' : '',
                         'hover:bg-gray-50 transition-colors',
                       ].filter(Boolean).join(' ');
+
                       return (
                         <tr key={item.id} className={rowClass}>
                           <td className="pl-3 pr-0 py-3">
-                            {isNew && (
-                              <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
-                            )}
+                            <div className="flex flex-col items-center gap-1">
+                              {isNew && (
+                                <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" title="New request (< 24h)" />
+                              )}
+                              {/* Reprint dot indicator */}
+                              {itemReprint && (
+                                <span
+                                  className={`inline-block w-1.5 h-1.5 rounded-full ${
+                                    itemReprint.status === 'PENDING'  ? 'bg-amber-500 animate-pulse' :
+                                    itemReprint.status === 'APPROVED' ? 'bg-blue-500' :
+                                    itemReprint.status === 'PRINTED'  ? 'bg-blue-600' :
+                                    itemReprint.status === 'CLAIMED'  ? 'bg-emerald-500' :
+                                    'bg-rose-500'
+                                  }`}
+                                  title={`Reprint request: ${itemReprint.status}`}
+                                />
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-sm font-medium text-blue-600 whitespace-nowrap">
                             {`${item.first_name} ${item.middle_name ?? ''} ${item.surname}${item.ext_name ? ` ${item.ext_name}` : ''}`.trim()}
@@ -2166,15 +2470,13 @@ const BarangayClearance = () => {
                               {isNew && <span className="text-[9px] font-bold uppercase tracking-wider text-blue-500">New</span>}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-600">{(item as any).zone ?? '—'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-600">
-                            {`${item.house_block_lot_no ? item.house_block_lot_no + ' ' : ''}${item.street ?? ''}`.trim() || '—'}
-                          </td>
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
                             {new Date(item.dob).toLocaleDateString()}
                           </td>
                           <td className="py-3 px-4">
-                            <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
+                            <div className="flex flex-col gap-1">
+                              <StatusBadge status={item.status} requesterType={(item as any).requester_type} />
+                            </div>
                           </td>
                           <td className="py-3 px-4">
                             <ScheduleCell
@@ -2182,6 +2484,9 @@ const BarangayClearance = () => {
                               requesterType={itemRequesterType}
                               status={itemStatus}
                             />
+                          </td>
+                          <td className="py-3 px-4">
+                            <ReprintIndicatorCell reprintRequest={itemReprint} />
                           </td>
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-md border ${submittedByBadgeClass}`}>
