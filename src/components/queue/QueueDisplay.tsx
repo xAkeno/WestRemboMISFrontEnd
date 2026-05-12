@@ -393,7 +393,7 @@ export function QueueDisplay({
     const priorityMap = priorityMapRef.current;
 
     try {
-      const res = await api.get("api/queue");
+      const res = await api.get("/queue");
       const payload = res.data?.data;
       let items: BackendQueueItem[] = Array.isArray(payload)
         ? payload
@@ -425,7 +425,7 @@ export function QueueDisplay({
             try {
               // Build endpoint from document type
               const collection = item.documentType.replace(/_/g, "-") + "s";
-              const docRes = await api.get(`api/${collection}/${item.documentId}`);
+              const docRes = await api.get(`/${collection}/${item.documentId}`);
               const doc    = docRes.data?.data ?? docRes.data;
 
               if (doc) {
