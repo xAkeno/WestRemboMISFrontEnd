@@ -216,7 +216,7 @@ function savePriorityIds(ids: Set<number>) {
 
 
 async function fetchQueueItems(priorityIds: Set<number>): Promise<DisplayQueueItem[]> {
-  const queueRes = await api.get("api/queue");
+  const queueRes = await api.get("/queue");
   const rawData = queueRes.data?.data;
   let queueItems: QueueItem[] = Array.isArray(rawData)
     ? rawData
@@ -490,7 +490,7 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
 
 
     try {
-      const res = await api.get("api/queue/search-bcert", {
+      const res = await api.get("/queue/search-bcert", {
         params: {
           document_type: documentType,
           bcert_number: referenceNumber,
