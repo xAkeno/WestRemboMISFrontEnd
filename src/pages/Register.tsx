@@ -544,6 +544,104 @@ const parseOcrResponse = (raw: any): OcrResult => {
   return { firstName, middleName, lastName, dateOfBirth, address, idNumber, raw: d };
 };
 
+// ─── School ID OCR Parser ─────────────────────────────────────────────────────
+//
+// Specialized parser for school IDs. Unlike government IDs, school IDs:
+//  - Don't have labeled name fields ("Apelyido:" / "Last Name:" / "Surname:")
+//  - Don't have labeled DOB fields
+//  - Print the student's name as an unlabeled all-caps line on the FRONT,
+//    typically between the school's identifier and the program/course
+//  - Print the home address on the BACK in the "IN CASE OF EMERGENCY" section
+//
+// IMPORTANT: We intentionally do NOT extract the address here. The student's
+// address fields are pre-filled from the PARENT'S already-validated West Rembo
+// ID (in handleParentOcrComplete). Overwriting with the school ID's address
+// would replace good data with potentially worse-formatted data (e.g. "9-F"
+// alone in houseBlockLotNo with no street match).
+//
+function parseSchoolIdResponse(frontText: string, backText: string): OcrResult {
+  const result: OcrResult = {};
+  const frontLines = frontText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+
+  // ── Student name from the FRONT ──
+  // Heuristic: find an all-caps line that "looks like" a person's name —
+  // 2 to 5 word parts, only letters / spaces / periods / hyphens, no
+  // institutional keywords (UNIVERSITY, DIPLOMA, etc.).
+  const NAME_BLACKLIST = [
+    "UNIVERSITY", "COLLEGE", "INSTITUTE", "SCHOOL", "ACADEMY", "FOUNDATION",
+    "STUDENT", "DIPLOMA", "BACHELOR", "MASTER", "DOCTORATE", "DOCTOR",
+    "SIGNATURE", "PRESIDENT", "REGISTRAR", "DEAN", "CHANCELLOR",
+    "REPUBLIC", "PHILIPPINES", "MAKATI", "TAGUIG", "MANILA", "PASIG", "QUEZON",
+    "PARANAQUE", "LAS PINAS", "MUNTINLUPA", "MARIKINA", "CALOOCAN", "PASAY",
+    "DEVELOPMENT", "PROGRAM", "MAJOR", "COURSE", "DEPARTMENT", "FACULTY",
+    "APPLICATION", "INFORMATION", "TECHNOLOGY", "ENGINEERING", "BUSINESS",
+    "SCIENCE", "EDUCATION", "ACCOUNTANCY", "NURSING",
+    "CCIS", "CCS", "CAS", "CEAT", "CABA", "COB", "CON", "CED", "CAH", "COE",
+    "VALID", "EXPIR", "MEMBER", "ID NO", "ID NUMBER",
+    "JP RIZAL", "WEST REMBO", "EAST REMBO", "STREET", "EXTENSION", "AVENUE",
+    "CITY", "BARANGAY", "PROVINCE", "REGION",
+    "REPUBLIKA", "PILIPINAS",
+  ];
+
+  let studentName: string | null = null;
+  for (const line of frontLines) {
+    const clean = line.trim();
+
+    // Length filter (rejects "NVER", "CCIS", "SIGNATURE", etc. on the short
+    // side and long descriptive lines on the long side)
+    if (clean.length < 5 || clean.length > 50) continue;
+
+    // Must look like an all-caps PH name: starts with a letter, contains only
+    // uppercase letters, spaces, periods (for initials), and hyphens.
+    if (!/^[A-Z][A-Z\s\.\-]+$/.test(clean)) continue;
+
+    // Must not contain institutional / school / location keywords
+    if (NAME_BLACKLIST.some(kw => clean.includes(kw))) continue;
+
+    // Must have between 2 and 5 word parts (FIRST [MIDDLE...] LAST)
+    const parts = clean.split(/\s+/).filter(p => p.length > 0);
+    if (parts.length < 2 || parts.length > 5) continue;
+
+    studentName = clean;
+    break;
+  }
+
+  if (studentName) {
+    const parts = studentName.split(/\s+/).filter(p => p.length > 0);
+    // Convention: first token is first name, last token is surname, anything
+    // between is middle name(s). Filipino naming convention assumes the user
+    // will manually correct edge cases (compound first names etc.).
+    result.firstName = parts[0];
+    result.lastName  = parts[parts.length - 1];
+    if (parts.length > 2) {
+      result.middleName = parts.slice(1, parts.length - 1).join(" ");
+    }
+  }
+
+  // ── Student ID number from the FRONT ──
+  // Common school ID number formats: "A12345065", "2023-12345", "21-1234"
+  const idPatterns = [
+    /\b([A-Z]\d{6,12})\b/,         // Letter + digits: "A12345065"
+    /\b(\d{4}\-\d{4,8})\b/,        // Year-based:     "2023-12345"
+    /\b(\d{2}\-\d{4,6})\b/,        // Short year:     "21-12345"
+  ];
+  for (const p of idPatterns) {
+    const m = frontText.match(p);
+    if (m) { result.idNumber = m[1]; break; }
+  }
+
+  // ── DOB from front or back (school IDs rarely have it but try anyway) ──
+  const fullText = `${frontText}\n${backText}`;
+  const dobMatch = fullText.match(
+    /\b(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+(\d{1,2}),?\s+(\d{4})\b/i,
+  );
+  if (dobMatch) {
+    result.dateOfBirth = normDate(`${dobMatch[1]} ${dobMatch[2]}, ${dobMatch[3]}`);
+  }
+
+  return result;
+}
+
 // ─── OCR Step ─────────────────────────────────────────────────────────────────
 type OcrStepProps = {
   /**
@@ -730,8 +828,15 @@ const OcrStep = ({ mode, lockedIdType, onComplete, onSkip, onSelectIdType, liveS
         }
       }
 
+      // Parse the OCR text into structured fields. School IDs use a dedicated
+      // parser (different layout — no labeled name fields, no DOB labels, the
+      // student name is an unlabeled all-caps line on the front). Government
+      // IDs use the standard parser that looks for "Apelyido:" / "Last Name:"
+      // / "Surname:" labels.
       const mergedText = backText ? `${frontText}\n${backText}` : frontText;
-      const result     = parseOcrResponse({ text: mergedText });
+      const result     = (isSchoolIdScan)
+        ? parseSchoolIdResponse(frontText, backText)
+        : parseOcrResponse({ text: mergedText });
       result.isPWD     = idValidation.isPWD;
 
       setOcrState("done");
