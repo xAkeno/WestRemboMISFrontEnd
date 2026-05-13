@@ -304,8 +304,7 @@ export function QueueDisplay({ pollInterval = POLL_MS, enrichDetails = true }: Q
     const priorityMap = priorityMapRef.current;
 
     try {
-      // ✅ FIXED: removed duplicate "api/" prefix — api instance baseURL already includes /api/
-      const res = await api.get("queue");
+      const res = await api.get("/queue");
       const payload = res.data?.data;
       let items: BackendQueueItem[] = Array.isArray(payload)
         ? payload
@@ -342,7 +341,7 @@ export function QueueDisplay({ pollInterval = POLL_MS, enrichDetails = true }: Q
             try {
               // ✅ FIXED: removed duplicate "api/" prefix
               const collection = item.documentType.replace(/_/g, "-") + "s";
-              const docRes = await api.get(`${collection}/${item.documentId}`);
+              const docRes = await api.get(`/${collection}/${item.documentId}`);
               const doc    = docRes.data?.data ?? docRes.data;
 
               if (doc) {
