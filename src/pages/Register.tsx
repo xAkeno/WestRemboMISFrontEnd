@@ -168,6 +168,44 @@ function validateOcrResult(rawText: string, selectedId: IdTypeValue): OcrValidat
   return { isValid: errors.length === 0, detectedIdType: detected, isPWD, errors };
 }
 
+// ─── Parent ID Validator — accepts ANY known ID type ─────────────────────────
+function validateParentOcrResult(rawText: string, selectedId: IdTypeValue): OcrValidationResult {
+  const errors: string[] = [];
+  const text = normalizeOcr(rawText);
+
+  if (!text) {
+    return {
+      isValid: false,
+      detectedIdType: null,
+      isPWD: false,
+      errors: ["OCR returned no readable text. Please upload a clearer image."],
+    };
+  }
+
+  const detected = detectIdType(text);
+  const isPWD    = isPWDId(text);
+
+  // For parent ID — validate that the selected type matches the uploaded image
+  // (same logic as normal, but school_id is NOT in the parent ID type list)
+  let selectedMatches = false;
+  switch (selectedId) {
+    case "drivers_license": selectedMatches = isDriverLicense(text); break;
+    case "philhealth":      selectedMatches = isPhilHealth(text);    break;
+    case "sss":             selectedMatches = isSSS(text);           break;
+    case "pwd_id":          selectedMatches = isPWDId(text);         break;
+    case "national_id":     selectedMatches = isNationalId(text);    break;
+    // school_id should never appear here but handle gracefully
+    case "school_id":       selectedMatches = isSchoolId(text);      break;
+  }
+
+  if (!selectedMatches) {
+    const hint = detected ? ` The uploaded image appears to be a ${ID_LABELS[detected]}.` : "";
+    errors.push(`The uploaded ID does not match the selected ID type (${ID_LABELS[selectedId]}).${hint}`);
+  }
+
+  return { isValid: errors.length === 0, detectedIdType: detected, isPWD, errors };
+}
+
 // ─── West Rembo Address Validator ─────────────────────────────────────────────
 type WestRemboStreet = { name: string; formerly: string | null };
 
@@ -249,6 +287,8 @@ function validateAddress(ocrText: string, liveStreets?: WestRemboStreet[]): Addr
     text.includes("westrembo") ||
     text.includes("w rembo");
 
+  // HARD REQUIREMENT: the address must mention West Rembo.
+  // Anything else is rejected (Cembo, Pembo, etc. will fail here).
   if (!isFromWestRembo) {
     return {
       isValid: false,
@@ -258,6 +298,13 @@ function validateAddress(ocrText: string, liveStreets?: WestRemboStreet[]): Addr
     };
   }
 
+  // INFORMATIONAL: try to identify the specific street so we can auto-fill
+  // the form. We do NOT reject when no street matches — the registered
+  // street list isn't exhaustive (new streets, common surnames like Burgos,
+  // del Pilar, Aquino, etc. may legitimately exist in West Rembo even if
+  // they aren't yet in WEST_REMBO_STREETS). The user manually picks their
+  // street in the form Section 3, so OCR street detection is best-effort
+  // auto-fill, not a gate.
   const streetList = liveStreets && liveStreets.length > 0 ? liveStreets : WEST_REMBO_STREETS;
   let matchedStreet: string | null = null;
 
@@ -270,19 +317,57 @@ function validateAddress(ocrText: string, liveStreets?: WestRemboStreet[]): Addr
     }
   }
 
-  if (!matchedStreet) {
-    return {
-      isValid: false,
-      isFromWestRembo: true,
-      matchedStreet: null,
-      errors: ["No valid West Rembo street was detected in your ID address. Please ensure your ID shows your complete current address."],
-    };
-  }
-
   return { isValid: true, isFromWestRembo: true, matchedStreet, errors: [] };
 }
 
+// ─── School ID Home-Address Extractor ────────────────────────────────────────
+//
+// Why this exists:
+// A school ID has TWO addresses on it:
+//   1. The SCHOOL's own address (printed at the top of the front, e.g.
+//      "JP Rizal Extension, West Rembo, City of Makati")
+//   2. The STUDENT's HOME / EMERGENCY CONTACT address (typically on the back
+//      labeled "ADDRESS:" inside the "IN CASE OF EMERGENCY" section, e.g.
+//      "ADDRESS: 21-B KALYAAN AVENUE, CEMBO, CITY OF MAKATI")
+//
+// A naive substring search for "west rembo" will FALSELY accept a school ID
+// from a school located in West Rembo even when the student lives elsewhere
+// (e.g. Cembo). To prevent that, we only validate the LABELED home address.
+//
+function extractAddressByLabel(text: string): string | null {
+  if (!text) return null;
+
+  // Match common labels (English + Filipino), case-insensitive.
+  const labelPattern =
+    "(?:home\\s+address|residential\\s+address|permanent\\s+address|address|tirahan|tahanan)";
+
+  // Stop the capture at the next labeled field, blank line, or end of text.
+  const stopKeywords =
+    "(?:contact|tel\\b|phone|email|name|signature|certify|this is to|if found|please return|nationality|birth|sex|emergency|guardian|cert\\.)";
+
+  const pattern = new RegExp(
+    `${labelPattern}\\s*[:\\-]\\s*([\\s\\S]{5,200}?)(?=\\n\\s*${stopKeywords}|\\n\\s*\\n|$)`,
+    "i",
+  );
+
+  const match = text.match(pattern);
+  return match ? match[1].trim() : null;
+}
+
+function extractSchoolIdHomeAddress(frontText: string, backText: string): string | null {
+  // Prefer the BACK — that's where school IDs put the emergency-contact /
+  // student home address. Only fall back to the front if the back has no
+  // labeled address (rare).
+  if (backText) {
+    const fromBack = extractAddressByLabel(backText);
+    if (fromBack) return fromBack;
+  }
+  return extractAddressByLabel(frontText);
+}
+
 // ─── ID Types Config ──────────────────────────────────────────────────────────
+
+// All ID types for the student's own ID scan
 const ALL_ID_TYPES: IdType[] = [
   { value: "national_id",     label: "National ID (PhilSys)", hasBack: true,  icon: "🪪", isDependent: false },
   { value: "sss",             label: "SSS",                   hasBack: true,  icon: "🏛️", isDependent: false },
@@ -290,6 +375,15 @@ const ALL_ID_TYPES: IdType[] = [
   { value: "school_id",       label: "School ID (Dependent)", hasBack: true,  icon: "🎓", isDependent: true  },
   { value: "drivers_license", label: "Driver's License",      hasBack: true,  icon: "🚗", isDependent: false },
   { value: "pwd_id",          label: "PWD ID",                hasBack: true,  icon: "♿", isDependent: false },
+];
+
+// Parent ID types — any valid government-issued ID EXCEPT school_id
+const PARENT_ID_TYPES: IdType[] = [
+  { value: "national_id",     label: "National ID (PhilSys)", hasBack: true,  icon: "🪪" },
+  { value: "sss",             label: "SSS",                   hasBack: true,  icon: "🏛️" },
+  { value: "philhealth",      label: "PhilHealth",            hasBack: false, icon: "🏥" },
+  { value: "drivers_license", label: "Driver's License",      hasBack: true,  icon: "🚗" },
+  { value: "pwd_id",          label: "PWD ID",                hasBack: true,  icon: "♿" },
 ];
 
 // ─── OCR API Config ───────────────────────────────────────────────────────────
@@ -300,12 +394,6 @@ const ACCEPTED_TYPES   = ["image/jpeg", "image/jpg", "image/png", "image/webp", 
 const ACCEPTED_ATTR    = ACCEPTED_TYPES.join(",");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const toDateString = (date: Date): string => {
-  const yyyy = date.getFullYear();
-  const mm   = String(date.getMonth() + 1).padStart(2, "0");
-  const dd   = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
 const getDefaultAdultDateString = () => { const y = new Date().getFullYear() - 18; return `${y}-01-01`; };
 const validateFile = (file: File): string | null => {
   if (!ACCEPTED_TYPES.includes(file.type)) return "Only JPG, PNG, WEBP, HEIC images are accepted.";
@@ -458,14 +546,31 @@ const parseOcrResponse = (raw: any): OcrResult => {
 
 // ─── OCR Step ─────────────────────────────────────────────────────────────────
 type OcrStepProps = {
+  /**
+   * mode = "student"  → shows all ID types (including school_id), validates West Rembo address
+   * mode = "parent"   → shows only non-school ID types, ALSO validates West Rembo address
+   */
+  mode: "student" | "parent";
+  /**
+   * When set, skips the ID selection phase and locks in this ID type automatically.
+   * Used after parent OCR completes to jump straight to school_id upload.
+   */
+  lockedIdType?: IdTypeValue;
   onComplete: (result: OcrResult, front: File, back: File | null) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
   onSelectIdType: (v: string) => void;
   liveStreets?: WestRemboStreet[];
 };
 
-const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepProps) => {
-  const [selectedType, setSelectedType] = useState<IdType | null>(null);
+const OcrStep = ({ mode, lockedIdType, onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepProps) => {
+  const idTypeList = mode === "parent" ? PARENT_ID_TYPES : ALL_ID_TYPES;
+
+  // If lockedIdType is provided, find and pre-select that type and skip straight to upload
+  const lockedIdTypeObj = lockedIdType
+    ? (idTypeList.find(t => t.value === lockedIdType) ?? ALL_ID_TYPES.find(t => t.value === lockedIdType) ?? null)
+    : null;
+
+  const [selectedType, setSelectedType] = useState<IdType | null>(lockedIdTypeObj);
   const [frontFile,    setFrontFile]    = useState<File | null>(null);
   const [backFile,     setBackFile]     = useState<File | null>(null);
   const [frontError,   setFrontError]   = useState<string | null>(null);
@@ -473,7 +578,8 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
   const [ocrState,     setOcrState]     = useState<"idle" | "scanning" | "done" | "error">("idle");
   const [ocrError,     setOcrError]     = useState<string | null>(null);
   const [ocrErrorType, setOcrErrorType] = useState<"id" | "address" | "general" | null>(null);
-  const [phase,        setPhase]        = useState<"select" | "requirements" | "upload">("select");
+  // If lockedIdType is given, jump straight to upload — no need to pick or review requirements
+  const [phase, setPhase] = useState<"select" | "requirements" | "upload">(lockedIdType ? "upload" : "select");
   const { toast } = useToast();
 
   const handleFileChange = (side: "front" | "back", file: File | null) => {
@@ -517,7 +623,11 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
       let backText: string = "";
       if (backFile) { backRaw = await sendToOcr(backFile); backText = backRaw?.text ?? ""; }
 
-      const idValidation = validateOcrResult(frontText, selectedType.value);
+      // Validate ID type match
+      const idValidation = mode === "parent"
+        ? validateParentOcrResult(frontText, selectedType.value)
+        : validateOcrResult(frontText, selectedType.value);
+
       if (!idValidation.isValid) {
         setOcrState("error");
         setOcrErrorType("id");
@@ -526,35 +636,97 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         return;
       }
 
-      // School IDs show the school's address, not the student's home — skip address validation
-      if (!selectedType.isDependent) {
-        let addrValidation = validateAddress(frontText, liveStreets);
+      // ─── Address validation ────────────────────────────────────────────────
+      // Apply West Rembo address validation to:
+      //   - Student's own non-school ID (validates the holder's address directly)
+      //   - Parent's / Guardian's ID            (validates the family's residency)
+      //   - Student's School ID                 (SMART: validates ONLY the labeled
+      //                                          home address from the emergency
+      //                                          contact section — IGNORES the
+      //                                          school's own printed address)
+      const isSchoolIdScan   = mode === "student" && selectedType.value === "school_id";
+      const isNormalStudent  = mode === "student" && !selectedType.isDependent;
+      const isParentScan     = mode === "parent";
+      const shouldValidateAddress = isSchoolIdScan || isNormalStudent || isParentScan;
 
-        if (!addrValidation.isValid && backFile && backText) {
-          const backAddr = validateAddress(backText, liveStreets);
-          if (!backAddr.isValid) {
+      if (shouldValidateAddress) {
+
+        // ── School ID branch: extract the LABELED home address only ──
+        // We cannot do a naïve substring search on the full OCR text because
+        // a school ID printed in West Rembo will contain "West Rembo" as the
+        // school's address — that would falsely accept students who actually
+        // live in Cembo / Pembo / etc.
+        if (isSchoolIdScan) {
+          const homeAddress = extractSchoolIdHomeAddress(frontText, backText);
+
+          if (!homeAddress) {
             setOcrState("error");
             setOcrErrorType("address");
-            const finalError = backAddr.isFromWestRembo
-              ? backAddr.errors[0]
-              : addrValidation.isFromWestRembo
-                ? addrValidation.errors[0]
-                : "The uploaded ID does not show a West Rembo address on either side.";
-            setOcrError(finalError);
-            toast({ title: "Address Not Found", description: finalError, variant: "destructive" });
+            const errMsg =
+              "Could not detect the student's home address on the school ID. " +
+              "The ID must clearly show an 'ADDRESS:' field (usually in the " +
+              "'IN CASE OF EMERGENCY' section on the back). Please upload a " +
+              "clearer image of the back of the ID.";
+            setOcrError(errMsg);
+            toast({ title: "Home Address Not Found", description: errMsg, variant: "destructive" });
             return;
           }
-          addrValidation = backAddr;
-        } else if (!addrValidation.isValid && !backFile) {
-          setOcrState("error");
-          setOcrErrorType("address");
-          setOcrError(addrValidation.errors.join(" "));
-          toast({
-            title: addrValidation.isFromWestRembo ? "Street Not Recognised" : "Address Not From West Rembo",
-            description: addrValidation.errors[0],
-            variant: "destructive",
-          });
-          return;
+
+          const addrValidation = validateAddress(homeAddress, liveStreets);
+
+          if (!addrValidation.isValid) {
+            setOcrState("error");
+            setOcrErrorType("address");
+            const errMsg = `The student's home address on the school ID (“${homeAddress}”) is NOT in West Rembo. Only West Rembo residents may register. The school's own printed address on the front is not used for verification.`;
+            setOcrError(errMsg);
+            toast({
+              title: "Student's Home Address Not From West Rembo",
+              description: errMsg,
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // ── Non-school branch: validate front, fall back to back ──
+        else {
+          let addrValidation = validateAddress(frontText, liveStreets);
+
+          if (!addrValidation.isValid && backFile && backText) {
+            const backAddr = validateAddress(backText, liveStreets);
+            if (!backAddr.isValid) {
+              setOcrState("error");
+              setOcrErrorType("address");
+              const finalError = backAddr.isFromWestRembo
+                ? backAddr.errors[0]
+                : addrValidation.isFromWestRembo
+                  ? addrValidation.errors[0]
+                  : mode === "parent"
+                    ? "The parent's / guardian's ID does not show a West Rembo address on either side. Only families residing in West Rembo may register a dependent."
+                    : "The uploaded ID does not show a West Rembo address on either side.";
+              setOcrError(finalError);
+              toast({ title: "Address Not Found", description: finalError, variant: "destructive" });
+              return;
+            }
+            addrValidation = backAddr;
+          } else if (!addrValidation.isValid && !backFile) {
+            setOcrState("error");
+            setOcrErrorType("address");
+            const description = mode === "parent" && !addrValidation.isFromWestRembo
+              ? "The parent's / guardian's ID is not from West Rembo. Only West Rembo residents may register a dependent."
+              : addrValidation.errors[0];
+            setOcrError(description);
+            toast({
+              title: addrValidation.isFromWestRembo
+                ? "Street Not Recognised"
+                : mode === "parent"
+                  ? "Parent's Address Not From West Rembo"
+                  : "Address Not From West Rembo",
+              description,
+              variant: "destructive",
+            });
+            return;
+          }
         }
       }
 
@@ -581,14 +753,33 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
       <div className="w-full max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4" style={{ backgroundColor: "#0f2a5e" }}>
-            <Scan className="w-6 h-6 text-white" />
+            {mode === "parent" ? <Shield className="w-6 h-6 text-white" /> : <Scan className="w-6 h-6 text-white" />}
           </div>
-          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>Smart ID Scanning</h2>
-          <p className="text-sm" style={{ color: "#6b7280" }}>Select your ID type to automatically fill the registration form via OCR.</p>
+          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>
+            {mode === "parent" ? "Parent / Guardian ID Scan" : "Smart ID Scanning"}
+          </h2>
+          <p className="text-sm" style={{ color: "#6b7280" }}>
+            {mode === "parent"
+              ? "Select the type of government-issued ID your parent or guardian will provide. The ID must show a West Rembo address."
+              : "Select your ID type to automatically fill the registration form via OCR."}
+          </p>
         </div>
 
+        {mode === "parent" && (
+          <div className="flex items-start gap-3 mb-6 p-3"
+            style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+            <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+            <div>
+              <p className="text-xs font-semibold" style={{ color: "#92400e" }}>Why is this needed first?</p>
+              <p className="text-xs mt-1" style={{ color: "#78350f" }}>
+                As a dependent student, we verify your parent's or guardian's identity <strong>and West Rembo residency</strong> before proceeding with your own school ID scan. Any valid government-issued ID with a West Rembo address is accepted.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-          {ALL_ID_TYPES.map((idType) => (
+          {idTypeList.map((idType) => (
             <button
               key={idType.value}
               type="button"
@@ -642,18 +833,20 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
           <span style={{ fontSize: 28 }}>{selectedType?.icon}</span>
           <div>
             <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#9ca3af" }}>Requirements</p>
-            <h3 className="font-bold" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>{selectedType?.label}</h3>
+            <h3 className="font-bold" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>
+              {mode === "parent" ? `Parent's / Guardian's ${selectedType?.label}` : selectedType?.label}
+            </h3>
           </div>
         </div>
 
-        {selectedType?.isDependent && (
+        {selectedType?.isDependent && mode === "student" && (
           <div className="flex items-start gap-3 mb-5 p-3"
             style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
             <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
             <div>
               <p className="text-xs font-semibold" style={{ color: "#92400e" }}>Parent/Guardian Verification Required</p>
               <p className="text-xs mt-1" style={{ color: "#78350f" }}>
-                After submitting your school ID, you'll need to upload your parent's or guardian's government-issued ID for verification.
+                Your parent's or guardian's ID has already been verified (including West Rembo residency). This is your own school ID scan step.
               </p>
             </div>
           </div>
@@ -662,15 +855,27 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         <div className="flex items-start gap-3 mb-5 p-3"
           style={{ backgroundColor: "#fff8e1", border: "1px solid #ffd54f", borderRadius: 2 }}>
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-          <p className="text-xs" style={{ color: "#78350f" }}>Please read all requirements carefully before uploading your ID.</p>
+          <p className="text-xs" style={{ color: "#78350f" }}>Please read all requirements carefully before uploading.</p>
         </div>
 
         <ul className="space-y-3 mb-8">
           {[
             "All ID details must be clearly readable — no blur, glare, or cropping",
-            selectedType?.hasBack ? "Submit both the front and back of your ID" : "Only the front is required for this ID type",
+            selectedType?.hasBack ? "Submit both the front and back of the ID" : "Only the front is required for this ID type",
             `Max file size: ${MAX_FILE_SIZE_MB}MB per image (JPG, PNG)`,
             "The ID type you selected must match the ID you upload — mismatches will be rejected",
+            ...(mode === "parent"
+              ? [
+                  "This must be the parent's or guardian's own government-issued ID",
+                  "The parent's / guardian's ID must show a West Rembo address — IDs from other barangays will be rejected",
+                ]
+              : []),
+            ...(selectedType?.value === "school_id"
+              ? [
+                  "The BACK of the school ID must clearly show an 'ADDRESS:' field (typically in the 'IN CASE OF EMERGENCY' section)",
+                  "The student's home address on the school ID must be in West Rembo — the school's printed address is NOT used for verification",
+                ]
+              : []),
           ].map((text) => (
             <li key={text} className="flex items-start gap-2.5">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: "#c2467d" }} />
@@ -691,52 +896,71 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
   // ── Phase: Upload ──
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <button type="button" onClick={() => setPhase("requirements")}
-        className="flex items-center gap-1.5 text-xs font-semibold mb-6 transition-opacity hover:opacity-60"
-        style={{ color: "#0f2a5e" }}>
-        ← Back to Requirements
-      </button>
+      {/* Back button: if locked (came from parent OCR), back goes to requirements is irrelevant — hide it;
+          the parent renders its own back-to-parent-scan button above this component */}
+      {!lockedIdType && (
+        <button type="button" onClick={() => setPhase("requirements")}
+          className="flex items-center gap-1.5 text-xs font-semibold mb-6 transition-opacity hover:opacity-60"
+          style={{ color: "#0f2a5e" }}>
+          ← Back to Requirements
+        </button>
+      )}
 
       <div className="flex items-center gap-3 mb-6">
         <span style={{ fontSize: 28 }}>{selectedType?.icon}</span>
         <div>
-          <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#9ca3af" }}>Uploading</p>
-          <h3 className="font-bold" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>{selectedType?.label}</h3>
+          <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#9ca3af" }}>
+            {lockedIdType ? "Step 2 of 2 — Upload Your School ID" : "Uploading"}
+          </p>
+          <h3 className="font-bold" style={{ fontFamily: "'Georgia', serif", color: "#0f2a5e" }}>
+            {mode === "parent" ? `Parent's / Guardian's ${selectedType?.label}` : selectedType?.label}
+          </h3>
         </div>
+        {lockedIdType && (
+          <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-full"
+            style={{ backgroundColor: "#fbbf24", color: "#78350f" }}>
+            <Shield className="w-2.5 h-2.5" /> Auto-selected
+          </span>
+        )}
       </div>
 
-      <div className="flex items-start gap-3 mb-5 p-3"
-        style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
-        <Scan className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#6366f1" }} />
-        <p className="text-xs" style={{ color: "#374151" }}>
-          <span className="font-semibold">ID type selected: {selectedType?.label}.</span>{" "}
-          Make sure the photo you upload is the same type — the system will reject mismatched IDs.
-        </p>
-      </div>
-
-      {selectedType?.isDependent && (
+      {/* Locked mode: show a parent-verified confirmation banner */}
+      {lockedIdType && (
         <div className="flex items-start gap-3 mb-5 p-3"
-          style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
-          <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
-          <p className="text-xs" style={{ color: "#78350f" }}>
-            You're registering as a <strong>dependent student</strong>. You'll submit your school ID now, and then your parent's/guardian's ID next.
+          style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 2 }}>
+          <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#16a34a" }} strokeWidth={3} />
+          <p className="text-xs" style={{ color: "#15803d" }}>
+            <span className="font-semibold">Parent / Guardian ID verified ✓</span> — Now upload the front and back of <strong>your School ID</strong> to continue.
+          </p>
+        </div>
+      )}
+
+      {!lockedIdType && (
+        <div className="flex items-start gap-3 mb-5 p-3"
+          style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
+          <Scan className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#6366f1" }} />
+          <p className="text-xs" style={{ color: "#374151" }}>
+            <span className="font-semibold">ID type selected: {selectedType?.label}.</span>{" "}
+            {mode === "parent"
+              ? "Make sure the photo is of your parent's or guardian's ID and shows a West Rembo address — mismatches and out-of-barangay addresses will be rejected."
+              : "Make sure the photo you upload is the same type — the system will reject mismatched IDs."}
           </p>
         </div>
       )}
 
       <div className={`grid gap-4 mb-6 ${selectedType?.hasBack ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
         <DropZone
-          label={`Front of ${selectedType?.label} * (OCR)`}
+          label={`Front of ${mode === "parent" ? "Parent's " : ""}${selectedType?.label} * (OCR)`}
           file={frontFile} error={frontError}
           onFileChange={(f) => handleFileChange("front", f)}
-          hint="Used for scanning — id_url"
+          hint={mode === "parent" ? "parent_id_url" : "id_url"}
         />
         {selectedType?.hasBack && (
           <DropZone
-            label={`Back of ${selectedType?.label} *`}
+            label={`Back of ${mode === "parent" ? "Parent's " : ""}${selectedType?.label} *`}
             file={backFile} error={backError}
             onFileChange={(f) => handleFileChange("back", f)}
-            hint="Required for submission — id_url_back"
+            hint={mode === "parent" ? "parent_id_url_back" : "id_url_back"}
           />
         )}
       </div>
@@ -769,7 +993,7 @@ const OcrStep = ({ onComplete, onSkip, onSelectIdType, liveStreets }: OcrStepPro
         ) : ocrState === "error" ? (
           <><RefreshCw className="w-3.5 h-3.5" />Retry Scan</>
         ) : (
-          <><Scan className="w-3.5 h-3.5" />Scan &amp; Auto-Fill</>
+          <><Scan className="w-3.5 h-3.5" />Scan &amp; Verify</>
         )}
       </button>
     </div>
@@ -854,8 +1078,8 @@ const DropZone = ({ label, file, error, onFileChange, hint }: DropZoneProps) => 
 };
 
 // ─── OCR Preview Banner ───────────────────────────────────────────────────────
-const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
-  result: OcrResult; idType: string; isPWD: boolean; onRescan: () => void;
+const OcrPreviewBanner = ({ result, idType, isPWD, onRescan, mode = "student" }: {
+  result: OcrResult; idType: string; isPWD: boolean; onRescan: () => void; mode?: "student" | "parent";
 }) => {
   const [expanded, setExpanded] = useState(false);
   const fields = [
@@ -867,6 +1091,10 @@ const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
     { label: "ID Number",     value: result.idNumber    },
   ].filter(f => f.value);
 
+  const idLabel = mode === "parent"
+    ? `Parent's ${PARENT_ID_TYPES.find(i => i.value === idType)?.label ?? "ID"}`
+    : ALL_ID_TYPES.find(i => i.value === idType)?.label ?? "ID";
+
   return (
     <div className="mb-8 overflow-hidden" style={{ border: "1.5px solid #c2467d", borderRadius: 4, backgroundColor: "#fdf5f8" }}>
       <div className="flex items-center justify-between px-5 py-3 cursor-pointer"
@@ -876,7 +1104,7 @@ const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
             <Check className="w-3 h-3" style={{ color: "#c2467d" }} strokeWidth={3} />
           </div>
           <span className="text-xs font-bold uppercase tracking-wider text-white">
-            OCR Complete — Form auto-filled from {ALL_ID_TYPES.find(i => i.value === idType)?.label ?? "ID"}
+            {mode === "parent" ? "Parent ID Verified" : "OCR Complete — Form auto-filled"} from {idLabel}
             {isPWD && " · PWD ✓"}
           </span>
         </div>
@@ -891,7 +1119,7 @@ const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
       </div>
       {expanded && (
         <div className="px-5 py-4">
-          {isPWD && (
+          {isPWD && mode === "student" && (
             <div className="flex items-center gap-2 mb-3 px-3 py-2"
               style={{ backgroundColor: "#e0f2fe", border: "1px solid #7dd3fc", borderRadius: 2 }}>
               <span className="text-sm">♿</span>
@@ -901,7 +1129,7 @@ const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
             </div>
           )}
           <p className="text-xs mb-3 font-semibold uppercase tracking-wider" style={{ color: "#9ca3af" }}>
-            Extracted Fields — please review and edit if needed
+            {mode === "parent" ? "Extracted from Parent's ID" : "Extracted Fields — please review and edit if needed"}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {fields.map(f => (
@@ -911,113 +1139,11 @@ const OcrPreviewBanner = ({ result, idType, isPWD, onRescan }: {
               </div>
             ))}
             {fields.length === 0 && (
-              <p className="text-xs col-span-3" style={{ color: "#9ca3af" }}>No fields were extracted. Please fill the form manually.</p>
+              <p className="text-xs col-span-3" style={{ color: "#9ca3af" }}>No fields were extracted. Verification still passed.</p>
             )}
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-// ─── ID Upload Modal ──────────────────────────────────────────────────────────
-const IDUploadModal = ({
-  open, onClose, onConfirm, idFront, idBack, setIdFront, setIdBack, isParentId = false,
-}: {
-  open: boolean; onClose: () => void; onConfirm: () => void;
-  idFront: File | null; idBack: File | null;
-  setIdFront: (f: File | null) => void; setIdBack: (f: File | null) => void;
-  isParentId?: boolean;
-}) => {
-  const [step, setStep] = useState<"requirements" | "upload">("requirements");
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(10,20,60,0.55)", backdropFilter: "blur(2px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-lg bg-white overflow-hidden"
-        style={{ borderRadius: 4, boxShadow: "0 8px 60px rgba(10,20,60,0.25)", border: "1px solid #dde3ed" }}>
-        <div style={{ backgroundColor: "#0f2a5e", padding: "16px 24px" }} className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "#e8a0bf" }}>Identity Verification</p>
-            <h2 className="text-white font-bold" style={{ fontFamily: "'Georgia', serif", fontSize: "1rem" }}>
-              {isParentId ? "Parent/Guardian ID Upload" : "Government-Issued ID Upload"}
-            </h2>
-          </div>
-          <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full"
-            style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "white" }}>
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div style={{ height: 3, backgroundColor: "#c2467d" }} />
-        <div className="p-6">
-          {step === "requirements" ? (
-            <>
-              {isParentId && (
-                <div className="flex items-start gap-3 mb-5 p-3"
-                  style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
-                  <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
-                  <p className="text-xs" style={{ color: "#78350f" }}>
-                    This ID will be used to verify your parent's/guardian's identity and confirm the dependent relationship.
-                  </p>
-                </div>
-              )}
-              <div className="flex items-start gap-3 mb-5 p-3"
-                style={{ backgroundColor: "#fff8e1", border: "1px solid #ffd54f", borderRadius: 2 }}>
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-                <p className="text-xs" style={{ color: "#78350f" }}>Please read all requirements carefully before uploading your ID.</p>
-              </div>
-              <ul className="space-y-2.5 mb-5">
-                {[
-                  ...(isParentId
-                    ? [
-                        "This must be the parent's or guardian's government-issued ID",
-                        "Your parent/guardian's face must be fully visible and well-lit",
-                        "All ID details must be clearly readable — no blur, glare, or cropping",
-                      ]
-                    : [
-                        "You must be visibly holding the government ID in the photo",
-                        "All ID details must be clearly readable — no blur, glare, or cropping",
-                        "Your face must be fully visible and well-lit",
-                      ]
-                  ),
-                  "Submit both the front and back of your ID",
-                ].map(text => (
-                  <li key={text} className="flex items-start gap-2.5">
-                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: "#c2467d" }} />
-                    <span className="text-xs" style={{ color: "#6b7280" }}>{text}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex gap-3">
-                <button type="button" onClick={onClose}
-                  className="flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider"
-                  style={{ borderRadius: 2, border: "1.5px solid #dde3ed", color: "#6b7280" }}>Cancel</button>
-                <button type="button" onClick={() => setStep("upload")}
-                  className="flex-1 px-4 py-2.5 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
-                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>
-                  I Understand — Proceed <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-4 mb-5">
-                <DropZone label={`Front of ${isParentId ? "Parent's " : ""}ID *`} file={idFront} error={null} onFileChange={setIdFront} hint="Clear photo of the front side" />
-                <DropZone label={`Back of ${isParentId ? "Parent's " : ""}ID *`}  file={idBack}  error={null} onFileChange={setIdBack}  hint="Clear photo of the back side" />
-              </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setStep("requirements")}
-                  className="flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider"
-                  style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d" }}>← Back</button>
-                <button type="button" disabled={!idFront || !idBack} onClick={() => { onConfirm(); onClose(); }}
-                  className="flex-1 px-4 py-2.5 text-white text-xs font-semibold uppercase tracking-wider disabled:opacity-50"
-                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e" }}>Confirm Upload</button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
@@ -1068,11 +1194,27 @@ const DataPrivacyModal = ({ open, onClose }: { open: boolean; onClose: () => voi
 };
 
 // ─── Main Register Component ──────────────────────────────────────────────────
+/**
+ * Flow for regular IDs:
+ *   ocr (student ID — type + West Rembo address) → form → submit
+ *
+ * Flow for School ID (dependent):
+ *   parent_ocr (parent's gov ID — type + West Rembo address) → ocr (school ID — type only) → form → submit
+ *
+ * The dependent flow now goes through the SAME residency verification as the normal flow
+ * (via the parent's ID, since school IDs don't reflect home addresses).
+ */
 const Register = () => {
-  const [flowStep,       setFlowStep]       = useState<"ocr" | "form" | "parent_id">("ocr");
-  const [ocrResult,      setOcrResult]      = useState<OcrResult | null>(null);
+  const [flowStep, setFlowStep] = useState<"ocr" | "form" | "parent_ocr">("ocr");
+
+  // Tracks whether the user has chosen school_id so we can show the parent_ocr step
   const [selectedIdType, setSelectedIdType] = useState<string>("");
-  const [isPwdUser,      setIsPwdUser]      = useState(false);
+
+  const [ocrResult,      setOcrResult]      = useState<OcrResult | null>(null);
+  const [parentOcrResult, setParentOcrResult] = useState<OcrResult | null>(null);
+  const [selectedParentIdType, setSelectedParentIdType] = useState<string>("");
+
+  const [isPwdUser, setIsPwdUser] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "", middleName: "", surname: "", email: "", phone: "",
@@ -1080,13 +1222,14 @@ const Register = () => {
     zonePurok: "", password: "", confirmPassword: "",
   });
 
+  // Student's own ID files (uploaded during OCR step)
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack,  setIdBack]  = useState<File | null>(null);
 
+  // Parent's ID files (uploaded during parent_ocr step)
   const [parentIdFront, setParentIdFront] = useState<File | null>(null);
   const [parentIdBack,  setParentIdBack]  = useState<File | null>(null);
 
-  const [showParentIDModal, setShowParentIDModal] = useState(false);
   const [showPrivacyModal,  setShowPrivacyModal]  = useState(false);
   const [showPassword,      setShowPassword]      = useState(false);
   const [showConfirm,       setShowConfirm]       = useState(false);
@@ -1100,6 +1243,8 @@ const Register = () => {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const isSchoolIdRegistrant = selectedIdType === "school_id";
 
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_WEB_URL_WITH_API}/streets`, { withCredentials: true })
@@ -1188,11 +1333,44 @@ const Register = () => {
     return best && best.score > 0 ? { street: best.street, sitio: best.sitio } : null;
   };
 
+  // ── Called when parent OCR scan completes successfully ──
+  const handleParentOcrComplete = (result: OcrResult, front: File, back: File | null) => {
+    setParentOcrResult(result);
+    setParentIdFront(front);
+    if (back) setParentIdBack(back);
+
+    // Since the parent's ID address has been validated to be in West Rembo,
+    // we can auto-fill the student's address fields from the parent's ID as a head-start.
+    const streetMatch = result.address ? matchStreetFromOcr(result.address) : null;
+    if (streetMatch || result.address) {
+      setFormData(prev => ({
+        ...prev,
+        houseBlockLotNo: result.address ? result.address.split(",")[0]?.trim() ?? prev.houseBlockLotNo : prev.houseBlockLotNo,
+        street:    streetMatch ? streetMatch.street : prev.street,
+        zonePurok: streetMatch?.sitio ? streetMatch.sitio : prev.zonePurok,
+      }));
+    }
+
+    toast({
+      title: "Parent ID Scanned & Verified",
+      description: "Parent's West Rembo address confirmed. Now please scan your School ID to continue.",
+    });
+
+    // Move on to the student's own school ID scan
+    setFlowStep("ocr");
+  };
+
+  // ── Called when student OCR scan completes successfully ──
   const handleOcrComplete = (result: OcrResult, front: File, back: File | null) => {
     setOcrResult(result);
     setIdFront(front);
     if (back) setIdBack(back);
     if (result.isPWD !== undefined) setIsPwdUser(result.isPWD);
+
+    // If we came through the locked school_id path, selectedIdType may not be set yet
+    if (isSchoolIdRegistrant || selectedIdType === "school_id") {
+      setSelectedIdType("school_id");
+    }
 
     const streetMatch = result.address ? matchStreetFromOcr(result.address) : null;
 
@@ -1231,12 +1409,39 @@ const Register = () => {
     });
   };
 
-  const handleOcrSkip = () => { setOcrResult(null); setFlowStep("form"); };
-  const handleRescan  = () => { setFlowStep("ocr"); setOcrResult(null); };
+  // ── When user picks an ID type in the OCR step ──
+  // If they pick school_id AND haven't done the parent OCR yet → redirect to parent_ocr
+  const handleSelectIdType = (value: string) => {
+    setSelectedIdType(value);
+    if (value === "school_id" && !parentOcrResult) {
+      // Will be handled by the "Continue" in OcrStep select phase;
+      // we intercept in handleOcrStepIdTypeSelected
+    }
+  };
 
-  // ── Core submission logic (no event object needed) ────────────────────────
+  const handleOcrSkip = () => { setOcrResult(null); setFlowStep("form"); };
+
+  const handleRescanStudent = () => {
+    setFlowStep("ocr");
+    setOcrResult(null);
+    setSelectedIdType("");
+  };
+
+  const handleRescanParent = () => {
+    setFlowStep("parent_ocr");
+    setParentOcrResult(null);
+    setParentIdFront(null);
+    setParentIdBack(null);
+    setSelectedParentIdType("");
+    // Reset student scan too since we're going all the way back
+    setOcrResult(null);
+    setIdFront(null);
+    setIdBack(null);
+    setSelectedIdType("");
+  };
+
+  // ─── Core submission ──────────────────────────────────────────────────────
   const submitForm = async () => {
-    // Field validation
     if (!formData.firstName || !formData.surname || !formData.email || !formData.password || !formData.confirmPassword || !formData.dateOfBirth || !formData.gender) {
       toast({ title: "Error", description: "Please fill in all required fields including Sex", variant: "destructive" }); return;
     }
@@ -1252,15 +1457,11 @@ const Register = () => {
       toast({ title: "Error", description: "Please fix password requirements", variant: "destructive" }); return;
     }
     if (!idFront || !idBack) {
-      toast({ title: "Error", description: "Please upload both the front and back of your government ID", variant: "destructive" }); return;
+      toast({ title: "Error", description: "Please upload both the front and back of your ID", variant: "destructive" }); return;
     }
-
-    // Dependent student — require parent ID
-    const isSchoolIdRegistrant = selectedIdType === "school_id";
     if (isSchoolIdRegistrant && (!parentIdFront || !parentIdBack)) {
-      toast({ title: "Error", description: "As a dependent student, please upload both the front and back of your parent's/guardian's ID", variant: "destructive" }); return;
+      toast({ title: "Error", description: "Parent/guardian ID is required for dependent student registration", variant: "destructive" }); return;
     }
-
     if (!captchaToken) {
       toast({ title: "CAPTCHA Required", description: "Please complete the reCAPTCHA verification.", variant: "destructive" }); return;
     }
@@ -1286,9 +1487,9 @@ const Register = () => {
       form.append("is_pwd",                String(isPwdUser));
       if (selectedIdType) form.append("id_type", selectedIdType);
 
-      // Append parent ID files for dependent students
       if (isSchoolIdRegistrant && parentIdFront) form.append("parent_id_url",      parentIdFront as File);
       if (isSchoolIdRegistrant && parentIdBack)  form.append("parent_id_url_back", parentIdBack  as File);
+      if (isSchoolIdRegistrant && selectedParentIdType) form.append("parent_id_type", selectedParentIdType);
 
       await api.post("/api/register", form, { headers: { "Content-Type": "multipart/form-data" } });
       toast({ title: "Registration Successful", description: "Please check your email for verification instructions." });
@@ -1302,47 +1503,40 @@ const Register = () => {
     }
   };
 
-  // ── Form onSubmit wrapper — only used by the <form> element ───────────────
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // School ID registrants go to parent_id step first; submission happens there
-    if (!isSchoolIdRegistrant) submitForm();
-  };
-
   const handleClear = () => {
     setFormData({ firstName: "", middleName: "", surname: "", email: "", phone: "", gender: "", dateOfBirth: "", houseBlockLotNo: "", street: "", zonePurok: "", password: "", confirmPassword: "" });
     setIdFront(null); setIdBack(null);
     setParentIdFront(null); setParentIdBack(null);
     setDobError(null); setZoneOptions([]);
     recaptchaRef.current?.reset(); setCaptchaToken(null);
-    setOcrResult(null); setIsPwdUser(false);
+    setOcrResult(null); setParentOcrResult(null);
+    setIsPwdUser(false); setSelectedIdType(""); setSelectedParentIdType("");
     setFlowStep("ocr");
   };
 
-  const underlineInput     = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
-  const idUploaded         = idFront && idBack;
-  const parentIdUploaded   = parentIdFront && parentIdBack;
-  const isSchoolIdRegistrant = selectedIdType === "school_id";
+  const underlineInput = "rounded-none border-0 border-b-2 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm";
+  const idUploaded     = idFront && idBack;
 
-  const progressSteps = [
-    { step: "ocr",  label: "ID Scan",      icon: <Scan className="w-3.5 h-3.5" />     },
-    { step: "form", label: "Registration", icon: <FileText className="w-3.5 h-3.5" /> },
-    ...(isSchoolIdRegistrant ? [{ step: "parent_id", label: "Parent ID", icon: <Shield className="w-3.5 h-3.5" /> }] : []),
-  ];
-  const stepOrder      = ["ocr", "form", ...(isSchoolIdRegistrant ? ["parent_id"] : [])];
+  // ── Progress Steps ──
+  const progressSteps = isSchoolIdRegistrant
+    ? [
+        { step: "parent_ocr", label: "Parent ID",    icon: <Shield className="w-3.5 h-3.5" />   },
+        { step: "ocr",        label: "School ID",    icon: <Scan className="w-3.5 h-3.5" />     },
+        { step: "form",       label: "Registration", icon: <FileText className="w-3.5 h-3.5" /> },
+      ]
+    : [
+        { step: "ocr",  label: "ID Scan",      icon: <Scan className="w-3.5 h-3.5" />     },
+        { step: "form", label: "Registration", icon: <FileText className="w-3.5 h-3.5" /> },
+      ];
+
+  const stepOrder      = progressSteps.map(s => s.step);
   const currentStepIdx = stepOrder.indexOf(flowStep);
+
+  // When school_id is selected in the first OCR step, redirect to parent_ocr BEFORE upload.
+  const needsParentOcrFirst = flowStep === "ocr" && selectedIdType === "school_id" && !parentOcrResult;
 
   return (
     <AuthLayout>
-      {/* Parent ID modal — shown when user clicks "Click to upload / change" in section 4 for school ID */}
-      <IDUploadModal
-        open={showParentIDModal}
-        onClose={() => setShowParentIDModal(false)}
-        onConfirm={() => {}}
-        idFront={parentIdFront} idBack={parentIdBack}
-        setIdFront={setParentIdFront} setIdBack={setParentIdBack}
-        isParentId={true}
-      />
       <DataPrivacyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
 
       <div className="w-full max-w-4xl bg-white overflow-hidden"
@@ -1365,14 +1559,17 @@ const Register = () => {
         <div className="flex items-center px-8 md:px-10 py-4 overflow-x-auto"
           style={{ backgroundColor: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
           {progressSteps.map((s, i) => {
-            const sIdx     = stepOrder.indexOf(s.step);
-            const isActive = s.step === flowStep;
-            const isDone   = sIdx < currentStepIdx;
+            const sIdx = stepOrder.indexOf(s.step);
+            // For school_id flow, treat "parent_ocr" step as active when needsParentOcrFirst
+            const effectiveFlowStep = needsParentOcrFirst ? "parent_ocr" : flowStep;
+            const effectiveIdx      = stepOrder.indexOf(effectiveFlowStep);
+            const isActive = s.step === effectiveFlowStep;
+            const isDone   = sIdx < effectiveIdx;
             return (
               <div key={s.step} className="flex items-center gap-2 flex-shrink-0">
                 {i > 0 && (
                   <div className="w-8 h-px mx-2"
-                    style={{ backgroundColor: stepOrder.indexOf(progressSteps[i - 1].step) < currentStepIdx ? "#c2467d" : "#dde3ed" }} />
+                    style={{ backgroundColor: stepOrder.indexOf(progressSteps[i - 1].step) < effectiveIdx ? "#c2467d" : "#dde3ed" }} />
                 )}
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center"
@@ -1394,21 +1591,85 @@ const Register = () => {
 
         <div className="p-8 md:p-10">
 
-          {/* ── STEP 1: OCR ── */}
-          {flowStep === "ocr" && (
-            <OcrStep
-              onComplete={handleOcrComplete}
-              onSkip={handleOcrSkip}
-              onSelectIdType={setSelectedIdType}
-              liveStreets={streets as WestRemboStreet[]}
-            />
+          {/* ── PARENT OCR STEP ──
+               Shown when:
+               (a) flowStep === "parent_ocr"  (explicit routing)
+               (b) flowStep === "ocr" + school_id selected + no parent result yet (redirect guard)
+          */}
+          {(flowStep === "parent_ocr" || needsParentOcrFirst) && (
+            <>
+              {/* If we intercepted from the OCR step, show a back button to de-select school_id */}
+              {needsParentOcrFirst && (
+                <button type="button"
+                  onClick={() => { setSelectedIdType(""); }}
+                  className="flex items-center gap-1.5 text-xs font-semibold mb-6 transition-opacity hover:opacity-60"
+                  style={{ color: "#0f2a5e" }}>
+                  ← Back to ID Selection
+                </button>
+              )}
+
+              <OcrStep
+                mode="parent"
+                onComplete={(result, front, back) => {
+                  handleParentOcrComplete(result, front, back);
+                }}
+                onSelectIdType={setSelectedParentIdType}
+                liveStreets={streets as WestRemboStreet[]}
+              />
+            </>
           )}
 
-          {/* ── STEP 2: Registration Form ── */}
+          {/* ── STUDENT OCR STEP ──
+               Only shown when flowStep === "ocr" AND we do NOT need parent OCR first
+               (i.e., either non-school-id, or school_id already has parentOcrResult)
+          */}
+          {flowStep === "ocr" && !needsParentOcrFirst && (
+            <>
+              {/* If parent was already scanned, show a verified banner + back option */}
+              {isSchoolIdRegistrant && parentOcrResult && (
+                <OcrPreviewBanner
+                  result={parentOcrResult}
+                  idType={selectedParentIdType}
+                  isPWD={false}
+                  onRescan={handleRescanParent}
+                  mode="parent"
+                />
+              )}
+
+              <OcrStep
+                mode="student"
+                lockedIdType={isSchoolIdRegistrant && parentOcrResult ? "school_id" : undefined}
+                onComplete={handleOcrComplete}
+                onSkip={handleOcrSkip}
+                onSelectIdType={handleSelectIdType}
+                liveStreets={streets as WestRemboStreet[]}
+              />
+            </>
+          )}
+
+          {/* ── REGISTRATION FORM STEP ── */}
           {flowStep === "form" && (
             <>
+              {/* Parent ID banner (for school_id registrants) */}
+              {isSchoolIdRegistrant && parentOcrResult && (
+                <OcrPreviewBanner
+                  result={parentOcrResult}
+                  idType={selectedParentIdType}
+                  isPWD={false}
+                  onRescan={handleRescanParent}
+                  mode="parent"
+                />
+              )}
+
+              {/* Student OCR banner */}
               {ocrResult ? (
-                <OcrPreviewBanner result={ocrResult} idType={selectedIdType} isPWD={isPwdUser} onRescan={handleRescan} />
+                <OcrPreviewBanner
+                  result={ocrResult}
+                  idType={selectedIdType}
+                  isPWD={isPwdUser}
+                  onRescan={handleRescanStudent}
+                  mode="student"
+                />
               ) : (
                 <div className="flex items-center gap-3 mb-8 p-3"
                   style={{ backgroundColor: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 2 }}>
@@ -1434,20 +1695,7 @@ const Register = () => {
                 </div>
               )}
 
-              {isSchoolIdRegistrant && (
-                <div className="flex items-start gap-3 mb-6 p-3"
-                  style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
-                  <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: "#92400e" }}>Dependent Student Registration</p>
-                    <p className="text-xs mt-1" style={{ color: "#78350f" }}>
-                      After completing this form, you'll upload your parent's/guardian's ID on the next step for verification.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleFormSubmit} className="space-y-8">
+              <form onSubmit={(e) => { e.preventDefault(); submitForm(); }} className="space-y-8">
 
                 {/* Section 1 — Personal Information */}
                 <div>
@@ -1569,11 +1817,21 @@ const Register = () => {
                       </p>
                     </div>
                   )}
+                  {isSchoolIdRegistrant && parentOcrResult?.address && (
+                    <div className="flex items-start gap-2 mb-4 p-2.5"
+                      style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+                      <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+                      <p className="text-xs" style={{ color: "#78350f" }}>
+                        <span className="font-semibold">Parent's verified address:</span> {parentOcrResult.address}
+                        <br />This West Rembo address was used to pre-fill your address fields.
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
                         House / Block / Lot No.
-                        {ocrResult?.address && formData.houseBlockLotNo && (
+                        {(ocrResult?.address || parentOcrResult?.address) && formData.houseBlockLotNo && (
                           <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-normal lowercase normal-case" style={{ color: "#c2467d" }}>
                             <Scan className="w-2.5 h-2.5" /> auto-filled
                           </span>
@@ -1637,7 +1895,7 @@ const Register = () => {
                     {/* ID status cards */}
                     <div className="space-y-3">
                       <Label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-                        Government-Issued ID with Address *
+                        {isSchoolIdRegistrant ? "School ID" : "Government-Issued ID with Address"} *
                       </Label>
                       <div className="grid grid-cols-2 gap-3">
                         {[
@@ -1664,11 +1922,61 @@ const Register = () => {
                           </div>
                         ))}
                       </div>
-                      {/* The school ID was already uploaded in the OCR step — this note reminds the user */}
+
+                      {/* Parent ID status for school_id registrants */}
+                      {isSchoolIdRegistrant && (
+                        <div className="mt-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider mb-2 block" style={{ color: "#6b7280" }}>
+                            Parent / Guardian ID *
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {[
+                              { file: parentIdFront, side: "Front", hint: "parent_id_url"      },
+                              { file: parentIdBack,  side: "Back",  hint: "parent_id_url_back" },
+                            ].map(({ file, side, hint }) => (
+                              <div key={side} className="flex flex-col items-center justify-center p-4 min-h-[100px]"
+                                style={{ border: `1.5px dashed ${file ? "#d97706" : "#d1d5db"}`, backgroundColor: file ? "#fef3c7" : "#fafafa", borderRadius: 2 }}>
+                                {file ? (
+                                  <>
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center mb-1.5" style={{ backgroundColor: "#d97706" }}>
+                                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                                    </div>
+                                    <span className="text-xs font-semibold text-center" style={{ color: "#d97706" }}>{side} Uploaded</span>
+                                    <span className="text-[10px] mt-0.5 text-center break-all" style={{ color: "#9ca3af" }}>{file.name}</span>
+                                    <span className="text-[10px] mt-1 flex items-center gap-0.5" style={{ color: "#d97706" }}>{hint}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Shield className="w-4 h-4 mb-1" style={{ color: "#9ca3af" }} />
+                                    <span className="text-xs text-center" style={{ color: "#9ca3af" }}>{side} ({hint})</span>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {parentIdFront && parentIdBack ? (
+                            <div className="flex items-center gap-2 mt-2 p-2"
+                              style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
+                              <Shield className="w-3 h-3 flex-shrink-0" style={{ color: "#d97706" }} />
+                              <p className="text-xs font-semibold" style={{ color: "#92400e" }}>
+                                Parent's ID + West Rembo address verified ✓
+                              </p>
+                            </div>
+                          ) : (
+                            <button type="button"
+                              onClick={handleRescanParent}
+                              className="w-full mt-2 py-1.5 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                              style={{ borderRadius: 2, border: "1.5px solid #d97706", color: "#d97706", backgroundColor: "transparent" }}>
+                              <Shield className="w-3 h-3" /> Upload Parent ID
+                            </button>
+                          )}
+                        </div>
+                      )}
+
                       {idUploaded ? (
                         <p className="w-full py-2 text-xs font-semibold text-center"
                           style={{ color: "#c2467d", border: "1.5px solid #c2467d", borderRadius: 2 }}>
-                          ✓ School ID uploaded from scan step
+                          ✓ {isSchoolIdRegistrant ? "School" : "Government"} ID uploaded from scan step
                         </p>
                       ) : (
                         <p className="w-full py-2 text-xs text-center" style={{ color: "#9ca3af", border: "1.5px solid #dde3ed", borderRadius: 2 }}>
@@ -1801,10 +2109,8 @@ const Register = () => {
                         Clear Form
                       </button>
 
-                      {/* ── KEY FIX: school ID → go to parent_id step; others → submitForm() ── */}
                       <button
-                        type="button"
-                        onClick={() => isSchoolIdRegistrant ? setFlowStep("parent_id") : submitForm()}
+                        type="submit"
                         disabled={isLoading || !captchaToken || !!dobError}
                         className="px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
                         style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
@@ -1818,8 +2124,6 @@ const Register = () => {
                             </svg>
                             Submitting…
                           </span>
-                        ) : isSchoolIdRegistrant ? (
-                          "Continue to Parent ID →"
                         ) : !captchaToken ? (
                           "Complete CAPTCHA to Submit"
                         ) : (
@@ -1832,86 +2136,6 @@ const Register = () => {
 
               </form>
             </>
-          )}
-
-          {/* ── STEP 3: Parent ID Upload ── */}
-          {flowStep === "parent_id" && isSchoolIdRegistrant && (
-            <div className="w-full max-w-2xl mx-auto">
-              <button type="button" onClick={() => setFlowStep("form")}
-                className="flex items-center gap-1.5 text-xs font-semibold mb-6 transition-opacity hover:opacity-60"
-                style={{ color: "#0f2a5e" }}>
-                ← Back to Registration Form
-              </button>
-
-              <div className="flex items-center gap-3 mb-6 p-4"
-                style={{ backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 2 }}>
-                <Shield className="w-5 h-5 flex-shrink-0" style={{ color: "#d97706" }} />
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "#92400e" }}>Parent / Guardian Verification</p>
-                  <p className="text-xs mt-1" style={{ color: "#78350f" }}>
-                    Please upload your parent's or guardian's government-issued ID to complete your registration.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <DropZone
-                  label="Front of Parent's ID *"
-                  file={parentIdFront} error={null}
-                  onFileChange={setParentIdFront}
-                  hint="Clear photo — parent_id_url"
-                />
-                <DropZone
-                  label="Back of Parent's ID *"
-                  file={parentIdBack} error={null}
-                  onFileChange={setParentIdBack}
-                  hint="Clear photo — parent_id_url_back"
-                />
-              </div>
-
-              {/* Show uploaded status if files are selected */}
-              {parentIdUploaded && (
-                <div className="flex items-center gap-2 mb-4 p-3"
-                  style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 2 }}>
-                  <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#16a34a" }} strokeWidth={3} />
-                  <p className="text-xs font-semibold" style={{ color: "#15803d" }}>
-                    Both parent ID images uploaded — ready to submit.
-                  </p>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setFlowStep("form")}
-                  className="flex-1 px-6 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all"
-                  style={{ borderRadius: 2, border: "1.5px solid #c2467d", color: "#c2467d", backgroundColor: "transparent" }}
-                  onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "#fdf5f8"}
-                  onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}>
-                  ← Back
-                </button>
-
-                {/* ── KEY FIX: calls submitForm() directly — no event object needed ── */}
-                <button
-                  type="button"
-                  disabled={!parentIdUploaded || isLoading}
-                  onClick={submitForm}
-                  className="flex-1 px-8 py-2.5 text-white text-sm font-semibold uppercase tracking-wider transition-all disabled:opacity-60"
-                  style={{ borderRadius: 2, backgroundColor: "#0f2a5e", letterSpacing: "0.08em" }}
-                  onMouseEnter={(e) => { if (parentIdUploaded && !isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1a3d7c"; }}
-                  onMouseLeave={(e) => { if (parentIdUploaded && !isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#0f2a5e"; }}>
-                  {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Submitting…
-                    </span>
-                  ) : (
-                    "Submit Registration with Parent ID"
-                  )}
-                </button>
-              </div>
-            </div>
           )}
 
         </div>
