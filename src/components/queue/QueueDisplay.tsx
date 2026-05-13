@@ -11,7 +11,6 @@ interface BackendQueueItem {
   status: "waiting" | "serving" | "done";
   queue_date: string;
   manual_added: boolean;
-  // may or may not be present depending on backend
   created_by?: number;
   pwd_status?: string;
   date_of_birth?: string;
@@ -36,7 +35,6 @@ export interface DisplayItem {
   serviceBg:      string;
   releasedDate?:  string;
   queueDate?:     string;
-  // priority
   priorityType?:  "pwd" | "senior" | "both" | null;
 }
 
@@ -47,9 +45,9 @@ interface QueueDisplayProps {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const POLL_MS           = 8_000;
-const SENIOR_AGE        = 60;
-const USER_API_BASE     = `${import.meta.env.VITE_WEB_URL}/api/users`;
+const POLL_MS       = 8_000;
+const SENIOR_AGE    = 60;
+const USER_API_BASE = `${import.meta.env.VITE_WEB_URL}/api/users`;
 
 const DOCUMENT_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   barangay_clearance:   { label: "Barangay Clearance",   color: "#0C447C", bg: "#E6F1FB" },
@@ -58,7 +56,6 @@ const DOCUMENT_TYPE_CONFIG: Record<string, { label: string; color: string; bg: s
   business_clearance:   { label: "Business Clearance",    color: "#712B13", bg: "#FAECE7" },
 };
 
-// Priority visual config — border + dot color only, no loud backgrounds
 const PRIORITY_CONFIG = {
   pwd:    { border: "#93C5FD", dot: "#2563EB", label: "PWD",          textColor: "#1D4ED8" },
   senior: { border: "#F9A8D4", dot: "#BE185D", label: "Senior",       textColor: "#9D174D" },
@@ -69,9 +66,7 @@ function getDocumentConfig(type: string) {
   return DOCUMENT_TYPE_CONFIG[type] ?? { label: type, color: "#5F5E5A", bg: "#F1EFE8" };
 }
 
-// ─── Priority Storage (read-only on display side) ─────────────────────────────
-// QueueControl writes Map<queueId, reason> under key queue_priority_v2_YYYY-MM-DD
-// QueueDisplay reads it so both views stay in sync without extra API calls.
+// ─── Priority Storage ─────────────────────────────────────────────────────────
 
 function priorityStorageKey(): string {
   const d = new Date();
@@ -96,7 +91,7 @@ function reasonToType(reason: string): "pwd" | "senior" | "both" | null {
   return null;
 }
 
-// ─── Priority detection from account data ─────────────────────────────────────
+// ─── Priority detection ───────────────────────────────────────────────────────
 
 function calcAge(dob?: string): number | null {
   if (!dob) return null;
@@ -158,8 +153,6 @@ const formatQueueDate = (s: string) => {
 function toDisplayItem(qi: BackendQueueItem, priorityMap: Map<number, string>): DisplayItem {
   const cfg          = getDocumentConfig(qi.document_type);
   const storedReason = priorityMap.get(qi.id);
-
-  // Prefer stored reason, then fall back to flags directly on the queue item
   const priorityType = storedReason
     ? reasonToType(storedReason)
     : detectPriorityType(qi.pwd_status, qi.date_of_birth, qi.is_senior, qi.is_pwd);
@@ -194,33 +187,12 @@ function LiveClock() {
 }
 
 // ─── Priority Dot ─────────────────────────────────────────────────────────────
-// Small, unobtrusive — just a colored dot + short label. No loud badge.
 
 function PriorityDot({ type }: { type: "pwd" | "senior" | "both" }) {
   const cfg = PRIORITY_CONFIG[type];
   return (
-    <span
-      style={{
-        display:     "inline-flex",
-        alignItems:  "center",
-        gap:         4,
-        fontSize:    9,
-        fontWeight:  600,
-        letterSpacing: "0.05em",
-        textTransform: "uppercase",
-        color:       cfg.textColor,
-      }}
-    >
-      <span
-        style={{
-          width:        7,
-          height:       7,
-          borderRadius: "50%",
-          background:   cfg.dot,
-          flexShrink:   0,
-          display:      "inline-block",
-        }}
-      />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: cfg.textColor }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.dot, flexShrink: 0, display: "inline-block" }} />
       {cfg.label}
     </span>
   );
@@ -230,17 +202,7 @@ function PriorityDot({ type }: { type: "pwd" | "senior" | "both" }) {
 
 function ReleasedBadge() {
   return (
-    <span
-      style={{
-        padding:      "2px 10px",
-        borderRadius: 99,
-        fontSize:     11,
-        fontWeight:   500,
-        background:   "#EAF3DE",
-        color:        "#27500A",
-        whiteSpace:   "nowrap",
-      }}
-    >
+    <span style={{ padding: "2px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500, background: "#EAF3DE", color: "#27500A", whiteSpace: "nowrap" }}>
       RELEASED
     </span>
   );
@@ -256,15 +218,7 @@ function getServiceSubLabel(item: DisplayItem): string {
   return item.businessName ?? item.establishment ?? "";
 }
 
-function ReleaseCard({
-  item,
-  position,
-  isServing,
-}: {
-  item: DisplayItem;
-  position: number;
-  isServing: boolean;
-}) {
+function ReleaseCard({ item, position, isServing }: { item: DisplayItem; position: number; isServing: boolean }) {
   const sub              = getServiceSubLabel(item);
   const queueDateDisplay = item.queueDate ? formatQueueDate(item.queueDate) : "";
   const p                = item.priorityType;
@@ -273,76 +227,43 @@ function ReleaseCard({
   return (
     <div
       style={{
-        background:   isServing ? "#fff" : "var(--color-background-secondary,#f5f5f3)",
-        border:       isServing
-          ? "1.5px solid #3B6D11"
-          : priorityCfg
-            ? `1.5px solid ${priorityCfg.border}`   // colored border, no bg change
-            : "0.5px solid rgba(0,0,0,0.10)",
-        borderRadius: 12,
-        padding:      "14px 12px",
-        textAlign:    "center",
-        display:      "flex",
-        flexDirection:"column",
+        background:    isServing ? "#fff" : "var(--color-background-secondary,#f5f5f3)",
+        border:        isServing ? "1.5px solid #3B6D11" : priorityCfg ? `1.5px solid ${priorityCfg.border}` : "0.5px solid rgba(0,0,0,0.10)",
+        borderRadius:  12,
+        padding:       "14px 12px",
+        textAlign:     "center",
+        display:       "flex",
+        flexDirection: "column",
         gap:           5,
-        alignItems:   "center",
-        transition:   "border 0.2s",
+        alignItems:    "center",
+        transition:    "border 0.2s",
       }}
     >
-      {/* Position bubble */}
       <div
         style={{
-          width:           22,
-          height:          22,
-          borderRadius:    "50%",
-          background:      isServing
-            ? "#3B6D11"
-            : priorityCfg
-              ? priorityCfg.dot
-              : "var(--color-background-primary,#fff)",
-          border:          "0.5px solid rgba(0,0,0,0.12)",
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "center",
-          fontSize:        10,
-          fontWeight:      600,
-          color:           isServing || priorityCfg ? "#fff" : "var(--color-text-secondary)",
+          width: 22, height: 22, borderRadius: "50%",
+          background:     isServing ? "#3B6D11" : priorityCfg ? priorityCfg.dot : "var(--color-background-primary,#fff)",
+          border:         "0.5px solid rgba(0,0,0,0.12)",
+          display:        "flex", alignItems: "center", justifyContent: "center",
+          fontSize:       10, fontWeight: 600,
+          color:          isServing || priorityCfg ? "#fff" : "var(--color-text-secondary)",
         }}
       >
         {isServing ? "▶" : position}
       </div>
 
-      {/* Ref number */}
-      <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3 }}>
-        {item.refNumber}
-      </div>
+      <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.3 }}>{item.refNumber}</div>
 
-      {/* Applicant name */}
       {(item.firstName || item.surname) && (
         <div style={{ fontSize: 11, color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
           {getDisplayName(item)}
         </div>
       )}
 
-      {/* Service type pill */}
-      <div
-        style={{
-          fontSize:       10,
-          fontWeight:     500,
-          padding:        "2px 8px",
-          borderRadius:   99,
-          background:     item.serviceBg,
-          color:          item.serviceColor,
-          overflow:       "hidden",
-          textOverflow:   "ellipsis",
-          whiteSpace:     "nowrap",
-          maxWidth:       "100%",
-        }}
-      >
+      <div style={{ fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: item.serviceBg, color: item.serviceColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
         {item.serviceLabel}
       </div>
 
-      {/* Business / establishment */}
       {sub && (
         <div style={{ fontSize: 10, color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
           {sub}
@@ -350,18 +271,14 @@ function ReleaseCard({
       )}
 
       <ReleasedBadge />
-
-      {/* Priority dot — only shows if PWD / Senior / both */}
       {p && <PriorityDot type={p} />}
 
-      {/* Queue date */}
       {queueDateDisplay && (
         <div style={{ fontSize: 9, color: isServing ? "#3B6D11" : "var(--color-text-tertiary)", marginTop: 2, fontWeight: isServing ? 500 : 400 }}>
           📅 Queued: {queueDateDisplay}
         </div>
       )}
 
-      {/* Released date */}
       {item.releasedDate && (
         <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>
           ✓ Released: {item.releasedDate}
@@ -373,27 +290,22 @@ function ReleaseCard({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function QueueDisplay({
-  pollInterval  = POLL_MS,
-  enrichDetails = true,
-}: QueueDisplayProps) {
+export function QueueDisplay({ pollInterval = POLL_MS, enrichDetails = true }: QueueDisplayProps) {
   const [nowServing, setNowServing] = useState<DisplayItem | null>(null);
   const [upNext,     setUpNext]     = useState<DisplayItem[]>([]);
   const [flash,      setFlash]      = useState(false);
-  const [todayDate,  setTodayDate]  = useState(new Date().toDateString());
-  const prevRefRef   = useRef<string | null>(null);
-  // Re-read localStorage on every poll so display stays in sync with QueueControl
+  const prevRefRef     = useRef<string | null>(null);
   const priorityMapRef = useRef<Map<number, string>>(loadPriorityMap());
 
   const allItems = nowServing ? [nowServing, ...upNext] : upNext;
 
   const load = useCallback(async () => {
-    // Refresh priority map each poll cycle
     priorityMapRef.current = loadPriorityMap();
     const priorityMap = priorityMapRef.current;
 
     try {
-      const res = await api.get("api/queue");
+      // ✅ FIXED: removed duplicate "api/" prefix — api instance baseURL already includes /api/
+      const res = await api.get("queue");
       const payload = res.data?.data;
       let items: BackendQueueItem[] = Array.isArray(payload)
         ? payload
@@ -403,18 +315,23 @@ export function QueueDisplay({
             ? res.data
             : [];
 
-      // Today only
-      const today = new Date().toDateString();
-      items = items.filter(i => new Date(i.queue_date).toDateString() === today);
+      // Today only — compare date parts only to avoid UTC timezone issues
+      const now = new Date();
+      const todayY = now.getFullYear();
+      const todayM = now.getMonth();
+      const todayD = now.getDate();
 
-      // Split serving / waiting
+      items = items.filter(i => {
+        const d = new Date(i.queue_date);
+        return d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD;
+      });
+
       const rawServing = items.find(i => i.status === "serving") ?? null;
       const rawWaiting = items.filter(i => i.status === "waiting").sort((a, b) => a.id - b.id);
 
       let serving: DisplayItem | null = rawServing ? toDisplayItem(rawServing, priorityMap) : null;
       let waiting: DisplayItem[]      = rawWaiting.map(i => toDisplayItem(i, priorityMap));
 
-      // Enrich: fetch applicant details + fill in priority via user lookup if needed
       if (enrichDetails && (serving || waiting.length > 0)) {
         const all = [...(serving ? [serving] : []), ...waiting];
         const raw = [...(rawServing ? [rawServing] : []), ...rawWaiting];
@@ -423,13 +340,12 @@ export function QueueDisplay({
           all.map(async (item, idx) => {
             const qi = raw[idx];
             try {
-              // Build endpoint from document type
+              // ✅ FIXED: removed duplicate "api/" prefix
               const collection = item.documentType.replace(/_/g, "-") + "s";
-              const docRes = await api.get(`api/${collection}/${item.documentId}`);
+              const docRes = await api.get(`${collection}/${item.documentId}`);
               const doc    = docRes.data?.data ?? docRes.data;
 
               if (doc) {
-                // Resolve priority: stored map > inline flags > user lookup
                 let pt = item.priorityType;
                 if (!pt) {
                   pt = detectPriorityType(doc.pwd_status, doc.date_of_birth, doc.is_senior, doc.is_pwd);
@@ -440,13 +356,13 @@ export function QueueDisplay({
 
                 return {
                   ...item,
-                  firstName:    doc.first_name,
-                  middleName:   doc.middle_name,
-                  surname:      doc.surname,
-                  businessName: doc.business_name ?? doc.establishment ?? null,
-                  businessType: doc.business_type ?? null,
-                  establishment:doc.establishment ?? null,
-                  releasedDate: doc.released_at || doc.updated_at
+                  firstName:     doc.first_name,
+                  middleName:    doc.middle_name,
+                  surname:       doc.surname,
+                  businessName:  doc.business_name ?? doc.establishment ?? null,
+                  businessType:  doc.business_type ?? null,
+                  establishment: doc.establishment ?? null,
+                  releasedDate:  doc.released_at || doc.updated_at
                     ? formatDate(doc.released_at ?? doc.updated_at)
                     : undefined,
                   priorityType: pt,
@@ -467,7 +383,6 @@ export function QueueDisplay({
         }
       }
 
-      // Flash when now-serving changes
       const newRef = serving?.refNumber ?? null;
       if (newRef !== prevRefRef.current) {
         setFlash(true);
@@ -477,7 +392,6 @@ export function QueueDisplay({
 
       setNowServing(serving);
       setUpNext(waiting);
-      setTodayDate(today);
     } catch (e) {
       console.error("[QueueDisplay] load error", e);
     }
@@ -489,74 +403,32 @@ export function QueueDisplay({
     return () => clearInterval(id);
   }, [load, pollInterval]);
 
-  // ── Derived ───────────────────────────────────────────────────────────────
-
   const totalInQueue = allItems.length;
-
   const breakdown: Record<string, number> = {};
   for (const item of allItems) {
     breakdown[item.serviceLabel] = (breakdown[item.serviceLabel] ?? 0) + 1;
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
-    <div
-      style={{
-        fontFamily: "var(--font-sans,system-ui)",
-        color:      "var(--color-text-primary,#111)",
-        padding:    20,
-        display:    "flex",
-        flexDirection: "column",
-        gap:        16,
-        minHeight:  "100vh",
-        background: "var(--color-background-tertiary,#f5f5f3)",
-      }}
-    >
-      {/* ── Top bar ── */}
-      <div
-        style={{
-          display:        "flex",
-          alignItems:     "center",
-          justifyContent: "space-between",
-          padding:        "12px 20px",
-          background:     "var(--color-background-primary,#fff)",
-          border:         "0.5px solid rgba(0,0,0,0.12)",
-          borderRadius:   12,
-        }}
-      >
+    <div style={{ fontFamily: "var(--font-sans,system-ui)", color: "var(--color-text-primary,#111)", padding: 20, display: "flex", flexDirection: "column", gap: 16, minHeight: "100vh", background: "var(--color-background-tertiary,#f5f5f3)" }}>
+
+      {/* Top bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "var(--color-background-primary,#fff)", border: "0.5px solid rgba(0,0,0,0.12)", borderRadius: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3B6D11", display: "inline-block" }} />
-          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-secondary)" }}>
-            Dry Seal Release · Live
-          </span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-secondary)" }}>Dry Seal Release · Live</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>
             {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
           </span>
-          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-secondary)" }}>
-            <LiveClock />
-          </span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-secondary)" }}><LiveClock /></span>
         </div>
       </div>
 
-      {/* ── Priority legend — compact, one line ── */}
-      <div
-        style={{
-          display:    "flex",
-          alignItems: "center",
-          gap:        16,
-          padding:    "8px 16px",
-          background: "var(--color-background-primary,#fff)",
-          border:     "0.5px solid rgba(0,0,0,0.10)",
-          borderRadius: 10,
-          flexWrap:   "wrap",
-        }}
-      >
-        <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary)" }}>
-          Priority
-        </span>
+      {/* Priority legend */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 16px", background: "var(--color-background-primary,#fff)", border: "0.5px solid rgba(0,0,0,0.10)", borderRadius: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary)" }}>Priority</span>
         {(["pwd", "senior", "both"] as const).map(type => {
           const cfg = PRIORITY_CONFIG[type];
           return (
@@ -568,33 +440,12 @@ export function QueueDisplay({
         })}
       </div>
 
-      {/* ── Now Serving ── */}
-      <div
-        style={{
-          background:   "var(--color-background-primary,#fff)",
-          border:       "0.5px solid rgba(0,0,0,0.12)",
-          borderRadius: 16,
-          padding:      "52px 32px 48px",
-          textAlign:    "center",
-          flex:         "0 0 auto",
-        }}
-      >
+      {/* Now Serving */}
+      <div style={{ background: "var(--color-background-primary,#fff)", border: "0.5px solid rgba(0,0,0,0.12)", borderRadius: 16, padding: "52px 32px 48px", textAlign: "center", flex: "0 0 auto" }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 20 }}>
           Now Serving
         </div>
-
-        <div
-          style={{
-            fontSize:   "clamp(96px, 20vw, 180px)",
-            fontWeight: 700,
-            lineHeight: 1,
-            letterSpacing: -6,
-            color:      "var(--color-text-primary,#111)",
-            transition: "opacity 0.18s, transform 0.18s",
-            opacity:    flash ? 0.15 : 1,
-            transform:  flash ? "scale(0.97)" : "scale(1)",
-          }}
-        >
+        <div style={{ fontSize: "clamp(96px, 20vw, 180px)", fontWeight: 700, lineHeight: 1, letterSpacing: -6, color: "var(--color-text-primary,#111)", transition: "opacity 0.18s, transform 0.18s", opacity: flash ? 0.15 : 1, transform: flash ? "scale(0.97)" : "scale(1)" }}>
           {nowServing?.refNumber ?? "---"}
         </div>
 
@@ -605,22 +456,8 @@ export function QueueDisplay({
                 {nowServing.serviceLabel}
               </span>
               <ReleasedBadge />
-              {/* Priority indicator next to the serving number — unobtrusive */}
               {nowServing.priorityType && (
-                <span
-                  style={{
-                    padding:      "6px 14px",
-                    borderRadius: 99,
-                    fontSize:     13,
-                    fontWeight:   600,
-                    background:   "var(--color-background-secondary,#f5f5f3)",
-                    color:        PRIORITY_CONFIG[nowServing.priorityType].textColor,
-                    border:       `1px solid ${PRIORITY_CONFIG[nowServing.priorityType].border}`,
-                    display:      "flex",
-                    alignItems:   "center",
-                    gap:          6,
-                  }}
-                >
+                <span style={{ padding: "6px 14px", borderRadius: 99, fontSize: 13, fontWeight: 600, background: "var(--color-background-secondary,#f5f5f3)", color: PRIORITY_CONFIG[nowServing.priorityType].textColor, border: `1px solid ${PRIORITY_CONFIG[nowServing.priorityType].border}`, display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_CONFIG[nowServing.priorityType].dot, display: "inline-block" }} />
                   {PRIORITY_CONFIG[nowServing.priorityType].label}
                 </span>
@@ -647,7 +484,7 @@ export function QueueDisplay({
         )}
       </div>
 
-      {/* ── Service breakdown strip ── */}
+      {/* Service breakdown strip */}
       {Object.keys(breakdown).length > 0 && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {Object.entries(DOCUMENT_TYPE_CONFIG).map(([type, cfg]) =>
@@ -655,45 +492,18 @@ export function QueueDisplay({
               <div key={type} style={{ padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 500, background: "var(--color-background-primary,#fff)", border: "0.5px solid rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block", flexShrink: 0 }} />
                 <span style={{ color: "var(--color-text-secondary)" }}>{cfg.label}</span>
-                <span style={{ padding: "1px 8px", borderRadius: 99, fontSize: 12, background: cfg.bg, color: cfg.color, fontWeight: 600 }}>
-                  {breakdown[cfg.label]}
-                </span>
+                <span style={{ padding: "1px 8px", borderRadius: 99, fontSize: 12, background: cfg.bg, color: cfg.color, fontWeight: 600 }}>{breakdown[cfg.label]}</span>
               </div>
             ) : null
           )}
         </div>
       )}
 
-      {/* ── Queue grid ── */}
-      <div
-        style={{
-          background:   "var(--color-background-primary,#fff)",
-          border:       "0.5px solid rgba(0,0,0,0.12)",
-          borderRadius: 16,
-          padding:      20,
-        }}
-      >
-        <div
-          style={{
-            display:        "flex",
-            alignItems:     "center",
-            justifyContent: "space-between",
-            paddingBottom:  14,
-            marginBottom:   16,
-            borderBottom:   "0.5px solid rgba(0,0,0,0.10)",
-          }}
-        >
+      {/* Queue grid */}
+      <div style={{ background: "var(--color-background-primary,#fff)", border: "0.5px solid rgba(0,0,0,0.12)", borderRadius: 16, padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14, marginBottom: 16, borderBottom: "0.5px solid rgba(0,0,0,0.10)" }}>
           <span style={{ fontSize: 16, fontWeight: 500 }}>Awaiting Dry Seal</span>
-          <span
-            style={{
-              padding:      "4px 12px",
-              borderRadius: 99,
-              fontSize:     12,
-              fontWeight:   500,
-              background:   totalInQueue > 0 ? "#EAF3DE" : "var(--color-background-secondary,#f5f5f3)",
-              color:        totalInQueue > 0 ? "#27500A" : "var(--color-text-tertiary)",
-            }}
-          >
+          <span style={{ padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 500, background: totalInQueue > 0 ? "#EAF3DE" : "var(--color-background-secondary,#f5f5f3)", color: totalInQueue > 0 ? "#27500A" : "var(--color-text-tertiary)" }}>
             {totalInQueue} in queue
           </span>
         </div>
@@ -703,20 +513,9 @@ export function QueueDisplay({
             No documents awaiting dry seal for today
           </div>
         ) : (
-          <div
-            style={{
-              display:             "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap:                 12,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
             {allItems.map((item, i) => (
-              <ReleaseCard
-                key={item.queueId}
-                item={item}
-                position={i + 1}
-                isServing={item.queueStatus === "serving"}
-              />
+              <ReleaseCard key={item.queueId} item={item} position={i + 1} isServing={item.queueStatus === "serving"} />
             ))}
           </div>
         )}

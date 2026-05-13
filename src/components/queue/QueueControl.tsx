@@ -165,7 +165,6 @@ async function fetchUserById(id: number): Promise<FullAccount | null> {
     const res = await fetch(`${USER_API_BASE}/${id}`);
     if (!res.ok) return null;
     const json = await res.json();
-    // accept either { data: FullAccount } or FullAccount directly
     return (json?.data ?? json) as FullAccount;
   } catch (e) {
     console.warn("[QueueControl] fetchUserById failed", e);
@@ -174,7 +173,6 @@ async function fetchUserById(id: number): Promise<FullAccount | null> {
 }
 
 
-// localStorage key namespaced by date so it auto-resets each day
 function priorityStorageKey(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -186,8 +184,7 @@ function priorityStorageKey(): string {
 
 function loadPriorityIds(): Set<number> {
   try {
-    const d = new Date();
-    const key = `queue_priority_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const key = priorityStorageKey();
     const raw = localStorage.getItem(key);
     if (!raw) return new Set();
     return new Set(JSON.parse(raw) as number[]);
@@ -201,7 +198,6 @@ function savePriorityIds(ids: Set<number>) {
   try {
     const key = priorityStorageKey();
     localStorage.setItem(key, JSON.stringify(Array.from(ids)));
-    // clean up keys from previous days
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("queue_priority_") && k !== key) {
@@ -216,7 +212,7 @@ function savePriorityIds(ids: Set<number>) {
 
 
 async function fetchQueueItems(priorityIds: Set<number>): Promise<DisplayQueueItem[]> {
-  const queueRes = await api.get("api/queue");
+  const queueRes = await api.get("queue");
   const rawData = queueRes.data?.data;
   let queueItems: QueueItem[] = Array.isArray(rawData)
     ? rawData
@@ -252,7 +248,6 @@ async function fetchQueueItems(priorityIds: Set<number>): Promise<DisplayQueueIt
 }
 
 
-// Sort: serving stays put, then waiting (priority first by queueId, then normal by queueId), then done
 function sortQueueWithPriority(items: DisplayQueueItem[]): DisplayQueueItem[] {
   const serving = items.filter(i => i.queueStatus === "serving");
   const waitingPriority = items
@@ -462,12 +457,13 @@ function QRScannerModal({ onClose, onScanSuccess }: {
 
 // ─── Manual Add Modal Component ───────────────────────────────────────────────
 
-
+// onPriorityAssign returns the updated priority Set (or null if not priority)
+// onRefresh now accepts that updated Set so load() uses the right IDs immediately
 function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
   onClose: () => void;
   onAdd: () => void;
-  onRefresh: () => void;
-  onPriorityAssign: (queueId: number, createdBy: number) => Promise<void>;
+  onRefresh: (updatedPriorityIds?: Set<number>) => void;
+  onPriorityAssign: (queueId: number, createdBy: number) => Promise<Set<number> | null>;
 }) {
   const [documentType, setDocumentType] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -483,14 +479,12 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
       return;
     }
 
-
     setSearching(true);
     setError(null);
     setSearchResult(null);
 
-
     try {
-      const res = await api.get("api/queue/search-bcert", {
+      const res = await api.get("queue/search-bcert", {
         params: {
           document_type: documentType,
           bcert_number: referenceNumber,
@@ -518,35 +512,35 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
   const handleAdd = async () => {
     if (!searchResult) return;
 
-
     setAdding(true);
     setError(null);
 
-
     try {
-      const addRes = await api.post("api/queue/manual-add", {
+      const addRes = await api.post("queue/manual-add", {
         document_type: documentType,
         document_id: searchResult.id,
         reference_number: searchResult.reference_number,
         force: searchResult.already_in_queue || searchResult.already_done
       });
 
-      // Try to assign priority if creator info is available
       const newQueueId: number | undefined =
         addRes.data?.data?.id ?? addRes.data?.id ?? addRes.data?.data?.queue_id;
       const createdBy: number | undefined =
         searchResult.created_by ?? addRes.data?.data?.created_by;
 
+      // Run priority check first, get the updated set back synchronously
+      let updatedPriorityIds: Set<number> | null = null;
       if (newQueueId && createdBy) {
         try {
-          await onPriorityAssign(newQueueId, createdBy);
+          updatedPriorityIds = await onPriorityAssign(newQueueId, createdBy);
         } catch (e) {
           console.warn("[ManualAdd] priority assignment failed (non-blocking)", e);
         }
       }
 
       onAdd();
-      onRefresh();
+      // Pass updated priority IDs so load() uses them immediately, no race condition
+      onRefresh(updatedPriorityIds ?? undefined);
       onClose();
     } catch (err: any) {
       if (err.response?.status === 409) {
@@ -585,7 +579,6 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
         </div>
         <div style={{ height: 3, backgroundColor: "#c2467d" }} />
 
-
         <div className="p-6 space-y-5">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Document Type</label>
@@ -605,7 +598,6 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
               ))}
             </select>
           </div>
-
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>Reference Number</label>
@@ -633,14 +625,12 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
             </div>
           </div>
 
-
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-lg" style={{ backgroundColor: "#FCEBEB", border: "1px solid #A32D2D" }}>
               <AlertTriangle className="w-4 h-4" style={{ color: "#A32D2D" }} />
               <span className="text-sm" style={{ color: "#A32D2D" }}>{error}</span>
             </div>
           )}
-
 
           {searchResult && (
             <>
@@ -661,7 +651,6 @@ function ManualAddModal({ onClose, onAdd, onRefresh, onPriorityAssign }: {
                   </p>
                 )}
               </div>
-
 
               <button
                 onClick={handleAdd}
@@ -694,7 +683,7 @@ export function QueueControl() {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [todayDate, setTodayDate] = useState(new Date().toDateString());
   const [priorityIds, setPriorityIds] = useState<Set<number>>(() => loadPriorityIds());
-  // ref so that callbacks always read the latest priority set
+  // ref so that polling interval always reads the latest priority set
   const priorityIdsRef = useRef<Set<number>>(priorityIds);
   useEffect(() => { priorityIdsRef.current = priorityIds; }, [priorityIds]);
 
@@ -711,9 +700,12 @@ export function QueueControl() {
   }, []);
 
 
-  const load = useCallback(async () => {
+  // Accepts an optional override so callers can pass a freshly-built priority
+  // set rather than waiting for React state to propagate (avoids race condition).
+  const load = useCallback(async (overridePriorityIds?: Set<number>) => {
     try {
-      const items = await fetchQueueItems(priorityIdsRef.current);
+      const ids = overridePriorityIds ?? priorityIdsRef.current;
+      const items = await fetchQueueItems(ids);
       const sorted = sortQueueWithPriority(items);
       const serving = sorted.find(item => item.queueStatus === "serving") || null;
 
@@ -727,22 +719,22 @@ export function QueueControl() {
   }, [addLog]);
 
 
-  // Shared priority-check helper used by both QR scan and Manual Add flows.
-  // Looks up the user account, evaluates PWD/Senior, and marks the queue item.
+  // Returns the updated Set so callers can immediately pass it to load(),
+  // sidestepping the React setState async delay.
   const assignPriorityIfEligible = useCallback(
-    async (queueId: number, createdBy: number) => {
+    async (queueId: number, createdBy: number): Promise<Set<number> | null> => {
       const account = await fetchUserById(createdBy);
       const { priority, reason } = isPriorityUser(account);
       if (priority) {
-        setPriorityIds((prev) => {
-          const next = new Set(prev);
-          next.add(queueId);
-          savePriorityIds(next);
-          return next;
-        });
+        const next = new Set(priorityIdsRef.current);
+        next.add(queueId);
+        savePriorityIds(next);
+        setPriorityIds(next);
         showToast(`Priority — ${reason} (moved to front)`);
         addLog(`Priority assigned: queue #${queueId} (${reason})`, "success");
+        return next;
       }
+      return null;
     },
     [addLog, showToast]
   );
@@ -787,7 +779,7 @@ export function QueueControl() {
         return;
       }
 
-      const searchRes = await api.get("api/queue/search-bcert", {
+      const searchRes = await api.get("queue/search-bcert", {
         params: {
           document_type: documentType,
           bcert_number: referenceNumber,
@@ -802,7 +794,7 @@ export function QueueControl() {
           showToast(`Document ${doc.reference_number} is already in queue`, false);
           addLog(`QR Scan: ${doc.reference_number} already in queue`, "warn");
         } else {
-          const addRes = await api.post("api/queue/manual-add", {
+          const addRes = await api.post("queue/manual-add", {
             document_type: documentType,
             document_id: doc.id,
             reference_number: doc.reference_number,
@@ -812,21 +804,23 @@ export function QueueControl() {
           showToast(`Added ${doc.reference_number} to queue`);
           addLog(`QR Scan: Added ${doc.reference_number} (${doc.applicant_name}) to queue`, "success");
 
-          // Priority lookup — non-blocking, won't fail the add
           const newQueueId: number | undefined =
             addRes.data?.data?.id ?? addRes.data?.id ?? addRes.data?.data?.queue_id;
           const createdBy: number | undefined = doc.created_by ?? addRes.data?.data?.created_by;
 
+          // Run priority check first, capture the returned set, then reload with it
+          let updatedPriorityIds: Set<number> | null = null;
           if (newQueueId && createdBy) {
             try {
-              await assignPriorityIfEligible(newQueueId, createdBy);
+              updatedPriorityIds = await assignPriorityIfEligible(newQueueId, createdBy);
             } catch (e) {
               console.warn("[QueueControl] priority lookup failed (non-blocking)", e);
               addLog("Priority lookup failed", "warn");
             }
           }
 
-          await load();
+          // Pass updated IDs directly so the re-render reflects priority immediately
+          await load(updatedPriorityIds ?? undefined);
         }
       }
     } catch (err: any) {
@@ -849,15 +843,13 @@ export function QueueControl() {
 
     setBusy(true);
     try {
-      const res = await api.post("api/queue/next");
-
+      const res = await api.post("queue/next");
 
       if (res.data?.status === "empty") {
         showToast("No more items in queue", false);
         addLog("Reached end of queue", "warn");
         return;
       }
-
 
       const nextQueueItem = res.data?.data;
       showToast(`Now serving: ${nextQueueItem.reference_number}`);
@@ -876,8 +868,7 @@ export function QueueControl() {
   async function handleDone(item: DisplayQueueItem) {
     setBusy(true);
     try {
-      await api.post(`api/queue/${item.queueId}/done`);
-
+      await api.post(`queue/${item.queueId}/done`);
 
       showToast(`${item.refNumber} — dry seal released`);
       addLog(`${item.refNumber} (${item.serviceLabel}) seal released`, "success");
@@ -920,7 +911,6 @@ export function QueueControl() {
         </div>
       )}
 
-
       {showManualAdd && (
         <ManualAddModal
           onClose={() => setShowManualAdd(false)}
@@ -933,14 +923,12 @@ export function QueueControl() {
         />
       )}
 
-
       {showQRScanner && (
         <QRScannerModal
           onClose={() => setShowQRScanner(false)}
           onScanSuccess={handleQRScan}
         />
       )}
-
 
       <div className="w-full max-w-7xl mx-auto my-24 px-4">
         <div className="bg-white overflow-hidden" style={{ borderRadius: 4, boxShadow: "0 2px 40px rgba(10,20,60,0.15)", border: "1px solid #dde3ed" }}>
@@ -955,7 +943,6 @@ export function QueueControl() {
             </div>
           </div>
           <div style={{ height: 3, backgroundColor: "#c2467d" }} />
-
 
           <div className="p-8">
             {/* Control Bar */}
@@ -995,11 +982,10 @@ export function QueueControl() {
               </div>
             </div>
 
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Main Queue Panel */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Now Serving Card - WITH MARK AS DONE BUTTON */}
+                {/* Now Serving Card */}
                 <div className="p-8 text-center" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#6b7280" }}>Now Serving</p>
                   <p className="text-7xl font-black font-mono mb-4" style={{ color: "#0f2a5e" }}>{servingItem?.refNumber ?? "---"}</p>
@@ -1018,8 +1004,6 @@ export function QueueControl() {
                       {servingItem.businessName && (
                         <p className="text-xs" style={{ color: "#6b7280" }}>{servingItem.businessName}</p>
                       )}
-
-                      {/* ✅ MARK AS DONE BUTTON FOR SERVING ITEM */}
                       <button
                         onClick={() => handleDone(servingItem)}
                         disabled={busy}
@@ -1032,7 +1016,6 @@ export function QueueControl() {
                     </div>
                   )}
                 </div>
-
 
                 {/* Queue List */}
                 <div>
@@ -1085,7 +1068,6 @@ export function QueueControl() {
                             <span className="px-2 py-1 text-xs rounded-full" style={{ backgroundColor: DOCUMENT_TYPE_LABELS[item.documentType]?.bg || "#F1EFE8", color: DOCUMENT_TYPE_LABELS[item.documentType]?.color || "#5F5E5A" }}>
                               {item.serviceLabel}
                             </span>
-                            {/* Mark as Done button for waiting items (not serving) */}
                             {!isServing && item.queueStatus === "waiting" && (
                               <button
                                 onClick={() => handleDone(item)}
@@ -1102,7 +1084,6 @@ export function QueueControl() {
                   </div>
                 </div>
               </div>
-
 
               {/* Right Panel */}
               <div className="space-y-6">
@@ -1127,7 +1108,6 @@ export function QueueControl() {
                   </div>
                 </div>
 
-
                 {/* Service Breakdown */}
                 <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
                   <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "#0f2a5e" }}>By Service</p>
@@ -1146,7 +1126,6 @@ export function QueueControl() {
                     )}
                   </div>
                 </div>
-
 
                 {/* Up Next */}
                 <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
@@ -1167,7 +1146,6 @@ export function QueueControl() {
                     )}
                   </div>
                 </div>
-
 
                 {/* Activity Log */}
                 <div className="p-4" style={{ backgroundColor: "#f8faff", border: "1px solid #e5e7eb", borderRadius: 4 }}>
